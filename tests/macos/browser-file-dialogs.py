@@ -8,6 +8,7 @@ unlocked VirtualMac. Reaps its browser/profile/server even on a failed action.
 import argparse
 import concurrent.futures
 import hashlib
+import html
 import importlib.util
 import json
 import os
@@ -46,13 +47,19 @@ def main():
     parser.add_argument('--remote-arming', action='store_true', help='Exercise standing consent and browser recovery faults')
     parser.add_argument('--disposable-workspace', action='store_true')
     parser.add_argument('--covered-recovery', action='store_true')
+    parser.add_argument('--covered-probe', action='store_true')
+    parser.add_argument('--covered-duration', type=int, default=0)
+    parser.add_argument('--covered-renewal-seconds', type=int, default=0)
+    parser.add_argument('--model-only', action='store_true')
     parser.add_argument('--trace', type=Path,
-                        help='New private operation timeline; excludes request fields and response payloads')
+                        help='New private operation timeline; includes failure metadata but excludes request fields and response data')
     parser.add_argument('--report', type=Path, help='New private machine-readable summary')
     args = parser.parse_args()
     assert 1 <= args.repeat <= 300 and 0 <= args.soak_seconds <= 1800
     assert not args.faults or args.expected_policy == 'approval'
     assert not args.remote_arming or (args.expected_policy == 'approval' and args.observer_socket)
+    assert args.covered_duration == 0 or (args.covered_recovery and 60 <= args.covered_duration <= 900)
+    assert args.covered_renewal_seconds == 0 or (args.covered_recovery and 120 <= args.covered_renewal_seconds <= 1800)
     rng = random.Random(args.seed)
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).decode().startswith('VirtualMac')
     app = Path.home() / 'mc-cft/chrome-mac-arm64/Google Chrome for Testing.app'
@@ -67,7 +74,8 @@ def main():
     generation = None
     last_native = None
     checks = []
-    effects = {'upload': None, 'text': None, 'clicks': 0}
+    effects = {'upload': None, 'text': None, 'clicks': 0, 'model':None, 'saved':None,
+               'modelClock':(-1,-1), 'modelDocument':0}
     payload = b'Machine Control harmless download fixture\n'
     reports = Path.home() / 'Library/Logs/DiagnosticReports'
     def report_names():
@@ -103,7 +111,9 @@ def main():
                 trace.write(json.dumps({'operation': operation, 'monotonic': started,
                     'durationMs': round((time.monotonic() - started) * 1000),
                     'accepted': result.get('accepted') if result else None,
-                    'errorCode': result.get('errorCode') if result else 'connection_lost'}) + '\n')
+                    'errorCode': result.get('errorCode') if result else 'connection_lost',
+                    'failureDetails': {key: result.get(key) for key in ['message','delivery','effect','uncertainty','actualRoute']}
+                        if result and not result.get('accepted') else None}) + '\n')
                 trace.flush()
         if generation is None:
             generation = result['generation']
@@ -142,6 +152,14 @@ def main():
                 effects['text'] = body.decode()
             elif self.path == '/click':
                 effects['clicks'] += 1
+            elif self.path == '/model-input':
+                update = json.loads(body)
+                clock = (update['document'], update['sequence'])
+                if clock > effects['modelClock']:
+                    effects['modelClock'] = clock
+                    effects['model'] = update['value']
+            elif self.path == '/model-save':
+                effects['saved'] = body.decode()
             self.send_response(204)
             self.end_headers()
 
@@ -155,12 +173,16 @@ def main():
                 self.send_header('Content-Type', 'application/octet-stream')
                 self.send_header('Content-Disposition', 'attachment; filename="fixture.txt"')
             else:
+                effects['modelDocument'] += 1
                 body = '''<!doctype html><meta charset="utf-8"><title>Browser file dialog smoke</title>
 <h1>Browser file dialog smoke</h1><a href="/download">Download fixture</a>
 <button onclick="fetch('/click',{method:'POST'})">Increment</button>
 <input aria-label="Fixture text" oninput="fetch('/text',{method:'POST',body:this.value})">
 <input type="file" aria-label="Upload fixture" onchange="this.files[0].text().then(t=>fetch('/upload',{method:'POST',body:t}))">
-'''.encode()
+<textarea id="model" aria-label="Fixture form value" style="font:18px sans-serif;width:550px;height:180px" oninput="modelValue=this.value;let seq=++modelSequence;clearTimeout(modelSend);modelSend=setTimeout(()=>fetch('/model-input',{method:'POST',body:JSON.stringify({document:modelDocument,sequence:seq,value:modelValue})}),25)">__SAVED__</textarea>
+<button onclick="fetch('/model-save',{method:'POST',body:modelValue})">Save fixture model</button>
+<script>let modelValue=document.getElementById('model').value,modelSequence=0,modelSend=0,modelDocument=__DOCUMENT__;</script>
+'''.replace('__SAVED__', html.escape(effects['saved'] or '')).replace('__DOCUMENT__', str(effects['modelDocument'])).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
@@ -293,7 +315,9 @@ def main():
         def native_button(label):
             found = next((e['reference'] for e in native_elements(label)
                           if e.get('role') == 'AXButton' and e.get('label') == label), None)
-            assert found or not last_native.get('truncated'), 'Panel lookup exceeded its native element budget'
+            # Before the panel appears, the ordinary browser tree may be
+            # depth-truncated. Absence in that partial read is inconclusive;
+            # keep the bounded read-only wait, never act on an inferred button.
             return found
 
         def press(label):
@@ -407,6 +431,16 @@ def main():
             check('browser capture PNG', artifact.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'))
         finally:
             artifact.unlink(missing_ok=True)
+
+        if args.model_only:
+            spec = importlib.util.spec_from_file_location('covered_recovery',args.source_root / 'tests/macos/covered-recovery.py')
+            model = importlib.util.module_from_spec(spec); spec.loader.exec_module(model)
+            model.native_browser(dict(call=call,poll=poll,check=check,browser_pid=browser.pid,tab=tab,url=url,
+                effects=effects,evidence=args.report.parent if args.report else root),'ordinary')
+            if args.report:
+                args.report.write_text(json.dumps({'passed':True,'checks':len(checks),'repeat':0,
+                    'faults':False,'plannedRestarts':0,'modelOnly':True})+'\n')
+            return
 
         upload = root / 'upload fixture.txt'
         upload.write_bytes(payload)
@@ -563,10 +597,21 @@ def main():
             click('Increment')
             poll(lambda: effects['clicks'] == count + 1, 'one fresh post-restart click')
             diagnostics_ui()
-        def restart_armed():
+        def restart_armed(clean=False, use_lifecycle=False):
             nonlocal generation, pid, planned_restarts
             old_generation, old_pid = generation, pid
-            os.kill(pid, signal.SIGKILL)
+            if clean:
+                # After protected Stop the OS is locked. Its native stop-only
+                # lifecycle endpoint remains available without AX or arming.
+                result = (raw('server.stop') if use_lifecycle else
+                    exchange(args.observer_socket, 'application.terminate', target=str(pid), provider='macos-native'))
+                assert result.get('accepted'), 'Clean candidate termination refused'
+                poll(lambda: subprocess.run(['kill', '-0', str(old_pid)], capture_output=True).returncode != 0,
+                     'clean candidate exit', timeout=30)
+                subprocess.run(['launchctl', 'kickstart', 'gui/' + str(os.getuid()) + '/org.machine-control.resident'],
+                               capture_output=True, check=True, timeout=15)
+            else:
+                os.kill(pid, signal.SIGKILL)
             planned_restarts += 1
             generation = None
             def restarted():
@@ -581,14 +626,17 @@ def main():
             call('status')
             return pid
 
+        reliability = None
         if args.remote_arming:
             spec = importlib.util.spec_from_file_location('remote_arming', args.source_root / 'tests/macos/remote-arming.py')
             remote_arming = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(remote_arming)
-            remote_arming.run(dict(raw=raw, call=call, check=check, poll=poll, exchange=exchange,
+            reliability = remote_arming.run(dict(raw=raw, call=call, check=check, poll=poll, exchange=exchange,
                 observer=args.observer_socket, pid=pid, resident=resident, tab=tab, url=url, effects=effects,
+                browser_pid=browser.pid,
                 root=root, source_root=args.source_root, claim=args.claim,
-                disposable=args.disposable_workspace, covered_recovery=args.covered_recovery, restart=restart_armed,
+                disposable=args.disposable_workspace, covered_recovery=args.covered_recovery, covered_probe=args.covered_probe,
+                covered_duration=args.covered_duration, covered_renewal_seconds=args.covered_renewal_seconds, restart=restart_armed,
                 evidence=args.report.parent if args.report else root))
         final = call('status')
         check('resident PID/generation stable outside planned restart', final['processId'] == pid)
@@ -612,6 +660,7 @@ def main():
         summary = {'extensionVersion': json.loads((extension_source / 'manifest.json').read_text())['version'],
             'extensionSha256': extension_digest.hexdigest(), 'passed': True, 'checks': len(checks), 'repeat': index, 'seed': args.seed,
             'plannedRestarts': planned_restarts, 'faults': args.faults, 'remoteArming':args.remote_arming,
+            'reliability':reliability,
             'macOS': subprocess.check_output(['sw_vers', '-productVersion']).decode().strip(),
             'browserVersion': info['CFBundleShortVersionString'],
             'residentSha256': hashlib.sha256(resident.read_bytes()).hexdigest(),

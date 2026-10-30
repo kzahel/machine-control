@@ -12,16 +12,155 @@ import signal
 import select
 import re
 import subprocess
+import sys
 import time
 import uuid
+
+
+def native_fixture(c, phase):
+    call, poll, check = (c[k] for k in ['call', 'poll', 'check'])
+    target = str(c['fixture'].pid)
+    def oracle():
+        value = json.loads(c['fixture_state'].read_text())
+        assert value['pid'] == c['fixture'].pid
+        return value
+    def field():
+        tree = call('snapshot', target=target, provider='macos-native')
+        return next(e for e in tree['elements'] if e.get('identifier') == 'fixture.text')
+    first = phase + ' AX exact value'
+    call('action', reference=field()['reference'], action='set_value', text=first, provider='macos-native')
+    poll(lambda: oracle()['text'] == first, 'independent native AX text effect')
+    assert field().get('value') == first, 'Fresh AX read disagrees with fixture value'
+    call('action', reference=field()['reference'], action='focus', provider='macos-native')
+    call('input.key', target=target, key='cmd-a', provider='macos-native')
+    second = phase + ' keyboard exact value'
+    call('input.text', target=target, text=second, provider='macos-native')
+    try:
+        poll(lambda: oracle()['text'] == second, 'independent native keyboard text effect')
+    except AssertionError:
+        observed = oracle()
+        observed['axValue'] = field().get('value')
+        observed['lockedUse'] = call('status')['lockedUse']
+        path = c['evidence'] / ('native-text-failure-' + phase + '.json')
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
+            json.dump(observed, stream)
+        print('NATIVE_TEXT_FAILURE ' + json.dumps({key:observed.get(key) for key in
+            ['text','editorText','textFocused','keyWindow','applicationActive','keyEventCount','textChangeCount','lastKey','lastKeyFlags']}), flush=True)
+        raise
+    assert field().get('value') == second, 'Fresh AX read disagrees with keyboard effect'
+    before = oracle()
+    bounds = before['surfaceBounds']
+    # Enter, then move within the receiver: an entry or an unchanged cursor
+    # coordinate alone is not a mouseMoved-delivery oracle.
+    call('input.move', target=target, coordinateSpace='global_display_points',
+         x=round(bounds['x'] + 10), y=round(bounds['y'] + 10), provider='macos-native')
+    call('input.move', target=target, coordinateSpace='global_display_points',
+         x=round(bounds['x'] + bounds['width']/2), y=round(bounds['y'] + bounds['height']/2), provider='macos-native')
+    try:
+        poll(lambda: oracle()['mouseMoveCount'] > before['mouseMoveCount'], 'independent synthetic hover effect')
+    except AssertionError:
+        report = {'phase':phase, 'before':before, 'after':oracle(), 'lockedUse':call('status')['lockedUse']}
+        with os.fdopen(os.open(c['evidence']/('hover-failure-'+phase+'.json'),os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as stream:
+            json.dump(report,stream)
+        print('HOVER_FAILURE '+json.dumps(report),flush=True)
+        raise
+    if phase == 'covered':
+        assert c['fresh_status']()['lockedUse']['phase'] == 'active', 'Synthetic hover incorrectly triggered takeover'
+    check(phase + ' AX/text readback and synthetic hover agree without cycling owners')
+
+
+
+def native_browser(c, phase):
+    """One native write, application-model event, save, and full-reload oracle."""
+    call, poll, check = (c[k] for k in ['call', 'poll', 'check'])
+    target = str(c['browser_pid'])
+    tab = c.get('browser_tab', c['tab'])
+    c['model_trial'] = c.get('model_trial', 0) + 1
+    marker = phase + ' revision ' + str(c['model_trial']) + ' verified'
+    expected = marker + '\n' + ('Long form café 日本語 Ω typed through native events.\n' * 35) + marker
+    call('browser.navigate', tabId=tab, url=c['url'])
+    # Existing-tab navigation is intentionally background-only. A native-input
+    # trial must explicitly present its own tab, and remove prior CDP focus
+    # emulation so DOM focus is independent evidence of real native targeting.
+    call('browser.cdp',tabId=tab,method='Emulation.setFocusEmulationEnabled',params={'enabled':False})
+    call('browser.cdp',tabId=tab,method='Page.bringToFront',allowForeground=True)
+    assert next(t for t in call('browser.tabs')['tabs'] if t['tabId'] == tab)['active']
+    call('application.activate', target=target, provider='macos-native')
+    def element(label, role):
+        def observe():
+            tree = call('snapshot', target=target, provider='macos-native', maxDepth=35, maxElements=2000)
+            rows = [e for e in tree['elements'] if e.get('label') == label and e.get('role') == role]
+            assert len(rows) <= 1, ('Ambiguous fixture field', label, len(rows))
+            return rows[0] if rows else None
+        try:
+            return poll(observe, 'native browser field ' + label, timeout=20)
+        except AssertionError:
+            report = {'phase':phase,'label':label,
+                'nativeFixture':json.loads(c['fixture_state'].read_text()) if 'fixture_state' in c else None,
+                'native':call('snapshot',target=target,provider='macos-native',maxDepth=35,maxElements=2000),
+                'dom':call('browser.eval',tabId=tab,expression="({focused:document.hasFocus(),visible:document.visibilityState,active:document.activeElement?.id})"),
+                'tabs':call('browser.tabs')}
+            with os.fdopen(os.open(c['evidence']/('browser-field-failure-'+phase+'.json'),os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as stream:
+                json.dump(report,stream)
+            raise
+    field = element('Fixture form value', 'AXTextArea')
+    call('action', reference=field['reference'], action='focus', provider='macos-native')
+    focus_before = call('browser.eval',tabId=tab,expression="({focused:document.hasFocus(),visible:document.visibilityState,active:document.activeElement?.id})")
+    assert focus_before.get('value',{}).get('focused') is True, 'Native field focus is not reflected by the actual page'
+    assert focus_before['value']['active'] == 'model', 'Native AX focus did not reach the exact owned form field'
+    print('NATIVE_FORM_FOCUS '+json.dumps({'phase':phase,'pageFocused':True,
+        'expectedFieldFocused':True,'visibility':focus_before['value']['visible']}),flush=True)
+    call('input.key', target=target, key='cmd-a', provider='macos-native')
+    call('input.text', target=target, text=expected, provider='macos-native')
+    try:
+        poll(lambda: c['effects']['model'] == expected, 'native form input event independent HTTP effect')
+    except AssertionError:
+        ax = element('Fixture form value', 'AXTextArea').get('value')
+        expression = "({value:document.getElementById('model').value,model:modelValue,sequence:modelSequence,document:modelDocument,focused:document.hasFocus(),visible:document.visibilityState,active:document.activeElement?.id})"
+        dom = call('browser.eval',tabId=tab,expression=expression)
+        report = {'phase':phase,'expected':expected,'ax':ax,'httpModel':c['effects']['model'],'dom':dom,
+                  'focusBefore':focus_before,'nativeFixture':json.loads(c['fixture_state'].read_text()) if 'fixture_state' in c else None}
+        if phase == 'covered' and c.get('diagnose_browser_ending'):
+            report['endingObservation'] = c['diagnose_browser_ending'](tab,expression)
+        path = c['evidence'] / ('browser-model-failure-' + phase + '.json')
+        with os.fdopen(os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as stream:
+            json.dump(report,stream)
+        print('BROWSER_MODEL_FAILURE ' + json.dumps({'phase':phase,'expectedLength':len(expected),
+            'axLength':len(ax or ''),'httpLength':len(c['effects']['model'] or ''),
+            'httpClock':c['effects']['modelClock'],'dom':dom}),flush=True)
+        raise
+    assert element('Fixture form value', 'AXTextArea').get('value') == expected
+    save = element('Save fixture model', 'AXButton')
+    call('action', reference=save['reference'], action='press', provider='macos-native')
+    poll(lambda: c['effects']['saved'] == expected, 'native form save independent HTTP effect')
+    call('browser.navigate', tabId=tab, url=c['url'], active=True)
+    poll(lambda: element('Fixture form value', 'AXTextArea').get('value') == expected,
+         'native form exact saved value after full reload')
+    c['last_saved_model'] = {'tab':tab,'value':expected}
+    check('native browser ' + phase + ' input, form model, save and reload agree')
+
+
+def verify_saved_model(c, phase):
+    saved = c.get('last_saved_model')
+    if not saved:
+        return
+    c['poll'](lambda:c['raw']('browser.tabs').get('accepted'),'browser reconnect for passive model check',timeout=30)
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        result = c['call']('browser.eval',tabId=saved['tab'],expression="({value:document.getElementById('model').value,model:modelValue})")['value']
+        assert result['value'] == saved['value'] and result['model'] == saved['value'], 'Late or duplicated native text after ' + phase
+        assert c['effects']['saved'] == saved['value']
+        time.sleep(.1)
+    c['check']('saved browser model has no delayed or duplicate write after ' + phase)
 
 
 def prepare(c):
     call, poll, press, exchange = (c[k] for k in ['call', 'poll', 'press', 'exchange'])
     assert c['disposable']
     sip = subprocess.check_output(['csrutil', 'status']).decode()
-    print('QUALIFICATION ' + json.dumps({'sipEnabled': 'disabled' not in sip.lower() and 'enabled' in sip.lower(),
-        'onlineDisplays': call('status')['lockedUse']['onlineDisplays']}), flush=True)
+    c['qualification'] = {'sipEnabled': 'disabled' not in sip.lower() and 'enabled' in sip.lower(),
+        'onlineDisplays': call('status')['lockedUse']['onlineDisplays']}
+    print('QUALIFICATION ' + json.dumps(c['qualification']), flush=True)
     assert call('status')['unlock']['installation'] == 'missing'
     press('Permissions', 'AXButton')
     press('Set up Machine Control helper', 'AXButton')
@@ -99,7 +238,8 @@ def prepare(c):
 def launch_fixture(c):
     fixture = c['fixture_binary']
     poll = c['poll']
-    c['fixture'] = subprocess.Popen([str(fixture)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    c['fixture'] = subprocess.Popen([str(fixture)], env={**os.environ, 'MC_FIXTURE_LEFT_EDGE':'1'},
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     c['fixture_state'] = Path.home() / 'Library/Caches/machine-control-fixture/state.json'
     poll(lambda: c['fixture_state'].exists() and
          json.loads(c['fixture_state'].read_text())['pid'] == c['fixture'].pid,
@@ -123,7 +263,7 @@ def run(c):
             result = raw('status')
             if result.get('accepted'):
                 return result['data']
-            assert result.get('errorCode') == 'control_generation_changed', result.get('errorCode')
+            assert result.get('errorCode') in {'control_generation_changed','locked_use_interrupted','locked_use_transition'}, result.get('errorCode')
             return None
         # Only this read is repeated: a lock/unlock transition invalidates its
         # captured generation. Never replay an input or unknown effect.
@@ -175,7 +315,7 @@ def run(c):
         assert isinstance(marker['pausedUptime'], (float, int)) and marker['pausedUptime'] > 0
         return marker
 
-    def start():
+    def start(duration=120):
         nonlocal owner
         assert c['locked'](), 'Each task must start independently locked'
         def recovered():
@@ -193,7 +333,7 @@ def run(c):
              'fresh same-console root recovery', timeout=100)
         owner = subprocess.Popen([str(c['resident']), 'request', str(Path.home() /
             'Library/Application Support/MachineControl/control.sock'), json.dumps({
-            'operation': 'session.control', 'durationSeconds': 120, 'claimId': c['claim']})],
+            'operation': 'session.control', 'durationSeconds': duration, 'claimId': c['claim']})],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         def active():
             current = state()
@@ -215,6 +355,8 @@ def run(c):
         check('covered ending retains the original until-stopped operator consent',
               grant.get('origin') == 'person' and grant.get('lifetime') == 'until_stopped'
               and hashlib.sha256(consent.read_bytes()).digest() == c['consent_digest'])
+        if not c.get('diagnosing_browser_ending'):
+            verify_saved_model(c,'covered completion')
         # Scope restoration deliberately issues a fresh generation/ID. Saved
         # consent and its lifetime are the authority oracle, never a reused ID.
         c['original_id'] = grant['grantId']
@@ -244,6 +386,226 @@ def run(c):
         with os.fdopen(os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as stream:
             stream.write(image)
         check('covered native semantics, pointer, keyboard and excluded-cover capture have independent effects')
+
+    def text_and_hover():
+        native_fixture(c, 'covered')
+        if 'browser_pid' in c:
+            native_browser(c, 'covered')
+
+    def diagnose_browser_ending(tab, expression):
+        c['diagnosing_browser_ending'] = True
+        active = state()
+        assert active['phase'] == 'active', active['lastEndedReason']
+        call('session.control.end',controlSessionId=active['controlSessionId']); ended()
+        time.sleep(2)
+        locked_value = call('browser.eval',tabId=tab,expression=expression)
+        start()
+        time.sleep(2)
+        admitted_value = call('browser.eval',tabId=tab,expression=expression)
+        c['diagnosing_browser_ending'] = False
+        return {'afterCompletion':locked_value,'afterFreshAdmission':admitted_value,
+                'nativeFixture':json.loads(c['fixture_state'].read_text()),'writeReplayed':False}
+    c['diagnose_browser_ending'] = diagnose_browser_ending
+
+    def visible_cover():
+        tool = c['root'] / 'cover-observation'
+        if not tool.exists():
+            subprocess.run(['xcrun', 'swiftc', str(c['source_root'] / 'tests/macos/cover-observation.swift'),
+                            '-o', str(tool)], capture_output=True, check=True, timeout=90)
+        # The independent appliance has no covered owner/capture exclusion.
+        result = c['exchange'](c['observer'], 'capture', scope='display', provider='macos-native')
+        assert result.get('accepted') and result.get('fidelity') == 'full_display'
+        image = Path(result['data']['artifactPath'])
+        c['cover_observation_trial'] = c.get('cover_observation_trial', 0) + 1
+        prefix = 'cover-observation-' + str(c['cover_observation_trial'])
+        with os.fdopen(os.open(c['evidence'] / (prefix + '.png'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as stream:
+            stream.write(image.read_bytes())
+        observed = subprocess.run([str(tool), str(image)], capture_output=True, text=True, timeout=30)
+        report = json.loads(observed.stdout)
+        with os.fdopen(os.open(c['evidence'] / (prefix + '.json'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
+            json.dump(report, stream)
+        assert observed.returncode == 0 and report['sampledConcealment'], report
+        check('independent unfiltered display samples and rendered cover title conceal the fixture')
+
+    def full_duration():
+        duration = c.get('covered_duration', 0)
+        if not duration:
+            return
+        started = time.monotonic()
+        active = start(duration=duration)
+        effect(); text_and_hover(); visible_cover()
+        next_effect = time.monotonic() + 60
+        while owner.poll() is None:
+            assert time.monotonic() - started < duration + 60, 'Control owner missed its hard deadline'
+            observed = state()
+            if observed['phase'] == 'active' and (observed.get('remainingSeconds') or 0) > 15 and time.monotonic() >= next_effect:
+                effect(); text_and_hover()
+                next_effect = time.monotonic() + 60
+            time.sleep(1)
+        output, _ = owner.communicate(timeout=10)
+        receipt = json.loads(output)
+        assert receipt.get('data', {}).get('reason') == 'duration_expired', receipt.get('data')
+        ended()
+        observed = state()
+        assert observed['lastEndedReason'] == 'duration_expired', observed
+        print('COVERED_DURATION ' + json.dumps({'requestedSeconds':duration,
+            'ownerWallSeconds':round(time.monotonic()-started,3),
+            'guardian':observed.get('lastGuardianDiagnostic')}), flush=True)
+        check('real configured-duration owner expires cleanly with independent relock and retained consent')
+        c['qualified_duration'] = duration
+
+    def renewable_owner():
+        duration = c.get('covered_renewal_seconds', 0)
+        if not duration:
+            return
+        sys.path.insert(0, str(Path(c['resident']).parents[1] / 'Resources/mc-cli/client'))
+        from control_session import ControlSession
+        # Direct guest SDK adapter under the controller's already-held exact
+        # workspace claim. Each open carries that claim for attribution; this
+        # fixture does not declare a new public target or acquire another VM.
+        runtime = Path(c['resident']).parents[1] / 'Resources/mc-cli'
+        target = dict(platform='macos', command=[str(runtime / 'python/bin/python3'),
+            str(runtime / 'platforms/macos/host/machost.py')], _claimId=c['claim'])
+        c['sdk_class'], c['sdk_target'] = ControlSession, target
+        samples = []
+        sdk_ready()
+        with ControlSession(target, reason='Qualify finite owner renewal under existing consent',
+                            duration=30, wait=120, renew=True) as session:
+            initial = session.wait()
+            poll(lambda: state()['phase'] == 'active', 'renewable covered activation', timeout=45)
+            control_id = state()['controlSessionId']
+            started = time.monotonic()
+            next_effect = 0
+            while time.monotonic() - started < duration:
+                view = session.status()
+                assert view['state'] == 'active' and view['sessionId'] == initial['sessionId'], view.get('terminalReason')
+                assert view['resourceGenerations'] == initial['resourceGenerations']
+                observed = fresh_status()
+                root = observed['unlock']
+                assert observed['lockedUse']['controlSessionId'] == control_id
+                assert observed['lockedUse']['phase'] == 'active' and root['coveredSession']
+                assert 0 < root['coveredRemainingSeconds'] <= 900
+                if time.monotonic() >= next_effect:
+                    before = json.loads(c['fixture_state'].read_text())
+                    result = session.call(dict(operation='snapshot', claimId=c['claim'], target=str(c['fixture'].pid), provider='macos-native'))
+                    sdk_effect_result(result, 'snapshot', before)
+                    button = next(e for e in result['data']['elements'] if e.get('identifier') == 'fixture.increment')
+                    result = session.call(dict(operation='action', claimId=c['claim'], reference=button['reference'], action='press', provider='macos-native'))
+                    sdk_effect_result(result, 'press', before)
+                    poll(lambda: json.loads(c['fixture_state'].read_text())['count'] == before['count'] + 1,
+                         'independent effect under unchanged renewable owner')
+                    samples.append({'elapsedSeconds':round(time.monotonic()-started,3),
+                        'rootRenewals':root['coveredRenewals'], 'rootRemainingSeconds':root['coveredRemainingSeconds']})
+                    print('COVERED_RENEWAL ' + json.dumps(samples[-1]), flush=True)
+                    next_effect = time.monotonic() + 30
+                time.sleep(1)
+            assert root['coveredRenewals'] >= 2, 'No multiple root-acknowledged renewals observed'
+            if duration > 900:
+                assert samples[-1]['elapsedSeconds'] - samples[0]['elapsedSeconds'] > 900, 'No independently sampled active interval beyond fifteen minutes'
+        poll(c['locked'], 'renewable owner completion independently relocks', timeout=45)
+        poll(lambda: state()['controlSessionId'] is None, 'renewable owner cleanup', timeout=45)
+        with os.fdopen(os.open(c['evidence'] / 'renewable-owner.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
+            json.dump({'requestedSeconds':duration, 'samples':samples, 'sameOwner':True,
+                       'lockObserved':True, 'rootRenewals':root['coveredRenewals']}, stream)
+        check('same SDK/admission/covered owner survives multiple acknowledged finite lease renewals and relocks')
+        c['qualified_renewal'] = duration
+
+    def sdk_effect_result(result, stage, before):
+        if result.get('accepted'):
+            return
+        # Preserve the independent effect oracle even if generation fencing
+        # occurs after dispatch. A failed/uncertain action is never replayed.
+        report = {'stage':stage,'receipt':result,'before':before,
+                  'after':json.loads(c['fixture_state'].read_text())}
+        with os.fdopen(os.open(c['evidence'] / 'renewable-effect-failure.json',
+            os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as stream:
+            json.dump(report,stream)
+        raise AssertionError(result.get('errorCode'))
+
+    def renewable_disconnect():
+        if not c.get('covered_renewal_seconds'):
+            return
+        sdk_ready()
+        with c['sdk_class'](c['sdk_target'],reason='Qualify renewable owner transport loss',
+                            duration=30,wait=120,renew=True) as session:
+            initial = session.wait()
+            control_id = state()['controlSessionId']
+            def renewed_twice():
+                view = session.status()
+                assert view['state'] == 'active' and view['sessionId'] == initial['sessionId']
+                assert view['resourceGenerations'] == initial['resourceGenerations']
+                observed = fresh_status()
+                assert observed['lockedUse']['controlSessionId'] == control_id
+                return observed['unlock'].get('coveredRenewals',0) >= 2
+            poll(renewed_twice,'two acknowledged renewals before disconnect',timeout=100)
+            # Kill only the owned byte relay. No cancel/completion frame is
+            # sent, and no fresh admission or uncertain action is retried.
+            session.process.terminate()
+            poll(c['locked'],'renewed transport loss independently relocks',timeout=45)
+            poll(lambda:state()['controlSessionId'] is None,'disconnected owner cleanup',timeout=45)
+            session.close(cancel=False)
+        verify_saved_model(c,'renewed owner disconnect')
+        check('renewed owner transport loss fences ownership and independently relocks without reopening')
+
+    def sdk_ready():
+        # Completion/readback can precede the next availability reconciliation.
+        # Observe readiness before creating an owner; do not reopen a refused
+        # intent or replay a dispatched action to hide that transition.
+        def ready():
+            observed = fresh_status()
+            deployment = observed['deployment']
+            return (c['locked']() and observed['lockedUse']['phase'] == 'ready'
+                and observed['lockedUse']['enabled']
+                and not observed['unlock'].get('coveredSession')
+                and not observed['unlock'].get('lockedUsePaused', True)
+                and not deployment.get('browserOnlyWhileLocked', True)
+                and {'observe','control'}.issubset(deployment.get('effectiveScopes', [])))
+        poll(ready, 'fresh desktop scope readiness before SDK admission', timeout=60)
+
+    def independent_pointer():
+        tool = c['root'] / 'kernel-pointer-fixture'
+        subprocess.run(['xcrun','clang','-fobjc-arc','-Wno-deprecated-declarations','-framework','Foundation',
+                        '-framework','ApplicationServices','-framework','IOKit',
+                        str(c['source_root'] / 'tests/macos/kernel-pointer-fixture.m'),'-o',str(tool)],
+                       capture_output=True, check=True, timeout=60)
+        probe = subprocess.run(['sudo','-n',str(tool),'--preflight'],capture_output=True,text=True,check=True,timeout=10)
+        result = json.loads(probe.stdout)
+        if result['postAccess'] != 'granted':
+            result['takeoverQualification'] = 'unavailable_no_permission_change'
+        else:
+            active = start()
+            initial = json.loads(c['fixture_state'].read_text())
+            bounds = initial['surfaceBounds']
+            call('input.move',target=str(c['fixture'].pid),coordinateSpace='global_display_points',
+                 x=round(bounds['x']+bounds['width']/2),y=round(bounds['y']+bounds['height']/2),provider='macos-native')
+            poll(lambda:json.loads(c['fixture_state'].read_text())['mouseMoveCount']>initial['mouseMoveCount'],
+                 'known pointer receiver before independent takeover')
+            before = json.loads(c['fixture_state'].read_text())['mouseMoveCount']
+            posted = subprocess.run(['sudo','-n',str(tool),'--move'],capture_output=True,text=True,timeout=10)
+            result['post'] = json.loads(posted.stdout)
+            posted_ok = posted.returncode == 0 and result['post'].get('accepted') is True
+            deadline = time.monotonic() + (10 if posted_ok else 0)
+            while not c['locked']() and time.monotonic() < deadline:
+                time.sleep(.1)
+            if not posted_ok:
+                result['takeoverQualification'] = 'unavailable_post_refused'
+                call('session.control.end',controlSessionId=active['controlSessionId']); ended()
+            elif c['locked']():
+                observed = state()
+                result['ending'] = observed['lastEndedReason']
+                result['takeoverQualification'] = 'kernel_posted_takeover' if result['ending'] == 'physical_presence' else 'other_ending'
+                ended()
+                if result['takeoverQualification'] == 'kernel_posted_takeover':
+                    check('independent kernel-posted pointer event triggers production takeover and OS relock')
+                    check('takeover swallows input before the fixture receives it',
+                          json.loads(c['fixture_state'].read_text())['mouseMoveCount'] == before)
+            else:
+                result['takeoverQualification'] = 'software_event_not_classified_as_takeover'
+                call('session.control.end',controlSessionId=active['controlSessionId']); ended()
+        result['physicalHardwareQualified'] = False
+        print('INDEPENDENT_POINTER ' + json.dumps(result),flush=True)
+        with os.fdopen(os.open(c['evidence'] / 'independent-pointer.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as stream:
+            json.dump(result,stream)
 
     def crash(stall=False, stop_resident=False):
         nonlocal suspended
@@ -431,8 +793,15 @@ def run(c):
                 os.kill(delayed, signal.SIGKILL)
                 raise AssertionError('Delayed guardian did not exit after startup cancellation')
             ended()
-            check('late guardian exits after parent startup timeout without arming or unlocking')
-            assert state()['lastEndedReason'] == 'guardian_start_failed'
+            reason = state()['lastEndedReason']
+            # A responsive main loop may observe display sleep while the
+            # intentionally stopped child cannot establish its wake hold.
+            # That earlier safety cancellation is valid; both paths must
+            # still prove no arming/unlock and no late activation.
+            assert reason in {'guardian_start_failed','display_sleep'}, reason
+            print('STARTUP_CANCELLATION ' + json.dumps({'ending':reason,
+                'lockObserved':True,'helperNeverArmed':True}),flush=True)
+            check('late guardian exits after parent cancellation without arming or unlocking')
             assert not fresh_status()['unlock'].get('lockedUsePaused')
             before = c['effects']['clicks']
             call('browser.eval', tabId=c['browser_tab'], expression="fetch('/click', {method:'POST'}); true")
@@ -449,7 +818,18 @@ def run(c):
     try:
         startup_timeout()
         active = start(); effect()
+        text_and_hover(); visible_cover()
         call('session.control.end', controlSessionId=active['controlSessionId']); ended()
+        if c.get('covered_probe'):
+            renewable_owner()
+            renewable_disconnect()
+            start()
+            c['check_stop_lock'] = True
+            return
+        renewable_owner()
+        renewable_disconnect()
+        full_duration()
+        independent_pointer()
         first = crash()
         check('first guardian failure advertises bounded automatic recovery', first == 30)
         second = crash()
@@ -510,7 +890,13 @@ def run(c):
                 if current['controlSessionId']:
                     call('session.control.end', controlSessionId=current['controlSessionId'])
             finally:
-                owner.communicate(timeout=30)
+                # Dropping our byte relay is the bounded cleanup fallback if
+                # a transition/read or ending receipt is unavailable. It sends
+                # no additional mutation and cannot replay uncertain input.
+                if owner.poll() is None:
+                    owner.terminate()
+                owner.communicate(timeout=15)
+                poll(c['locked'], 'failure cleanup independently relocks', timeout=45)
         c['covered_owner'] = owner
 
 

@@ -42,6 +42,8 @@ final class InteractionSurface: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) { observe?("move", event) }
+    override func mouseEntered(with event: NSEvent) { observe?("enter", event) }
+    override func mouseExited(with event: NSEvent) { observe?("exit", event) }
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         observe?("down", event)
@@ -56,8 +58,12 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
     private var enabled = false
     private var text = ""
     private var keyEventCount = 0
+    private var textChangeCount = 0
+    private var lastKeyFlags: UInt = 0
     private var lastKey = ""
     private var mouseMoveCount = 0
+    private var mouseEnterCount = 0
+    private var mouseExitCount = 0
     private var mouseDownCount = 0
     private var mouseDragCount = 0
     private var mouseUpCount = 0
@@ -183,6 +189,7 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
             [weak self] event in
             self?.keyEventCount += 1
             self?.lastKey = event.charactersIgnoringModifiers ?? ""
+            self?.lastKeyFlags = event.modifierFlags.rawValue
             self?.persist()
             return event
         }
@@ -222,6 +229,7 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
 
     func controlTextDidChange(_ notification: Notification) {
         guard let field = notification.object as? NSTextField else { return }
+        textChangeCount += 1
         textChanged(field)
     }
 
@@ -357,6 +365,8 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
     private func observePointer(_ kind: String, event: NSEvent) {
         switch kind {
         case "move": mouseMoveCount += 1
+        case "enter": mouseEnterCount += 1
+        case "exit": mouseExitCount += 1
         case "down": mouseDownCount += 1
         case "drag": mouseDragCount += 1
         case "up": mouseUpCount += 1
@@ -387,13 +397,22 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
             "schema": "machine-control-macos-fixture/v0",
             "applicationActive": NSApp.isActive,
             "keyWindow": fixtureWindow?.isKeyWindow ?? false,
+            "windowOcclusionVisible": fixtureWindow?.occlusionState.contains(.visible) ?? false,
             "textFocused": fixtureWindow?.firstResponder === textField.currentEditor(),
             "count": count,
             "enabled": enabled,
             "text": text,
+            "editorText": textField.currentEditor()?.string as Any? ?? NSNull(),
+            "editorSelectedLocation": textField.currentEditor()?.selectedRange.location as Any? ?? NSNull(),
+            "editorSelectedLength": textField.currentEditor()?.selectedRange.length as Any? ?? NSNull(),
+            "textChangeCount": textChangeCount,
             "keyEventCount": keyEventCount,
             "lastKey": lastKey,
+            "lastKeyFlags": lastKeyFlags,
             "mouseMoveCount": mouseMoveCount,
+            "mouseEnterCount": mouseEnterCount,
+            "mouseExitCount": mouseExitCount,
+            "pointerLocation": ["x":NSEvent.mouseLocation.x, "y":NSEvent.mouseLocation.y],
             "mouseDownCount": mouseDownCount,
             "mouseDragCount": mouseDragCount,
             "mouseUpCount": mouseUpCount,
@@ -418,6 +437,24 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
 }
 
 let application = NSApplication.shared
+// Standard editing shortcuts are menu commands in an AppKit application.
+// Without these, Command-A can be delivered correctly without selecting text,
+// making a replacement-input conformance test report a false runtime failure.
+let mainMenu = NSMenu()
+let applicationItem = NSMenuItem()
+let applicationMenu = NSMenu()
+applicationMenu.addItem(withTitle:"Quit Fixture", action:#selector(NSApplication.terminate(_:)), keyEquivalent:"q")
+applicationItem.submenu = applicationMenu
+mainMenu.addItem(applicationItem)
+let editItem = NSMenuItem()
+let editMenu = NSMenu(title:"Edit")
+for (title, action, key) in [("Select All","selectAll:","a"), ("Copy","copy:","c"),
+                             ("Paste","paste:","v"), ("Cut","cut:","x"), ("Undo","undo:","z")] {
+    editMenu.addItem(withTitle:title, action:Selector(action), keyEquivalent:key)
+}
+editItem.submenu = editMenu
+mainMenu.addItem(editItem)
+application.mainMenu = mainMenu
 let controller = FixtureController()
 application.delegate = controller
 application.setActivationPolicy(.regular)

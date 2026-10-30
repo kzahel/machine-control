@@ -25,6 +25,10 @@ def main():
     p.add_argument('--remote-arming', action='store_true')
     p.add_argument('--disposable-workspace', action='store_true')
     p.add_argument('--covered-recovery', action='store_true')
+    p.add_argument('--covered-duration', type=int, default=0)
+    p.add_argument('--covered-renewal-seconds', type=int, default=0)
+    p.add_argument('--model-only', action='store_true')
+    p.add_argument('--covered-probe', action='store_true')
     a = p.parse_args()
     assert not a.covered_recovery or (a.remote_arming and a.disposable_workspace)
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).decode().startswith('VirtualMac')
@@ -152,12 +156,17 @@ def main():
                 '--report', str(output / 'summary.json')]
         if a.faults:
             argv += ['--faults']
+        if a.model_only:
+            argv += ['--model-only']
+        if a.covered_probe:
+            argv += ['--covered-probe']
         if a.remote_arming:
             argv += ['--remote-arming']
         if a.disposable_workspace:
             argv += ['--disposable-workspace']
         if a.covered_recovery:
-            argv += ['--covered-recovery']
+            argv += ['--covered-recovery', '--covered-duration', str(a.covered_duration),
+                     '--covered-renewal-seconds', str(a.covered_renewal_seconds)]
         with (output / 'suite.log').open('wb') as log:
             proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             try:
@@ -184,7 +193,15 @@ def main():
     except BaseException:
         # Preserve private evidence before replacing the failed candidate. These
         # bounded reads cannot repair, restart, approve, or alter the helper.
-        (output / 'candidate-status.json').write_text(json.dumps(status()))
+        observed = status()
+        if observed and isinstance(observed.get('browser'), dict):
+            # Endpoint URLs contain short-lived bearer material. Retain only
+            # closed browser health fields even in controller-private evidence.
+            observed['browser'] = {key: observed['browser'][key] for key in
+                ['connected', 'extensionVersion', 'health', 'pendingRequests', 'consecutiveTimeouts']
+                if key in observed['browser']}
+        with os.fdopen(os.open(output / 'candidate-status.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
+            json.dump(observed, stream)
         diagnostics = [
             ('candidate-signature', ['/usr/bin/codesign', '--verify', '--deep', '--strict', str(installed)]),
             ('helper-launchd', ['/usr/bin/sudo', '-n', '/bin/launchctl', 'print', 'system/org.machine-control.unlock']),

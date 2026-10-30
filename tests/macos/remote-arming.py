@@ -62,20 +62,60 @@ def _run(context):
     # WebKit's native select popup is not always in the app's AX subtree.
     # Its focused popup accepts targeted keyboard selection; verify the actual
     # grant lifetime below instead of inferring success from key delivery.
-    for key in ['end', 'return']:
+    # Keep the independent appliance compatible with the already qualified
+    # U-prefixed menu selection; older observers do not implement End.
+    for key in ['u', 'enter']:
         result = exchange(observer, 'input.key', target=str(pid), key=key, provider='macos-native')
         assert result.get('accepted'), result.get('errorCode')
     press('Enable access', 'AXButton')
     grant = poll(lambda: call('grant.status').get('grant'), 'standing operator grant')
     check('native operator arms until-stopped access', grant['lifetime'] == 'until_stopped')
+    if covered:
+        result = exchange(observer, 'window.close', target=str(context['pid']), provider='macos-native')
+        assert result.get('accepted'), result.get('errorCode')
+        poll(lambda: call('status')['presentation']['settingsWebViews'] == 0, 'Settings closes before pointer fixture')
+        covered.native_browser(context, 'ordinary')
+        extra = call('browser.navigate',newTab=True,url=url,active=False)['tab']['tabId']
+        context['browser_tab'] = extra
+        try:
+            covered.native_browser(context, 'ordinary-tab-switch')
+        finally:
+            context.pop('browser_tab',None)
+        covered.launch_fixture(context)
+        covered.native_fixture(context, 'ordinary')
+    for clean in [True, False]:
+        fixture_before = json.loads(context['fixture_state'].read_text()) if covered else None
+        context['pid'] = context['restart'](clean=clean)
+        def restored():
+            current = call('grant.status').get('grant') or {}
+            return current if current.get('lifetime') == 'until_stopped' and set(current.get('scopes', [])) == {'observe','control','browser','devtools'} else None
+        grant = poll(restored, 'same-console arming restoration after ' + ('clean quit' if clean else 'crash'), timeout=45)
+        check(('clean quit' if clean else 'crash') + ' restores original scopes and indefinite consent')
+        if covered:
+            covered.verify_saved_model(context,'clean quit' if clean else 'crash')
+            fixture_after = json.loads(context['fixture_state'].read_text())
+            check('native fixture receives no replay on resident restart',
+                  all(fixture_after[k] == fixture_before[k] for k in ['text','keyEventCount']))
+    # Minimal presentation intentionally has no Settings WebView at launch.
+    subprocess.run([str(resident), 'serve', str(endpoint), '--settings'],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+    poll(lambda: call('status')['presentation']['settingsWebViews'] == 1, 'Settings after restart')
+    def quiet_after_restart():
+        reasons = call('grant.status')['availability']['blockingReasons']
+        assert not any(reason not in {'physical_activity','activity_unknown'} for reason in reasons), reasons
+        return not reasons
+    poll(quiet_after_restart, 'ordinary post-restart physical quiet', timeout=45)
     original_id = grant['grantId']
     consent = Path.home() / 'Library/Application Support/MachineControl/operator-consent.json'
     context['consent_digest'] = hashlib.sha256(consent.read_bytes()).digest()
     press('Settings', 'AXButton')
     toggle('Allow approved browser access while locked')
     poll(lambda: call('status')['browserWhileLocked']['enabled'], 'locked browser preference')
+    result = exchange(observer, 'window.close', target=str(context['pid']), provider='macos-native')
+    assert result.get('accepted'), result.get('errorCode')
+    poll(lambda: call('status')['presentation']['settingsWebViews'] == 0, 'Settings closes before covered work')
     if covered:
-        covered.launch_fixture(context)
+        assert context['fixture'].poll() is None
 
     lock_binary = context['root'] / 'session-lock'
     subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', '-framework', 'IOKit',
@@ -157,6 +197,18 @@ def _run(context):
     press('Stop access', 'AXButton')
     poll(lambda: call('grant.status')['grant'] is None, 'operator Stop')
     check('operator Stop remains authoritative', not raw('browser.tabs')['accepted'])
+    poll(locked,'operator Stop independently relocks',timeout=45)
+    check('operator Stop ends covered use and independently relocks')
+    context['check_stop_lock'] = False
+    context['pid'] = context['restart'](clean=True, use_lifecycle=True)
+    # The console is now genuinely locked, so a newly created WebView need not
+    # expose its DOM to AX. Check durable native choices here; the separate
+    # unlocked/cold-boot runner verifies visible controls after Stop/relaunch.
+    saved = json.loads(consent.read_text())
+    check('native choices retain all four scopes after protected Stop and relaunch',
+          set(saved['accessChoices']['scopes']) == {'observe','control','browser','devtools'})
+    check('native indefinite choice survives protected Stop and relaunch', saved['accessChoices']['duration'] is None)
+    check('remembering choices does not rearm after Stop', call('grant.status')['grant'] is None)
 
 
 def run(context):
@@ -165,6 +217,10 @@ def run(context):
         if context.get('check_stop_lock'):
             context['poll'](context['locked'], 'operator Stop independently relocks', timeout=45)
             context['check']('operator Stop ends covered use and independently relocks')
+        if context.get('qualification'):
+            return dict(context['qualification'],
+                        coveredDurationSeconds=context.get('qualified_duration', 0),
+                        renewableOwnerSeconds=context.get('qualified_renewal', 0))
     finally:
         if context.get('covered_module'):
             context['covered_module'].cleanup(context)

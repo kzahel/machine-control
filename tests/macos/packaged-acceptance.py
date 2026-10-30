@@ -36,6 +36,10 @@ def main():
     p.add_argument('--faults', action='store_true')
     p.add_argument('--remote-arming', action='store_true')
     p.add_argument('--covered-recovery', action='store_true')
+    p.add_argument('--covered-duration', type=int, default=0)
+    p.add_argument('--covered-renewal-seconds', type=int, default=0)
+    p.add_argument('--model-only', action='store_true')
+    p.add_argument('--covered-probe', action='store_true')
     p.add_argument('--admin-secret-file', type=Path, help='Owner-only canonical VM credential; one-shot native sheet transport only')
     a = p.parse_args()
     repo = Path(__file__).resolve().parents[2]
@@ -47,8 +51,16 @@ def main():
         p.error('Locked remote-arming acceptance requires a disposable claimed workspace')
     if a.covered_recovery and not (a.remote_arming and a.admin_secret_file):
         p.error('Covered recovery requires remote arming and the canonical credential locator')
+    if a.covered_duration != 0 and not (a.covered_recovery and 60 <= a.covered_duration <= 900):
+        p.error('Covered duration requires covered recovery and 60-900 seconds')
+    if a.covered_renewal_seconds != 0 and not (a.covered_recovery and 120 <= a.covered_renewal_seconds <= 1800):
+        p.error('Covered renewal requires covered recovery and 120-1800 seconds')
     if a.app and not a.development:
         p.error('An app without authenticated package metadata requires --development')
+    if a.model_only and (not a.development or a.remote_arming or a.covered_recovery or a.faults):
+        p.error('Model-only is a development diagnostic without protected setup or faults')
+    if a.covered_probe and (not a.development or not a.covered_recovery or a.covered_duration or a.covered_renewal_seconds not in {0,120}):
+        p.error('Covered probe is development-only, with optional 120-second renewal and no expiry qualification')
     if a.package_directory and not a.team_id:
         p.error('Package verification requires --team-id')
     if not (1 <= a.repeat <= 300 and 0 <= a.soak_seconds <= 1800 and -(2**63) <= a.seed < 2**63):
@@ -104,7 +116,8 @@ def main():
             archive.add(app, arcname='candidate/Machine Control.app')
             for name in ['tests/macos/packaged-acceptance-guest.py',
                          'tests/macos/browser-file-dialogs.py', 'tests/macos/remote-arming.py',
-                         'tests/macos/covered-recovery.py', 'tests/macos/guardian-startup-watch.m', 'tests/macos/session-lock.m',
+                         'tests/macos/covered-recovery.py', 'tests/macos/cover-observation.swift', 'tests/macos/kernel-pointer-fixture.m',
+                         'tests/macos/guardian-startup-watch.m', 'tests/macos/session-lock.m',
                          'platforms/macos/guests/macos/fixture/MachineControlFixture.swift', 'platforms/macos/guests/macos/unlock/Session.h',
                          'platforms/macos/guests/macos/unlock/Relock.h', 'platforms/chromeos/cdp.py']:
                 archive.add(repo / name, arcname='source/' + name)
@@ -121,10 +134,15 @@ def main():
                     '--repeat', str(a.repeat), '--seed', str(a.seed), '--soak-seconds', str(a.soak_seconds)]
             if a.faults:
                 argv += ['--faults']
+            if a.model_only:
+                argv += ['--model-only']
+            if a.covered_probe:
+                argv += ['--covered-probe']
             if a.remote_arming:
                 argv += ['--remote-arming', '--disposable-workspace']
             if a.covered_recovery:
-                argv += ['--covered-recovery']
+                argv += ['--covered-recovery', '--covered-duration', str(a.covered_duration),
+                         '--covered-renewal-seconds', str(a.covered_renewal_seconds)]
             # The guest exposes only a validated one-shot lease. No password
             # enters request JSON, argv, environment, evidence or ordinary logs.
             attempted = False
@@ -189,8 +207,9 @@ def main():
                    ('helper registration requires disposal by the enclosing workspace scope; ' if a.remote_arming else 'power restored; ') +
                    'raw evidence remains controller-private.\n').encode(),
             stdout=subprocess.DEVNULL, check=True, timeout=30)
-        if not a.development and not a.remote_arming and manifest and a.faults and a.repeat >= 3 and a.soak_seconds >= 120:
-            assert summary['faults'] and summary['plannedRestarts'] == 1
+        if not a.development and manifest and a.faults and a.repeat >= 3 and a.soak_seconds >= 120:
+            assert summary['faults']
+            assert summary['plannedRestarts'] == (5 if a.covered_recovery else 1)
             spec = importlib.util.spec_from_file_location('acceptance', repo / 'desktop/scripts/packaged-acceptance.py')
             acceptance = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(acceptance)
@@ -204,8 +223,18 @@ def main():
                 'seed': a.seed, 'checks': summary['checks'], 'cycles': summary['repeat'],
                 'soakSeconds': a.soak_seconds, 'coverage': sorted(acceptance.COVERAGE),
                 'cleanupVerified': cleanup['restored'], 'passed': summary['passed']}
-            acceptance.validate(receipt, manifest, revision=revision, version=manifest['version'], run=run)
-            (a.output / 'acceptance.json').write_text(json.dumps(receipt, indent=2) + '\n')
+            if a.covered_recovery:
+                receipt.update(schema='machine-control-packaged-acceptance/v1', reliability=summary['reliability'],
+                    coverage=sorted((acceptance.COVERAGE | acceptance.RELIABILITY_COVERAGE) - acceptance.REBOOT_COVERAGE))
+                assert cleanup['appStateRestored'] and cleanup['workspaceDiscardRequired']
+                # The enclosing common run still owns this workspace. Only the
+                # outer reliability runner can attest its completed disposal.
+                # This object also lacks the independent visible-controls and
+                # cold-boot evidence. It is deliberately not a release receipt.
+                (a.output / 'acceptance-pending-cleanup.json').write_text(json.dumps(receipt, indent=2) + '\n')
+            elif not a.remote_arming:
+                acceptance.validate(receipt, manifest, revision=revision, version=manifest['version'], run=run)
+                (a.output / 'acceptance.json').write_text(json.dumps(receipt, indent=2) + '\n')
         print('Packaged acceptance passed; ' + ('helper registration confined to disposable workspace' if a.remote_arming
             else 'original guest state and power restored'), flush=True)
 

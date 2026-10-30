@@ -51,6 +51,45 @@ class Acceptance(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'hash mismatch'):
             acceptance.validate(self.receipt, changed, **self.scope)
 
+    def test_new_release_requires_sustained_reliability_and_closed_profile(self):
+        scope = dict(self.scope, version='0.6.11')
+        receipt = dict(self.receipt, version='0.6.11')
+        with self.assertRaisesRegex(ValueError, 'reliability'):
+            acceptance.validate_envelope(receipt, **scope)
+        receipt.update(schema='machine-control-packaged-acceptance/v1',
+            coverage=sorted(acceptance.COVERAGE | acceptance.RELIABILITY_COVERAGE),
+            reliability={'coveredDurationSeconds':900, 'renewableOwnerSeconds':960,
+                         'sipEnabled':False, 'onlineDisplays':1,
+                         'stopRelaunchUI':True,'coldBootChoices':True})
+        acceptance.validate_envelope(receipt, **scope)
+        for field, value in [('coveredDurationSeconds', 60), ('renewableOwnerSeconds', 900),
+                             ('sipEnabled', 'enabled'), ('onlineDisplays', True), ('target', 'private'),
+                             ('stopRelaunchUI',False),('coldBootChoices',False)]:
+            changed = copy.deepcopy(receipt)
+            changed['reliability'][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                acceptance.validate_envelope(changed, **scope)
+        changed = dict(receipt, cleanupVerified=False)
+        with self.assertRaises(ValueError):
+            acceptance.validate_envelope(changed, **scope)
+
+    def test_disposal_is_bound_to_the_same_successful_scope(self):
+        spec = importlib.util.spec_from_file_location('reliability',
+            Path(__file__).resolve().parents[1] / 'macos/reliability-acceptance.py')
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        start = dict(schema='machine-control-run/v0', event='acquired',
+                     claimId='one', workspaceHandle='workspace', logicalTarget='example')
+        end = dict(start, event='finished', outcome='completed', exitCode=0, childExitCode=0,
+                   cleanup={'claim':'released', 'workspace':'released'})
+        runner.finished_scope([start, end])
+        for value in [dict(end, workspaceHandle='other'), dict(end, childExitCode=1),
+                      dict(end, outcome='interrupted'), dict(end, cleanup={'claim':'released','workspace':'unknown'})]:
+            with self.assertRaises(ValueError):
+                runner.finished_scope([start, value])
+        with self.assertRaises(ValueError):
+            runner.finished_scope([start, end, end])
+
 
 if __name__ == '__main__':
     unittest.main()
