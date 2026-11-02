@@ -29,6 +29,10 @@ jobs:
       - run: pnpm --dir runtime install --frozen-lockfile
       - run: pnpm --dir runtime check
       - run: python bin/check --portable
+      - name: Package pinned policy runtime
+        run: python runtime/scripts/package.py --engine node --target ${{ runner.os == 'Linux' && 'all' || 'native' }} --output .artifacts/policy
+      - name: Execute native packaged policy
+        run: node tests/runtime/qualify.mjs .artifacts/policy --native
 
   browser:
     name: Shared core with real Chrome extension (Linux)
@@ -48,7 +52,8 @@ jobs:
       - run: pnpm --dir runtime install --frozen-lockfile
       - run: pnpm --dir desktop install --frozen-lockfile
       - run: pnpm --dir desktop exec playwright install --with-deps chromium --no-shell
-      - run: pnpm --dir runtime browser
+      - run: python runtime/scripts/package.py --engine node --target native --output .artifacts/policy
+      - run: node tests/runtime/qualify.mjs .artifacts/policy --native --browser
 
   native:
     name: Native (${{ matrix.os }})

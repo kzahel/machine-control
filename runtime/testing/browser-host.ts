@@ -1,298 +1,200 @@
-/** Private fixture composition of the real core, protocol adapter and sockets.
- * No agent RPC, native peer identity claim, or installed registration. */
+/** Private native transport fixture. Policy and adapters live in the child. */
 import { createServer } from "node:net";
 import type { Server, Socket } from "node:net";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
-import { performance } from "node:perf_hooks";
-import { ResidentCore } from "../src/core.ts";
-import type {
-  ActionResult,
-  Approval,
-  BrowserRequest,
-  Effect,
-  ProviderConnection,
-} from "../src/core.ts";
-import { ExtensionProvider } from "../src/extension-provider.ts";
-import { dispatchToProvider } from "../src/provider-dispatch.ts";
+import type { ActionResult, Approval, BrowserRequest, ProviderConnection } from "../src/core.ts";
+import type { NativeFrame } from "../src/extension-provider.ts";
 import { FrameDecoder, writeFrame } from "../node/framing.ts";
+import { ProcessClient } from "./process-client.ts";
 
-interface Peer {
-  socket: Socket;
-  adapter?: ExtensionProvider;
-  processId?: number;
-  operations: Map<string, string>;
-}
-interface Endpoint {
-  server: Server;
-  socketPath: string;
-  peers: Set<Peer>;
-  current?: Peer;
-}
-interface Gate {
-  operation: string;
-  captured(): void;
-  deliver?: () => boolean;
-}
+interface Peer { socket: Socket; processId?: number; connectionId?: string; connection?: ProviderConnection; operations: Map<string, string> }
+interface Endpoint { server: Server; socketPath: string; peers: Set<Peer>; current?: Peer }
+interface Gate { operation: string; captured(): void; deliver?: () => Promise<boolean> }
 
 export class BrowserHost {
-  readonly core = new ResidentCore({
-    now: () => Math.floor(performance.now()),
-  });
   readonly nativeProcessIds = new Set<number>();
-  readonly providerErrors: {
-    profile: string;
-    operation: string;
-    code: unknown;
-    message: unknown;
-  }[] = [];
+  readonly providerErrors: NativeFrame[] = [];
   readonly #endpoints = new Map<string, Endpoint>();
-  readonly #adapters = new Map<ProviderConnection, ExtensionProvider>();
-  readonly #waiting = new Map<string, (result: ActionResult) => void>();
+  readonly #peers = new Map<string, Peer>();
+  readonly #early = new Map<string, NativeFrame[]>();
+  readonly #waiting = new Map<string, { resolve(value: ActionResult): void; reject(error: Error): void }>();
   readonly #gates = new Map<string, Gate>();
-  #timer: ReturnType<typeof setInterval> | undefined;
+  #client: ProcessClient;
   #closing = false;
   #wireRequests = 0;
 
+  constructor() { this.#client = this.#newClient(); }
+  #newClient(): ProcessClient {
+    return new ProcessClient((frame) => this.#event(frame), () => {
+      // Death must close the browser transport, even without a final grant.
+      for (const endpoint of this.#endpoints.values())
+        for (const peer of endpoint.peers) peer.socket.destroy();
+      for (const waiting of this.#waiting.values()) waiting.reject(new Error("fixture_policy_died"));
+      this.#waiting.clear();
+    });
+  }
+
   async listen(root: string, profiles: readonly string[]): Promise<void> {
+    await this.#client.start();
     try {
       for (const profile of profiles) {
-        if (!/^[a-z]{1,24}$/.test(profile) || this.#endpoints.has(profile))
-          throw new Error("invalid_fixture_profile");
         const socketPath = join(root, `${profile}.sock`);
         const server = createServer((socket) => this.#accept(profile, socket));
-        server.maxConnections = 4;
-        const endpoint: Endpoint = { server, socketPath, peers: new Set() };
-        this.#endpoints.set(profile, endpoint);
-        await new Promise<void>((resolve, reject) => {
-          server.once("error", reject);
-          server.listen(socketPath, () => {
-            server.removeListener("error", reject);
-            resolve();
-          });
-        });
+        this.#endpoints.set(profile, { server, socketPath, peers: new Set() });
+        await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socketPath, resolve); });
         await chmod(socketPath, 0o600);
       }
-      this.#timer = setInterval(() => {
-        this.#consume(this.core.tick());
-        this.#synchronize();
-      }, 10);
-      this.#timer.unref();
-    } catch (error) {
-      await this.close();
-      throw error;
-    }
+    } catch (error) { await this.close(); throw error; }
   }
 
-  socketPath(profile: string): string {
-    const endpoint = this.#endpoints.get(profile);
-    if (!endpoint) throw new Error("unknown_fixture_profile");
-    return endpoint.socketPath;
-  }
+  socketPath(profile: string): string { return this.#endpoints.get(profile)!.socketPath; }
+  connection(profile: string): ProviderConnection | undefined { return this.#endpoints.get(profile)?.current?.connection; }
+  get wireRequests(): number { return this.#wireRequests; }
+  async inspect(): Promise<Record<string, unknown>> { return await this.#client.call("state") as Record<string, unknown>; }
 
-  connection(profile: string): ProviderConnection | undefined {
-    return this.#endpoints.get(profile)?.current?.adapter?.connection;
-  }
-
-  get wireRequests(): number {
-    return this.#wireRequests;
-  }
-
-  approve(profiles: readonly string[], durationMs = 60_000): Approval {
-    const connections = profiles.map((profile) => {
-      const connection = this.connection(profile);
-      if (!connection) throw new Error("fixture_profile_unavailable");
-      return connection;
+  async approve(profiles: readonly string[], durationMs = 60_000): Promise<Approval> {
+    const connectionIds = profiles.map((profile) => {
+      const id = this.#endpoints.get(profile)?.current?.connectionId;
+      if (!id) throw new Error("fixture_profile_unavailable");
+      return id;
     });
-    const result = this.core.approve(connections, durationMs);
-    this.#synchronize();
-    this.#consume(result.effects);
-    return result.approval;
+    const result = await this.#client.call("operator.approve", { connectionIds, durationMs }) as { generation: number };
+    return Object.freeze({ generation: result.generation, profiles: Object.freeze([...profiles]), expiresAt: 0 });
   }
+  async stop(): Promise<void> { await this.#client.call("operator.stop"); }
 
-  stop(): void {
-    const effects = this.core.stop();
-    this.#synchronize();
-    this.#consume(effects);
-  }
-
-  call(approval: Approval, request: BrowserRequest): Promise<ActionResult> {
-    if (this.#waiting.has(request.requestId))
-      return Promise.reject(new Error("fixture_request_conflict"));
+  call(approval: Approval | undefined, request: BrowserRequest): Promise<ActionResult> {
+    if (this.#waiting.has(request.requestId)) return Promise.reject(new Error("fixture_request_conflict"));
+    const peer = this.#endpoints.get(request.profileId)?.current;
+    if (!peer?.connectionId) return Promise.reject(new Error("fixture_profile_unavailable"));
+    const fields = "reference" in request ? { reference: request.reference.target } :
+      request.operation === "browser.snapshot" ? { tabId: request.tabId } : {};
     return new Promise((resolve, reject) => {
-      this.#waiting.set(request.requestId, resolve);
-      try {
-        this.#consume(this.core.request(approval, request));
-      } catch (error) {
-        this.#waiting.delete(request.requestId);
-        reject(error);
-      }
+      this.#waiting.set(request.requestId, { resolve, reject });
+      void this.#client.call("request", {
+        connectionId: peer.connectionId, authorizationGeneration: approval?.generation,
+        requestId: request.requestId, timeoutMs: request.timeoutMs, operation: request.operation ?? "browser.click", ...fields,
+      }).catch((error: Error) => { this.#waiting.delete(request.requestId); reject(error); });
     });
   }
 
-  holdNextReply(
-    profile: string,
-    operation: string,
-  ): { captured: Promise<void>; release(): boolean } {
-    if (this.#gates.has(profile))
-      throw new Error("fixture_gate_already_exists");
+  holdNextReply(profile: string, operation: string): { captured: Promise<void>; release(): Promise<boolean> } {
+    if (this.#gates.has(profile)) throw new Error("fixture_gate_already_exists");
     let captured!: () => void;
-    const promise = new Promise<void>((resolve) => {
-      captured = resolve;
-    });
+    const promise = new Promise<void>((resolve) => { captured = resolve; });
     const gate: Gate = { operation, captured };
     this.#gates.set(profile, gate);
-    return {
-      captured: promise,
-      release: () => {
-        if (!gate.deliver) throw new Error("fixture_reply_not_captured");
-        const deliver = gate.deliver;
-        delete gate.deliver;
-        return deliver();
-      },
-    };
+    return { captured: promise, release: () => {
+      const deliver = gate.deliver;
+      if (!deliver) throw new Error("fixture_reply_not_captured");
+      delete gate.deliver;
+      return deliver();
+    } };
   }
+  dropTransport(profile: string): void { this.#endpoints.get(profile)?.current?.socket.destroy(); }
+  killPolicy(): void { this.#client.kill(); }
 
-  dropTransport(profile: string): void {
-    const peer = this.#endpoints.get(profile)?.current;
-    if (!peer) throw new Error("fixture_profile_unavailable");
-    peer.socket.destroy();
+  async restartPolicy(): Promise<void> {
+    await this.#client.close();
+    this.#peers.clear();
+    this.#early.clear();
+    this.#client = this.#newClient();
+    await this.#client.start();
   }
 
   async close(): Promise<void> {
     if (this.#closing) return;
     this.#closing = true;
-    if (this.#timer) clearInterval(this.#timer);
-    this.stop();
-    for (const endpoint of this.#endpoints.values()) {
+    try { await this.stop(); } catch { /* Failed child is already unarmed. */ }
+    for (const endpoint of this.#endpoints.values())
       for (const peer of endpoint.peers) peer.socket.destroy();
-    }
-    await Promise.all(
-      [...this.#endpoints.values()].map(
-        (endpoint) =>
-          new Promise<void>((resolve) => {
-            if (!endpoint.server.listening) {
-              resolve();
-              return;
-            }
-            endpoint.server.close(() => resolve());
-          }),
-      ),
-    );
+    await Promise.all([...this.#endpoints.values()].map((endpoint) => new Promise<void>((resolve) => {
+      if (endpoint.server.listening) endpoint.server.close(() => resolve()); else resolve();
+    })));
+    await this.#client.close();
   }
 
-  #consume(effects: readonly Effect[]): void {
-    for (const effect of effects) {
-      if (effect.type === "request.finished") {
-        const resolve = this.#waiting.get(effect.result.requestId);
-        this.#waiting.delete(effect.result.requestId);
-        resolve?.(effect.result);
-      } else {
-        const adapter = this.#adapters.get(effect.command.connection);
-        if (effect.type === "provider.dispatch" && adapter)
-          dispatchToProvider(this.core, adapter, effect.command, (effects) =>
-            this.#consume(effects),
-          );
-        else adapter?.cancel(effect.command);
-      }
+  #event(message: NativeFrame): void {
+    if (message.type === "request.finished") {
+      const result = message.result as ActionResult;
+      this.#waiting.get(result.requestId)?.resolve(result);
+      this.#waiting.delete(result.requestId);
+      return;
     }
-  }
-
-  #synchronize(): void {
-    for (const adapter of this.#adapters.values()) adapter.synchronize();
+    const id = String(message.connectionId);
+    const peer = this.#peers.get(id);
+    if (!peer) {
+      if (this.#early.size >= 16) throw new Error("fixture_early_capacity");
+      const early = this.#early.get(id) ?? [];
+      if (early.length >= 4) throw new Error("fixture_early_capacity");
+      early.push(message); this.#early.set(id, early);
+      return;
+    }
+    if (message.type === "provider.close") { peer.socket.destroy(); return; }
+    const frame = message.frame as NativeFrame;
+    if (frame.type === "request") {
+      this.#wireRequests++;
+      peer.operations.set(String(frame.id), String(frame.operation));
+    }
+    if (!peer.socket.destroyed) writeFrame(peer.socket, frame);
   }
 
   #accept(profile: string, socket: Socket): void {
-    if (this.#closing) {
-      socket.destroy();
-      return;
-    }
+    if (this.#closing) { socket.destroy(); return; }
     const endpoint = this.#endpoints.get(profile)!;
     const peer: Peer = { socket, operations: new Map() };
     endpoint.peers.add(peer);
-    const timer = setTimeout(() => socket.destroy(), 5_000);
+    const timer = setTimeout(() => socket.destroy(), 5000);
+    let chain = Promise.resolve();
     const decoder = new FrameDecoder((frame) => {
-      if (!peer.processId) {
-        if (
-          frame.type !== "fixture.native-host" ||
-          typeof frame.processId !== "number" ||
-          !Number.isSafeInteger(frame.processId) ||
-          frame.processId < 1
-        )
-          throw new Error("fixture_host_required");
-        peer.processId = frame.processId;
-        this.nativeProcessIds.add(frame.processId); // observation only, never a kill target
-        return;
-      }
-      if (!peer.adapter) {
-        if (
-          frame.type !== "hello" ||
-          frame.protocolVersion !== 1 ||
-          typeof frame.extensionVersion !== "string" ||
-          frame.extensionVersion.length > 32
-        )
-          throw new Error("fixture_hello_required");
-        const connection = this.core.connect(profile, "chrome.extension/cdp");
-        const adapter = new ExtensionProvider(this.core, connection, {
-          send: (message) => {
-            if (message.type === "request") {
-              this.#wireRequests++;
-              peer.operations.set(
-                String(message.id),
-                String(message.operation),
-              );
-            }
-            writeFrame(socket, message);
-          },
-          effects: (effects) => this.#consume(effects),
-          fault: () => socket.destroy(),
-        });
-        peer.adapter = adapter;
-        endpoint.current = peer;
-        this.#adapters.set(connection, adapter);
-        clearTimeout(timer);
-        adapter.synchronize();
-        return;
-      }
-      const operation =
-        typeof frame.id === "string"
-          ? peer.operations.get(frame.id)
-          : undefined;
-      if (frame.type === "response" && frame.ok === false) {
-        this.providerErrors.push({
-          profile,
-          operation: operation ?? "unknown",
-          code: frame.errorCode,
-          message: frame.message,
-        });
-        if (this.providerErrors.length > 20) this.providerErrors.shift();
-      }
-      if (frame.type === "response" && typeof frame.id === "string")
-        peer.operations.delete(frame.id);
-      const gate = this.#gates.get(profile);
-      if (gate && frame.type === "response" && operation === gate.operation) {
-        this.#gates.delete(profile);
-        const adapter = peer.adapter;
-        gate.deliver = () => adapter.receive(frame);
-        gate.captured();
-      } else peer.adapter.receive(frame);
+      chain = chain.then(async () => {
+        if (!peer.processId) {
+          if (frame.type !== "fixture.native-host" || typeof frame.processId !== "number" || !Number.isSafeInteger(frame.processId) || frame.processId < 1)
+            throw new Error("fixture_host_required");
+          peer.processId = frame.processId;
+          this.nativeProcessIds.add(frame.processId);
+          return;
+        }
+        if (!peer.connectionId) {
+          if (frame.type !== "hello" || frame.protocolVersion !== 1 || typeof frame.extensionVersion !== "string" || frame.extensionVersion.length > 32)
+            throw new Error("fixture_hello_required");
+          const data = await this.#client.call("provider.connect", { profileId: profile }) as { connectionId: string; generation: number };
+          peer.connectionId = data.connectionId;
+          peer.connection = Object.freeze({ profileId: profile, generation: data.generation, route: "chrome.extension/cdp" });
+          this.#peers.set(data.connectionId, peer);
+          endpoint.current = peer;
+          const early = this.#early.get(data.connectionId) ?? [];
+          this.#early.delete(data.connectionId);
+          for (const message of early) this.#event(message);
+          clearTimeout(timer);
+          return;
+        }
+        const operation = typeof frame.id === "string" ? peer.operations.get(frame.id) : undefined;
+        if (frame.type === "response" && frame.ok === false) {
+          this.providerErrors.push({ profile, operation, code: frame.errorCode });
+          if (this.providerErrors.length > 20) this.providerErrors.shift();
+        }
+        if (frame.type === "response" && typeof frame.id === "string") peer.operations.delete(frame.id);
+        const connectionId = peer.connectionId;
+        const deliver = async () => {
+          const result = await this.#client.call("provider.frame", { connectionId, frame }) as { applied: boolean };
+          return result.applied;
+        };
+        const gate = this.#gates.get(profile);
+        if (gate && frame.type === "response" && operation === gate.operation) {
+          this.#gates.delete(profile); gate.deliver = deliver; gate.captured();
+        } else await deliver();
+      }).catch(() => { socket.destroy(); });
     });
-    socket.on("data", (chunk) => {
-      try {
-        decoder.push(chunk);
-      } catch {
-        socket.destroy();
-      }
-    });
+    socket.on("data", (chunk) => { try { decoder.push(chunk); } catch { socket.destroy(); } });
     socket.on("error", () => {});
     socket.on("close", () => {
-      clearTimeout(timer);
-      endpoint.peers.delete(peer);
-      if (peer.adapter) {
-        peer.adapter.disconnected();
-        this.#adapters.delete(peer.adapter.connection);
-      }
+      clearTimeout(timer); endpoint.peers.delete(peer);
       if (endpoint.current === peer) delete endpoint.current;
+      void chain.then(async () => {
+        if (peer.connectionId) await this.#client.call("provider.disconnect", { connectionId: peer.connectionId });
+      }).catch(() => {});
     });
   }
 }

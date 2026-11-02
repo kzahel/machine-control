@@ -435,6 +435,14 @@ export class ResidentCore {
     return this.#expire(this.#now());
   }
 
+  /** Host scheduling hint only; begin/complete still enforce exact deadlines. */
+  nextDeadline(): number | null {
+    let deadline = this.#approval?.expiresAt ?? Infinity;
+    for (const pending of this.#pending.values())
+      deadline = Math.min(deadline, pending.deadline);
+    return Number.isFinite(deadline) ? deadline : null;
+  }
+
   inspect(): {
     readonly connectedProfiles: readonly string[];
     readonly approvedProfiles: readonly string[];

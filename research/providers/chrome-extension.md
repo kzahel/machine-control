@@ -99,6 +99,16 @@ sandbox; it does not test production peer authentication, same-process Chrome
 profiles, real account data, native consent, installed setup or store delivery.
 [Tactical 151](../../docs/tactical/151-shared-core-real-browser.md) owns execution.
 
+**Current (2026-11-02), bounded process-host follow-up:** the same fixture now
+runs policy and its adapter in a separate child. Packaged Node and compiled
+Bun both pass ten checks on Mac ARM64, adding scheduled grant expiry and hard
+coordinator death/restart. Native-port loss clears both real panels; restart
+has no consent or request replay, and old references refuse. Independent
+trusted-click totals are six and four. These are synthetic fixture effects,
+not installed native authentication or same-process-profile qualification.
+[Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md) owns
+the deployment decision and remaining Windows adoption gates.
+
 ## Fidelity, consequences, and gaps
 
 **Current (2026-11-02), bounded physical-macOS `live-tested` recovery:** the

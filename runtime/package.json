@@ -9,7 +9,7 @@
   },
   "scripts": {
     "check": "tsc --noEmit && tsc --noEmit --project tsconfig.node.json",
-    "test": "node --test ../tests/runtime/core.test.mjs ../tests/runtime/extension.test.mjs",
+    "test": "node --test ../tests/runtime/core.test.mjs ../tests/runtime/extension.test.mjs ../tests/runtime/process.test.mjs",
     "scenario": "node ../tests/runtime/scenario.mjs",
     "browser": "node ../tests/runtime/browser-live.mjs"
   },

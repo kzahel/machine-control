@@ -95,6 +95,8 @@ export class ExtensionProvider implements ProviderAdapter {
   #active = true;
   #published = "";
 
+  get pendingCount(): number { return this.#pending.size; }
+
   constructor(
     core: ResidentCore,
     connection: ProviderConnection,

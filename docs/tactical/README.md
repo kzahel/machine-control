@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [152 — Shared runtime and Windows adoption](152-shared-runtime-windows-adoption.md)
+  (active): language/deployment decision, one browser authority and packaged
+  Windows acceptance before Mac/Linux migration.
+
 - [151 — Shared core real browser](151-shared-core-real-browser.md) (bounded Mac slice complete):
   native messaging, typed discovery/snapshots, two isolated profiles and faults.
 

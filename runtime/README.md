@@ -10,7 +10,7 @@ With Node 24+, run the scenario and regressions without installing packages:
 
 ```sh
 node tests/runtime/scenario.mjs
-node --test tests/runtime/core.test.mjs tests/runtime/extension.test.mjs
+node --test tests/runtime/core.test.mjs tests/runtime/extension.test.mjs tests/runtime/process.test.mjs
 ```
 
 Install the pinned development compiler for strict checking:
@@ -22,10 +22,10 @@ pnpm --dir runtime check
 
 The policy and extension adapter are erasable TypeScript with no runtime
 dependencies, Node imports, timers, native I/O or Tauri. Node-specific framing
-is isolated under `node/`; the private fixture host under `testing/` composes
-real sockets and scheduling with the same core. Node executes the TypeScript
-directly; strict checking is a separate required check. Node is the development
-host, not a settled installed-runtime choice.
+is isolated under `node/`. The [private inherited process inlet](PROTOCOL.md)
+composes policy and the extension adapter in a child; the fixture parent under
+`testing/` owns sockets and process cleanup. Node executes TypeScript directly;
+strict checking is a separate required check. Installed adoption is pending.
 
 For real-browser acceptance on Mac/Linux, install the existing desktop's
 pinned Playwright and its full test browser (not headless-shell only):
@@ -43,6 +43,27 @@ display server, installed resident, account sign-in or registration in the
 user's real browser. Chromium's sandbox is explicitly disabled for these empty
 fixtures; this does not qualify sandboxed production-browser operation.
 Browsers/relays are closed and scratch directories removed in cleanup.
+
+## Executable qualification
+
+`toolchains.json` pins Node archives by version and SHA-256. Packaging copies
+only the runtime, upstream LICENSE and owned policy source, without npm or
+headers. The alternative Bun compiler must match its pinned version. Outputs
+are unsigned qualification payloads, with file/source digests and verified
+Mach-O, ELF or PE architecture, not accepted desktop packages.
+
+```sh
+python3 runtime/scripts/package.py --engine node --target all --output .artifacts/policy-node
+node tests/runtime/qualify.mjs .artifacts/policy-node/darwin-arm64 --browser
+```
+
+Choose the matching target on other hosts; Windows supports process acceptance
+here, while scratch native-host browser registration remains Mac/Linux only.
+The qualifier checks file hashes, executes EOF/kill/expiry tests against that
+payload and samples startup/shutdown plus self-reported RSS. `--browser` runs
+the real extension against the packaged child. To evaluate Bun, use
+`--engine bun --bun /path/to/pinned/bun`; compiled evaluation artifacts are not
+authorized for redistribution by this script. No system installation changes.
 
 ## Boundary
 

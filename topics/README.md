@@ -35,7 +35,8 @@ its `Topic:` trailers.
 ## Current topics
 
 - [`shared-resident-core.md`](shared-resident-core.md): shared policy and typed
-  provider boundaries, deterministic reference verification and native migration.
+  provider boundaries, TypeScript/bundled Node deployment, fast verification
+  and native migration.
 
 - [`computer-use-positioning.md`](computer-use-positioning.md): complete-package
   positioning, existing locked/system/device capabilities, evidence-led gaps

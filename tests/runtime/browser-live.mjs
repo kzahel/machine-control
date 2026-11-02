@@ -278,7 +278,7 @@ export async function runBrowserAcceptance() {
     check("Off refuses before the native transport");
 
     stage = "Work-only approval";
-    let approval = host.approve(["work"]);
+    let approval = await host.approve(["work"]);
     await panelAccess("work", true);
     await panelAccess("personal", false);
     const beforeUnapproved = host.wireRequests;
@@ -299,7 +299,7 @@ export async function runBrowserAcceptance() {
     );
 
     stage = "both profiles";
-    approval = host.approve(["work", "personal"]);
+    approval = await host.approve(["work", "personal"]);
     await panelAccess("personal", true);
     const personalReference = await button(approval, "personal");
     const crossCount = host.wireRequests;
@@ -340,7 +340,7 @@ export async function runBrowserAcceptance() {
     );
     await within(gate.captured, "held real Work response");
     await poll(() => counters.work === 2, "Work effect before Stop");
-    host.stop();
+    await host.stop();
     const stopped = await held;
     assert.equal(stopped.delivery, "unknown");
     assert.equal(stopped.effect, "unknown");
@@ -356,7 +356,7 @@ export async function runBrowserAcceptance() {
       "Stop reaches both real workers and preserves uncertain dispatched effects",
     );
 
-    approval = host.approve(["personal"]);
+    approval = await host.approve(["personal"]);
     const freshReference = await button(approval, "personal");
     const freshGate = host.holdNextReply("personal", "browser.click");
     const fresh = call(
@@ -367,19 +367,19 @@ export async function runBrowserAcceptance() {
       "reused-click",
     );
     await within(freshGate.captured, "held fresh Personal response");
-    assert.equal(gate.release(), false);
-    assert.equal(host.core.inspect().pendingRequests, 1);
-    assert.deepEqual(host.core.inspect().approvedProfiles, ["personal"]);
-    assert.equal(freshGate.release(), true);
+    assert.equal(await gate.release(), false);
+    assert.equal((await host.inspect()).pendingRequests, 1);
+    assert.deepEqual((await host.inspect()).approvedProfiles, ["personal"]);
+    assert.equal(await freshGate.release(), true);
     assert.equal((await fresh).accepted, true);
     await poll(() => counters.personal === 2, "fresh Personal effect");
-    assert.equal(host.core.inspect().retainedRequests, 0);
+    assert.equal((await host.inspect()).retainedRequests, 0);
     check(
       "late Work wire reply cannot complete a new Personal request with the same label",
     );
 
     stage = "native host loss";
-    approval = host.approve(["work", "personal"]);
+    approval = await host.approve(["work", "personal"]);
     const oldWork = host.connection("work"),
       unchangedPersonal = host.connection("personal");
     const oldReference = await button(approval, "work");
@@ -409,7 +409,7 @@ export async function runBrowserAcceptance() {
       "stale_reference",
     );
     assert.equal(host.wireRequests, beforeStale);
-    assert.equal(lossGate.release(), false);
+    assert.equal(await lossGate.release(), false);
     await accepted(approval, "personal", "browser.click", {
       reference: unaffectedReference,
     });
@@ -419,14 +419,58 @@ export async function runBrowserAcceptance() {
       reference: newWorkReference,
     });
     await poll(() => counters.work === 4, "fresh Work effect after reconnect");
-    assert.equal(host.core.inspect().retainedRequests, 0);
+    assert.equal((await host.inspect()).retainedRequests, 0);
     check(
       "native transport loss fences pending work, reconnects and leaves Personal usable",
     );
-    host.stop();
+    await host.stop();
     await panelAccess("work", false);
     await panelAccess("personal", false);
     check("final Stop clears controlled tabs in both real extension panels");
+
+    stage = "approval deadline across the process boundary";
+    approval = await host.approve(["work"], 1000);
+    const expiryReference = await button(approval, "work");
+    const expiryGate = host.holdNextReply("work", "browser.click");
+    const expiring = call(approval, "work", "browser.click", { reference: expiryReference });
+    await within(expiryGate.captured, "real reply held until approval expiry");
+    await poll(() => counters.work === 5, "independent effect before expiry");
+    const expired = await expiring;
+    assert.equal(expired.errorCode, "approval_expired");
+    assert.equal(expired.delivery, "unknown");
+    await panelAccess("work", false);
+    assert.equal(await expiryGate.release(), false);
+    check("scheduled expiry revokes the real worker and fences its held reply");
+
+    stage = "policy process death and restart";
+    approval = await host.approve(["work", "personal"]);
+    const killedReference = await button(approval, "work");
+    const killedGate = host.holdNextReply("work", "browser.click");
+    const dying = call(approval, "work", "browser.click", { reference: killedReference });
+    const rejected = assert.rejects(dying, /fixture_policy_died/);
+    await within(killedGate.captured, "real effect before coordinator kill");
+    await poll(() => counters.work === 6, "independent effect before policy death");
+    host.killPolicy();
+    await rejected;
+    await poll(() => !host.connection("work") && !host.connection("personal"), "native routes close after policy death");
+    await panelAccess("work", false);
+    await panelAccess("personal", false);
+    await host.restartPolicy();
+    await poll(() => host.connection("work") && host.connection("personal"), "native routes reconnect to fresh Off policy");
+    const restartRequests = host.wireRequests;
+    assert.equal((await call(undefined, "work", "browser.tabs")).errorCode, "approval_required");
+    assert.equal(host.wireRequests, restartRequests);
+    approval = await host.approve(["work", "personal"]);
+    assert.equal((await call(approval, "work", "browser.click", { reference: killedReference })).errorCode, "stale_reference");
+    await assert.rejects(killedGate.release(), /invalid_host_request/);
+    const afterRestart = await button(approval, "personal");
+    await accepted(approval, "personal", "browser.click", { reference: afterRestart });
+    await poll(() => counters.personal === 4, "fresh independent effect after policy restart");
+    assert.equal(counters.work, 6);
+    await host.stop();
+    await panelAccess("work", false);
+    await panelAccess("personal", false);
+    check("policy death closes real native ports; restart has no consent, stale refs or replay");
     result = {
       passed: true,
       platform: process.platform,
@@ -444,7 +488,7 @@ export async function runBrowserAcceptance() {
     failure = new Error(`${stage}: ${error.message}`, { cause: error });
   } finally {
     try {
-      host.stop();
+      await host.stop();
       const closed = await Promise.allSettled(
         contexts.map((context) => context.close()),
       );

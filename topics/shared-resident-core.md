@@ -2,7 +2,7 @@
 
 Topic: `shared-resident-core`
 
-Status: **deterministic and real-browser slices complete; no installed integration**.
+Status: **language/deployment chosen; Windows adoption active; no installed integration**.
 
 ## Motivation
 
@@ -24,9 +24,9 @@ policy is currently intertwined with those native responsibilities.
 
 The user requested using browser profiles to refactor this middle layer,
 with lightweight, fast verification rather than repeatedly assembling a
-desktop package or bringing up three OS appliances. Language preference is
-still open between iteration-friendly TS/Python and Rust's native deployment.
-The first deliverable must make that architecture concrete without claiming
+desktop package or bringing up three OS appliances. The original language
+question compared iteration-friendly TS/Python with Rust's native deployment.
+The first deliverable makes that architecture concrete without claiming
 an all-platform migration or production browser-profile support.
 
 ## Direction and ownership
@@ -39,13 +39,98 @@ the WebView, agent-written code, native OS APIs and browser automation tools.
 Windows remains the first native adoption vertical slice. Preserve existing
 providers, signed identities and protected watchdogs during migration.
 
-**Decision for the first slice:** use strict, erasable TypeScript under
+**Initial slice:** use strict, erasable TypeScript under
 `runtime/`, runnable with Node 24+ without a build or runtime dependencies.
 Its pinned compiler is a development dependency only. This evaluates the
 coordinator policy and development loop; it does not commit installed
 packages to Node/Bun, claim packaging qualification or require replacing the
 Python agent interface. Native-library embedding remains a Rust advantage;
 runtime deployment and library/process placement need their own evidence.
+
+## Language and deployment decision
+
+**Decision:** retain TypeScript for shared policy and deploy it as a private
+child with a bundled, pinned Node LTS runtime. No system Node, npm, interpreter
+discovery or agent-side runtime installation is required. The native resident
+owns the child independently of Settings. Keep the policy free of Node/Bun
+APIs; the inherited process host is a replaceable adapter around that source.
+The current runtime pin is Node 24.22.2, with exact upstream archive hashes
+and upstream notices retained in the payload. This settles the implementation
+direction; installed identity and full Windows adoption remain acceptance
+gates, not facts implied by the choice.
+
+**Current:** both pinned Node and Bun 1.4.4 payloads build for all six desktop
+targets. Header inspection verifies OS/architecture, not executable correctness.
+On Mac ARM64, both packaged children pass four process checks and ten real
+browser checks, including EOF, hard kill, expiry, stale references, native-port
+cleanup and fresh Off restart. The unchanged extension produces independently
+observed trusted-click effects through either process host.
+
+**Current, bounded Windows process evidence:** Node and Bun payloads pass the
+four-check process suite on an exclusively claimed Windows ARM64 appliance:
+ARM64 natively and x64 under emulation. This qualifies inherited pipe framing,
+EOF/kill cleanup, scheduled expiry and fresh Off state, not native x64
+hardware, production browser-peer authentication or an installed desktop app.
+Scratch staging/processes are removed, Off restored and claims released.
+
+**Current, local eight-sample measurements:** median empty-host startup is
+about 62 ms for Node and 12 ms for Bun. Self-reported idle RSS is approximately
+91 MB and 8 MB respectively; these are runtime reports, not an independent OS
+memory census or a workload benchmark. Both idle Off without periodic wakeups.
+The uncompressed Node payload is 82 MB on Windows ARM64 and 94 MB on x64,
+versus Bun's 100 MB and 115 MB; Mac/Linux Node payloads are 123–127 MB versus
+Bun's 89–109 MB. Artifact size and RAM are separate costs.
+
+**Decision:** accept Node's measured footprint for a known LTS maintenance
+boundary and unchanged, hash-pinned upstream runtime distribution. Bun is a
+working alternative with better startup/RSS in this fixture, not a failed
+experiment. It introduces another runtime compatibility and redistribution
+qualification obligation; its [license record](https://github.com/oven-sh/bun/blob/bun-v1.4.4/LICENSE.md)
+includes MIT for Bun itself and narrower terms for linked dependencies,
+including LGPL JavaScriptCore. This is not a claim that Bun cannot be shipped.
+The [Node release policy](https://nodejs.org/en/about/previous-releases) provides
+the chosen patch/support lifecycle. Pin upgrades must rerun process, browser,
+native and package acceptance; runtime maintenance is now a product duty.
+
+**Decision:** do not write a competing Rust core. There is no demonstrated
+deployment blocker requiring it; native-library embedding does not outweigh
+reimplementing the already exercised policy. Rust remains appropriate for the
+existing Tauri/native boundary. Python remains the agent-facing client and
+platform tooling; no Python policy prototype was built, so there is no measured
+Python performance claim. The decision can be revisited for a concrete failure,
+not through parallel policy engines or another open-ended language comparison.
+
+## Native adoption boundary
+
+**Decision for adoption:** one shared authority owns browser policy. The
+following is the required ownership split, not the installed state today.
+
+| Responsibility | Owner after adoption |
+| --- | --- |
+| Native operator and browser-peer authentication | Existing native resident |
+| OS console/session observations, protected provider and emergency transport shutdown | Native adapters/watchdogs |
+| Exact profile approval, scope, lifetime, withdrawal and generation | Shared core |
+| Profile selection, request admission to browser routes, deadline, terminal result and late-reply fencing | Shared core |
+| Browser endpoint tokens, profile-bound stream ownership/reservations and revocation | Shared policy, over bounded transport adapters |
+| Native caller identity and existing desktop control-owner admission | Native ingress, passed as a fenced capability input |
+| Settings, extension panel and native notices | Projections and trusted operator decisions; never replacement authorities |
+
+Native ingress can deny an unsafe operation or close a route independently;
+it cannot mint, renew or restore browser approval. Remove the browser grant
+checks being replaced from native `DesktopGrants`/relay policy rather than
+renewing the same browser permission separately in two processes. Existing
+desktop grants and protected watchdogs remain native until their own migration.
+Mixed desktop/browser approval needs explicit composition and rollback; do
+not silently interpret an old consent record as an exact profile set.
+
+The [private host inlet](../runtime/PROTOCOL.md) is implemented for three typed
+operations and finite fixture approvals. Production adoption still needs
+profile-aware identity, all ordinary operations and DevTools streams,
+indefinite operator lifetimes, native admission fences and a bounded
+quiescence/reclamation policy for lost dispatched work. The installed Windows
+grant/relay code has not yet been replaced. Mac and Linux adopt this proven
+boundary after the complete Windows candidate, without porting another policy
+engine into Swift or Python.
 
 The module is intended to become the shared policy implementation, not a
 throwaway mock of one. It currently has no installed consumers. Authority
@@ -107,12 +192,23 @@ implementation or a replacement OS.
 
 ## Next evidence
 
+**Decision:** the next milestone migrates a complete Windows browser path
+through the chosen TypeScript/Node boundary, with packaged acceptance.
+[Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) owns its
+gates. The executable comparison above settles language and placement;
+no Rust comparison is warranted by current evidence.
+The milestone must account for deleted native policy, retain ordinary/CDP
+behavior, and prove settings independence and failure cleanup. Another fixture
+alone does not complete it. Publication and personal installation replacement
+are outside its scope.
+
 **Current, bounded Mac ARM64 live evidence:** the same core now handles typed
 tab discovery, snapshots and clicks through the unchanged extension and real
-native messaging. Two independent headless test-browser profiles pass eight
-checks in approximately three seconds, with independent trusted-click HTTP
+native messaging. Two independent headless test-browser profiles now pass ten
+checks in approximately five seconds, with independent trusted-click HTTP
 effects, Stop in both extension panels, a held old reply and genuine native
-relay loss/reconnect. Fixture endpoints assign identity and fixture operator
+relay loss/reconnect, scheduled expiry and policy-process death/restart.
+Fixture endpoints assign identity and fixture operator
 calls approve exact profiles; production native authentication, same-process
 Chrome profiles, browser sandbox and installed acceptance are not qualified.
 [Tactical 151](../docs/tactical/151-shared-core-real-browser.md) owns execution
@@ -121,13 +217,16 @@ owns route evidence. This consumes the existing worker protocol without a
 new extension release or change to the installed residents.
 
 **Current:** the TypeScript core, stateful provider, explicit-clock scenario
-and 24 focused regressions pass locally under Node 24 and Node 26, with strict
-TypeScript checking. The suite reports roughly 0.1 seconds on the development
-Mac; this is a local observation, not a cross-platform benchmark. CI is wired
+and 28 focused regressions pass locally with strict TypeScript checking.
+The deterministic 24-test subset reports roughly 0.1 seconds; process checks
+add approximately 1.3 seconds on the development Mac. These are local
+observations, not cross-platform benchmarks. CI is wired
 to run the same core tests and type check on all three desktop host families;
 remote CI execution and native/package acceptance are not inferred. A separate
-Linux CI job is wired for real-browser acceptance; its execution is not inferred
-from the local Mac evidence.
+Linux CI job is wired for real-browser acceptance using the packaged child.
+Coordinator CI builds all six Node payloads on Linux and executes native
+payloads on all three host families. Remote execution is not inferred from
+this configuration or local Mac evidence.
 
 [Tactical 150](../docs/tactical/150-shared-resident-core.md) owns the reference
 slice and [Tactical 151](../docs/tactical/151-shared-core-real-browser.md) owns

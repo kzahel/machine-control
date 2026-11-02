@@ -41,7 +41,9 @@ into a raw proxy for every testbed CLI.
 [shared resident policy workstream](topics/shared-resident-core.md). Its first
 TypeScript module owns bounded profile routing, approval and action lifetime
 for a deterministic reference-provider harness. A typed extension adapter also
-exercises real native messaging in isolated headless test-browser profiles;
+exercises real native messaging in isolated headless test-browser profiles.
+The [private inherited process inlet](runtime/PROTOCOL.md) now places policy
+and adapters in a child, with the fixture parent owning sockets and cleanup;
 fixture identity/approval do not establish production native authentication.
 Existing native residents remain authoritative for installed control. This
 module is not a new YA
