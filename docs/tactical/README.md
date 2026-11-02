@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [147 — Physical browser provider validation](147-physical-browser-provider-validation.md)
+  (complete for the bounded physical recovery): executing-code identity,
+  source-cache reload refusal, clean unpacked staging and verified input/relock.
+
 - [146 — Background browser click reproduction](146-background-browser-click-reproduction.md)
   (complete for the focus/layout defect): prepare virtual focus before target
   geometry, independent effects and non-interference; original physical cause

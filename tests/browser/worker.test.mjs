@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 test("real worker cleans markers on resident revocation, release and disconnect", async () => {
   const event = () => {
@@ -159,6 +161,13 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     const tab = created.data.tab.tabId;
     assert.equal(tabs.get(tab).active, false, "ordinary new tabs must not replace the user's selected tab");
     assert.equal(markers.get(tab), true);
+    const identity = (await request("browser.tabs")).data.providerInfo;
+    const workerSource = await readFile(new URL("../../providers/chrome-extension/service_worker.js", import.meta.url), "utf8");
+    const operationsStart = workerSource.indexOf("function createOperations(context) {");
+    const operationsEnd = workerSource.indexOf("\nreturn { perform, prepare };\n}", operationsStart) + "\nreturn { perform, prepare };\n}".length;
+    assert.deepEqual(identity, {schema:"machine-control-browser-provider/v0", extensionId:"fixture-extension",
+      extensionVersion:"fixture", protocolVersion:1,
+      operationsSha256:createHash("sha256").update(workerSource.slice(operationsStart, operationsEnd)).digest("hex")});
     // The side panel receives read-only state from its own extension only.
     const panelPort = (id) => {
       const states = [];
@@ -179,6 +188,8 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     assert.equal(typed.operation, "browser.type");
     assert.equal(typed.detail, "13 characters");
     assert.equal(JSON.stringify(panel.states).includes("private words"), false);
+    assert.deepEqual((await request("browser.tabs")).data.providerInfo, identity,
+      "live implementation identity is independent of request text and browser state");
     native.onMessage.emit({ type: "session.open", id: "browser-only", tabId: tab });
     await wait(() => replies.find((reply) => reply.type === "session.failed" && reply.id === "browser-only"));
     const oldReference = (await request("browser.snapshot", { tabId: tab })).data.elements[0].reference;

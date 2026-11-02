@@ -69,12 +69,21 @@ owns the planned support and physical acceptance gates.
 
 ## Browser control with the console locked
 
+**Current (2026-11-02), bounded physical recovery:** the selected development
+worker was reloaded after Chrome rejected a generated Python cache. Its live
+operation digest now matches source; static and focus-sensitive background
+clicks, text and capture pass while independently locked. The
+[provider dossier](../providers/chrome-extension.md#fidelity-consequences-and-gaps)
+owns fidelity limits and [Tactical 147](../../docs/tactical/147-physical-browser-provider-validation.md)
+owns before/after and cleanup. The historical worker revision is unpinned;
+store delivery and the original individual patch attribution remain separate.
+
 **Current (2026-11-02), bounded VM regression:** the browser provider's
 focus-before-geometry repair passes independent locked page effects in a
 claimed disposable ARM64 Mac VM; unlocked native foreground/cursor sentinel
 checks also pass. The [provider dossier](../providers/chrome-extension.md#fidelity-consequences-and-gaps)
 owns the pinned comparison and [Tactical 146](../../docs/tactical/146-background-browser-click-reproduction.md)
-owns execution. This does not close the physical static-page failure below.
+owns execution. The separate physical follow-up above records later recovery.
 
 **Current (2026-11-01), bounded physical-Mac `live-tested` gap:** background
 browser operation is partially verified while actually locked; a click lacked

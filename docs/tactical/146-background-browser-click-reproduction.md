@@ -3,7 +3,8 @@
 Owning topic: [browser control](../../topics/browser-control.md).
 
 Status: **implemented and VM-qualified for the focus/layout defect**;
-the original static-page physical failure remains unattributed. Follows the
+later physical recovery and remaining attribution limits are owned by
+[Tactical 147](147-physical-browser-provider-validation.md). Follows the
 [physical locked-console click report](../../gaps/2026-11-01-locked-background-browser-click.md).
 
 ## Objective and completion conditions

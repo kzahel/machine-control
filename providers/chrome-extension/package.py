@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import shutil
 import subprocess
 import zipfile
 
@@ -33,10 +34,31 @@ def entry(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
     archive.writestr(info, data)
 
 
+def write_unpacked(output: pathlib.Path) -> None:
+    """Create a fresh development load directory without helper/cache files."""
+    output.mkdir(parents=True, exist_ok=False)
+    try:
+        for name in ["manifest.json", *FILES]:
+            destination = output / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((ROOT / name).read_bytes())
+    except BaseException:
+        shutil.rmtree(output)
+        raise
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=pathlib.Path, help="directory to write")
+    parser.add_argument("--unpacked", action="store_true",
+                        help="write a fresh loadable development directory, preserving its ID")
     args = parser.parse_args()
+    if args.unpacked:
+        if args.output.exists():
+            parser.error("Unpacked output must be a new directory")
+        write_unpacked(args.output)
+        print(f"Load unpacked from {args.output}")
+        return
     manifest = json.loads((ROOT / "manifest.json").read_text())
     manifest.pop("key", None)
     version = manifest["version"]

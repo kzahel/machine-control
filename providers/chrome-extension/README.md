@@ -187,8 +187,17 @@ Run lifecycle checks with `node --test tests/browser/*.test.mjs`. The headed
 real Chrome for Testing and a native resident inside a claimed Mac appliance;
 its caller owns target selection, claims, grant approval, and power cleanup.
 
-References look like `TAB:GENERATION:NODE`. Taking a new snapshot or loading a
-new page makes older references stale.
+References look like `TAB:EPOCH:GENERATION:NODE`. Taking a new snapshot or
+loading a new page makes older references stale; authority replacement also
+changes the epoch.
+
+`browser tabs` includes `data.providerInfo` on supporting workers: extension
+ID/version, protocol version and `operationsSha256`, a SHA-256 digest of the
+executing operation closure. Compare that digest when checking a development
+reload; hashing files on disk alone cannot identify an already loaded worker.
+It does not hash imported modules, authenticate a provider or prove effects.
+Older workers omit the field; version equality alone does not establish that
+the intended implementation is running.
 
 ## Development install
 
@@ -202,8 +211,23 @@ accept both.
    `platforms/macos/resident/scripts/install-browser.sh`. Chrome reads
    user-level hosts from its user data directory, so a separate profile or
    Chrome for Testing needs `--browser-dir DIR`.
-3. In `chrome://extensions`, enable Developer mode and choose
-   **Load unpacked** with this directory.
+3. Create a fresh development load directory outside the checkout:
+   `python3 providers/chrome-extension/package.py --unpacked OUTPUT_DIRECTORY`.
+   This copies the runtime allowlist and preserves the development manifest
+   key. Existing output directories refuse rather than being overwritten.
+4. In `chrome://extensions`, enable Developer mode and choose
+   **Load unpacked** with that generated directory.
+
+Do not load the repository directory directly: Python helpers can leave
+`__pycache__`, which Chrome rejects as a reserved directory name. The clean
+unpacked output excludes helpers, caches and store tooling. The bundled
+extension directory is also prepared separately from source tooling.
+Source edits do not update a running worker. Select a newly prepared directory
+through **Load unpacked**; the preserved key determines its development ID.
+If updating files in an already registered directory, reload only that
+extension using Chrome's normal controls. Verify fresh provider identity and
+effects rather than assuming the load succeeded. Do not automatically reload
+all extensions or restart the browser to repair a mismatch.
 
 Branded Chrome ignores `--load-extension`; Chrome for Testing accepts it,
 which is how automated tests load the extension in disposable VMs.

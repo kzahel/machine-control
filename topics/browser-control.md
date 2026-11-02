@@ -26,19 +26,20 @@ and result vocabulary as desktop control. This applies to physical hosts
 before scrolling and measuring a click target. A focus/visibility handler can
 otherwise move the target after geometry is read, making acknowledged input
 hit the page background. Independent VM fixture effects reproduce that order
-defect and pass after repair; the original physical static-page failure remains
-unattributed. The [provider dossier](../research/providers/chrome-extension.md#fidelity-consequences-and-gaps)
+defect and pass after repair. The [provider dossier](../research/providers/chrome-extension.md#fidelity-consequences-and-gaps)
 owns evidence boundaries and [Tactical 146](../docs/tactical/146-background-browser-click-reproduction.md)
 owns execution. No physical app or store extension was replaced or published.
 
-**Open (2026-11-01), observed physical-Mac bug:** a background browser click
-while the console was locked acknowledged delivery without the fixture's DOM
-or independent HTTP effect. Typing and observation worked in the same tab;
-native covered desktop pointer input passed separately. The
-[gap record](../gaps/2026-11-01-locked-background-browser-click.md) owns the
-bounded evidence and next diagnostics. Isolate the installed route and console
-state before claiming a cause; preserve background operation and do not replay
-uncertain clicks or activate a tab as an automatic workaround.
+**Current (2026-11-02), physical recovery verified:** static and focus-sensitive
+background clicks pass after reloading the selected unpacked provider. Chrome
+first refused a generated Python cache; moving that cache out allowed reload.
+Tab discovery now reports executing operation-code identity, and a clean
+unpacked packager excludes source helpers/caches for future development loads.
+The historical worker revision remains unknown; source/version equality did
+not identify it. The [gap record](../gaps/2026-11-01-locked-background-browser-click.md)
+owns observation limits and [Tactical 147](../docs/tactical/147-physical-browser-provider-validation.md)
+owns the physical follow-up. The native app and store extension were unchanged;
+the unpacked development worker was explicitly reloaded.
 
 **Current (2026-10-27), extension 0.8.4 source:** local file host access is
 declared so users can enable Chrome's file-access switch for uploads. The

@@ -44,6 +44,19 @@ let devtools = false;
 let lastDisconnect = "";
 let retryDelayMs = 1000;
 let retryTimer = null;
+let operationsHash;
+
+async function providerInfo() {
+  // Hash the executing operations, not a fetch of files that may have changed
+  // since Chrome loaded this worker. This is diagnostic identity, not authority.
+  operationsHash ??= crypto.subtle.digest("SHA-256",
+    new TextEncoder().encode(Function.prototype.toString.call(createOperations)))
+    .then(bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join(""));
+  return { schema:"machine-control-browser-provider/v0", extensionId:chrome.runtime.id,
+    extensionVersion:chrome.runtime.getManifest().version, protocolVersion:PROTOCOL_VERSION,
+    operationsSha256:await operationsHash };
+}
+
 const attached = new Set();
 const ordinaryTabs = new Set();
 const unconfirmedDetaches = new Set();
@@ -405,7 +418,7 @@ function tabJSON(tab) {
 
 async function listTabs() {
   const tabs = await chrome.tabs.query({});
-  return { tabs: tabs.map(tabJSON) };
+  return { tabs: tabs.map(tabJSON), providerInfo:await providerInfo() };
 }
 
 async function resolveTab(params) {

@@ -21,6 +21,12 @@ distinct bugs. Some describe other applications, fixture mistakes, expected
 policy refusals, or subsequently repaired defects. Exact note/session/claim
 references and the review crosswalk remain in the private usage store.
 
+**Current follow-up:** [Tactical 147](../docs/tactical/147-physical-browser-provider-validation.md)
+records recovery of the owned physical browser-click symptom after reloading
+the development provider. The broader real-site reports remain separately
+unattributed; this review's original priority table is not a new acceptance
+claim for every reported workflow.
+
 ## Suggested priorities
 
 **Proposal:** prioritize by workflow impact and strength of remaining evidence,

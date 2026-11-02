@@ -62,6 +62,27 @@ and exact installed product evidence.
 
 ## Fidelity, consequences, and gaps
 
+**Current (2026-11-02), bounded physical-macOS `live-tested` recovery:** the
+connected native-host origin identified the development provider. Its legacy
+references and hidden-input behavior differed from current source. Chrome
+refused its first reload because of a generated `__pycache__`; moving only that
+cache out and using the explicit retry loaded current operations. Static and
+focus-sensitive background fixtures then produced one trusted pointer/click
+sequence and HTTP effect each while independently locked, with text, PNG and
+selected-tab preservation. Cleanup relocked and retained approval. The old
+worker's exact revision and the individual effects of code reload versus state
+reset remain unisolated. This does not qualify store delivery or other sites.
+[Tactical 147](../../docs/tactical/147-physical-browser-provider-validation.md)
+owns the before/after evidence.
+
+**Current, unreleased diagnostics and development packaging:** granted
+`browser.tabs` returns extension ID/version, protocol version and a digest of
+the executing operation closure. It deliberately does not fetch current disk
+contents or claim a whole-module/import fingerprint, authentication or effect
+proof. A new clean unpacked-output mode preserves the development key and
+excludes helper/cache files without mutating source or overwriting an existing
+directory. Contract and polluted-source packaging tests cover those boundaries.
+
 **Current (2026-11-02), owned source repair, bounded VM `conformance-tested`:**
 the worker measured click geometry before preparing virtual focus. An owned
 focus/visibility callback moves the target by 180 CSS pixels; four background
@@ -72,8 +93,9 @@ also pass selected/background and zoom cells while IOKit independently reports
 locked, with one HTTP click per case and preserved background tab selection.
 This uses signed desktop 0.6.11, macOS 26.6.2 ARM64 and separately identified
 Chrome for Testing 156.0.8078.80. Ordinary static cases also passed before the
-repair, including earlier CfT 155 cells. The original physical static-page
-failure therefore remains open. Store delivery, exact physical-browser patch
+repair, including earlier CfT 155 cells. Subsequent physical recovery is owned
+by Tactical 147 above; it does not identify the original worker revision.
+Store delivery, exact physical-browser patch
 and other platform execution are not qualified. [Tactical 146](../../docs/tactical/146-background-browser-click-reproduction.md)
 owns the recorded comparisons and cleanup.
 
@@ -85,11 +107,11 @@ owned embedded-terminal fixture independently from ordinary HTML fields. The
 [review](../../gaps/2026-11-01-usage-journal-review.md) records this gap separately
 from background click delivery and the passing VM background-input cells.
 
-**Current (2026-11-01), bounded physical-macOS `live-tested` gap:** the
+**Current (2026-11-01), historical bounded physical-macOS `live-tested` gap:** the
 connected extension reported 0.8.4, but a locked-console background click
 acknowledged delivery without an independently observed fixture effect. Text,
 inspection and capture worked. The exact installed artifact combination and
-cause remain unisolated; this does not supersede the separately qualified VM
+historical implementation remain unisolated; this does not supersede the separately qualified VM
 route. The [gap record](../../gaps/2026-11-01-locked-background-browser-click.md)
 owns observations, oracle limits and the required matched comparisons.
 

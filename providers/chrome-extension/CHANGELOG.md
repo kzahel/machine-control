@@ -5,6 +5,12 @@ Store releases are tagged `extension-v<version>`; see
 
 ## Unreleased
 
+- Report the executing operation-code digest and extension identity in tab
+  discovery, making stale development workers distinguishable from source
+  files without exposing page contents or treating identity as authority.
+- Add `package.py --unpacked` to prepare a fresh development runtime directory
+  without Python caches that Chrome refuses to load.
+
 - Prepare virtual page focus before scrolling and measuring a click target,
   so focus/visibility handlers cannot leave the click using the hidden page's
   old coordinates. Background operation and foreground opt-in stay unchanged.
