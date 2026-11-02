@@ -115,6 +115,18 @@ restoration, and claim release. It never reads a password or installs on the
 controller. Physical takeover and visible cover inspection are separate
 explicitly authorized tests. See the [locked-use guide](../../platforms/macos/docs/locked-use.md).
 
+For a bounded signed-package investigation, the controller's
+`packaged-acceptance.py --development --covered-recovery --remote-arming
+--covered-probe --covered-duration 600 --covered-renewal-seconds 120` adds actual
+ten-minute expiry to the existing short probe. Supply its required signed app,
+private output and canonical credential locator inside a common isolated scope.
+Finite and renewed owners exercise native browser model/Save/reload; HTTP save
+counts detect same-value duplicate saves. The diagnostic suppresses Python
+bytecode in both the importing process and bundled adapter, and verifies the
+candidate's seal and unchanged file manifest after execution. No development
+probe emits release-eligible evidence. See
+[Tactical 148](../../docs/tactical/148-covered-editing-and-candidate-integrity.md).
+
 For explicitly requested physical-Mac acceptance, use `--local --target host`
 with `--registry` when needed and `--session-probe` pointing to the candidate's
 bundled `mc-session-probe`. Launch the native fixture locally first. This mode

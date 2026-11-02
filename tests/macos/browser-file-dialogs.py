@@ -74,7 +74,7 @@ def main():
     generation = None
     last_native = None
     checks = []
-    effects = {'upload': None, 'text': None, 'clicks': 0, 'model':None, 'saved':None,
+    effects = {'upload': None, 'text': None, 'clicks': 0, 'model':None, 'saved':None, 'modelSaves':0,
                'modelClock':(-1,-1), 'modelDocument':0}
     payload = b'Machine Control harmless download fixture\n'
     reports = Path.home() / 'Library/Logs/DiagnosticReports'
@@ -160,6 +160,7 @@ def main():
                     effects['model'] = update['value']
             elif self.path == '/model-save':
                 effects['saved'] = body.decode()
+                effects['modelSaves'] += 1
             self.send_response(204)
             self.end_headers()
 

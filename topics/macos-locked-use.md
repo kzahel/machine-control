@@ -8,6 +8,18 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-11-02), investigation:**
+[Tactical 148](../docs/tactical/148-covered-editing-and-candidate-integrity.md)
+isolates a diagnostic defect that can invalidate its own signed candidate:
+the direct SDK adapter bypassed the installed CLI's no-bytecode entry point.
+Both Python routes are now guarded, with candidate seal/manifest checks and
+stronger independent save/renewal oracles. A separate successive covered
+startup fails on an intact candidate before activation; its exact stage remains
+unknown. A matched SDK trial separately ends `desktop_locked_browser_only`
+before activation despite prior readiness. Neither corrected trial qualifies
+sustained or renewed editing. These findings do not close the original physical
+guardian/editing reports; successive-task readiness is the next investigation.
+
 **Current (2026-10-25), unreleased repair:** the
 [remote lockout incident](../gaps/2026-10-25-locked-use-self-revocation.md)
 exposed consent deletion after an ambiguous two-display startup. Operational

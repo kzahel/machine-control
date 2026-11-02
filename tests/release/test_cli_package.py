@@ -78,6 +78,32 @@ class CliPackageTests(unittest.TestCase):
         self.assertEqual([tool['name'] for tool in reply['result']['tools']], ['mc', 'mc_reset'])
         self.assertEqual(sorted(installed.rglob("__pycache__")), [])
 
+    def test_covered_diagnostic_sdk_import_keeps_installed_payload_clean(self):
+        contents = self.root / 'Contents'
+        installed = contents / 'Resources/mc-cli'
+        for name in prepare.SOURCES:
+            (installed / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, installed / name)
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in {'PYTHONDONTWRITEBYTECODE', 'PYTHONPYCACHEPREFIX'}}
+        # Fresh ordinary Python deliberately bypasses the installed CLI's
+        # guard, just as the guest diagnostic's direct SDK import does.
+        script = '''import importlib.util,sys
+from pathlib import Path
+sys.dont_write_bytecode=True
+spec=importlib.util.spec_from_file_location('covered',sys.argv[1])
+covered=importlib.util.module_from_spec(spec);spec.loader.exec_module(covered)
+sys.dont_write_bytecode=False
+sdk,command=covered.installed_sdk(Path(sys.argv[2]))
+assert command[1:3]==['-I','-B']
+assert sdk.__name__=='ControlSession'
+'''
+        result = subprocess.run([sys.executable, '-c', script,
+            str(ROOT / 'tests/macos/covered-recovery.py'), str(contents / 'MacOS/macui')],
+            env=environment, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sorted(installed.rglob('__pycache__')), [])
+
     def test_archive_root_and_traversal_refusal(self):
         for name in ["outside", "python/../../outside"]:
             with self.assertRaises((ValueError, tarfile.FilterError)):

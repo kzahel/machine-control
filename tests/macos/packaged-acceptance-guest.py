@@ -147,6 +147,8 @@ def main():
         assert current['deployment']['policy']['grantMode'] == 'approval'
         assert current['nativeSemanticState'] == 'ready', 'Signed candidate needs normal Accessibility consent'
         command('/usr/bin/codesign', '--verify', '--deep', '--strict', installed)
+        candidate_manifest = manifest(installed)
+        assert candidate_manifest == manifest(root / 'candidate/Machine Control.app'), 'Installed candidate differs from staged input'
         crash_before = crash_reports()
         argv = ['/usr/bin/python3', str(root / 'source/tests/macos/browser-file-dialogs.py'),
                 '--source-root', str(root / 'source'), '--claim', a.claim,
@@ -185,6 +187,9 @@ def main():
                     'removed': sorted(crash_before[key] - crash_after[key])} for key in crash_before}
                 (output / 'crash-postflight.json').write_text(json.dumps(crash_result) + '\n')
                 assert not any(value['new'] for value in crash_result.values()), 'New OS crash report; inspect private crash-postflight.json'
+                command('/usr/bin/codesign', '--verify', '--deep', '--strict', installed)
+                assert manifest(installed) == candidate_manifest, 'Acceptance mutated the signed candidate'
+                (output / 'candidate-integrity.json').write_text(json.dumps({'signatureValid':True, 'manifestUnchanged':True}) + '\n')
                 print('Settled OS crash postflight passed for ' + ', '.join(crash_result), flush=True)
             finally:
                 if proc.poll() is None:
@@ -203,7 +208,7 @@ def main():
         with os.fdopen(os.open(output / 'candidate-status.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
             json.dump(observed, stream)
         diagnostics = [
-            ('candidate-signature', ['/usr/bin/codesign', '--verify', '--deep', '--strict', str(installed)]),
+            ('candidate-signature', ['/usr/bin/codesign', '--verify', '--deep', '--strict', '--verbose=4', str(installed)]),
             ('helper-launchd', ['/usr/bin/sudo', '-n', '/bin/launchctl', 'print', 'system/org.machine-control.unlock']),
             ('helper-log', ['/usr/bin/log', 'show', '--last', '5m', '--style', 'compact',
                             '--predicate', 'process == "mc-unlock-broker"'])]
@@ -213,8 +218,12 @@ def main():
                 (output / (name + '.log')).write_bytes(result.stdout + result.stderr)
             except (OSError, subprocess.TimeoutExpired) as error:
                 (output / (name + '.log')).write_text(type(error).__name__)
+        actual, expected = manifest(installed), manifest(root / 'candidate/Machine Control.app')
         (output / 'candidate-manifest-match.json').write_text(json.dumps({
-            'matchesStagedCandidate': manifest(installed) == manifest(root / 'candidate/Machine Control.app')}))
+            'matchesStagedCandidate': actual == expected,
+            'added': sorted(actual.keys() - expected.keys()),
+            'removed': sorted(expected.keys() - actual.keys()),
+            'changed': sorted(key for key in actual.keys() & expected.keys() if actual[key] != expected[key])}))
         raise
     finally:
         errors = []

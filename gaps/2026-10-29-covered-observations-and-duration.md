@@ -7,6 +7,16 @@ This is an investigation record, not a runtime fix or conformance pass.
 Private usage notes and claim audit events retain exact task attribution.
 No private target configuration, UI contents or screenshots are included here.
 
+**Current follow-up (2026-11-02):**
+[Tactical 148](../docs/tactical/148-covered-editing-and-candidate-integrity.md)
+reproduces a diagnostic bytecode route that invalidates its own signed candidate
+and repairs that route. A separate campaign with an unchanged valid candidate
+fails a successive covered startup before activation; stage attribution remains
+open. A matched SDK trial separately ends with browser-only admission before
+activation. Sustained/renewed editing is not qualified by these new trials.
+These findings do not establish the cause of the historical physical
+guardian faults or delayed/duplicated edits described below.
+
 ## Observations
 
 Two separate owner commands requesting 900 seconds ended with

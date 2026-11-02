@@ -59,8 +59,8 @@ def main():
         p.error('An app without authenticated package metadata requires --development')
     if a.model_only and (not a.development or a.remote_arming or a.covered_recovery or a.faults):
         p.error('Model-only is a development diagnostic without protected setup or faults')
-    if a.covered_probe and (not a.development or not a.covered_recovery or a.covered_duration or a.covered_renewal_seconds not in {0,120}):
-        p.error('Covered probe is development-only, with optional 120-second renewal and no expiry qualification')
+    if a.covered_probe and (not a.development or not a.covered_recovery or a.covered_renewal_seconds not in {0,120}):
+        p.error('Covered probe is development-only, with optional bounded expiry and 120-second renewal')
     if a.package_directory and not a.team_id:
         p.error('Package verification requires --team-id')
     if not (1 <= a.repeat <= 300 and 0 <= a.soak_seconds <= 1800 and -(2**63) <= a.seed < 2**63):

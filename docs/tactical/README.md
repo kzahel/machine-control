@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [148 — Covered editing and candidate integrity](148-covered-editing-and-candidate-integrity.md)
+  (bounded investigation complete): repair diagnostic sealed-bundle writes;
+  intact-candidate successive startup/admission failures remain open.
+
 - [147 — Physical browser provider validation](147-physical-browser-provider-validation.md)
   (complete for the bounded physical recovery): executing-code identity,
   source-cache reload refusal, clean unpacked staging and verified input/relock.

@@ -246,6 +246,23 @@ recertification and broader responsiveness soak remain separate.
 
 ## Covered startup observation ordering
 
+**Current (2026-11-02), bounded `live-tested` diagnostic finding on signed
+desktop 0.6.11, ARM64 Tart/macOS 26.6.2, SIP disabled, one display:** the direct
+SDK test route can write bytecode into the sealed bundle. An exact adapter
+scratch comparison creates 41 cache files and breaks signature validity
+without Python isolation/no-bytecode flags; the guarded control creates none
+and retains validity. The installed CLI already has a no-bytecode entry guard.
+The diagnostic now protects its bypass route and verifies candidate integrity.
+On a separate intact-candidate campaign, ordinary/covered effects pass but the
+next finite owner fails before activation with `guardian_start_failed`; root
+reports unlock not observed and display readiness unavailable afterward.
+The exact blocking stage is unknown. A matched guarded SDK trial separately
+ends `desktop_locked_browser_only` before activation despite prior desktop
+readiness. Both candidates retain their exact manifests and signatures; neither
+trial qualifies sustained/renewed editing. [Tactical 148](../../docs/tactical/148-covered-editing-and-candidate-integrity.md)
+owns current qualification and limits; historical physical failures and earlier
+campaigns do not inherit a new attribution from these findings.
+
 **Current (2026-10-29), bounded `live-tested` evidence on a locally
 Developer ID signed development package, ARM64 Tart/macOS 26.6.2, SIP disabled,
 one display:** the owned ordinary Chrome long Unicode/multiline form passes

@@ -131,12 +131,14 @@ def native_browser(c, phase):
         raise
     assert element('Fixture form value', 'AXTextArea').get('value') == expected
     save = element('Save fixture model', 'AXButton')
+    saves = c['effects']['modelSaves']
     call('action', reference=save['reference'], action='press', provider='macos-native')
     poll(lambda: c['effects']['saved'] == expected, 'native form save independent HTTP effect')
     call('browser.navigate', tabId=tab, url=c['url'], active=True)
     poll(lambda: element('Fixture form value', 'AXTextArea').get('value') == expected,
          'native form exact saved value after full reload')
-    c['last_saved_model'] = {'tab':tab,'value':expected}
+    assert c['effects']['modelSaves'] == saves + 1, 'Missing or duplicated HTTP save effect'
+    c['last_saved_model'] = {'tab':tab,'value':expected,'saves':saves + 1}
     check('native browser ' + phase + ' input, form model, save and reload agree')
 
 
@@ -150,8 +152,22 @@ def verify_saved_model(c, phase):
         result = c['call']('browser.eval',tabId=saved['tab'],expression="({value:document.getElementById('model').value,model:modelValue})")['value']
         assert result['value'] == saved['value'] and result['model'] == saved['value'], 'Late or duplicated native text after ' + phase
         assert c['effects']['saved'] == saved['value']
+        assert c['effects']['modelSaves'] == saved['saves'], 'Late or duplicated HTTP save after ' + phase
         time.sleep(.1)
     c['check']('saved browser model has no delayed or duplicate write after ' + phase)
+
+
+def installed_sdk(resident):
+    # This diagnostic imports the SDK directly, bypassing the packaged CLI's
+    # bytecode guard. Never let either interpreter write into a sealed bundle.
+    sys.dont_write_bytecode = True
+    os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+    runtime = Path(resident).parents[1] / 'Resources/mc-cli'
+    sys.path.insert(0, str(runtime / 'client'))
+    from control_session import ControlSession
+    command = [str(runtime / 'python/bin/python3'), '-I', '-B',
+               str(runtime / 'platforms/macos/host/machost.py')]
+    return ControlSession, command
 
 
 def prepare(c):
@@ -458,14 +474,11 @@ def run(c):
         duration = c.get('covered_renewal_seconds', 0)
         if not duration:
             return
-        sys.path.insert(0, str(Path(c['resident']).parents[1] / 'Resources/mc-cli/client'))
-        from control_session import ControlSession
+        ControlSession, command = installed_sdk(c['resident'])
         # Direct guest SDK adapter under the controller's already-held exact
         # workspace claim. Each open carries that claim for attribution; this
         # fixture does not declare a new public target or acquire another VM.
-        runtime = Path(c['resident']).parents[1] / 'Resources/mc-cli'
-        target = dict(platform='macos', command=[str(runtime / 'python/bin/python3'),
-            str(runtime / 'platforms/macos/host/machost.py')], _claimId=c['claim'])
+        target = dict(platform='macos', command=command, _claimId=c['claim'])
         c['sdk_class'], c['sdk_target'] = ControlSession, target
         samples = []
         sdk_ready()
@@ -494,8 +507,22 @@ def run(c):
                     sdk_effect_result(result, 'press', before)
                     poll(lambda: json.loads(c['fixture_state'].read_text())['count'] == before['count'] + 1,
                          'independent effect under unchanged renewable owner')
+                    # A button effect alone does not qualify editing across
+                    # renewals. Use the same native input/model/save/reload
+                    # oracle as finite owners, without cycling this owner or
+                    # replaying an uncertain write.
+                    if 'browser_pid' in c:
+                        native_browser(c, 'covered')
+                    view = session.status()
+                    observed = fresh_status()
+                    root = observed['unlock']
+                    assert view['state'] == 'active' and view['sessionId'] == initial['sessionId']
+                    assert view['resourceGenerations'] == initial['resourceGenerations']
+                    assert observed['lockedUse']['controlSessionId'] == control_id
+                    assert observed['lockedUse']['phase'] == 'active' and root['coveredSession']
                     samples.append({'elapsedSeconds':round(time.monotonic()-started,3),
-                        'rootRenewals':root['coveredRenewals'], 'rootRemainingSeconds':root['coveredRemainingSeconds']})
+                        'rootRenewals':root['coveredRenewals'], 'rootRemainingSeconds':root['coveredRemainingSeconds'],
+                        'browserModelTrial':c.get('model_trial'), 'httpSaves':c['effects']['modelSaves']})
                     print('COVERED_RENEWAL ' + json.dumps(samples[-1]), flush=True)
                     next_effect = time.monotonic() + 30
                 time.sleep(1)
@@ -821,6 +848,7 @@ def run(c):
         text_and_hover(); visible_cover()
         call('session.control.end', controlSessionId=active['controlSessionId']); ended()
         if c.get('covered_probe'):
+            full_duration()
             renewable_owner()
             renewable_disconnect()
             start()
