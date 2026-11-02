@@ -175,6 +175,37 @@ passes in the documented VM profile in the tactical, including 960 seconds
 under one owner and independent completion/disconnect relock. This does not
 qualify physical hardware or change unsupported providers' finite contracts.
 
+## Roadmap: closed-lid desktop control
+
+**Decision (2026-11-01), planned:** support approved target-native desktop
+control on an awake Mac with its lid closed, including tasks that start with
+the existing console locked. This is requested product scope, not implemented
+support. The [platform finding](../research/platforms/macos.md#closed-lid-desktop-control)
+records the current explicit lid guards and bounded refusal evidence.
+
+Implementation and acceptance must:
+
+- Replace the blanket lid refusal in admission, display preparation and the
+  guardian with explicit readiness checks for qualified display configurations.
+  Cover both an external display and an awake closed-lid configuration without
+  one; report unavailable configurations honestly.
+- Preserve ordinary approval, finite owner connections, native capture/input,
+  takeover, watchdogs and completion/disconnect relock. Do not make persistent
+  sleep prevention or an outer control route a prerequisite.
+- Independently verify semantic, keyboard and pointer effects and useful capture
+  while the lid remains closed. Browser-only success does not qualify desktop
+  control.
+- Qualify lid opening/closing, display attachment/removal and sleep/wake on
+  physical hardware, including concealment on newly visible displays, safe
+  termination/relock and fresh admission after a transition. Preserve truthful
+  limits on exposure guarantees.
+- Report the specific blocking prerequisite in doctor and admission refusals;
+  helper readiness alone must not imply closed-lid desktop readiness.
+
+**Open:** which hardware, power and display configurations can meet those
+conditions without changing system sleep policy. System-sleep wake remains a
+separate capability; this work first targets a Mac that is already awake.
+
 ## Boundaries
 
 **Current, unreleased source:** [Browser-only locked access](browser-control.md#open)

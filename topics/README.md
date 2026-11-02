@@ -83,7 +83,8 @@ its `Topic:` trailers.
   resident implementation, accepted logged-in Aqua Tart software testing,
   and accepted SIP-enabled appliance lock state/unlock with outer UI prohibited.
 - [`macos-locked-use.md`](macos-locked-use.md): opt-in covered control after
-  screen lock, native takeover, bounded sessions, and failure relock.
+  screen lock, native takeover, bounded sessions, failure relock, and planned
+  closed-lid desktop control.
 - [`native-distribution.md`](native-distribution.md): optional native packages,
   publisher signing, package authenticity, CI evidence, and workstation scope.
 - [`operational-workflow-automation.md`](operational-workflow-automation.md):

@@ -22,6 +22,15 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Open (2026-11-01), observed physical-Mac bug:** a background browser click
+while the console was locked acknowledged delivery without the fixture's DOM
+or independent HTTP effect. Typing and observation worked in the same tab;
+native covered desktop pointer input passed separately. The
+[gap record](../gaps/2026-11-01-locked-background-browser-click.md) owns the
+bounded evidence and next diagnostics. Isolate the installed route and console
+state before claiming a cause; preserve background operation and do not replay
+uncertain clicks or activate a tab as an automatic workaround.
+
 **Current (2026-10-27), extension 0.8.4 source:** local file host access is
 declared so users can enable Chrome's file-access switch for uploads. The
 extension guide owns [setup instructions](../providers/chrome-extension/README.md);

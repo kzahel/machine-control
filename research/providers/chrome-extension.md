@@ -62,6 +62,22 @@ and exact installed product evidence.
 
 ## Fidelity, consequences, and gaps
 
+**Open, usage-journal review (2026-11-01):** repeated terminal input reports
+describe acknowledged `Input.insertText` without visible terminal text, while
+explicit key events worked in one recovery. Frame targeting, application input
+semantics and installed-provider differences remain unisolated. Qualify an
+owned embedded-terminal fixture independently from ordinary HTML fields. The
+[review](../../gaps/2026-11-01-usage-journal-review.md) records this gap separately
+from background click delivery and the passing VM background-input cells.
+
+**Current (2026-11-01), bounded physical-macOS `live-tested` gap:** the
+connected extension reported 0.8.4, but a locked-console background click
+acknowledged delivery without an independently observed fixture effect. Text,
+inspection and capture worked. The exact installed artifact combination and
+cause remain unisolated; this does not supersede the separately qualified VM
+route. The [gap record](../../gaps/2026-11-01-locked-background-browser-click.md)
+owns observations, oracle limits and the required matched comparisons.
+
 **Current (2026-10-27), extension 0.8.4 source:** the manifest declares
 `file:///*` host access so Chrome can expose its separate user-controlled
 file-access switch. Earlier store manifests omitted that declaration even

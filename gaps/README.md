@@ -7,3 +7,5 @@ belongs to the owning topic.
 
 - [2026-10-25 — locked-use failure revokes standing access](2026-10-25-locked-use-self-revocation.md)
 - [2026-10-29 — covered observations and duration](2026-10-29-covered-observations-and-duration.md)
+- [2026-11-01 — locked-console background browser click has no effect](2026-11-01-locked-background-browser-click.md)
+- [2026-11-01 — usage-journal review and recurring control gaps](2026-11-01-usage-journal-review.md)

@@ -166,6 +166,13 @@ not inferred from local external-storage testing.
 
 ### Existing ADB implementation
 
+**Current (2026-11-01), owned adapter `source-reviewed`, offline reproduced:**
+the unavailable-device doctor formatter references an undefined `status` while
+projecting boot generation and raises `NameError` instead of returning an
+unavailable document. No physical operation was needed to reproduce it. The
+[journal review](../../gaps/2026-11-01-usage-journal-review.md#android-unavailable-state-doctor)
+owns the finding; healthy-device acceptance below does not cover this error path.
+
 **Decision:** Do not reimplement ADB. Add consistent target selection,
 capability/result vocabulary, semantic adapters, leases, and evidence around
 it. Keep Quest- and device-specific policy in their authoritative testbeds.

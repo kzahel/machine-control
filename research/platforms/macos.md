@@ -52,7 +52,29 @@ exact installer-recorded CDHash before its root broker can arm a short,
 one-use, console- and generation-bound grant. Keep that stronger boundary;
 publisher metadata alone is not protected-unlock authority.
 
+## Closed-lid desktop control
+
+**Current (2026-11-01), owned provider `source-reviewed` and bounded
+`live-tested` refusal:** on an awake physical Mac, independent IOKit readback
+confirmed the lid closed and console locked. Existing approval and helper
+health were ready, but `session.control` refused before dispatch with
+`locked_use_prerequisites_unavailable`; status advertises
+`closedLidSupported: false`. Source explicitly requires an open lid at
+admission, display preparation and guardian startup/continuation. This is an
+implementation restriction, not evidence that macOS cannot perform desktop
+control in that configuration. Lock-screen capture succeeded; covered unlock
+and desktop input were not exercised. Exact private evidence remains in the
+usage journal. The [locked-use roadmap](../../topics/macos-locked-use.md#roadmap-closed-lid-desktop-control)
+owns the planned support and physical acceptance gates.
+
 ## Browser control with the console locked
+
+**Current (2026-11-01), bounded physical-Mac `live-tested` gap:** background
+browser operation is partially verified while actually locked; a click lacked
+the owned fixture's DOM/HTTP effect although typing, inspection and capture
+worked. The [provider dossier](../providers/chrome-extension.md#fidelity-consequences-and-gaps)
+and [gap record](../../gaps/2026-11-01-locked-background-browser-click.md)
+separate this installed-route finding from the passing VM cells below.
 
 **Current (2026-10-17), bounded `live-tested`:** in an exclusively claimed Tart
 guest running macOS 26.6.2 and Chrome for Testing 155.0.8059.79, the owned

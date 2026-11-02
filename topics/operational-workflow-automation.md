@@ -49,6 +49,14 @@ corrections and fixtures. The first comparison found the macOS Open panel
 and missing desktop subcommand help to be the largest costs; see Tactical
 118's open follow-ups.
 
+**Current (2026-11-01):** a [review of 366 usage notes](../gaps/2026-11-01-usage-journal-review.md)
+identifies recurring browser-effect, covered-control, device-ownership and
+lifecycle gaps while separating subsequent repairs and harness failures.
+Fifty-six automatic packaged-acceptance failure notes omit the failed check and
+private evidence locator. **Proposal:** retain each attempt with a bounded run
+reference, closed failure phase/reason and cleanup outcome; group related
+observations during review without interpreting repeated note counts as bugs.
+
 **Current:** The implemented comparisons use the
 [route-comparison runbook](../docs/comparison-experiments.md): paired trials
 inside disposable Tart clones, guest agents routed through the host's

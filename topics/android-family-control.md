@@ -16,6 +16,12 @@ ChromeOS ARCVM, emulators, TVs, watches, or automotive systems.
 
 ## Current implementation
 
+**Current (2026-11-01), confirmed defect:** unavailable-device doctor
+formatting references an undefined `status` and raises `NameError`, reproduced
+offline without device operations. The
+[journal review](../gaps/2026-11-01-usage-journal-review.md#android-unavailable-state-doctor)
+owns the source finding and proposed regression coverage; this remains unfixed.
+
 **Current:** [`providers/adb`](../providers/adb) owns dependency-free ADB
 executable discovery, device enumeration, exact transport, shell execution,
 battery parsing, and wake-state parsing. Both the canonical
@@ -223,6 +229,15 @@ fixture-scoped and does not replace the existing Android adapter or qualify
 broader phone capabilities, remote use or production session integration.
 
 ### Planned session cleanup and independent data capabilities
+
+**Open (2026-11-01), observed coordination gap:** the current common Android
+ADB target declares claims unsupported. Interactive testing reported unrelated
+foreground changes and stopped rather than guessing another caller's ownership.
+Concurrent-agent interference is suspected, not attributed. Extend the native
+ownership contract to the actual device UI across participating routes, with
+exact-device identity, bounded ownership and loss/cleanup semantics. YA remains
+the session coordinator, not the authoritative device lock. The
+[journal review](../gaps/2026-11-01-usage-journal-review.md) records the triage.
 
 **Direction, 2026-10-18; production integration remains future work.** Keep
 one native Android broker with separate client interpreters per provider
