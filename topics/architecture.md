@@ -55,6 +55,13 @@ shape with their own native facilities.
 
 ## Resident component shape
 
+**Decision, incremental refactoring:** [shared resident core](shared-resident-core.md)
+extracts portable routing and authority policy from the separate native
+residents. Its first TypeScript/reference-provider slice has no installed
+integration. Native providers, peer authentication and protected watchdogs
+retain their platform boundaries; language/deployment qualification and native
+adoption are explicit subsequent gates.
+
 **Decision — provisional implementation:** The Windows vertical slice should
 validate a small set of components rather than one omnipotent daemon:
 

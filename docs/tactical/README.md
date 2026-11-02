@@ -1,5 +1,12 @@
 # Implementation Tacticals
 
+- [150 — Shared resident core](150-shared-resident-core.md) (first slice complete):
+  deterministic two-provider approval/action/Stop/late-result slice.
+
+- [149 — Named browser profiles](149-browser-profiles.md) (scoped): concurrent
+  extension connections, local names/availability, exact-profile consent,
+  common selection and profile-bound ordinary/CDP operations.
+
 - [148 — Covered editing and candidate integrity](148-covered-editing-and-candidate-integrity.md)
   (bounded investigation complete): repair diagnostic sealed-bundle writes;
   intact-candidate successive startup/admission failures remain open.

@@ -60,6 +60,29 @@ signed unreleased workstation approval with Settings absent.
 The [desktop matrix](../../docs/desktop-acceptance.md) separates source-native
 and exact installed product evidence.
 
+## Multiple-profile limit
+
+**Current (2026-11-02), source-reviewed:** the worker hello carries protocol,
+extension version and user agent, with no persistent profile identity. The
+macOS resident's `BrowserRelay.register` disconnects the current provider on
+every trusted registration; Linux's `Browser.register` likewise disconnects
+its singleton provider. The worker reconnects automatically and resets its
+retry delay to one second on any resident message. Two accepted installations
+can therefore repeatedly displace each other on those routes. The user reports
+this symptom with two Chrome profiles; this investigation did not reproduce it
+live or identify their exact installed versions.
+
+Windows also has a singleton provider, but its `BrowserRelay.RunAsync` accepts
+and serves one named-pipe connection at a time. It needs concurrent admission
+for multi-profile support; the macOS/Linux replacement-loop mechanism is not
+evidence of identical Windows oscillation. Ordinary requests, grants and
+Mac/Windows CDP bridges currently lack explicit profile selection.
+
+**Decision:** [named browser profiles](../../topics/browser-profiles.md) owns
+the full registry/selection/authority direction; no interim singleton fix is
+planned. [Tactical 149](../../docs/tactical/149-browser-profiles.md) scopes the
+work. No multi-profile live or conformance qualification is claimed.
+
 ## Fidelity, consequences, and gaps
 
 **Current (2026-11-02), bounded physical-macOS `live-tested` recovery:** the

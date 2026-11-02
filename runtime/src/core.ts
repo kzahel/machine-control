@@ -1,0 +1,488 @@
+/** Resident policy only: no OS, transport, interpreter, UI, or provider I/O. */
+export interface Clock {
+  /** Monotonic integer milliseconds, supplied independently of wall time. */
+  now(): number;
+}
+
+/** Issued after a trusted host authenticates a provider. IDs are not authority. */
+export interface ProviderConnection {
+  readonly profileId: string;
+  readonly generation: number;
+  readonly route: string;
+}
+
+/** Internal operator authority; never accept a deserialized copy from a caller. */
+export interface Approval {
+  readonly generation: number;
+  readonly profiles: readonly string[];
+  readonly expiresAt: number;
+}
+
+export interface ClickRequest {
+  readonly requestId: string;
+  readonly profileId: string;
+  readonly reference: {
+    readonly connection: ProviderConnection;
+    readonly target: string;
+  };
+  readonly timeoutMs: number;
+}
+
+/** Immutable correlation handle, translated by a future authenticated adapter. */
+export interface DispatchCommand {
+  readonly requestId: string;
+  readonly operation: "browser.click";
+  readonly connection: ProviderConnection;
+  readonly target: string;
+  readonly authorizationGeneration: number;
+}
+
+/** Effect sink behind the host's authenticated connection and dispatch check. */
+export interface ProviderAdapter {
+  readonly connection: ProviderConnection;
+  execute(command: DispatchCommand): void;
+  cancel(command: DispatchCommand): void;
+}
+
+export type ProviderReply =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly delivery: "refused" | "unknown" };
+
+export type RefusalCode =
+  | "approval_required"
+  | "profile_not_approved"
+  | "profile_unavailable"
+  | "stale_reference"
+  | "request_conflict"
+  | "capacity_exceeded"
+  | "stopped"
+  | "approval_replaced"
+  | "approval_expired"
+  | "provider_disconnected"
+  | "request_timeout"
+  | "provider_failed";
+
+interface ResultIdentity {
+  readonly requestId: string;
+  readonly operation: "browser.click";
+  readonly profileId: string;
+  readonly actualRoute: string;
+  readonly providerGeneration: number | null;
+}
+
+/** Internal result using the common vocabulary; this is not a public envelope. */
+export type ActionResult = ResultIdentity &
+  (
+    | {
+        readonly accepted: true;
+        readonly delivery: "confirmed";
+        readonly effect: "unverifiable";
+        readonly uncertainty: "application_effect_not_observed";
+        readonly retrySafety: "observe_before_retry";
+        readonly errorCode?: never;
+      }
+    | {
+        readonly accepted: false;
+        readonly delivery: "refused";
+        readonly effect: "refused";
+        readonly uncertainty: "none";
+        readonly retrySafety: "safe_not_dispatched";
+        readonly errorCode: RefusalCode;
+      }
+    | {
+        readonly accepted: false;
+        readonly delivery: "unknown";
+        readonly effect: "unknown";
+        readonly uncertainty: "action_may_have_executed";
+        readonly retrySafety: "observe_before_retry";
+        readonly errorCode: RefusalCode;
+      }
+  );
+
+export type Effect =
+  | { readonly type: "provider.dispatch"; readonly command: DispatchCommand }
+  | { readonly type: "provider.cancel"; readonly command: DispatchCommand }
+  | { readonly type: "request.finished"; readonly result: ActionResult };
+
+export class CoreError extends Error {
+  readonly code:
+    | "invalid_request"
+    | "profile_conflict"
+    | "capacity_exceeded"
+    | "clock_invalid";
+
+  constructor(code: CoreError["code"]) {
+    super(code);
+    this.code = code;
+  }
+}
+
+interface Pending {
+  readonly command: DispatchCommand;
+  readonly approval: Approval;
+  readonly deadline: number;
+  phase: "queued" | "dispatched";
+}
+
+function identifier(value: string): void {
+  if (typeof value !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(value)) {
+    throw new CoreError("invalid_request");
+  }
+}
+
+function duration(value: number, maximum: number): void {
+  if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
+    throw new CoreError("invalid_request");
+  }
+}
+
+function boundedText(value: string, maximum: number): void {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > maximum ||
+    value.trim() !== value ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
+    throw new CoreError("invalid_request");
+  }
+}
+
+/**
+ * One serialized owner of portable browser policy. The host supplies trusted
+ * facts, schedules tick() at deadlines, and executes returned effects.
+ * No method calls into a provider or awaits external work.
+ */
+export class ResidentCore {
+  readonly #clock: Clock;
+  readonly #maxProviders: number;
+  readonly #maxRequests: number;
+  readonly #providers = new Map<string, ProviderConnection>();
+  readonly #pending = new Map<DispatchCommand, Pending>();
+  // Stop ends authority, not the physical provider call. Retain its slot until
+  // that exact connection returns, even if a new approval has been issued.
+  readonly #unsettled = new Set<DispatchCommand>();
+  #approval: Approval | undefined;
+  #providerGeneration = 0;
+  #authorizationGeneration = 0;
+  #lastTime = 0;
+
+  constructor(
+    clock: Clock,
+    limits: { providers?: number; requests?: number } = {},
+  ) {
+    this.#clock = clock;
+    this.#maxProviders = limits.providers ?? 16;
+    this.#maxRequests = limits.requests ?? 64;
+    duration(this.#maxProviders, 256);
+    duration(this.#maxRequests, 256);
+    this.#now();
+  }
+
+  connect(profileId: string, route: string): ProviderConnection {
+    identifier(profileId);
+    boundedText(route, 128);
+    if (this.#providers.has(profileId)) throw new CoreError("profile_conflict");
+    if (this.#providers.size >= this.#maxProviders)
+      throw new CoreError("capacity_exceeded");
+    const connection = Object.freeze({
+      profileId,
+      route,
+      generation: ++this.#providerGeneration,
+    });
+    this.#providers.set(profileId, connection);
+    return connection;
+  }
+
+  approve(
+    connections: readonly ProviderConnection[],
+    durationMs: number,
+  ): {
+    readonly approval: Approval;
+    readonly effects: readonly Effect[];
+  } {
+    duration(durationMs, 28_800_000);
+    if (
+      connections.length === 0 ||
+      new Set(connections).size !== connections.length ||
+      connections.some(
+        (connection) =>
+          this.#providers.get(connection.profileId) !== connection,
+      )
+    ) {
+      throw new CoreError("invalid_request");
+    }
+    const now = this.#now();
+    if (!Number.isSafeInteger(now + durationMs))
+      throw new CoreError("clock_invalid");
+    const effects = this.#expire(now);
+    this.#approval = undefined;
+    for (const pending of this.#pending.values())
+      this.#end(pending, "approval_replaced", effects);
+    const approval = Object.freeze({
+      generation: ++this.#authorizationGeneration,
+      profiles: Object.freeze(
+        connections.map((connection) => connection.profileId),
+      ),
+      expiresAt: now + durationMs,
+    });
+    this.#approval = approval;
+    return { approval, effects };
+  }
+
+  request(approval: Approval, request: ClickRequest): readonly Effect[] {
+    identifier(request.requestId);
+    identifier(request.profileId);
+    duration(request.timeoutMs, 45_000);
+    boundedText(request.reference.target, 512);
+    const now = this.#now();
+    const effects = this.#expire(now);
+    const connection = this.#providers.get(request.profileId);
+    const reject = (errorCode: RefusalCode) => {
+      effects.push({
+        type: "request.finished",
+        result: this.#refused(request, connection, errorCode),
+      });
+      return effects;
+    };
+    if (!this.#approval || this.#approval !== approval)
+      return reject("approval_required");
+    if (!approval.profiles.includes(request.profileId))
+      return reject("profile_not_approved");
+    if (!connection) return reject("profile_unavailable");
+    if (request.reference.connection !== connection)
+      return reject("stale_reference");
+    if (
+      [...this.#pending.keys()].some(
+        (command) => command.requestId === request.requestId,
+      )
+    ) {
+      return reject("request_conflict");
+    }
+    if (this.#retained() >= this.#maxRequests)
+      return reject("capacity_exceeded");
+    if (!Number.isSafeInteger(now + request.timeoutMs))
+      throw new CoreError("clock_invalid");
+    const command: DispatchCommand = Object.freeze({
+      requestId: request.requestId,
+      operation: "browser.click",
+      connection,
+      target: request.reference.target,
+      authorizationGeneration: approval.generation,
+    });
+    this.#pending.set(command, {
+      command,
+      approval,
+      deadline: now + request.timeoutMs,
+      phase: "queued",
+    });
+    effects.push({ type: "provider.dispatch", command });
+    return effects;
+  }
+
+  /**
+   * Recheck at actual dispatch, not just at enqueue. If started, the trusted
+   * adapter must submit in this serialized turn with no intervening await.
+   * An adapter with additional asynchronous preparation needs a fresh begin
+   * boundary instead of retaining a previously successful authorization.
+   */
+  begin(command: DispatchCommand): {
+    readonly started: boolean;
+    readonly effects: readonly Effect[];
+  } {
+    const effects = this.tick();
+    const pending = this.#pending.get(command);
+    if (!pending || pending.phase !== "queued")
+      return { started: false, effects };
+    if (
+      this.#approval !== pending.approval ||
+      this.#providers.get(command.connection.profileId) !== command.connection
+    ) {
+      this.#end(pending, "approval_required", effects);
+      return { started: false, effects };
+    }
+    pending.phase = "dispatched";
+    this.#unsettled.add(command);
+    return { started: true, effects };
+  }
+
+  complete(
+    connection: ProviderConnection,
+    command: DispatchCommand,
+    reply: ProviderReply,
+  ): {
+    readonly applied: boolean;
+    readonly effects: readonly Effect[];
+  } {
+    if (
+      reply.ok !== true &&
+      (reply.ok !== false || !["refused", "unknown"].includes(reply.delivery))
+    ) {
+      throw new CoreError("invalid_request");
+    }
+    const effects = this.tick();
+    // Object identity is intentional. A copied public connection/generation or
+    // a reply from another provider cannot complete work or free its capacity.
+    if (command.connection !== connection || !this.#unsettled.delete(command)) {
+      return { applied: false, effects };
+    }
+    const pending = this.#pending.get(command);
+    if (!pending) return { applied: false, effects };
+    this.#pending.delete(command);
+    const result: ActionResult = reply.ok
+      ? Object.freeze({
+          requestId: command.requestId,
+          operation: command.operation,
+          profileId: connection.profileId,
+          actualRoute: connection.route,
+          providerGeneration: connection.generation,
+          accepted: true,
+          delivery: "confirmed",
+          effect: "unverifiable",
+          uncertainty: "application_effect_not_observed",
+          retrySafety: "observe_before_retry",
+        })
+      : this.#failure(command, "provider_failed", reply.delivery === "unknown");
+    effects.push({ type: "request.finished", result });
+    return { applied: true, effects };
+  }
+
+  disconnect(connection: ProviderConnection): readonly Effect[] {
+    const effects = this.tick();
+    if (this.#providers.get(connection.profileId) !== connection)
+      return effects;
+    this.#providers.delete(connection.profileId);
+    for (const pending of this.#pending.values()) {
+      if (pending.command.connection === connection)
+        this.#end(pending, "provider_disconnected", effects);
+    }
+    return effects;
+  }
+
+  stop(): readonly Effect[] {
+    const effects: Effect[] = [];
+    this.#approval = undefined;
+    ++this.#authorizationGeneration;
+    for (const pending of this.#pending.values())
+      this.#end(pending, "stopped", effects);
+    return effects;
+  }
+
+  tick(): Effect[] {
+    return this.#expire(this.#now());
+  }
+
+  inspect(): {
+    readonly connectedProfiles: readonly string[];
+    readonly approvedProfiles: readonly string[];
+    readonly pendingRequests: number;
+    readonly unsettledDispatches: number;
+    readonly retainedRequests: number;
+  } {
+    const now = this.#now();
+    return {
+      connectedProfiles: [...this.#providers.keys()],
+      approvedProfiles:
+        this.#approval && this.#approval.expiresAt > now
+          ? [...this.#approval.profiles]
+          : [],
+      pendingRequests: this.#pending.size,
+      unsettledDispatches: this.#unsettled.size,
+      retainedRequests: this.#retained(),
+    };
+  }
+
+  #now(): number {
+    const now = this.#clock.now();
+    if (!Number.isSafeInteger(now) || now < this.#lastTime)
+      throw new CoreError("clock_invalid");
+    this.#lastTime = now;
+    return now;
+  }
+
+  #retained(): number {
+    return new Set([...this.#pending.keys(), ...this.#unsettled]).size;
+  }
+
+  #expire(now: number): Effect[] {
+    const effects: Effect[] = [];
+    if (this.#approval && now >= this.#approval.expiresAt) {
+      this.#approval = undefined;
+      ++this.#authorizationGeneration;
+      for (const pending of this.#pending.values())
+        this.#end(pending, "approval_expired", effects);
+    }
+    for (const pending of this.#pending.values()) {
+      if (now >= pending.deadline)
+        this.#end(pending, "request_timeout", effects);
+    }
+    return effects;
+  }
+
+  #end(pending: Pending, code: RefusalCode, effects: Effect[]): void {
+    this.#pending.delete(pending.command);
+    if (pending.phase === "dispatched")
+      effects.push({ type: "provider.cancel", command: pending.command });
+    effects.push({
+      type: "request.finished",
+      result: this.#failure(
+        pending.command,
+        code,
+        pending.phase === "dispatched",
+      ),
+    });
+  }
+
+  #failure(
+    command: DispatchCommand,
+    errorCode: RefusalCode,
+    uncertain: boolean,
+  ): ActionResult {
+    const identity: ResultIdentity = {
+      requestId: command.requestId,
+      operation: command.operation,
+      profileId: command.connection.profileId,
+      actualRoute: command.connection.route,
+      providerGeneration: command.connection.generation,
+    };
+    if (uncertain)
+      return Object.freeze({
+        ...identity,
+        accepted: false,
+        delivery: "unknown",
+        effect: "unknown",
+        uncertainty: "action_may_have_executed",
+        retrySafety: "observe_before_retry",
+        errorCode,
+      });
+    return Object.freeze({
+      ...identity,
+      accepted: false,
+      delivery: "refused",
+      effect: "refused",
+      uncertainty: "none",
+      retrySafety: "safe_not_dispatched",
+      errorCode,
+    });
+  }
+
+  #refused(
+    request: ClickRequest,
+    connection: ProviderConnection | undefined,
+    errorCode: RefusalCode,
+  ): ActionResult {
+    return Object.freeze({
+      requestId: request.requestId,
+      operation: "browser.click",
+      profileId: request.profileId,
+      actualRoute: connection?.route ?? "unavailable",
+      providerGeneration: connection?.generation ?? null,
+      accepted: false,
+      delivery: "refused",
+      effect: "refused",
+      uncertainty: "none",
+      retrySafety: "safe_not_dispatched",
+      errorCode,
+    });
+  }
+}

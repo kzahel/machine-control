@@ -238,6 +238,13 @@ package and environment boundaries.
 
 ## Open
 
+- **Decision (2026-11-02):** implement full named-profile support rather than
+  a separate singleton takeover workaround. [Browser profiles](browser-profiles.md)
+  owns proposed identity, availability, exact-profile grants and routing;
+  [Tactical 149](../docs/tactical/149-browser-profiles.md) owns the implementation
+  scope and acceptance gates. Implementation and multi-profile qualification
+  remain pending.
+
 - **Open:** Chrome native saved-group confirmations need their own live
   qualification and recovery route. They are distinct from the webpage dialogs
   observed by `browser.dialog`. Neither automatic acceptance nor synced-group

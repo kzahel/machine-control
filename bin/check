@@ -182,8 +182,10 @@ def portable_checks() -> None:
     validate_shell()
     node = shutil.which("node")
     if node:
+        run("shared resident reference policy", [node, "--test", "tests/runtime/core.test.mjs"])
         run("browser indicator lifecycle", [node, "--test", "tests/browser/indicators.test.mjs", "tests/browser/worker.test.mjs"])
     else:
+        print("\n== shared resident reference policy ==\nskip: Node.js 24+ is unavailable")
         print("\n== browser indicator lifecycle ==\nskip: Node.js is unavailable")
     if in_git_checkout():
         run("working-tree whitespace", ["git", "diff", "--check"])

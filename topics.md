@@ -53,6 +53,10 @@ commits with no expected follow-up do not need a trailer or registry entry.
   broker and approvers, menu bar application, and attended-away operation.
 - `browser-control` — user-browser control through a Machine Control
   extension, native messaging, and grant-scoped CDP.
+- `browser-profiles` — named extension installations, exact-profile approval
+  and profile-bound ordinary/CDP routing.
+- `shared-resident-core` — shared portable policy, typed provider boundaries,
+  fast reference verification and incremental native adoption.
 - `windows-desktop` — shared Tauri Windows operator, resident grants,
   companion supervision, signed installers, and installed acceptance.
 - `linux-desktop` — ordinary-user Linux Tauri app, portal consent, grants,

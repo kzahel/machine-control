@@ -17,6 +17,7 @@ __pycache__/
 .DS_Store
 .artifacts/
 /desktop/node_modules/
+/runtime/node_modules/
 /desktop/dist/
 /desktop/src-tauri/target/
 /desktop/src-tauri/native/
