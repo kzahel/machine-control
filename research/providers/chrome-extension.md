@@ -33,6 +33,7 @@ tab lifecycle APIs. It is not the approval authority.
 
 | Platform and route | Evidence | Boundary |
 | --- | --- | --- |
+| Shared TypeScript core/adapter, Mac ARM64 scratch native-messaging route | `live-tested` | Eight headless two-process profile checks with the unchanged 0.8.4 worker: independent HTTP effects, exact approval/refusals, Stop, held reply and native relay reconnect; fixture identity/operator authority, browser sandbox disabled; same-process profiles, native authentication, installed packages and Linux execution separate ([151](../../docs/tactical/151-shared-core-real-browser.md)) |
 | Extension 0.8.2 source/unpacked Mac ARM64 background route | `conformance-tested` | 17 claimed VM checks: independent HTTP click/text effects on an inactive tab, PNG, native foreground/key-window/cursor and selected-tab preservation, hidden visibility restoration and explicit foreground/reconnect; 20 ms sentinel sampling, standing appliance authority; other platforms and installed store-copy execution separate |
 | Unreleased extension 0.8.1 in signed Mac ARM64 development assembly | `conformance-tested` | Claimed disposable macOS 26.6.2 VM, CfT 155: 81 composed browser/locked-use checks, native until-stopped approval, modal and deadline recovery, independent HTTP/native effects, restart and Stop; SIP disabled, one display; physical/store/mixed-version execution separate |
 | Public desktop 0.6.9 Mac ARM64, bundled unpacked provider | `conformance-tested` | Exact signed/notarized app in a claimed Tart VM: fifty download/upload cycles, Settings, native-host loss, blocked-provider Stop, forced-exit recovery and stale-reference refusal; same archive publicly published; Chrome Web Store/Intel/physical execution separate |
@@ -81,7 +82,22 @@ Mac/Windows CDP bridges currently lack explicit profile selection.
 **Decision:** [named browser profiles](../../topics/browser-profiles.md) owns
 the full registry/selection/authority direction; no interim singleton fix is
 planned. [Tactical 149](../../docs/tactical/149-browser-profiles.md) scopes the
-work. No multi-profile live or conformance qualification is claimed.
+work. The shared-core scratch route below is bounded live evidence, not
+qualification of installed multi-profile control or the existing singleton
+residents.
+
+**Current (2026-11-02), bounded Mac ARM64 `live-tested`:** a Node-hosted adapter
+consumes the unchanged worker protocol through real Chrome native messaging,
+with identity assigned by private fixture endpoints. Two fresh persistent
+profiles in separate headless Chrome for Testing processes exercise the same
+TypeScript core as its deterministic suite. Trusted-click HTTP counters prove
+profile-specific effects; extension panels observe Stop and controlled-tab
+cleanup; a held callback cannot resolve a newer request, and native-host
+transport loss leads to a fresh connection without disturbing the other
+profile. This route uses fixture operator authority and a disabled browser
+sandbox; it does not test production peer authentication, same-process Chrome
+profiles, real account data, native consent, installed setup or store delivery.
+[Tactical 151](../../docs/tactical/151-shared-core-real-browser.md) owns execution.
 
 ## Fidelity, consequences, and gaps
 

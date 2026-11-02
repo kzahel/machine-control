@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { ResidentCore } from "../../runtime/src/core.ts";
+import { dispatchToProvider } from "../../runtime/src/provider-dispatch.ts";
 import {
   ManualClock,
   ReferenceProvider,
@@ -35,11 +36,12 @@ export function click(provider, requestId, changes = {}) {
 }
 
 export function execute(core, provider, command) {
-  const beginning = core.begin(command);
-  assert.equal(beginning.started, true);
-  assert.deepEqual(beginning.effects, []);
-  // No await between the fresh dispatch check and submission to the provider.
-  provider.execute(command);
+  assert.equal(
+    dispatchToProvider(core, provider, command, (effects) =>
+      assert.deepEqual(effects, []),
+    ),
+    true,
+  );
 }
 
 /** Production policy, two stateful providers, independently observed counters. */

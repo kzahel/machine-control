@@ -30,6 +30,26 @@ jobs:
       - run: pnpm --dir runtime check
       - run: python bin/check --portable
 
+  browser:
+    name: Shared core with real Chrome extension (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+      - run: pnpm --dir runtime install --frozen-lockfile
+      - run: pnpm --dir desktop install --frozen-lockfile
+      - run: pnpm --dir desktop exec playwright install --with-deps chromium --no-shell
+      - run: pnpm --dir runtime browser
+
   native:
     name: Native (${{ matrix.os }})
     strategy:

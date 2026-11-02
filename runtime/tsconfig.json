@@ -14,5 +14,5 @@
     "types": [],
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "testing/**/*.ts"]
+  "include": ["src/**/*.ts", "testing/reference-provider.ts"]
 }

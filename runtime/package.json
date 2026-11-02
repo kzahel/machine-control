@@ -8,11 +8,13 @@
     "node": ">=24"
   },
   "scripts": {
-    "check": "tsc --noEmit",
-    "test": "node --test ../tests/runtime/core.test.mjs",
-    "scenario": "node ../tests/runtime/scenario.mjs"
+    "check": "tsc --noEmit && tsc --noEmit --project tsconfig.node.json",
+    "test": "node --test ../tests/runtime/core.test.mjs ../tests/runtime/extension.test.mjs",
+    "scenario": "node ../tests/runtime/scenario.mjs",
+    "browser": "node ../tests/runtime/browser-live.mjs"
   },
   "devDependencies": {
+    "@types/node": "24.19.2",
     "typescript": "5.9.3"
   }
 }

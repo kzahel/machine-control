@@ -138,10 +138,15 @@ and generations under the existing private retention policy.
 
 ## Delivery and next work
 
-**Decision:** first prove the [shared resident core](shared-resident-core.md)
-against a deterministic reference provider in [Tactical 150](../docs/tactical/150-shared-resident-core.md).
-Use that implementation for native adoption rather than building three new
-profile-policy engines. The following product plan remains proposed and is
+**Current:** the [shared resident core](shared-resident-core.md) passes the
+deterministic reference slice in [Tactical 150](../docs/tactical/150-shared-resident-core.md)
+and a bounded two-process, headless real-browser fixture in
+[Tactical 151](../docs/tactical/151-shared-core-real-browser.md). Durable
+extension identity, native authentication and installed profile selection
+remain pending.
+
+**Decision:** adopt the shared core for native integration.
+The following product plan remains proposed and is
 subject to the shared boundary and later deployment evidence.
 
 **Proposal:** implement a versioned profile-aware handshake before granting or

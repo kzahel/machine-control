@@ -18,34 +18,63 @@ export interface Approval {
   readonly expiresAt: number;
 }
 
-export interface ClickRequest {
+interface RequestIdentity {
   readonly requestId: string;
   readonly profileId: string;
+  readonly timeoutMs: number;
+}
+
+export interface ClickRequest extends RequestIdentity {
+  readonly operation?: "browser.click";
   readonly reference: {
     readonly connection: ProviderConnection;
     readonly target: string;
   };
-  readonly timeoutMs: number;
 }
 
+export type BrowserRequest =
+  | ClickRequest
+  | (RequestIdentity &
+      (
+        | {
+            readonly operation: "browser.tabs";
+            readonly connection: ProviderConnection;
+          }
+        | {
+            readonly operation: "browser.snapshot";
+            readonly connection: ProviderConnection;
+            readonly tabId: number;
+          }
+      ));
+
+export type BrowserOperation =
+  | "browser.click"
+  | "browser.tabs"
+  | "browser.snapshot";
+
 /** Immutable correlation handle, translated by a future authenticated adapter. */
-export interface DispatchCommand {
+interface DispatchIdentity {
   readonly requestId: string;
-  readonly operation: "browser.click";
   readonly connection: ProviderConnection;
-  readonly target: string;
   readonly authorizationGeneration: number;
 }
+
+export type DispatchCommand = DispatchIdentity &
+  (
+    | { readonly operation: "browser.click"; readonly target: string }
+    | { readonly operation: "browser.tabs" }
+    | { readonly operation: "browser.snapshot"; readonly tabId: number }
+  );
 
 /** Effect sink behind the host's authenticated connection and dispatch check. */
 export interface ProviderAdapter {
   readonly connection: ProviderConnection;
-  execute(command: DispatchCommand): void;
+  execute(command: DispatchCommand, timeoutMs: number): void;
   cancel(command: DispatchCommand): void;
 }
 
 export type ProviderReply =
-  | { readonly ok: true }
+  | { readonly ok: true; readonly data?: unknown }
   | { readonly ok: false; readonly delivery: "refused" | "unknown" };
 
 export type RefusalCode =
@@ -64,7 +93,7 @@ export type RefusalCode =
 
 interface ResultIdentity {
   readonly requestId: string;
-  readonly operation: "browser.click";
+  readonly operation: BrowserOperation;
   readonly profileId: string;
   readonly actualRoute: string;
   readonly providerGeneration: number | null;
@@ -80,6 +109,7 @@ export type ActionResult = ResultIdentity &
         readonly uncertainty: "application_effect_not_observed";
         readonly retrySafety: "observe_before_retry";
         readonly errorCode?: never;
+        readonly data?: unknown;
       }
     | {
         readonly accepted: false;
@@ -230,11 +260,21 @@ export class ResidentCore {
     return { approval, effects };
   }
 
-  request(approval: Approval, request: ClickRequest): readonly Effect[] {
+  request(approval: Approval, request: BrowserRequest): readonly Effect[] {
     identifier(request.requestId);
     identifier(request.profileId);
     duration(request.timeoutMs, 45_000);
-    boundedText(request.reference.target, 512);
+    if (
+      request.operation === undefined ||
+      request.operation === "browser.click"
+    ) {
+      boundedText(request.reference.target, 512);
+    } else if (request.operation === "browser.snapshot") {
+      if (!Number.isSafeInteger(request.tabId) || request.tabId < 1)
+        throw new CoreError("invalid_request");
+    } else if (request.operation !== "browser.tabs") {
+      throw new CoreError("invalid_request");
+    }
     const now = this.#now();
     const effects = this.#expire(now);
     const connection = this.#providers.get(request.profileId);
@@ -250,8 +290,11 @@ export class ResidentCore {
     if (!approval.profiles.includes(request.profileId))
       return reject("profile_not_approved");
     if (!connection) return reject("profile_unavailable");
-    if (request.reference.connection !== connection)
-      return reject("stale_reference");
+    const requestedConnection =
+      "reference" in request
+        ? request.reference.connection
+        : request.connection;
+    if (requestedConnection !== connection) return reject("stale_reference");
     if (
       [...this.#pending.keys()].some(
         (command) => command.requestId === request.requestId,
@@ -263,13 +306,25 @@ export class ResidentCore {
       return reject("capacity_exceeded");
     if (!Number.isSafeInteger(now + request.timeoutMs))
       throw new CoreError("clock_invalid");
-    const command: DispatchCommand = Object.freeze({
+    const identity: DispatchIdentity = {
       requestId: request.requestId,
-      operation: "browser.click",
       connection,
-      target: request.reference.target,
       authorizationGeneration: approval.generation,
-    });
+    };
+    const command: DispatchCommand =
+      request.operation === "browser.tabs"
+        ? Object.freeze({ ...identity, operation: "browser.tabs" })
+        : request.operation === "browser.snapshot"
+          ? Object.freeze({
+              ...identity,
+              operation: "browser.snapshot",
+              tabId: request.tabId,
+            })
+          : Object.freeze({
+              ...identity,
+              operation: "browser.click",
+              target: request.reference.target,
+            });
     this.#pending.set(command, {
       command,
       approval,
@@ -286,10 +341,13 @@ export class ResidentCore {
    * An adapter with additional asynchronous preparation needs a fresh begin
    * boundary instead of retaining a previously successful authorization.
    */
-  begin(command: DispatchCommand): {
-    readonly started: boolean;
-    readonly effects: readonly Effect[];
-  } {
+  begin(command: DispatchCommand):
+    | { readonly started: false; readonly effects: readonly Effect[] }
+    | {
+        readonly started: true;
+        readonly effects: readonly Effect[];
+        readonly timeoutMs: number;
+      } {
     const effects = this.tick();
     const pending = this.#pending.get(command);
     if (!pending || pending.phase !== "queued")
@@ -303,7 +361,11 @@ export class ResidentCore {
     }
     pending.phase = "dispatched";
     this.#unsettled.add(command);
-    return { started: true, effects };
+    return {
+      started: true,
+      effects,
+      timeoutMs: pending.deadline - this.#lastTime,
+    };
   }
 
   complete(
@@ -341,6 +403,7 @@ export class ResidentCore {
           effect: "unverifiable",
           uncertainty: "application_effect_not_observed",
           retrySafety: "observe_before_retry",
+          ...(reply.data === undefined ? {} : { data: reply.data }),
         })
       : this.#failure(command, "provider_failed", reply.delivery === "unknown");
     effects.push({ type: "request.finished", result });
@@ -378,6 +441,7 @@ export class ResidentCore {
     readonly pendingRequests: number;
     readonly unsettledDispatches: number;
     readonly retainedRequests: number;
+    readonly authorizationGeneration: number;
   } {
     const now = this.#now();
     return {
@@ -389,6 +453,7 @@ export class ResidentCore {
       pendingRequests: this.#pending.size,
       unsettledDispatches: this.#unsettled.size,
       retainedRequests: this.#retained(),
+      authorizationGeneration: this.#authorizationGeneration,
     };
   }
 
@@ -467,13 +532,13 @@ export class ResidentCore {
   }
 
   #refused(
-    request: ClickRequest,
+    request: BrowserRequest,
     connection: ProviderConnection | undefined,
     errorCode: RefusalCode,
   ): ActionResult {
     return Object.freeze({
       requestId: request.requestId,
-      operation: "browser.click",
+      operation: request.operation ?? "browser.click",
       profileId: request.profileId,
       actualRoute: connection?.route ?? "unavailable",
       providerGeneration: connection?.generation ?? null,

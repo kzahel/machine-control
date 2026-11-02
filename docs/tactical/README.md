@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [151 — Shared core real browser](151-shared-core-real-browser.md) (bounded Mac slice complete):
+  native messaging, typed discovery/snapshots, two isolated profiles and faults.
+
 - [150 — Shared resident core](150-shared-resident-core.md) (first slice complete):
   deterministic two-provider approval/action/Stop/late-result slice.
 

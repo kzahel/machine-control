@@ -2,7 +2,7 @@
 
 Topic: `shared-resident-core`
 
-Status: **first deterministic slice complete; no installed integration**.
+Status: **deterministic and real-browser slices complete; no installed integration**.
 
 ## Motivation
 
@@ -107,17 +107,37 @@ implementation or a replacement OS.
 
 ## Next evidence
 
+**Current, bounded Mac ARM64 live evidence:** the same core now handles typed
+tab discovery, snapshots and clicks through the unchanged extension and real
+native messaging. Two independent headless test-browser profiles pass eight
+checks in approximately three seconds, with independent trusted-click HTTP
+effects, Stop in both extension panels, a held old reply and genuine native
+relay loss/reconnect. Fixture endpoints assign identity and fixture operator
+calls approve exact profiles; production native authentication, same-process
+Chrome profiles, browser sandbox and installed acceptance are not qualified.
+[Tactical 151](../docs/tactical/151-shared-core-real-browser.md) owns execution
+and [the provider dossier](../research/providers/chrome-extension.md#multiple-profile-limit)
+owns route evidence. This consumes the existing worker protocol without a
+new extension release or change to the installed residents.
+
 **Current:** the TypeScript core, stateful provider, explicit-clock scenario
-and 17 focused regressions pass locally under Node 24 and Node 26, with strict
+and 24 focused regressions pass locally under Node 24 and Node 26, with strict
 TypeScript checking. The suite reports roughly 0.1 seconds on the development
 Mac; this is a local observation, not a cross-platform benchmark. CI is wired
 to run the same core tests and type check on all three desktop host families;
-remote CI execution and native/package/browser acceptance are not inferred.
+remote CI execution and native/package acceptance are not inferred. A separate
+Linux CI job is wired for real-browser acceptance; its execution is not inferred
+from the local Mac evidence.
 
-[Tactical 150](../docs/tactical/150-shared-resident-core.md) owns this first
-slice, its executable scenario, verification and result. Before native rollout,
-prove real native messaging, extension debugger behavior, two-profile effects,
-process loss and packaging through this same core. Then remove the policy
+[Tactical 150](../docs/tactical/150-shared-resident-core.md) owns the reference
+slice and [Tactical 151](../docs/tactical/151-shared-core-real-browser.md) owns
+the real-browser follow-up. Both hosts now use one dispatch helper, preserving
+the same fresh-authority check, remaining budget and submission ordering.
+
+**Decision:** next remove fixture-assigned identity: add persistent extension
+installation identity and prove two profiles in one Chrome process through a
+single native-host registration. Then qualify production native peer/operator
+authentication and packaged deployment through this same core. Remove policy
 being replaced from each native resident, one qualified vertical slice at a
 time. Shipping a new layer while retaining competing native policy engines
 does not complete the refactor.

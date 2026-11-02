@@ -40,8 +40,11 @@ into a raw proxy for every testbed CLI.
 **Current, development-only:** [`runtime/`](runtime/README.md) introduces the
 [shared resident policy workstream](topics/shared-resident-core.md). Its first
 TypeScript module owns bounded profile routing, approval and action lifetime
-for a deterministic reference-provider harness. Existing native residents
-remain authoritative for installed control. This module is not a new YA
+for a deterministic reference-provider harness. A typed extension adapter also
+exercises real native messaging in isolated headless test-browser profiles;
+fixture identity/approval do not establish production native authentication.
+Existing native residents remain authoritative for installed control. This
+module is not a new YA
 coordinator, private inventory owner, public approval endpoint or protected
 provider; native integration and packaged deployment remain pending.
 

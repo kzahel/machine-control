@@ -56,7 +56,10 @@ export class ReferenceProvider implements ProviderAdapter {
     if (this.#replies.has(command))
       throw new Error("Host dispatched a command twice");
     this.received.push(command);
-    if (command.target !== "increment-button") {
+    if (
+      command.operation !== "browser.click" ||
+      command.target !== "increment-button"
+    ) {
       this.#replies.set(command, { ok: false, delivery: "refused" });
       return;
     }
