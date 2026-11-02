@@ -33,6 +33,9 @@ test("real worker cleans markers on resident revocation, release and disconnect"
   let declineDialog = false;
   let failFocusEmulation = false;
   let failFocusReset = false;
+  let focusReflowTab = null;
+  let focusTargetX = 0;
+  let focusTargetClicks = 0;
   let handledDialogs = 0;
   let dialogDuringDetach = null;
   let reportAbsent = false;
@@ -99,6 +102,8 @@ test("real worker cleans markers on resident revocation, release and disconnect"
         assert.ok(attached.has(tabId));
         if (method === "Emulation.setFocusEmulationEnabled" && failFocusEmulation) throw new Error("Fixture focus emulation refusal");
         if (method === "Emulation.setFocusEmulationEnabled" && params.enabled === false && failFocusReset) throw new Error("Fixture focus reset refusal");
+        if (method === "Emulation.setFocusEmulationEnabled" && params.enabled === true && tabId === focusReflowTab)
+          focusTargetX = 100; // The page moves its button when it becomes focused/visible.
         if (method === "Page.enable" && failPageEnable) throw new Error("Fixture Page refusal");
         if (method === "Page.enable" && holdPageEnable) return new Promise(resolve => { releasePageEnable = resolve; });
         if (method === "Page.handleJavaScriptDialog") {
@@ -110,11 +115,15 @@ test("real worker cleans markers on resident revocation, release and disconnect"
           { backendDOMNodeId: 7, role: { value: "button" }, name: { value: "Fixture" } },
         ] };
         if (method === "DOM.getContentQuads") {
-          const result = { quads: [[0, 0, 20, 0, 20, 20, 0, 20]] };
+          const x = tabId === focusReflowTab ? focusTargetX : 0;
+          const result = { quads: [[x, 0, x + 20, 0, x + 20, 20, x, 20]] };
           if (holdQuads) return new Promise((resolve) => { releaseQuads = () => resolve(result); });
           return result;
         }
         if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") presses++;
+        if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed" && tabId === focusReflowTab &&
+            params.x >= focusTargetX && params.x <= focusTargetX + 20 && params.y >= 0 && params.y <= 20)
+          focusTargetClicks++;
         if (method === "Input.insertText") inserted.push(params.text);
         if (method === "Runtime.fixturePending") {
           heldStarted = true;
@@ -414,6 +423,16 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     assert.equal((await request("browser.capture", {tabId:capacityTab.id})).ok, true);
     assert.equal((await request("browser.release")).data.virtualFocusResetUnconfirmed, undefined,
       "a successful explicit reset on the next attachment clears uncertainty");
+    focusReflowTab = (await request("browser.navigate", {newTab:true, url:"about:blank"})).data.tab.tabId;
+    const movedReference = (await request("browser.snapshot", {tabId:focusReflowTab})).data.elements[0].reference;
+    const pressesBeforeReflow = presses;
+    const foregroundBeforeReflow = commands.filter(command => command.method === "Page.bringToFront").length;
+    assert.equal((await request("browser.click", {reference:movedReference})).ok, true);
+    assert.equal(focusTargetClicks, 1, "the click must hit the button after focus changes its layout");
+    assert.equal(presses, pressesBeforeReflow + 1, "layout preparation must not replay a click");
+    assert.equal(tabs.get(focusReflowTab).active, false);
+    assert.equal(commands.filter(command => command.method === "Page.bringToFront").length, foregroundBeforeReflow);
+    focusReflowTab = null;
     assert.equal((await request("browser.capture", {tabId:attachingTab.id})).ok, true);
     chrome.debugger.onEvent.emit({ tabId:attachingTab.id }, "Page.javascriptDialogOpening", { type:"beforeunload" });
     native.onMessage.emit({ type:"grant", browser:false, devtools:false, grantGeneration:"stopped" });

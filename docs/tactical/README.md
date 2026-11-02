@@ -1,5 +1,10 @@
 # Implementation Tacticals
 
+- [146 — Background browser click reproduction](146-background-browser-click-reproduction.md)
+  (complete for the focus/layout defect): prepare virtual focus before target
+  geometry, independent effects and non-interference; original physical cause
+  remains open.
+
 - [145 — Desktop 0.6.11 release](145-desktop-0.6.11-release.md) (active):
   unified candidate, exact signed Mac reliability acceptance and publication.
 

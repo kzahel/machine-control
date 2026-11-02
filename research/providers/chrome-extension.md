@@ -62,6 +62,21 @@ and exact installed product evidence.
 
 ## Fidelity, consequences, and gaps
 
+**Current (2026-11-02), owned source repair, bounded VM `conformance-tested`:**
+the worker measured click geometry before preparing virtual focus. An owned
+focus/visibility callback moves the target by 180 CSS pixels; four background
+zoom cases missed while selected-tab controls passed. Preparing focus before
+scroll/geometry repairs the deterministic regression and the 18-check live
+background/sentinel suite. Eight repaired store-origin unpacked comparisons
+also pass selected/background and zoom cells while IOKit independently reports
+locked, with one HTTP click per case and preserved background tab selection.
+This uses signed desktop 0.6.11, macOS 26.6.2 ARM64 and separately identified
+Chrome for Testing 156.0.8078.80. Ordinary static cases also passed before the
+repair, including earlier CfT 155 cells. The original physical static-page
+failure therefore remains open. Store delivery, exact physical-browser patch
+and other platform execution are not qualified. [Tactical 146](../../docs/tactical/146-background-browser-click-reproduction.md)
+owns the recorded comparisons and cleanup.
+
 **Open, usage-journal review (2026-11-01):** repeated terminal input reports
 describe acknowledged `Input.insertText` without visible terminal text, while
 explicit key events worked in one recovery. Frame targeting, application input

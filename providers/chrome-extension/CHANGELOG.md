@@ -3,6 +3,12 @@
 Store releases are tagged `extension-v<version>`; see
 [Web Store release](README.md#web-store-release).
 
+## Unreleased
+
+- Prepare virtual page focus before scrolling and measuring a click target,
+  so focus/visibility handlers cannot leave the click using the hidden page's
+  old coordinates. Background operation and foreground opt-in stay unchanged.
+
 ## [0.8.4] - 2026-10-27
 
 - Declare local file URL access so Chrome exposes the "Allow access to file

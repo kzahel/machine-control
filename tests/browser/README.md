@@ -14,6 +14,11 @@ evidence retention, claim release and restoring the VM's initial power state.
 The optional `--focus-emulation` switch is a diagnostic control for comparing
 the pre-repair inactive-tab route. Ordinary acceptance does not need it.
 
+Use `--focus-layout-change` without `--focus-emulation` for the click-geometry
+regression: the page moves its button when virtual focus changes visibility.
+The runner requires one independent HTTP click at the moved target, plus its
+usual native foreground/cursor, selected-tab, capture and cleanup checks.
+
 `relay-smoke.py` runs ten bounded checks in an exclusively claimed dedicated
 Windows or GNOME Wayland Linux VM. It covers Off, extension connection,
 independent HTTP click and PNG effects, typed dialogs, stalled evaluation,

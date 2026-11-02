@@ -22,6 +22,15 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-11-02), unreleased source repair:** virtual focus is prepared
+before scrolling and measuring a click target. A focus/visibility handler can
+otherwise move the target after geometry is read, making acknowledged input
+hit the page background. Independent VM fixture effects reproduce that order
+defect and pass after repair; the original physical static-page failure remains
+unattributed. The [provider dossier](../research/providers/chrome-extension.md#fidelity-consequences-and-gaps)
+owns evidence boundaries and [Tactical 146](../docs/tactical/146-background-browser-click-reproduction.md)
+owns execution. No physical app or store extension was replaced or published.
+
 **Open (2026-11-01), observed physical-Mac bug:** a background browser click
 while the console was locked acknowledged delivery without the fixture's DOM
 or independent HTTP effect. Typing and observation worked in the same tab;

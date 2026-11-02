@@ -489,18 +489,7 @@ async function send(tabId, method, params = {}, expectedDialogId) {
   requireRequestAuthority();
   if (expectedDialogId !== undefined && dialogs.get(tabId)?.id !== expectedDialogId)
     throw new ProviderError("stale_dialog", "The observed dialog changed before dispatch; inspect again");
-  // Chrome can acknowledge input on an inactive tab without delivering its
-  // page effect. Emulate page focus instead of selecting a tab or raising its
-  // window. Release explicitly resets this override. Refuse if unavailable; never
-  // silently fall back to foreground or desktop input.
-  if (method.startsWith("Input.")) {
-    try { await send(tabId, "Emulation.setFocusEmulationEnabled", { enabled:true }); }
-    catch (error) {
-      if (error.code !== "cdp_command_failed") throw error;
-      throw new ProviderError("background_input_unavailable", "Chrome could not prepare background input; foreground control was not attempted");
-    }
-    requireRequestAuthority();
-  }
+  if (method.startsWith("Input.")) await prepareBackgroundInput(tabId);
   try {
     context.dispatch();
     const result = await providerCommand({ tabId }, method, params);
@@ -515,6 +504,17 @@ async function send(tabId, method, params = {}, expectedDialogId) {
     if (error instanceof ProviderError) throw error;
     throw new ProviderError("cdp_command_failed", `${method}: ${error.message || error}`);
   }
+}
+
+async function prepareBackgroundInput(tabId) {
+  // Inactive-tab input can be acknowledged without a page effect. Virtual
+  // focus avoids selecting the tab or raising its window; release resets it.
+  try { await send(tabId, "Emulation.setFocusEmulationEnabled", { enabled:true }); }
+  catch (error) {
+    if (error.code !== "cdp_command_failed") throw error;
+    throw new ProviderError("background_input_unavailable", "Chrome could not prepare background input; foreground control was not attempted");
+  }
+  requireRequestAuthority();
 }
 
 function propertyMap(node) {
@@ -578,6 +578,9 @@ async function resolveReference(reference) {
 
 async function click(params) {
   const { tabId, backendNodeId } = await resolveReference(params.reference);
+  // Focus/visibility handlers can move the target. Prepare before scrolling
+  // and measuring it, rather than clicking geometry from the hidden layout.
+  await prepareBackgroundInput(tabId);
   await send(tabId, "DOM.scrollIntoViewIfNeeded", { backendNodeId });
   const { quads } = await send(tabId, "DOM.getContentQuads", { backendNodeId });
   if (!quads?.length) throw new ProviderError("element_not_visible", "Element has no visible box");

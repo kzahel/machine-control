@@ -29,6 +29,8 @@ def main():
     p.add_argument('--claim', required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--focus-emulation', action='store_true', help='Explicit diagnostic experiment')
+    p.add_argument('--focus-layout-change', action='store_true',
+                   help='The fixture moves its button when virtual focus makes it visible')
     a = p.parse_args()
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).decode().startswith('VirtualMac')
     assert 'Google Chrome for Testing.app/Contents/MacOS/' in str(a.chrome)
@@ -76,9 +78,14 @@ def main():
 <button onclick="fetch('/effect',{method:'POST',body:'clicked'})">Increment</button>
 <input aria-label="Background text" oninput="fetch('/effect',{method:'POST',body:this.value})">
 <script>function reportFocus(){fetch('/focus',{method:'POST',body:JSON.stringify({
-path:location.pathname,focused:document.hasFocus(),visible:document.visibilityState})})}
+path:location.pathname,focused:document.hasFocus(),visible:document.visibilityState,
+buttonX:document.querySelector('button').getBoundingClientRect().x})})}
 setInterval(reportFocus,50); addEventListener('focus',reportFocus); addEventListener('blur',reportFocus);
 document.addEventListener('visibilitychange',reportFocus); reportFocus();</script>'''
+            if a.focus_layout_change:
+                body += b'''<script>function moveButton(){if(document.visibilityState==='visible')
+document.querySelector('button').style.transform='translateX(180px)'}
+addEventListener('focus',moveButton);document.addEventListener('visibilitychange',moveButton);</script>'''
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.send_header('Content-Length', str(len(body)))
@@ -168,6 +175,9 @@ document.addEventListener('visibilitychange',reportFocus); reportFocus();</scrip
         call('browser.click', reference=button['reference'])
         poll(lambda: 'clicked' in effects, seconds=3)
         check('inactive-tab click has independent HTTP effect', effects.count('clicked') == 1)
+        if a.focus_layout_change:
+            poll(lambda: focus_reports.get('/controlled', {}).get('buttonX', 0) >= 180)
+            check('page focus callback moved the target before its independently observed click')
         call('browser.type', reference=field['reference'], text='background input')
         poll(lambda: 'background input' in effects, seconds=3)
         check('background text reaches only the target page', state()['text'] == '')
@@ -249,7 +259,8 @@ document.addEventListener('visibilitychange',reportFocus); reportFocus();</scrip
             server.shutdown()
             server.server_close()
         scratch.cleanup()
-        result = dict(passed=failure is None, checks=checks, failure=failure, focusEmulation=a.focus_emulation)
+        result = dict(passed=failure is None, checks=checks, failure=failure,
+                      focusEmulation=a.focus_emulation, focusLayoutChange=a.focus_layout_change)
         (a.output / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
         print(json.dumps(result))
     return 1 if failure else 0

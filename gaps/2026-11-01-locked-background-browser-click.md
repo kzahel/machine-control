@@ -4,7 +4,15 @@ Topic: `browser-control`
 
 Status: **Current — observed on physical macOS; cause unisolated.**
 Private usage notes and claim audit events retain exact attribution and
-evidence. No runtime fix or broader browser failure is established.
+evidence. No fix for the original physical failure or broader browser failure
+is established.
+
+**Current (2026-11-02), related defect repaired in unreleased source:** a VM
+fixture reproduces clicks at obsolete coordinates when virtual focus triggers
+page layout changes. Ordinary static fixtures passed. This isolates one
+failure class; it does not establish the cause of the original static-page
+physical failure. [Tactical 146](../docs/tactical/146-background-browser-click-reproduction.md)
+owns the before/after regression, deployment comparisons and remaining limits.
 
 ## Observations
 
