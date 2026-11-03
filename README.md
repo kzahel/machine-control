@@ -21,15 +21,18 @@ Chromebooks, Android devices, and more.
 - **Use desktop applications:** inspect windows and UI elements, click controls,
   enter text, and capture screenshots.
 - **Control the browser:** inspect and operate tabs through the optional Chrome
-  extension, with separate access for browser scripts and DevTools.
+  extension, including supported CDP and page JavaScript.
 - **Work with real devices:** install and exercise apps on a physical iPhone,
   operate a Chromebook's desktop and browser, or deploy to Android and Quest.
 - **Test locally or remotely:** drive your own computer, a VM, or a configured
   physical device from the agent's existing session.
 - **Prepare test environments:** bring up VMs, check readiness, acquire isolated
   workspaces, and clean up through the same target-selecting CLI.
-- **Keep access visible:** select scopes and duration in the desktop app, pause
+- **Keep access visible:** select access and duration in the desktop app, pause
   supported control sessions, stop access, and inspect activity.
+
+The [unified Desktop/Browser permissions experience](topics/access-admission-and-pause.md)
+is being qualified on Windows first, followed by macOS and Linux.
 
 Available controls depend on the platform and selected permissions. Machine
 Control combines native UI information with screenshots and input, so agents

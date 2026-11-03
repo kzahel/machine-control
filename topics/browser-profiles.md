@@ -103,15 +103,15 @@ never retargets a grant, reference or endpoint.
 
 ## Authority and lifecycle rules
 
-**Current Windows implementation:** Browser and DevTools grants carry exact
-approved profile IDs. The accepted first slice uses one set for both legacy
-scopes and separate scope approvals for ordinary control versus scripts/CDP.
+**Current Windows source:** one Browser permission includes supported CDP
+and page JavaScript, carrying exact approved profile IDs. The earlier accepted
+[Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) slice used
+separate legacy scope approvals; that is historical evidence for its own build.
 
-**Decision for the next model:** one Browser permission includes supported CDP
-and page JavaScript. Its independent Off / Ask first / Automatic mode and exact
+**Decision:** Browser’s independent Off / Ask first / Automatic mode and exact
 profile set follow the [unified permission contract](access-admission-and-pause.md#unified-permissions-and-handoff-contract).
-Retire the separate user-facing scripts/DevTools tier during that migration;
-legacy scope translation is temporary and cannot widen old consent silently.
+The separate user-facing scripts/DevTools tier is removed on Windows. Native
+provider scope mappings remain internal and cannot widen old consent silently.
 
 **Decision, retained profile invariants:** operator arming and native approval can select several profiles. An agent
 request cannot alter that exact set; its operation selects within existing
@@ -119,11 +119,10 @@ consent. Approval revalidates the selected IDs and availability before issuing
 shared authority, which is rechecked at dispatch. Newly discovered or newly enabled profiles never join a live
 grant implicitly.
 
-Remember selected profile IDs with editable access choices, separately from
-authority. Mac same-console consent restoration retains the exact approved
-IDs and existing expiry/session checks. Old saved consent without profile IDs
-cannot safely restore browser authority: require fresh browser approval while
-preserving independent desktop scopes and remembered form choices. Existing
+**Decision:** remember selected profile IDs with editable access choices,
+separately from authority. The unified model restores no consent after resident
+restart. Legacy Mac same-console consent must not be imported as broader Browser
+authority; preserve only explicitly compatible form preferences. Existing
 appliance standing policies need explicit profile enrollment or an exact
 fixture-owned profile set; do not turn them into future-profile wildcards.
 
@@ -141,7 +140,7 @@ CDP describes only that selected profile, including created tabs and popups;
 do not merge profiles into a synthetic browser or isolated browser contexts.
 
 Preserve expiry, lock/session safety and generation fences. The unified
-permission contract owns the next surface/global Pause, Stop and quiet Off
+permission contract owns surface/global Pause, Stop and quiet Off
 semantics. Fan out authority changes to the appropriate providers. A profile
 disconnect affects its own requests and streams. Preserve
 refused-before-dispatch versus unknown-after-dispatch outcomes; never replay

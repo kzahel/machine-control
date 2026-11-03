@@ -59,9 +59,11 @@ produces CI candidates with an empty release tag. Tagged publication uses
 On macOS, Windows and GNOME Wayland Linux, Settings has an unreleased,
 default-off **Allow approved browser
 access while locked** option. Enable it and approve browser access before
-locking. Browser tabs and separately approved browser scripts/DevTools can
-continue through the extension while the computer stays locked, without an unlock
-helper. Mixed approvals retain their original expiry, while desktop observation
+locking. The unified Windows model uses one Browser permission for supported
+tab, CDP and JavaScript work; Mac/Linux temporarily retain their legacy approval
+UI until adoption. Approved Browser work can continue through the extension
+while the computer stays locked, without an unlock helper. Consent retains its
+original expiry, while desktop observation
 and input remain unavailable until unlock unless covered desktop control is
 separately enabled. Pause, Stop and expiry still apply; turning the option off
 while locked ends retained access. New or broader approval requires unlocking.

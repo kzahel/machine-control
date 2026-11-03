@@ -1,103 +1,133 @@
 # Resumable access admission
 
-The admission v1 arbiter separates authorization from availability and finite
-ownership. Current desktop channels use the existing target-wide workstation
-grant and bind ownership to one live same-user transport. Caller labels are
-informative; hostile same-user containment and YA-attested delegation are not
-claimed. Tactical 071 owns stronger caller integration.
+The [unified permissions contract](../topics/access-admission-and-pause.md)
+separates surface consent, temporary availability, a waiting task and finite
+active ownership. The shared TypeScript policy implements resident admission
+v2; Windows is its first native adapter. Mac/Linux adoption is pending.
+[Tactical 153](tactical/153-unified-permissions-and-handoff.md) owns current
+qualification. Older resident v1 channels cannot silently satisfy v2 requests.
+
+Configure Desktop and Browser independently as Off, Ask first or Automatic.
+Browser includes supported CDP and page JavaScript, with exact selected profile
+IDs. Ask approval belongs to one waiting task; public caller labels never
+supply operator authority. Same-user shell containment and YA-attested
+delegation are not claimed.
 
 ## Standalone use
 
-Select the target, run doctor and acquire its normal attributed claim where
-required. Existing `claim acquire` remains fail-fast v0; admission does not
-silently replace a legitimate VM claim or renew one the caller no longer owns.
-Carry the claim on control operations as on ordinary desktop operations.
+Select the target, run doctor and acquire its attributed claim where required.
+Admission neither replaces the exact-target claim nor renews it implicitly.
+Carry that claim through ordinary control operations.
 
 ```sh
 machine-control --target host --claim CLAIM_ID control call \
   '{"operation":"snapshot"}' --reason 'Inspect the current screen' \
-  --scope observe --scope control --wait 5m --duration 2m
+  --surface desktop --wait 5m --duration 2m
 ```
 
-The client waits for current authorization, resource availability and the
-operator's notice. It explicitly accepts a short offer, executes once with the
-returned fresh session and complete resource generations, then cancels and
-closes the owning transport. Ctrl-C, parent exit or transport loss releases
-ownership; watchdog expiry is the backstop. An uncertain input is never
-replayed automatically. Grant clocks continue while paused.
+The client keeps one live wait, accepts an unexpired offer, dispatches once with
+fresh ownership and complete resource generations, then closes. Off and denial
+are terminal refusals; temporary pause/busy states remain waiting. Consent
+clocks continue while paused. An uncertain application effect is never replayed.
 
-For related actions, keep one connection open and exchange newline-delimited
-JSON with the same client:
+For related observations and actions, retain a connection:
 
 ```sh
 machine-control --target host --claim CLAIM_ID control stream \
   --reason 'Inspect and operate the application' \
-  --scope observe --scope control --wait 5m --duration 5m
+  --surface desktop --wait 5m --duration 5m
 ```
 
-Write one common desktop request per line to stdin and read one compact result
-line from stdout. The client flushes each result before reading the next action,
-so a caller can inspect a snapshot and send an action using its references.
-It acquires once, sends actions sequentially, keeps the owner alive between
-actions, and closes on EOF or error. Empty input acquires nothing. A refusal,
-unknown delivery, or unknown/partial effect ends the stream; later input is not
-dispatched. Confirmed delivery with an explicitly unverifiable effect keeps
-ownership so the caller can observe the application next. The result retains
-that uncertainty; acceptance never becomes proof of an effect or permission
-for automatic replay. The duration is finite by default. Interruption never
-silently reacquires ownership. The caller must close stdin when finished. While stdin is
-idle, heartbeat failure releases the transport but the CLI may remain waiting
-for input until the caller closes or writes again.
+Write one common request per line and read one compact result per line. Results
+flush before the next action. Empty input acquires nothing. References from a
+completed owner cannot be reused by another session. A refusal, unknown delivery
+or unknown/partial effect ends the stream without dispatching later input.
+Confirmed delivery with an explicitly unverifiable effect permits a subsequent
+observation; it does not authorize automatic replay.
 
-**Current, unreleased Mac source:** add `--renew` to a stream to renew its same
-live owner under the original approval. The interval must be at least fifteen
-seconds and at most fifteen minutes. A timed grant retains its original total
-deadline; Until I turn it off permits continuing work until Stop, completion,
-or loss of authority/safety. Renewal requires the provider's explicit
-`owner_connection/v1` support, including the actual helper for covered control.
-An older provider refuses this option rather than silently requesting new
-approval. The persistent agent facade renews an advertised live owner; legacy
-providers keep their finite expiry. Exact-package qualification is tracked in
-[Tactical 144](tactical/144-renewable-control-owners.md).
+The Python SDK remains `ControlSession(target, reason=..., surfaces=...,
+profile_ids=..., operations=..., wait=..., duration=...)`. Browser tasks must
+name exact enabled/approved profile IDs. An optional operation whitelist lets
+the server classify a strictly observational Browser task as background work;
+unrestricted Browser/CDP tasks conservatively require a disruptive handoff.
+The public scope-based v1 constructor/CLI contract is retired explicitly.
 
-**Current, source and fixture evidence:** the Windows desktop product requires
-owner context for native observation, application/input and browser operations
-even when a standing grant exists and no owner is active. Direct one-shot IPC
-receives `control_session_required` with a typed `data.controlSession` schema
-and required scope. Common `desktop` and browser CLI calls use that declaration
-to open a short session only when the result explicitly says delivery/effect
-were refused, uncertainty is `none`, and retry safety is
-`safe_not_dispatched`. They preserve the operation and dispatch it once through
-the existing provider. They never fall back after channel failure or replay an
-uncertain result. Missing/older declarations retain their existing behavior.
-Status, capabilities, grant/update management, runtime stop and the separate
-operator channel retain their existing policy. Headless workstation and
-dedicated appliance profiles are not changed by this requirement.
+`wait()` accepts a current offer, `status()` observes without renewing liveness,
+`call(request)` dispatches once, and `cancel()` ends this connection's intent.
+The background heartbeat keeps only the live context useful, checks its claim,
+and extends neither consent nor hard task/active deadlines. After interruption,
+wait for a fresh owner and observe again before further actions. Closing the
+context releases promptly; reconnect restores no owner, stream or queue position.
+A caller must close stream stdin when finished; a CLI blocked on stdin may
+remain alive after its owner expires, but cannot dispatch further input.
 
-One-shot ownership changes generations. Use `control stream` or the Python SDK
-for snapshot/reference/action workflows; references from a completed short
-session must not be retargeted into another session. Explicit `call-local` and
-`raw-local` parity probes retain their selected route and report the resident
-refusal instead of silently switching transports. Raw `browser.endpoint`
-export remains prohibited inside admission; use typed browser operations.
-Installed Windows UI and browser acceptance remain pending; see
-[Tactical 095](tactical/095-windows-required-owner-session.md).
+Renewal requires explicit provider support. The new Windows v2 adapter does
+not advertise it. Earlier Mac v1 renewal evidence is historical until that
+platform adopts and qualifies the common contract; see [Tactical 144](tactical/144-renewable-control-owners.md).
 
-The Python SDK's `ControlSession(target, reason=..., scopes=..., wait=...,
-duration=...)` is a context manager over an already resolved common-client
-target. `wait()` accepts a current offer, `status()` observes without renewing,
-`call(request)` dispatches once, and `cancel()` ends only this connection's
-intent. On supporting providers, `renew(seconds)` explicitly extends that owner;
-`renew=True` in the constructor opts into renewal while its context remains
-live. Status and heartbeat alone do not extend the hard control deadline.
-A background keepalive owns liveness and checks the existing selected
-claim. Adapters also check the exact claim before every incoming frame and
-periodically without client polling; expiry/release/replacement closes the
-transport without acquiring or renewing a claim. After interruption, inspect status and wait for a **new** session before
-issuing new work. Closing the context releases promptly; no session or queue
-position is restored after reconnect.
+## Ordinary one-shot negotiation
 
-## Live wire
+The Windows desktop product requires owner context for native observation,
+application/input and Browser work. A direct call first declares
+`control_session_required` with v2 surface metadata, even during temporary
+activity/cooldown/pause. The common client negotiates only when the refusal
+proves delivery/effect were refused, uncertainty is `none` and replay safety is
+`safe_not_dispatched`. It preserves and dispatches the original operation once.
+Transport loss or uncertain effects never trigger fallback/replay.
+
+Metadata and the private operator channel retain their own native checks.
+Headless/dedicated-appliance and outer recovery routes remain distinct; an
+ordinary endpoint does not imply protected or outer authority. Explicit raw
+parity probes retain their route instead of silently opening another channel.
+Raw Browser endpoint export is not a substitute for owner-bound typed streaming.
+
+## Resident desktop/Browser wire (v2)
+
+An adapter's `channel` command transports bounded newline JSON. Open with
+`control.open`, schema `machine-control-admission/v2`, requestId, reason,
+surfaces, exact profileIds for Browser, optional operations, durationSeconds
+(1–900) and waitSeconds (1–14400). The adapter derives native owner identity;
+the private host supplies an unforgeable owner handle. Public IDs are labels.
+
+| Operation | Additional fields | Effect |
+| --- | --- | --- |
+| `control.status` | none | Observe without renewing |
+| `control.heartbeat` | none | Refresh liveness without extending consent/task duration |
+| `control.accept` | offerGeneration | Accept the current offer |
+| `control.cancel` | none | End this connection's task |
+| `control.dispatch` | sessionId, resourceGenerations, request | Recheck owner, surfaces/profiles, operation whitelist, native safety and generations |
+
+Replies use `machine-control-admission-channel/v2`; state uses the admission v2
+schema. Only one effect dispatch can be in flight per channel; heartbeat and
+cancellation remain available during asynchronous work. Native result envelopes
+keep acceptance, delivery, independently observed effect and uncertainty distinct.
+
+SDK frames send strictly increasing requestSequence values in write order
+after open. Replay, gaps, overflow and invalid framing close ownership. Bounded
+unsequenced diagnostic clients retain a 4,096-ID budget; once sequencing starts,
+unsequenced frames close the connection. Waiting lease,
+activation offer and active heartbeat are 60/15/5 seconds. Status supplies no
+liveness, and late frames cannot resurrect terminal work. Native adapters also
+validate the selected claim periodically without client polling.
+
+## Handoff and native boundaries
+
+Automatic disruptive work announces for ten seconds while ordinary typing can
+continue. Native presentation remains independent of Settings and preserves
+focus. Start now acknowledges its own interaction; deliberate key/button/scroll
+input after activation yields to a fixed minute of cooldown and a fresh warning.
+Movement alone does not interrupt. Timed or indefinite operator deferral, denial
+and Stop have distinct effects. Global pauses override both surfaces; background
+Browser observation does not reserve the whole desktop. Compound native effects
+must satisfy Desktop's mode before dispatch, without an implicit fallback.
+
+Native identity, session readiness, OS permissions, hooks, cover/lock/relock,
+protected credentials and effect evidence remain native constraints. A countdown
+cannot supply missing safety. Restart remembers form choices without restoring
+consent, task approvals, active ownership or queued work. See the owning topic
+for platform and live-evidence limits.
+
+## Exact-target claim wire
 
 Exact target claims have a separate, additive queue. Explicitly inspect
 `claim capabilities --version 1`, then use `run --wait 5m` with the normal
@@ -125,82 +155,8 @@ heartbeat/offer/active heartbeat are 60/15/5 seconds. None renew the underlying
 claim; useful wait and authority expiry remain independent. Self-asserted
 claimant labels authenticate nothing. See [Tactical 082](tactical/082-queued-target-claims.md).
 
-## Desktop wire
 
-An adapter's `channel` command is a byte transport. The client sends one bounded
-JSON line and waits for its reply before sending subsequent frames. The first
-frame has operation `control.open`, schema `machine-control-admission/v1`,
-requestId, reason, scopes, durationSeconds (1–900) and waitSeconds (1–14400).
-The adapter chooses resources and derives ownership from the actual connection;
-public labels cannot set either. No public operation can operator-Resume.
-
-Subsequent frames have unique bounded requestId and one of:
-
-| Operation | Additional fields | Effect |
-| --- | --- | --- |
-| `control.status` | none | Observe; never renew |
-| `control.heartbeat` | none | Refresh waiting/active liveness without extending the hard control deadline |
-| `control.accept` | offerGeneration | Accept a current unexpired offer |
-| `control.cancel` | none | Cancel this connection's intent, idempotently |
-| `control.renew` | sessionId, resourceGenerations, durationSeconds | Extend only this live owner after rechecking original authority and acknowledging protected deadlines; requires advertised support |
-| `control.dispatch` | sessionId, resourceGenerations, request | Recheck current ownership, scopes, pause and provider generation before dispatch |
-
-Replies use `machine-control-admission-channel/v1`, requestId, accepted,
-errorCode and data. State projections use the admission v1 schema. Dispatch
-data retains the native resident operation envelope: request acceptance,
-delivery, independently observed effect and uncertainty remain separate.
-Only one effect request may be in flight per channel; heartbeat, cancellation
-and supported same-owner renewal remain available while an asynchronous effect
-is pending. Renewal changes no session/resource generation and dispatches no
-additional action. Interrupted
-in-flight delivery is reported as uncertain, with unsafe replay.
-
-Renewal neither changes the session/resource generations nor extends approval.
-The Mac channel pins the grant and a monotonic authorization ceiling at
-acceptance. Revocation, replacement, expiry, pause or a late/failed protected
-acknowledgement cannot revive ownership. The root helper checks its old
-deadline and watchdog before accepting an extension. Renewal intent/results
-are journaled; unavailable result storage cancels the owner.
-
-Waiting lease: 60 seconds; activation offer: 15 seconds; active heartbeat:
-5 seconds. Status polling does not supply liveness. The client runtime sends
-keepalives only while its context/parent is alive. Late heartbeats and offers
-cannot resurrect terminal work. Storage and frames are bounded.
-
-## Scope and current limits
-
-Mac desktop and Windows desktop workstation profiles expose the new live
-channel. Mac inner adapters relay the same resident transport without touching
-the controller desktop. Windows appliance/protected-service admission and
-other providers must refuse until their corresponding owner channel is adopted.
-Do not infer support from an ordinary v0 control endpoint. Mac physical activity
-uses existing input permission, waits for 30 seconds of quiet and fails closed
-on unknown observations; its covered guardian/root relock remain independent.
-
-Mac native notices and shared desktop pause controls are implemented. Mac local
-consent and manual pause/deferral persist within the same console session and
-boot; live grants, queue positions and sessions never do. Stop clears consent,
-and restoration rechecks identity, existing permissions and readiness. Windows
-approval remains timed and memory-only. Shared host/VM outer resource admission,
-YA-attested integration and further signed native acceptance remain parts of
-[Tactical 074](tactical/074-access-admission-and-pause.md). Current source/fixture
-capabilities are not release or physical acceptance.
-
-### Long-lived frame ordering
-
-A native desktop channel advertises `requestSequencing: "strict"` in its intent
-views when it supports ordered frames. After reading the opening reply, new
-SDK clients send `requestSequence` starting at one and increment it for each
-complete frame. Sequence replay, a gap, overflow or an unsequenced frame after
-switching ends the connection and its ownership. Repeated request labels are
-safe in ordered mode because the live sequence distinguishes frames. This
-uses constant replay memory throughout a bounded four-hour wait.
-
-Older providers omit this field and newer clients retain their legacy framing.
-Older unsequenced clients keep the bounded 4,096-ID connection budget. Ordered
-framing does not renew authority, extend useful deadlines or replay an action.
-
-### Controller-local outer recovery
+## Controller-local outer recovery (separate v1 route)
 
 `OuterSession` opens a host desktop channel with the adapter-derived
 [private borrowed-claim binding](../contracts/outer-borrow-v1.schema.json).
@@ -224,7 +180,7 @@ Control/Option/Fn chords are unsupported by this bridge. See
 [Tactical 084](tactical/084-native-outer-desktop-admission.md) for the measured
 fixture boundary and outstanding live acceptance.
 
-## Native desktop delegation receiver
+## Legacy native desktop delegation receiver
 
 The optional `desktopDelegation` open field is authenticated independently of
 its public attribution. The Mac receiver requires explicit standing trust in
