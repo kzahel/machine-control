@@ -306,8 +306,13 @@ throw 'Staged operator UI element unavailable'
 
     def start_app():
         nonlocal app
-        app = subprocess.Popen([str(args.install/'machine-control.exe'), '--settings', '--presentation', 'minimal'], stdout=logs, stderr=logs)
+        app = subprocess.Popen([str(args.install/'machine-control.exe'), '--settings', '--presentation', 'minimal'],
+                               stdout=logs, stderr=logs, env=app_environment())
         processes.append(app)
+
+    def app_environment():
+        return {**os.environ, 'WEBVIEW2_USER_DATA_FOLDER': str(scratch/'operator-webview'),
+                'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS': '--force-renderer-accessibility'}
 
     def stop_app():
         if app and app.poll() is None:
@@ -503,7 +508,8 @@ throw 'Staged operator UI element unavailable'
             accepted('browser.click', 'Work', reference=ref(snapshot('Work', tab), 'Increment fixture'))
             poll(lambda: received.count(('/effect/work/click', b'true')) > count)
             check(app.poll() is None, 'Closing the real Settings window leaves resident browser effects working')
-            subprocess.run([str(args.install/'machine-control.exe'), '--settings'], stdout=logs, stderr=logs, timeout=30)
+            subprocess.run([str(args.install/'machine-control.exe'), '--settings'], stdout=logs, stderr=logs,
+                           timeout=30, env=app_environment())
             ui('press', '^Access$')
             ui('press', '^Stop access$')
             check(not call('browser.tabs', 'Work')['accepted'], 'Recreated Settings stops the existing resident authority')

@@ -47,6 +47,8 @@ ordinary and streamed CDP operations, consent expiry, Stop, reconnect, child
 death and stale references. Pass `--install`, `--chrome`, private `--output`
 and `--settings` for the real Tauri operator lifecycle. Use `--chromium` for a
 Chromium snapshot's native-host registry key; Chrome for Testing is the default.
+Settings uses an actor-owned WebView2 data folder and native accessibility,
+preserving the appliance's existing saved form choices.
 Its explicit test consent/owner budget is 15 minutes; action deadlines remain
 unchanged and a separate check exercises actual 60-second consent expiry.
 Dialog-opening clicks may report unknown delivery: the actor observes the
