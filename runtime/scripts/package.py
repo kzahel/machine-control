@@ -75,6 +75,7 @@ def node_payload(target, output, cache):
             for member, destination in members.items():
                 with source.extractfile(member) as stream:
                     destination.write_bytes(stream.read())
+    shutil.copyfile(ROOT / "scripts/verify.py", output / "verify.py")
     (output / executable).chmod(0o755)
     for directory in ("src", "node"):
         shutil.copytree(ROOT / directory, output / "policy" / directory)

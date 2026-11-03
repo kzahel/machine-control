@@ -46,6 +46,11 @@ try {
     }
     python (Join-Path $PSScriptRoot 'cli-payload.py') verify $cliRoot
     if ($LASTEXITCODE -ne 0) {throw 'Installed Python CLI full-byte inventory mismatch'}
+    $policy=Join-Path $runtimeRoot 'shared-policy'
+    if(Test-Path $policy){
+        & (Join-Path $cliRoot 'python/python.exe') -I (Join-Path $policy 'verify.py') $policy
+        if($LASTEXITCODE -ne 0){throw 'Installed policy full-byte inventory mismatch'}
+    }
     $cli=Get-Content (Join-Path $cliRoot 'client-runtime.json') -Raw | ConvertFrom-Json
     if ($cli.schema -ne 'machine-control-client-identity/v1' -or $cli.clientProtocol -ne 1 -or
         $cli.sourceRevision -ne $Revision -or $cli.version -ne $Version -or $cli.target -ne $Target) {

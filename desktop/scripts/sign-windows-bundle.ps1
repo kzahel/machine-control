@@ -9,6 +9,19 @@ function NativePath([string]$Value) {
 }
 try {
     $resolved = NativePath $Path
+    $policyRoot=Join-Path $PSScriptRoot '../src-tauri/native/runtime/shared-policy'
+    if($resolved -eq (Join-Path ([IO.Path]::GetFullPath($policyRoot)) 'node.exe')){
+        $route='policy-catalog'
+        $runtimeRoot=NativePath (Join-Path $policyRoot '..')
+        $signature=Get-AuthenticodeSignature (Join-Path $runtimeRoot 'package.cat')
+        if($signature.Status -ne 'Valid' -or $null -eq $signature.TimeStamperCertificate -or
+            $signature.SignerCertificate.GetNameInfo('SimpleName',$false) -cne $env:WINDOWS_SIGNER_NAME){throw 'Policy catalog publisher verification failed'}
+        if((Test-FileCatalog -Path $runtimeRoot -CatalogFilePath (Join-Path $runtimeRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid'){throw 'Policy runtime catalog mismatch'}
+        python (Join-Path $PSScriptRoot '../../runtime/scripts/verify.py') $policyRoot
+        if($LASTEXITCODE -ne 0){throw 'Policy full-byte inventory mismatch'}
+        Write-Output 'Preserved publisher-authenticated pinned Node resource'
+        exit 0
+    }
     $cliRoot = NativePath (Join-Path $PSScriptRoot '../src-tauri/native/mc-cli')
     if ($resolved.StartsWith($cliRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
         $route = 'cli-catalog'

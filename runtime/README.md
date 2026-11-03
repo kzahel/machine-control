@@ -130,6 +130,9 @@ code retains session/owner safety, audit storage and artifact writes. The
 shared host owns browser scope, lifetime, routing, references and CDP streams.
 Its bundled Node runtime is required in Windows desktop companion payloads.
 Run `pnpm --dir runtime install --frozen-lockfile` before packaging.
+Windows signing preserves the pinned upstream Node executable. The publisher
+catalog authenticates `payload.json`; `scripts/verify.py` checks its full-byte
+inventory before signing/bundling and during installed verification.
 
 `testing/browser-host.ts` retains a private fixture inlet for the original
 real-browser regression. `testing/reference-browser.ts` supplies the complete
