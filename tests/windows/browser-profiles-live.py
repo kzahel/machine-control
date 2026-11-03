@@ -159,7 +159,7 @@ def main():
         browser_state = direct('capabilities')['data']['browser']
         check(not refusal['accepted'] and refusal['delivery'] == 'refused'
               and refusal['errorCode'] in ('approval_required', 'access_paused')
-              and grant['grant'] is None and not grant['effectiveScopes']
+              and grant.get('grant') is None and not grant['effectiveScopes']
               and browser_state['available'] and not browser_state['approvedProfiles'], label)
     def profiles(): return operator('state')['state']['browser']['profiles']
     def arm(ids, seconds=900): operator('arm', scopes=['browser', 'devtools'], duration=seconds, browserProfileIds=ids)
