@@ -21,6 +21,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client'))
 from observed_owner import ObservedOwner
+from cdp_socket import CdpSocket
 
 ORIGIN = 'chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/'
 
@@ -32,7 +33,7 @@ def main():
     parser.add_argument('--sustain-seconds', type=int, default=0, choices=range(601), metavar='0..600')
     args = parser.parse_args()
     exe = args.install / 'runtime/machine-control-windows.exe'
-    processes, owner = [], None
+    processes, sockets, owner = [], [], None
     owner_trace = deque(maxlen=256)
     budget = max(60, args.sustain_seconds+120)
     runtime = subprocess.Popen([str(exe), 'desktop'], stdin=subprocess.PIPE,
@@ -88,6 +89,12 @@ def main():
                         send(dict(type='response', id=frame['id'], ok=True,
                                   data=dict(tabs=[dict(tabId=suffix, title=name,
                                                       url='https://example.invalid/'+name.lower())])))
+                    elif frame['type'] == 'session.open':
+                        send(dict(type='session.opened', id=frame['id']))
+                    elif frame['type'] == 'session.command':
+                        send(dict(type='session.result', id=frame['id'], cmdId=frame['cmdId'],
+                                  result=dict(nativeFixture=name),
+                                  **({'sessionId': frame['sessionId']} if 'sessionId' in frame else {})))
             except (OSError, EOFError):
                 pass
 
@@ -106,18 +113,23 @@ def main():
             assert state['available'], state
             assert time.monotonic() < deadline, 'Native providers did not attach'
             time.sleep(.1)
-        operator('arm', scopes=['browser'], duration=budget,
+        operator('arm', scopes=['browser', 'devtools'], duration=budget,
                  browserProfileIds=[p['profileId'] for p in profiles])
         session = ctypes.c_uint32()
         assert ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(session))
         owner = ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
                                             '--session-id', str(session.value)]},
-                               reason='Native browser composition fixture', scopes=['browser'], wait=30, duration=budget, trace=owner_trace)
+                               reason='Native browser composition fixture', scopes=['browser', 'devtools'], wait=30, duration=budget, trace=owner_trace)
         owner.wait()
         for profile in profiles:
             result = owner.call(dict(operation='browser.tabs', browserProfileId=profile['profileId']))
             assert result['accepted'], result
             assert result['data']['tabs'][0]['title'] == profile['name'], result
+            endpoint = owner.call(dict(operation='browser.endpoint', browserProfileId=profile['profileId']))
+            assert endpoint['accepted'], endpoint
+            stream = CdpSocket(endpoint['data']['devtoolsEndpoint'].replace('<tabId>', str(result['data']['tabs'][0]['tabId'])))
+            sockets.append(stream)
+            assert stream.call('Runtime.enable')['result']['nativeFixture'] == profile['name']
         until = time.monotonic()+args.sustain_seconds
         while time.monotonic() < until:
             assert owner.status()['state'] == 'active', 'Native owner heartbeat ended'
@@ -141,6 +153,9 @@ def main():
             pass
         raise
     finally:
+        for stream in sockets:
+            try: stream.close()
+            except OSError: pass
         if owner:
             owner.close()
         if runtime.poll() is None:

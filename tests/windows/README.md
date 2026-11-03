@@ -32,6 +32,8 @@ The caller owns claims, staging and cleanup as above.
 [`browser-native-live.py`](browser-native-live.py) checks the complete native
 composition with two fake browser peers: the actual desktop resident, private
 TypeScript child, authenticated native-host pipes and retained Python owner.
+It verifies independent ordinary responses and streamed page CDP commands for
+both peers, including the production native audit path.
 Run with `--install` in a claimed dedicated appliance's interactive Medium
 session, with its installed desktop app closed. It opens no browser and changes
 no native-host registration. Redirect its output to private evidence. Optional
@@ -39,7 +41,7 @@ no native-host registration. Redirect its output to private evidence. Optional
 `--sustain-seconds` adds a bounded live-owner continuity check. Both actors use
 [`observed_owner.py`](observed_owner.py) to retain only bounded RPC operation,
 timing and admission-state metadata on failure. Stage it and `client/` in the
-same relative layout; stage `cdp_socket.py` for real browser acceptance too.
+same relative layout, including `cdp_socket.py` for both actors.
 
 [`browser-profiles-live.py`](browser-profiles-live.py) adds two regular profiles
 in one separately identified test browser, independent HTTP/file effects,
