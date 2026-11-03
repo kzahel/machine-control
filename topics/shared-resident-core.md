@@ -65,13 +65,11 @@ the WebView, agent-written code, native OS APIs and browser automation tools.
 Windows remains the first native adoption vertical slice. Preserve existing
 providers, signed identities and protected watchdogs during migration.
 
-**Initial slice:** use strict, erasable TypeScript under
-`runtime/`, runnable with Node 24+ without a build or runtime dependencies.
-Its pinned compiler is a development dependency only. This evaluates the
-coordinator policy and development loop; it does not commit installed
-packages to Node/Bun, claim packaging qualification or require replacing the
-Python agent interface. Native-library embedding remains a Rust advantage;
-runtime deployment and library/process placement need their own evidence.
+**Current:** strict, erasable TypeScript under `runtime/` implements the
+shared browser coordinator. Pure policy has no runtime dependencies; the
+production Node transport uses pinned `ws`. Strict checking remains a separate
+build gate. The language/deployment decision below supersedes the original
+prototype-only placement. The Python client remains unchanged in language.
 
 ## Language and deployment decision
 
@@ -129,7 +127,8 @@ not through parallel policy engines or another open-ended language comparison.
 ## Native adoption boundary
 
 **Decision for adoption:** one shared authority owns browser policy. The
-following is the required ownership split, not the installed state today.
+following split is implemented in Windows source; native/package execution
+is qualified separately. Mac and Linux have not adopted it.
 
 | Responsibility | Owner after adoption |
 | --- | --- |
@@ -154,13 +153,13 @@ identity, the complete ordinary operation vocabulary, DevTools endpoints and
 streams, indefinite operator consent and native safety/owner checks. Reference
 providers exercise those policies with independent stateful effects. Dead
 transport retirement releases correlation capacity without changing unknown
-application effects. Windows native integration and packaged acceptance remain
-in progress; installed consumers have not yet completed their cutover. Mac and Linux adopt this proven
+application effects. Windows source integrates this boundary and removes its replaced policy;
+packaged candidate acceptance is recorded in Tactical 152. Mac and Linux adopt this proven
 boundary after the complete Windows candidate, without porting another policy
 engine into Swift or Python.
 
-The module is intended to become the shared policy implementation, not a
-throwaway mock of one. It currently has no installed consumers. Authority
+The module is the Windows browser policy implementation and the reference
+target uses the same owner. This is not an all-platform cutover. Authority
 methods are internal trusted-host calls, not agent operations or a public
 JSON protocol. A future host must authenticate provider peers and operator
 decisions before creating handles. Public profile names and generations are
@@ -217,60 +216,53 @@ requirement, emulate entire OSes or infer native correctness from the fake.
 Any future simulated screen is a narrow provider fixture, not a fourth policy
 implementation or a replacement OS.
 
-## Next evidence
+## Windows cutover and next adoption
 
-**Decision:** the next milestone migrates a complete Windows browser path
-through the chosen TypeScript/Node boundary, with packaged acceptance.
-[Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) owns its
-gates. The executable comparison above settles language and placement;
-no Rust comparison is warranted by current evidence.
-The milestone must account for deleted native policy, retain ordinary/CDP
-behavior, and prove settings independence and failure cleanup. Another fixture
-alone does not complete it. Publication and personal installation replacement
-are outside its scope.
+**Current implementation:** `BrowserRelay` is an authenticated concurrent
+pipe and native-effect adapter. The old singleton routing, native wire request
+correlation and generation/reference rewriting are replaced by the shared
+host. `BrowserDevToolsBridge.cs` is deleted: native HTTP/WebSocket endpoint
+ownership, tokens, per-tab reservations, CDP command correlation and stream
+revocation are no longer a competing Windows policy implementation.
+`DesktopGrants` delegates Browser/DevTools scope checks and consent to the
+shared projection; temporary browser consent uses the opaque checkpoint below.
+It retains generic desktop grants, caller admission and OS safety observations.
+`SharedBrowserHost` owns one pinned Node child and fails closed on child loss.
+Native code retains payload-free audit persistence and validated artifact/file
+operations. Settings is a disposable operator projection.
 
-**Current, bounded Mac ARM64 live evidence:** the same core now handles typed
-tab discovery, snapshots and clicks through the unchanged extension and real
-native messaging. Two independent headless test-browser profiles now pass ten
-checks in approximately five seconds, with independent trusted-click HTTP
-effects, Stop in both extension panels, a held old reply and genuine native
-relay loss/reconnect, scheduled expiry and policy-process death/restart.
-Fixture endpoints assign identity and fixture operator
-calls approve exact profiles; production native authentication, same-process
-Chrome profiles, browser sandbox and installed acceptance are not qualified.
-[Tactical 151](../docs/tactical/151-shared-core-real-browser.md) owns execution
-and [the provider dossier](../research/providers/chrome-extension.md#multiple-profile-limit)
-owns route evidence. This consumes the existing worker protocol without a
-new extension release or change to the installed residents.
+The reference target models the ordinary browser vocabulary, stateful tabs,
+input, upload, capture and raw-operation observations behind this same policy.
+Its effects are independent of the policy's reported delivery. It does not
+simulate an entire desktop or qualify native authentication, OS permissions,
+foreground behavior or protected control.
 
-**Current:** the TypeScript core, stateful provider, explicit-clock scenario
-and 28 focused regressions pass locally with strict TypeScript checking.
-The deterministic 24-test subset reports roughly 0.1 seconds; process checks
-add approximately 1.3 seconds on the development Mac. These are local
-observations, not cross-platform benchmarks. CI is wired
-to run the same core tests and type check on all three desktop host families;
-remote CI execution and native/package acceptance are not inferred. A separate
-Linux CI job is wired for real-browser acceptance using the packaged child.
-Coordinator CI builds all six Node payloads on Linux and executes native
-payloads on all three host families. Remote execution is not inferred from
-this configuration or local Mac evidence.
+**Decision:** migrate macOS next with this exact private inlet. Retain Swift
+peer authentication, AX/capture/input and protected/session facilities. Replace
+its singleton browser relay and CDP policy with per-connection transport into
+one shared host. Translate trusted operator decisions and console/owner facts;
+do not port the registry or expiry engine into Swift. Preserve exact-profile
+consent and remaining lifetime across its existing same-console restoration,
+requiring fresh consent for old records lacking IDs. Qualify two regular
+profiles, independent ordinary/root/page CDP effects, owner/Stop/session loss,
+Settings recreation and exact packaged ARM64/x64 identity on Mac before deleting
+its replaced path or advertising support there.
 
-[Tactical 150](../docs/tactical/150-shared-resident-core.md) owns the reference
-slice and [Tactical 151](../docs/tactical/151-shared-core-real-browser.md) owns
-the real-browser follow-up. Both hosts now use one dispatch helper, preserving
-the same fresh-authority check, remaining budget and submission ordering.
+**Decision:** adopt Linux after the Mac boundary is proven. Retain Python for
+AT-SPI, compositor/capture/input, native peer credentials and target lifecycle;
+replace browser coordination with the same child adapter. Linux currently lacks
+the complete Mac/Windows streaming surface: capability omissions remain honest
+until qualified. Prove production Unix peer/owner authentication, GNOME Wayland
+session/lock transitions, exact profile consent, browser effects and packaged
+cleanup on its own target. Neither platform needs a CLI rewrite or another
+shared-policy implementation.
 
-**Decision:** next remove fixture-assigned identity: add persistent extension
-installation identity and prove two profiles in one Chrome process through a
-single native-host registration. Then qualify production native peer/operator
-authentication and packaged deployment through this same core. Remove policy
-being replaced from each native resident, one qualified vertical slice at a
-time. Shipping a new layer while retaining competing native policy engines
-does not complete the refactor.
-
-[Browser profiles](browser-profiles.md) owns the proposed product contract;
-its full implementation plan depends on this workstream and must not proceed
-by independently rewriting all three native policy engines.
+[Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) owns
+Windows execution, evidence limits and final status. The
+[browser-profiles topic](browser-profiles.md) owns the product contract and
+remaining cross-platform rollout. Pinned runtime updates must repeat portable,
+real-browser, native and package acceptance; no publication or installation
+replacement is implicit in this workstream.
 
 ## Original consent during temporary grants
 

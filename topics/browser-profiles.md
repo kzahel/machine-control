@@ -19,17 +19,17 @@ this topic owns profile identity, selection and authority. Native messaging
 remains the transport, with existing native-host authentication. No new
 provider, private inventory or coordination owner is introduced.
 
-## Proposed product behavior
+## Product behavior
 
-**Proposal:** each extension installation has an editable local label such as
+**Decision, implemented on Windows:** each extension installation has an editable local label such as
 **Work** or **Personal**, a persistent opaque identity and an **Enable this
 profile** switch. Fresh and upgraded installations begin unavailable for
 control until explicitly enabled. Disabled installations may announce bounded
 connection metadata, but cannot enumerate tabs, attach debuggers or execute
 browser work. This permits setup and profile discovery without page access.
 
-The desktop Permissions surface lists known profiles with connected, enabled,
-access and version states. Access controls and native approval prompts name
+The Windows Access surface lists known profiles with connected, enabled and
+approved states, plus protocol/conflict repair guidance. Access controls and native approval prompts name
 the profiles being approved. Connection, availability and approval are distinct
 states. The extension can withdraw its own availability; enabling it cannot
 create a Browser or DevTools grant. Stop remains global.
@@ -39,9 +39,9 @@ preserves existing desktop admission and target-use arbitration; it does not
 promise simultaneous independent agent owners just because two providers
 are connected.
 
-## Proposed identity and routing contract
+## Identity and routing contract
 
-**Proposal:** persist an installation UUID, label and availability preference
+**Decision, implemented:** persist an installation UUID, label and availability preference
 in extension-local storage, never synchronized storage. Use an opaque
 resident-facing `browserProfileId` namespaced by extension origin. The store
 and development copies remain distinguishable installations, even inside the
@@ -57,23 +57,26 @@ produce an explicit conflict without silently replacing the incumbent or
 transferring authority. Provide an explicit reset-identity repair that requires
 new approval; do not resolve collisions by silently minting approved identities.
 
-**Proposal:** expose the following common surface, retaining machine target
+**Current Windows client surface:** retain machine target
 selection independently:
 
 ```text
 machine-control browser profiles
-machine-control browser tabs --browser-profile work
-machine-control browser snapshot --browser-profile work --tab 7
-machine-control browser endpoint --browser-profile work
+machine-control browser tabs --profile Work
+machine-control browser snapshot --profile Work --tab 7
+machine-control browser endpoint --profile Work
 ```
 
-These are proposed commands, not currently implemented. Existing target and
-claim arguments still apply. The endpoint still requires the platform's
+These commands require a profile-aware resident. The Python client checks that
+capability before forwarding an explicit selector; legacy Mac/Linux residents
+refuse it. Existing target and claim arguments still apply. The endpoint still requires the platform's
 retained DevTools authority. Labels in examples are fictional.
 
-`browser.profiles` returns bounded metadata only: opaque ID, label, origin,
-extension/protocol version, connection generation and availability/access
-state. It does not query tabs, URLs, account details or page content. Treat it
+`browser.profiles` returns bounded metadata only: opaque ID, label, extension origin,
+connection and availability state. The Windows state projection additionally
+identifies the exact approved set. Operation results carry the canonical
+profile ID and provider generation. Protocol/version diagnostics can be
+extended later without querying browser content. It does not query tabs, URLs, account details or page content. Treat it
 as ordinary same-user discovery, with documented remote transport boundaries.
 Per-profile health belongs in status; aggregate connection remains useful for
 existing setup UI. A connected profile is not proof of successful page work.
@@ -87,24 +90,25 @@ names one profile, even if other unapproved profiles are connected.
 
 Resolve against the fixed authorized set, not whichever profiles happen to
 be online. A sole authorized but disconnected profile is unavailable; it is
-never substituted with another connected profile. Before approval, an omitted
-selector may identify a sole enabled known profile; multiple candidates
-require explicit selection before requesting authority.
+never substituted with another connected profile. Windows operator approval always selects exact enabled known IDs; none are
+automatically checked when a new native approval form opens.
 
-Each browser-capable control session pins one canonical profile on explicit
-selection or its first unambiguous browser operation. Later conflicting
-selectors refuse. A native-only owner need not select a browser. Changing a
-label never retargets an existing session, grant or endpoint.
+**Decision:** one retained desktop owner may address different members of the
+exact operator-approved profile set with explicit per-operation selectors.
+There is no mutable session default or implicit profile transfer. Every
+reference, endpoint and stream is pinned to its canonical profile and
+generations. A native-only owner need not select a browser. Changing a label
+never retargets a grant, reference or endpoint.
 
-## Proposed authority and lifecycle rules
+## Authority and lifecycle rules
 
-**Proposal:** Browser and DevTools grants carry exact approved profile IDs.
+**Decision, implemented on Windows:** Browser and DevTools grants carry exact approved profile IDs.
 For the initial version, one profile set applies to both scopes; the existing
 separate scope approvals still distinguish ordinary control from scripts/CDP.
-Operator arming can approve several profiles; an agent request names the
-profile it needs and cannot alter the operator's allowed set. A pending
-approval snapshots exact IDs and availability revisions, rechecked at decision
-and dispatch. Newly discovered or newly enabled profiles never join a live
+Operator arming and native approval can select several profiles. An agent
+request cannot alter that exact set; its operation selects within existing
+consent. Approval revalidates the selected IDs and availability before issuing
+shared authority, which is rechecked at dispatch. Newly discovered or newly enabled profiles never join a live
 grant implicitly.
 
 Remember selected profile IDs with editable access choices, separately from
@@ -151,19 +155,21 @@ named profiles or provide a legacy fallback on the migrated Windows resident.
 **Current:** the [shared resident core](shared-resident-core.md) passes the
 deterministic reference slice in [Tactical 150](../docs/tactical/150-shared-resident-core.md)
 and a bounded two-process, headless real-browser fixture in
-[Tactical 151](../docs/tactical/151-shared-core-real-browser.md). Durable
-extension identity, native authentication and installed profile selection
-remain pending.
+[Tactical 151](../docs/tactical/151-shared-core-real-browser.md). Windows now integrates durable extension identity, concurrent authenticated
+pipe peers, exact operator/native approval selection and shared CDP routing.
+[Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) owns
+its packaged candidate qualification; no Mac/Linux adoption or publication
+is implied.
 
 **Decision:** adopt the shared core for native integration.
-The following product plan remains proposed and is
-subject to the shared boundary and later deployment evidence.
+The remaining Mac/Linux adoption follows the same boundary; it must remove
+their replaced policy and pass their own native/package qualification.
 
-**Proposal:** implement a versioned profile-aware handshake before granting or
-dispatching any browser work. Native transport registration is not admission
+**Current Windows requirement:** a versioned profile-aware handshake precedes
+grants and browser work. Native transport registration is not admission
 of an unidentified browser provider. Bound pre-handshake connections, workers,
-queues and metadata. macOS/Linux need per-connection state; Windows also needs
-a concurrent named-pipe accept loop instead of its current single connection.
+queues and metadata. macOS/Linux need per-connection state; Windows uses a concurrent bounded named-pipe accept loop; Mac/Linux still
+need independent per-connection native transport adapters.
 
 Require matching profile-aware runtime and extension versions for this first
 implementation. Mixed versions must present an actionable update state, stay

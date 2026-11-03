@@ -73,11 +73,12 @@ can therefore repeatedly displace each other on those routes. The user reports
 this symptom with two Chrome profiles; this investigation did not reproduce it
 live or identify their exact installed versions.
 
-Windows also has a singleton provider, but its `BrowserRelay.RunAsync` accepts
-and serves one named-pipe connection at a time. It needs concurrent admission
-for multi-profile support; the macOS/Linux replacement-loop mechanism is not
-evidence of identical Windows oscillation. Ordinary requests, grants and
-Mac/Windows CDP bridges currently lack explicit profile selection.
+At that reviewed revision, Windows also had a singleton provider, with
+`BrowserRelay.RunAsync` serving one named-pipe connection at a time; the
+macOS/Linux replacement-loop mechanism was not evidence of identical Windows
+oscillation. The unreleased Windows source now replaces that path with
+concurrent authenticated transports into the shared TypeScript coordinator.
+Mac/Linux residents still lack explicit profile selection.
 
 **Decision:** [named browser profiles](../../topics/browser-profiles.md) owns
 the full registry/selection/authority direction; no interim singleton fix is
@@ -85,6 +86,18 @@ planned. [Tactical 149](../../docs/tactical/149-browser-profiles.md) scopes the
 work. The shared-core scratch route below is bounded live evidence, not
 qualification of installed multi-profile control or the existing singleton
 residents.
+
+**Current (2026-11-03), Windows source and native contract evidence:** the
+extension has persistent origin-namespaced installation UUIDs, local names and
+availability preferences. The profile protocol negotiates separately from
+native frame protocol v1. Windows requires it before authority, rejects copied
+live identities without replacement, and routes exact approved IDs through one
+shared host. Native .NET contracts exercise that actual child; ARM64/x64
+companions build. Real same-process multi-profile and Settings candidate
+acceptance is active in [Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md).
+Those builds and contracts do not establish signed installed or Mac/Linux
+multi-profile execution. Existing Mac/Linux residents ignore the negotiated
+extension metadata and retain their legacy behavior until adoption.
 
 **Current (2026-11-02), bounded Mac ARM64 `live-tested`:** a Node-hosted adapter
 consumes the unchanged worker protocol through real Chrome native messaging,

@@ -189,9 +189,14 @@ third-party provider research or new dependency is needed to begin.
 
 ## Validation and final result
 
-Scoping only: reviewed the current extension handshake/retry and side panel,
+**Original scoping result:** reviewed the current extension handshake/retry and side panel,
 all three resident singleton relays, Mac/Windows CDP bridges, grant models,
 common CLI/admission handoff, saved choices and setup UI. The owning topic
 records the proposed behavior and this tactical records implementation order
 and acceptance gates. No runtime, installed extension, user profile, package
 or release has been changed. Multi-profile execution remains unqualified.
+
+Subsequent implementation is owned by [Tactical 152](152-shared-runtime-windows-adoption.md),
+which adopts shared TypeScript policy rather than replicating this registry
+inside each native resident. The [owning topic](../../topics/browser-profiles.md)
+records current behavior and remaining platform gates.

@@ -150,13 +150,13 @@ def main():
         value = call(operation, profile, **fields)
         assert value['accepted'], value
         return value['data']
-    def launch(profile, url='about:blank'):
+    def launch(profile, url='about:blank', *, headless=False):
         nonlocal debug_port
         if browser is None or browser.poll() is not None:
             with socket.socket() as reservation:
                 reservation.bind(('127.0.0.1', 0))
                 debug_port = reservation.getsockname()[1]
-        command = [str(args.chrome), '--no-first-run', '--no-default-browser-check', '--disable-gpu',
+        command = [str(args.chrome), *(['--headless=new', '--allow-chrome-scheme-url'] if headless else []), '--no-first-run', '--no-default-browser-check', '--disable-gpu',
                    '--disable-background-networking', '--disable-component-update',
                    '--remote-debugging-port='+str(debug_port), '--enable-automation', '--remote-allow-origins=*', '--enable-logging=stderr', '--log-level=1',
                    '--user-data-dir=' + str(scratch / 'chrome'), '--profile-directory=' + profile,
@@ -211,6 +211,15 @@ do {
     $item.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();exit
    }
   }
+  if(ACTION -eq 'clear_unavailable'){
+   foreach($item in $all){
+    if($item.Current.Name -like 'Unavailable profile*' -and $item.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox){
+     $toggle=$item.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+     if($toggle.Current.ToggleState -eq 'On'){$toggle.Toggle();break}
+    }
+   }
+   if(-not ($all | Where-Object {$_.Current.Name -like 'Unavailable profile*' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox})){exit}
+  }
  }
  Start-Sleep -Milliseconds 100
 }while([DateTime]::UtcNow -lt $deadline)
@@ -244,27 +253,26 @@ throw 'Staged operator UI element unavailable'
         for directory, name in [('Default', 'Work'), ('Profile 1', 'Personal')]:
             print('Configuring extension-local profile: '+name, flush=True)
             marker = uuid.uuid4().hex
-            settings_url = 'chrome://extensions/?mc-profile-bootstrap='+marker
-            # The marked initial tab belongs to the requested regular profile;
-            # root Target.createTarget would choose the default profile instead.
-            # Headless Chrome does not open a second regular-profile window.
-            if browser is None:
-                browser = launch(directory, settings_url)
-            else:
-                launch(directory, settings_url).wait(timeout=15)
+            settings_url = base+'/bootstrap-'+marker
+            # Create each real profile independently before opening both in a
+            # headed browser. Chrome's singleton does not create an unknown
+            # second regular profile from a forwarded launch command.
+            browser = launch(directory, settings_url, headless=True)
             debug = browser_socket()
             debug.close()
             def settings_target():
                 try:
-                    with urllib.request.urlopen(f'http://127.0.0.1:{debug_port}/json/list', timeout=1) as response:
+                    with urllib.request.urlopen(f'http://127.0.0.1:{debug_port}/json/list', timeout=15) as response:
                         return next((value for value in json.load(response) if marker in value.get('url', '')), None)
                 except (OSError, ValueError):
                     return None
             target = poll(settings_target, seconds=180)
             panel = CdpSocket(target['webSocketDebuggerUrl'], timeout=60)
+            panel.call('Page.enable')
+            panel.call('Page.navigate', {'url': 'chrome://extensions/'})
+            poll(lambda: panel.call('Runtime.evaluate', {'expression': "typeof chrome.developerPrivate?.updateProfileConfiguration === 'function'", 'returnByValue': True}).get('result', {}).get('result', {}).get('value') is True)
             configured = panel.call('Runtime.evaluate', {'expression': 'new Promise(r=>chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode:true},r))', 'awaitPromise': True})
             assert 'exceptionDetails' not in configured.get('result', {}), 'Owned test profile developer setup'
-            panel.call('Page.enable')
             panel.call('Page.navigate', {'url': 'chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/panel.html'})
             try:
                 def panel_ready():
@@ -282,7 +290,10 @@ throw 'Staged operator UI element unavailable'
                 check(direct('browser.tabs')['errorCode'] == 'approval_required', name+' extension availability alone cannot grant browser control')
             finally:
                 panel.close()
-
+            stop_browser()
+        browser = launch('Default', base+'/work')
+        browser_socket()
+        launch('Profile 1', base+'/personal').wait(timeout=15)
         print('Checking both regular profiles in one headed browser', flush=True)
         connected = poll(lambda: [p for p in profiles() if p['connected']] if len([p for p in profiles() if p['connected']]) == 2 else None)
         ids = {p['name']: p['profileId'] for p in connected}
@@ -396,6 +407,7 @@ throw 'Staged operator UI element unavailable'
             ui('press', '^Access$')
             for label, enabled in [('View desktop', False), ('Control apps and input', False), ('Browser tabs', True), ('Browser scripts and DevTools', True)]:
                 ui('check', '^'+label+'$', enabled)
+            ui('clear_unavailable')
             ui('check', '^Work ·')
             ui('check', '^Personal ·')
             ui('press', '^Enable access$')
@@ -455,8 +467,8 @@ throw 'Staged operator UI element unavailable'
             try: winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, key_path, winreg.KEY_WOW64_32KEY)
             except FileNotFoundError: pass
         backup.unlink()
-        server.shutdown(); server.server_close(); logs.close()
         faulthandler.cancel_dump_traceback_later()
+        server.shutdown(); server.server_close(); logs.close()
         try:
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:

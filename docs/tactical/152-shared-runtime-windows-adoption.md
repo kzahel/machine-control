@@ -93,82 +93,99 @@ language decision, implementation result, policy removed and remaining Mac/
 Linux migration work. Commit reviewable changes with the owning topic
 trailers. No release or push is implicit.
 
-## Execution
+## Execution and source result
 
-**Current, adoption work:** the same core now covers the complete ordinary
-browser operation vocabulary, explicit DevTools scope, indefinite operator
-consent, native safety ceilings and profile-local withdrawal. Pure endpoint/
-stream policy binds tokens, reservations and pending command correlation to
-exact profile/connection/approval fences. A stateful reference browser supplies
-navigation, input, upload and observation effects without duplicating policy.
-Transport retirement releases only dead-generation correlation capacity and
-preserves the original unknown result; it does not claim an application effect
-was undone. Windows transport and installed adoption remain in progress.
+**Decision:** TypeScript policy in a privately bundled, hash-pinned Node LTS
+child, owned by the native resident independently of Settings. The
+[owning topic](../../topics/shared-resident-core.md#language-and-deployment-decision)
+records measurements, the working Bun alternative, rejected rewrite and
+maintenance obligations. Node 24.22.2 payloads build for all six desktop
+targets. Earlier comparison payloads also exercised Bun 1.4.4; those are
+qualification artifacts, not another adopted implementation.
 
-**Current:** prior slices are committed in `bcef146` and `8fe60b9`. The core
-has no installed consumer. Windows source review confirms native grant,
-provider generation and singleton relay ownership are currently intertwined.
-The language/deployment decision is TypeScript with a privately bundled Node
-LTS child; the owning topic records reasons and rejected alternatives. Both
-Node 24.22.2 and Bun 1.4.4 build for all six targets, with binary-header
-verification and source/file manifests. Mac ARM64 packaged execution passes
-four process tests and ten real-browser checks under both hosts. Linux
-execution and native x64 execution are not inferred from cross-built payloads.
+**Current source:** the production inlet covers every ordinary browser
+operation, exact named profile sets, separate DevTools scope, timed/until-Stop
+consent, original-consent checkpoints, native safety ceilings and bounded
+CDP endpoint/stream lifetime. The reference provider models stateful browser
+effects behind that same policy. It contains no grant/routing engine.
 
-The executable uses inherited framed pipes, fresh process epochs, bounded
-correlation and exact reference fences. A native parent must close browser
-transports after child death; the fixture now proves that obligation against
-real ports and panels. Deadline-driven scheduling eliminates periodic wakes
-while Off. The former in-process fixture composition is replaced, rather than
-retained as another policy host. Portable checks and strict checking pass.
+Windows `BrowserDevToolsBridge.cs` is deleted. Its endpoint/token, stream,
+reservation and CDP correlation policy now belongs to the shared host.
+`BrowserRelay` retains concurrent authenticated pipes, native owner/safety
+checks, payload-free journal persistence and validated file/artifact effects;
+it no longer owns singleton selection or a competing browser request engine.
+`DesktopGrants` delegates browser authority and restoration to the shared
+projection. Generic desktop grants, admission and protected services remain
+native. The Python CLI/client remains Python, with compatible `browser profiles`
+and explicit `--profile` capability negotiation.
 
-Windows process qualification uses an existing exclusively claimed appliance,
-authenticated administration, scratch payloads and finally-style shutdown and
-claim release. A locked desktop initially made generic readiness fail even
-though administration was ready; process-only qualification correctly needs
-the latter. An emulated x64 expiry test exposed an unrealistic 120 ms IPC
-assumption, safely refusing before dispatch. The integration budget was repaired;
-deterministic tests retain exact-boundary coverage. No password was changed,
-no desktop/browser installation was replaced, and no outer UI route was used.
+The extension stores a local installation UUID, name and enabled preference,
+without account discovery or synchronized storage. Windows requires profile
+protocol v1. Incompatible/colliding copies remain connected but unarmed with
+repair guidance. Existing Mac/Linux residents retain their legacy protocol
+behavior until adoption; they cannot honor explicit profile selection.
 
-**Current:** all four Windows payloads, Node and Bun on both architectures,
-pass the four-check process suite: ARM64 natively and x64 under emulation on
-the same ARM64 appliance. Minimized private reports retain the distinction.
-A Bun Windows test also exposed an invalid
-same-read assumption between terminal results and grant projections; the test
-now independently waits for framed revocation and drains streams through close.
-This does not change the core's ordering or grant semantics.
+Desktop/native approval selects exact enabled IDs and remembers form choices
+separately from authority. A profile can withdraw only its own availability;
+re-enabling it cannot restore consent. The core's opaque checkpoint preserves
+original expiry and withdrawal revisions across temporary native grants.
+Global Stop and process death invalidate saved consent. Wire IDs and grant
+fences include a fresh child boot namespace to reject old worker callbacks.
 
-## Validation and checkpoint result
+Packaging includes the pinned Node runtime, owned source, `ws` and notices.
+Windows Node bytes remain unchanged through signing: the product catalog
+binds the payload manifest and full-byte verification checks its exact file
+set. Source-clean companion staging binds the same source revision as the
+Tauri app and bundled Python client. Unsigned staged development acceptance
+is distinct from signed installer/publication qualification.
 
-Strict TypeScript checking, 28 focused checks, the complete portable check
-runner, workflow YAML parsing, local documentation links and whitespace checks
-pass. Both packaged Mac ARM64 hosts pass the ten real-browser checks and the
-process suite. All twelve payload source manifests match the current owned
-policy source. Windows reports confirm four passing payloads and successful
-staging/process/power/claim cleanup. CI configuration adds six-target builds
-and native packaged execution on the three desktop host families; remote CI
-has not been run in this task.
+### Verification performed
 
-**Result:** language and deployment checkpoint complete: TypeScript and a
-privately bundled Node LTS child. The complete Windows browser migration is
-still active and unfulfilled as listed above. No release, push or personal
-installation change occurred.
+- Strict TypeScript checks and 48 shared runtime regressions pass, covering
+  controlled clocks, stateful reference effects, profile isolation, authority
+  replacement/restoration, IPC, EOF/death and strict CDP transport cases.
+- The complete portable runner passes, including Python client, release
+  packaging and nine extension indicator/worker tests. Desktop strict build
+  and both real-built-frontend saved-choice tests pass.
+- Portable .NET contract tests, format verification and Windows ARM64/x64
+  self-contained publishes pass. The complete contract runner also passes on the real Windows ARM64
+  appliance; this is distinct from cross-publishing and browser effects.
+- All six final Node payloads build. The packaged Mac ARM64 child passes five
+  process checks and ten real-browser checks. Earlier Node/Bun Windows ARM64
+  native and x64-emulated comparison suites pass; final Windows candidate
+  execution remains its own gate.
 
-**Unfulfilled:** production profile identity, full ordinary/DevTools operation
-coverage, native browser-policy replacement, signed/installed Windows candidate
-and Settings lifecycle acceptance. No installed Windows policy has been deleted
-yet. Those remain completion gates for this tactical; executable qualification
-does not mark the complete milestone done.
+### Appliance qualification
 
-### Native implementation checkpoint
+**Current:** acceptance is active on an existing exclusively claimed Windows
+ARM64 appliance. It uses a separately identified test Chromium, temporary
+native-host registration and finally-style claim/process/power cleanup. The
+actor exercises the production native peer authentication, inherited operator,
+retained Python owner, two regular Chrome profiles in one process, independent
+ordinary/page/root-CDP effects, Stop/expiry/reconnect/death and disposable real
+Tauri Settings. No personal browser or installed product is replaced.
 
-The Windows singleton relay and `BrowserDevToolsBridge.cs` policy engine are
-replaced by authenticated concurrent pipe transport and `SharedBrowserHost`.
-Browser scope decisions in `DesktopGrants` delegate to the shared projection;
-native safety remains a denial ceiling over the same grant. Settings and native
-approval select exact installation IDs. Python remains the client language.
-The Windows companion build now includes the pinned Node payload and ws license.
-Portable native contracts exercise the actual shared process, alongside native
-broker units and portable CDP adversarial cases. ARM64 and x64 publish locally.
-Packaged candidate acceptance remains required before completing this tactical.
+Integration work fixed the child environment: Windows cryptographic startup
+requires the OS-owned `SystemRoot`, while arbitrary inherited Node options and
+module paths remain cleared. Windows retained console channels now start both
+pipe directions independently. Native safety facts are published only when
+they change, preserving the child policy's idle Off state. Portable tests use
+the same shared child rather than retaining the deleted C# bridge as a test
+surrogate.
+
+The initial headless browser singleton did not open a second regular-profile
+window; the simultaneous-profile actor therefore runs headed. A marked
+ordinary fixture tab identifies the requested Chrome profile before navigating
+to its extension setup UI. The runner's browser-startup budget is separate
+from the product's action deadlines. Private usage notes and reports retain
+concrete friction and target locators.
+
+**Unfulfilled:** passing the final real two-profile ordinary/CDP and Tauri
+Settings lifecycle run and verified appliance cleanup. No signed installer, publication, physical/native x64 or
+Mac/Linux adoption is inferred. The source implementation is committed while
+these execution gates remain active.
+
+The [owning topic's adoption plan](../../topics/shared-resident-core.md#windows-cutover-and-next-adoption)
+retains native Swift/Python platform effects and authentication, adapts this
+same inlet, then deletes each platform's replaced browser policy only after
+its own native and packaged acceptance. A client rewrite is not required.
