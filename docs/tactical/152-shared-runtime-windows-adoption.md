@@ -145,14 +145,14 @@ is distinct from signed installer/publication qualification.
   controlled clocks, stateful reference effects, profile isolation, authority
   replacement/restoration, IPC, EOF/death and strict CDP transport cases.
 - The complete portable runner passes, including Python client, release
-  packaging and nine extension indicator/worker tests. Desktop strict build
+  packaging and 15 extension worker/facade tests. Desktop strict build
   and both real-built-frontend saved-choice tests pass.
 - Portable .NET contract tests, format verification and Windows ARM64/x64
   self-contained publishes pass. The complete contract runner also passes on
   the real Windows ARM64 appliance; this is distinct from cross-publishing
   and browser effects. The suite includes the native fixes and deterministic
   regressions for unpumped UI contexts and response bytes visible before
-  task completion.
+  task completion, private journal ACL preservation, and closed stream diagnostics.
 - The real Windows native composition actor passes with two fake browser
   peers, including five-minute retained-owner continuity. This exercises
   actual peer authentication, private child IPC and native admission without
@@ -187,6 +187,25 @@ pump. Admission releases its exact provider-occupancy token before response
 bytes become visible, while tracking bounded pending response tasks. The new
 composition actor exposed that boundary race; both fixes have regressions
 that fail on their old implementations and pass after correction.
+
+Qualification also exposed two distinct timing defects. Private journal
+writes repeatedly reapplied an inheritable DACL across an existing state tree;
+the native adapter now verifies an already-correct protected ACL and repairs
+only a mismatch. An actual NTFS change-time regression proves both preservation
+and repair. Separately, Chrome can complete tab creation before its debugger
+target becomes observable. The extension creates once, waits for observation
+within the existing management deadline and fences connection replacement.
+Delayed/missing-target and replacement regressions exercise the repaired path;
+a focused real-browser diagnostic passed 20 root lifecycle cycles across both
+profiles. That patched diagnostic is separate from clean-candidate acceptance.
+
+The Windows supervisor has a finite 30-second initial handshake budget;
+ordinary calls retain five seconds. Real delayed-child and job-cleanup tests
+pass on Windows. Native diagnostics retain only closed classifications and
+bounded timing, never provider messages or browser payloads. The fixture's CDP
+command wait follows the advertised 45-second deadline; its separate five-second
+revocation check fails on a silent open socket. Socket-pair tests prove EOF,
+buffered EOF and timeout are distinguished.
 
 The initial headless browser singleton did not open a second regular-profile
 window; the simultaneous-profile actor therefore runs headed. A marked

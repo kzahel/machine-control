@@ -3,7 +3,8 @@
 Owning topics: [browser profiles](../../topics/browser-profiles.md),
 [browser control](../../topics/browser-control.md).
 
-Status: **scope complete; implementation not started**.
+Status: **scoping record complete; Windows implementation in Tactical 152;
+Mac/Linux pending**.
 
 Prerequisite: [Tactical 150](150-shared-resident-core.md) proves the shared
 policy/reference-provider boundary. The native steps below are adoption work
@@ -40,7 +41,18 @@ temporary profile under the user's primary browser identity. Any later
 physical-profile follow-up needs its own bounded scope; preserve the user's
 disabled personal installation during scoping.
 
-## Ordered work
+## Implementation follow-up
+
+[Tactical 152](152-shared-runtime-windows-adoption.md) owns the subsequent
+Windows cutover. Its shared TypeScript core replaces the native browser policy
+rather than reproducing the registry in each language. The implemented client
+selector is `--profile`; one retained owner can select different members of its
+exact approved set per operation. It does not pin every owner to one profile.
+The original scoping sequence below predates those decisions; the owning
+[browser-profiles topic](../../topics/browser-profiles.md) is current truth.
+Mac/Linux adoption and store/publication gates remain separate.
+
+## Original scoping sequence
 
 ### 1 — define profile discovery, selection and authority
 

@@ -55,6 +55,10 @@ Keep profiles and evidence private. Do not disable the browser sandbox to
 compensate for an inaccessible executable directory.
 Settings uses an actor-owned WebView2 data folder and native accessibility,
 preserving the appliance's existing saved form choices.
+Build the app through the normal Tauri production build. For a direct Cargo
+fixture build, include `--release --features tauri/custom-protocol` and the
+matching prebuilt frontend. `--release` alone still uses the development URL;
+a localhost error page cannot qualify the packaged Settings lifecycle.
 Its explicit test consent/owner budget is 15 minutes; action deadlines remain
 unchanged and a separate check exercises actual 60-second consent expiry.
 The owner queue budget covers the real 30-second startup quiet observation
