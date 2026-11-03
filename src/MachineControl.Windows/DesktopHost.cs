@@ -61,7 +61,9 @@ internal static class DesktopHost
             await writer.WriteLineAsync(Contract.Serialize(new { ok = true, stopWindow = shortcut.WindowHandle, presentation = presentation.Status() }));
             while (!stop.IsCancellationRequested)
             {
-                var read = ReadCommandAsync(reader, stop.Token);
+                // Windows console-pipe reads can block before yielding a Task.
+                // Keep child failure monitoring independent of operator input.
+                var read = Task.Run(() => ReadCommandAsync(reader, stop.Token));
                 var completed = await Task.WhenAny(read, resident, browserTask, monitor, presentationServer);
                 if (completed != read) { await completed; break; }
                 var line = await read;

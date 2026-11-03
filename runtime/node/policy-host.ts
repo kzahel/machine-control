@@ -8,7 +8,7 @@ import type { BrowserOperation } from "../src/browser-contract.ts";
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { ResidentCore, CoreError } from "../src/core.ts";
-import type { Approval, BrowserRequest, Effect } from "../src/core.ts";
+import type { Approval, ApprovalCheckpoint, BrowserRequest, Effect } from "../src/core.ts";
 import { ExtensionProvider } from "../src/extension-provider.ts";
 import type { NativeFrame } from "../src/extension-provider.ts";
 import { dispatchToProvider } from "../src/provider-dispatch.ts";
@@ -57,6 +57,7 @@ export class PolicyHost {
   #cdp: CdpBridge | undefined;
   #published = "";
   #approval: Approval | undefined;
+  readonly #checkpoints = new Map<string, ApprovalCheckpoint>();
   #hello = false;
   #sequence = 0;
   #closed = false;
@@ -300,7 +301,12 @@ export class PolicyHost {
           !frame.scopes.includes("browser") &&
           !frame.scopes.includes("devtools")
         )
-          return this.#invoke({ method: "operator.stop" });
+          {
+            this.#consume(this.core.replaceWithoutApproval());
+            this.#approval = undefined;
+            this.#synchronize();
+            return {};
+          }
         if (!frame.profileIds.length)
           throw new Error("browser_profiles_required");
         const connections = frame.profileIds.map((id) => {
@@ -324,7 +330,26 @@ export class PolicyHost {
       case "browser.cancel":
         this.#consume(this.core.cancel(string(frame.requestId)));
         return {};
+      case "operator.checkpoint": {
+        const checkpoint = this.core.checkpoint();
+        this.#checkpoints.clear();
+        if (!checkpoint) return {};
+        const checkpointId = randomUUID();
+        this.#checkpoints.set(checkpointId, checkpoint);
+        return { checkpointId };
+      }
+      case "operator.restore": {
+        const id = string(frame.checkpointId), token = this.#checkpoints.get(id);
+        this.#checkpoints.delete(id);
+        if (!token) throw new Error("invalid_checkpoint");
+        const restored = this.core.restore(token);
+        this.#approval = restored.approval;
+        this.#consume(restored.effects);
+        this.#synchronize();
+        return {};
+      }
       case "operator.stop":
+        this.#checkpoints.clear();
         this.#consume(this.core.stop());
         this.#approval = undefined;
         this.#synchronize();

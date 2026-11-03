@@ -100,12 +100,12 @@ def build(engine, target, output, cache, bun):
             arguments = []
         if binary_target(output / executable) != target:
             raise ValueError("Executable target mismatch")
-        sources = {str(path.relative_to(ROOT)): digest(path) for directory in ("src", "node") for path in sorted((ROOT / directory).glob("*.ts"))}
+        sources = {path.relative_to(ROOT).as_posix(): digest(path) for directory in ("src", "node") for path in sorted((ROOT / directory).glob("*.ts"))}
         manifest = {
             "schema": "machine-control-policy-payload/v1", "qualificationOnly": True,
             "engine": engine, "engineVersion": PINS[engine]["version"], "target": target,
             "executable": executable, "arguments": arguments, "sourceSha256": sources,
-            "files": {str(path.relative_to(output)): {"sha256": digest(path), "bytes": path.stat().st_size}
+            "files": {path.relative_to(output).as_posix(): {"sha256": digest(path), "bytes": path.stat().st_size}
                       for path in sorted(output.rglob("*")) if path.is_file()},
         }
         (output / "payload.json").write_text(json.dumps(manifest, indent=2) + "\n")

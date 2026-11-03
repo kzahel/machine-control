@@ -222,6 +222,7 @@ Assert(broker.Authorize("snapshot") == "approval_required", "Browser is not desk
 Assert(BrowserWire.Operations.Contains("browser.upload") && !BrowserWire.Observes("browser.upload"), "Upload is an advertised browser mutation");
 Assert(DesktopGrants.ScopeFor("browser.dialog") == "browser" && broker.Authorize("browser.dialog") is null,
     "Typed dialog handling uses the browser grant");
+foreach (var operation in BrowserWire.Operations) Assert(DesktopJournal.Known(operation), "Browser audit operation is typed: " + operation);
 Assert(DesktopGrants.ScopeFor("browser.profiles") is null, "Profile metadata requires no page-control grant");
 foreach (var operation in BrowserWire.Operations.Where(value => value != "browser.profiles"))
     Assert(DesktopGrants.ScopeFor(operation) is not null, "Every advertised browser operation has a control-session scope: " + operation);
@@ -246,7 +247,7 @@ foreach (var invalidPath in new[] { "relative.txt", @"C:relative.txt", @"\fixtur
     Assert(BrowserUpload.Validate([invalidPath]).ErrorCode == "invalid_request", "Reject nonlocal/stream path");
 if (OperatingSystem.IsWindows())
 {
-    var uploadRoot = Path.Combine(Environment.CurrentDirectory, "upload-contract-" + Guid.NewGuid().ToString("n"));
+    var uploadRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments), "upload-contract-" + Guid.NewGuid().ToString("n"));
     Directory.CreateDirectory(uploadRoot);
     try
     {

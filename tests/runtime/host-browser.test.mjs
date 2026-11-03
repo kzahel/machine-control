@@ -154,7 +154,18 @@ test(
         personal.profileId,
         "re-enable cannot restore withdrawn approval",
       );
+      await call("operator.configure", { scopes: ["browser", "devtools"], profileIds: [work.profileId, personal.profileId], durationMs: 60_000 });
+      const checkpoint = await call("operator.checkpoint");
+      await call("operator.configure", { scopes: [], profileIds: [], durationMs: 1000 });
+      await assert.rejects(request("browser.tabs"), /approval_required/);
+      await call("provider.frame", { connectionId: personal.connectionId, frame: { type: "profile.update", profile: { ...personal.metadata, enabled: false } } });
+      await call("provider.frame", { connectionId: personal.connectionId, frame: { type: "profile.update", profile: personal.metadata } });
+      await call("operator.restore", checkpoint);
+      assert.equal((await request("browser.tabs")).profileId, work.profileId);
+      assert.equal((await request("browser.tabs", { browserProfileId: personal.profileId })).accepted, false, "restoration cannot undo withdrawal");
+      const stoppedCheckpoint = await call("operator.checkpoint");
       await call("operator.stop");
+      await assert.rejects(call("operator.restore", stoppedCheckpoint), /invalid_checkpoint/);
       await assert.rejects(request("browser.tabs"), /approval_required/);
     } finally {
       host.close();

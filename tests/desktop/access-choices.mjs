@@ -124,6 +124,12 @@ try {
   assert.equal(await page.evaluate(() => window.armCalls), 0);
   await picker().getByRole("checkbox", { name: /Work/ }).uncheck();
   assert.equal(await page.getByRole("button", { name: "Enable access", exact: true }).isDisabled(), true);
+  await page.evaluate(() => localStorage.setItem("machine-control.access-choices.v1", JSON.stringify({scopes:["browser"],duration:300,browserProfileIds:["extension.fixture:missing"]})));
+  await page.reload(); await ready();
+  assert.equal(await page.getByRole("button", {name:"Enable access", exact:true}).isDisabled(), true);
+  await picker().getByRole("checkbox", {name:/Unavailable profile/}).click();
+  await picker().getByRole("checkbox", {name:/Work/}).check();
+  assert.equal(await page.getByRole("button", {name:"Enable access", exact:true}).isEnabled(), true);
   await profiles.close();
   console.log("PASS: exact profile choices persist without restoring authority");
 } finally {

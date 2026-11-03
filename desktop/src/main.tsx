@@ -89,7 +89,7 @@ type State = {
     pointer: boolean;
     keyboard: boolean;
   };
-  browser: { connected: boolean; available?: boolean; profileSelectionSupported?: boolean;
+  browser: { connected: boolean; available?: boolean; profileSelectionSupported?: boolean; approvedProfiles?: string[]; problems?: {reason: string}[];
     profiles?: { profileId: string; name: string; connected: boolean; enabled: boolean }[] };
   pending?: {
     id: string;
@@ -499,14 +499,17 @@ function App() {
       <strong>Browser profiles</strong>
       <p className="note">Choose exactly which profiles may be controlled. Enable and name each profile in its Chrome extension panel.</p>
       {!state.browser.profiles?.length && <p>Connect the Chrome extension to discover profiles.</p>}
-      {state.browser.profiles?.map(profile => <label key={profile.profileId} className="scope-choice">
-        <input type="checkbox" disabled={!profile.enabled} checked={chosen.includes(profile.profileId)}
+      {state.browser.problems?.length ? <p role="alert">{state.browser.problems.some(problem => problem.reason.includes("protocol_required"))
+        ? "Update the Chrome extension before approving its profiles."
+        : "A profile connection was refused. Check its extension panel; a copied identity may need Reset profile identity and fresh approval."}</p> : null}
+      {[...(state.browser.profiles ?? []), ...chosen.filter(id => !state.browser.profiles?.some(profile => profile.profileId === id)).map(profileId => ({ profileId, name: "Unavailable profile", connected: false, enabled: false }))].map(profile => <label key={profile.profileId} className="scope-choice">
+        <input type="checkbox" disabled={!profile.enabled && !chosen.includes(profile.profileId)} checked={chosen.includes(profile.profileId)}
           onChange={event => {
             const next = event.target.checked ? [...chosen, profile.profileId] : chosen.filter(id => id !== profile.profileId);
             setChosen(next);
             if (persist) writeAccessChoices({ scopes, duration, browserProfileIds: next });
           }} />
-        {profile.name} · {profile.profileId.slice(-8)} · {profile.connected ? "Connected" : "Disconnected"}{!profile.enabled ? " · Disabled in extension" : ""}
+        {profile.name} · {profile.profileId.slice(-8)} · {profile.connected ? "Connected" : "Disconnected"}{!profile.enabled ? " · Unavailable for approval" : ""}{state.browser.approvedProfiles?.includes(profile.profileId) ? " · Approved" : ""}
       </label>)}
     </div>;
   };
@@ -647,7 +650,7 @@ function App() {
                     standing ||
                     (!on &&
                       (armScopes.length === 0 ||
-                        (!!state.browser.profileSelectionSupported && armScopes.some(scope => scope === "browser" || scope === "devtools") && !browserProfileIds.some(id => state.browser.profiles?.some(profile => profile.profileId === id && profile.enabled))) ||
+                        (!!state.browser.profileSelectionSupported && armScopes.some(scope => scope === "browser" || scope === "devtools") && (!browserProfileIds.length || !browserProfileIds.every(id => state.browser.profiles?.some(profile => profile.profileId === id && profile.enabled)))) ||
                         (yaOnly && !!state.admission?.active)))
                   }
                   onClick={() =>
@@ -1974,7 +1977,7 @@ function App() {
               </button>
               <button
                 className="primary"
-                disabled={busy || !pendingScopes.length || !!state.browser.profileSelectionSupported && pendingScopes.some(scope => scope === "browser" || scope === "devtools") && !pendingBrowserProfileIds.length}
+                disabled={busy || !pendingScopes.length || !!state.browser.profileSelectionSupported && pendingScopes.some(scope => scope === "browser" || scope === "devtools") && (!pendingBrowserProfileIds.length || !pendingBrowserProfileIds.every(id => state.browser.profiles?.some(profile => profile.profileId === id && profile.enabled)))}
                 onClick={() =>
                   void act({
                     method: "decision",

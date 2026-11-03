@@ -8,13 +8,15 @@ from pathlib import Path
 def verify(root):
     root = root.resolve(strict=True)
     value = json.loads((root / 'payload.json').read_text())
+    target = value.get('target', '')
+    executable = 'node.exe' if target.startswith('win-') else 'node'
     if (value.get('schema') != 'machine-control-policy-payload/v1'
-            or value.get('engine') != 'node' or value.get('executable') != 'node.exe'
+            or value.get('engine') != 'node' or value.get('executable') != executable
             or value.get('arguments') != ['policy/node/main.ts']
-            or value.get('target') not in {'win-arm64', 'win-x64'}):
-        raise ValueError('Unexpected Windows policy payload identity')
+            or target not in {'win-arm64', 'win-x64', 'darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64'}):
+        raise ValueError('Unexpected policy payload identity')
     files = value['files']
-    if not {'node.exe', 'LICENSE.node', 'policy/node/main.ts', 'policy/node_modules/ws/LICENSE'}.issubset(files):
+    if not {executable, 'LICENSE.node', 'policy/node/main.ts', 'policy/node_modules/ws/LICENSE'}.issubset(files):
         raise ValueError('Incomplete policy payload')
     for name, item in files.items():
         if not isinstance(name, str) or '\\' in name or ':' in name or name.startswith('/') or any(p in {'', '.', '..'} for p in name.split('/')):

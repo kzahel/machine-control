@@ -87,8 +87,11 @@ export class ReferenceBrowser implements ProviderAdapter {
           url: tab.url,
         })),
       };
-    if (operation === "browser.navigate" && params.newTab === true)
-      return { tabId: this.#newTab(String(params.url)) };
+    if (operation === "browser.navigate" && params.newTab === true) {
+      const tabId = this.#newTab(String(params.url));
+      const tab = this.#tabs.get(tabId)!;
+      return { tab: { tabId, title: tab.title, url: tab.url } };
+    }
     const ref =
       typeof params.reference === "string"
         ? /^(\d+):(\d+):(button|input)$/.exec(params.reference)

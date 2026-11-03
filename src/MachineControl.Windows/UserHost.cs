@@ -119,9 +119,9 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
     private static string ClientLabel(NamedPipeServerStream pipe)
     {
         if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var id)) return "unknown local caller";
-        try { return $"{System.Diagnostics.Process.GetProcessById((int)id).ProcessName} (PID {id})"; }
-        catch (ArgumentException) { return $"local PID {id}"; }
-        catch (System.ComponentModel.Win32Exception) { return $"local PID {id}"; }
+        // A caller label is metadata. Process.ProcessName can enumerate the
+        // whole Windows process table and stall pipe acceptance under load.
+        return $"local PID {id}";
     }
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]

@@ -198,8 +198,10 @@ internal static class PipeTransport
         await pipe.ConnectAsync(connect.Token);
         using var input = Console.OpenStandardInput();
         await using var output = Console.OpenStandardOutput();
-        var send = input.CopyToAsync(pipe, stop.Token);
-        var receive = pipe.CopyToAsync(output, stop.Token);
+        // Windows standard input may block synchronously before CopyToAsync
+        // returns. Start both directions independently for a retained owner.
+        var send = Task.Run(() => input.CopyToAsync(pipe, stop.Token));
+        var receive = Task.Run(() => pipe.CopyToAsync(output, stop.Token));
         await await Task.WhenAny(send, receive);
         stop.Cancel();
         // Disposing the owning pipe fences queued work even if a platform's

@@ -271,3 +271,19 @@ does not complete the refactor.
 [Browser profiles](browser-profiles.md) owns the proposed product contract;
 its full implementation plan depends on this workstream and must not proceed
 by independently rewriting all three native policy engines.
+
+## Original consent during temporary grants
+
+**Decision, implemented in the shared core:** when Windows temporarily replaces
+person-enabled access, native code retains an opaque checkpoint rather than
+reconstructing browser consent from its own scopes and a new duration. The core
+keeps the original expiry, profile selection, DevTools scope and profile
+withdrawal revisions. Restoration issues fresh fences, consumes the checkpoint
+once, excludes profiles withdrawn since capture, and cannot extend the original
+lifetime. Re-enabling a profile cannot undo its withdrawal. Global Stop and
+process death invalidate all saved consent. A temporary grant with no browser
+scope suspends browser access without turning it into a fresh approval.
+
+Native code still decides when its generic temporary grant ends and retains
+native console/session safety as a denial ceiling. Browser authority and the
+restoration decision's browser-specific rules remain in one shared owner.

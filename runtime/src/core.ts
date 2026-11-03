@@ -28,6 +28,8 @@ export interface Approval {
   readonly devtools?: boolean;
 }
 
+export interface ApprovalCheckpoint { readonly generation: number }
+
 interface RequestIdentity {
   readonly requestId: string;
   readonly profileId: string;
@@ -218,6 +220,8 @@ export class ResidentCore {
   readonly #unsettled = new Set<DispatchCommand>();
   #approval: Approval | undefined;
   readonly #withdrawn = new Set<string>();
+  readonly #withdrawalVersions = new Map<string, number>();
+  #checkpoints = new WeakMap<ApprovalCheckpoint, { approval: Approval; withdrawals: Map<string, number> }>();
   readonly #fences = new WeakSet<AuthorityFence>();
   #availability = { readable: true, writable: true, generation: "initial" };
   #providerGeneration = 0;
@@ -486,13 +490,45 @@ export class ResidentCore {
     return effects;
   }
 
-  stop(): readonly Effect[] {
+  /** Trusted native consent preemption; this token never grants current access. */
+  checkpoint(): ApprovalCheckpoint | undefined {
+    const approval = this.#approval;
+    if (!approval || approval.expiresAt <= this.#now()) return undefined;
+    const token = Object.freeze({ generation: approval.generation });
+    const withdrawals = new Map(approval.profiles.filter(id => !this.#withdrawn.has(id))
+      .map(id => [id, this.#withdrawalVersions.get(id) ?? 0]));
+    this.#checkpoints.set(token, { approval, withdrawals });
+    return token;
+  }
+
+  /** Restore only original remaining consent and profiles never withdrawn since. */
+  restore(token: ApprovalCheckpoint): { approval: Approval | undefined; effects: readonly Effect[] } {
+    const saved = this.#checkpoints.get(token);
+    if (!saved) throw new CoreError("invalid_request");
+    this.#checkpoints.delete(token);
+    const now = this.#now();
+    const profiles = [...saved.withdrawals].filter(([id, revision]) =>
+      (this.#withdrawalVersions.get(id) ?? 0) === revision).map(([id]) => id);
+    if (saved.approval.expiresAt <= now || !profiles.length)
+      return { approval: undefined, effects: this.replaceWithoutApproval() };
+    return this.approveKnownProfiles(profiles,
+      Number.isFinite(saved.approval.expiresAt) ? saved.approval.expiresAt - now : null,
+      { devtools: saved.approval.devtools === true });
+  }
+
+  /** A replacement native grant may contain no browser scope. */
+  replaceWithoutApproval(): readonly Effect[] {
     const effects: Effect[] = [];
     this.#approval = undefined;
     ++this.#authorizationGeneration;
     for (const pending of this.#pending.values())
       this.#end(pending, "stopped", effects);
     return effects;
+  }
+
+  stop(): readonly Effect[] {
+    this.#checkpoints = new WeakMap();
+    return this.replaceWithoutApproval();
   }
 
   tick(): Effect[] {
@@ -557,6 +593,7 @@ export class ResidentCore {
     if (this.#providers.get(connection.profileId) !== connection)
       return effects;
     this.#withdrawn.add(connection.profileId);
+    this.#withdrawalVersions.set(connection.profileId, (this.#withdrawalVersions.get(connection.profileId) ?? 0) + 1);
     for (const pending of this.#pending.values())
       if (pending.command.connection === connection)
         this.#end(pending, "profile_not_approved", effects);

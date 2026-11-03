@@ -24,6 +24,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     private long _nextConnection;
     private int _stopped = 1;
     private int _disposed;
+    private (string Generation, bool Readable, bool Writable)? _nativeState;
     private sealed record Authority(Request Request, string Generation);
     private sealed class Peer(NamedPipeServerStream pipe)
     {
@@ -31,6 +32,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         internal readonly SemaphoreSlim Writes = new(1, 1);
         internal readonly string Tag = Guid.NewGuid().ToString("n");
         internal string? ConnectionId;
+        internal volatile string? Problem;
     }
 
     internal BrowserRelay(DesktopGrants grants)
@@ -49,6 +51,8 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         route = Route,
         profileSelectionSupported = true,
         profiles = Profiles,
+        problems = _peers.Values.Where(peer => peer.Problem is not null).Select(peer => new { reason = peer.Problem }).ToArray(),
+        approvedProfiles = _host.State["selectedProfiles"]?.DeepClone() ?? new JsonArray(),
         sharedRuntime = "typescript_node",
         knownOmissions = new[] { "incognito tabs", "browser chrome UI", "other user sessions", "OS file dialogs" },
         streamingCdp = new { available = _host.Alive, browserLevel = true, binding = "live_devtools_owner", transport = "target_loopback_websocket" },
@@ -65,6 +69,18 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
             ["profileIds"] = JsonSerializer.SerializeToNode(profileIds),
             ["durationMs"] = durationSeconds is int seconds ? seconds * 1000 : null
         });
+        EndAudits();
+        _authorities.Clear();
+        Volatile.Write(ref _stopped, 0);
+    }
+    public string? Checkpoint() => _host.Alive ? _host.Call(new JsonObject { ["method"] = "operator.checkpoint" })["checkpointId"]?.GetValue<string>() : null;
+    public void Restore(string checkpointId)
+    {
+        Volatile.Write(ref _stopped, 1);
+        EndAudits();
+        _authorities.Clear();
+        SynchronizeSafety();
+        _host.Call(new JsonObject { ["method"] = "operator.restore", ["checkpointId"] = checkpointId });
         Volatile.Write(ref _stopped, 0);
     }
     public void Stop()
@@ -79,13 +95,20 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     {
         if (!_host.Alive) return;
         lock (_grants.Gate)
+        {
+            var readable = _grants.AuthorizeNative("browser.tabs", controlled: true) is null;
+            var writable = _grants.AuthorizeNative("browser.cdp", controlled: true) is null;
+            var safety = (_grants.Generation, readable, writable);
+            if (_nativeState == safety) return;
             _host.Call(new JsonObject
             {
                 ["method"] = "native.state",
-                ["generation"] = _grants.Generation,
-                ["readable"] = _grants.AuthorizeNative("browser.tabs", controlled: true) is null,
-                ["writable"] = _grants.AuthorizeNative("browser.cdp", controlled: true) is null
+                ["generation"] = safety.Item1,
+                ["readable"] = readable,
+                ["writable"] = writable
             });
+            _nativeState = safety;
+        }
     }
 
     internal async Task RunAsync(CancellationToken cancellation)
@@ -140,6 +163,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
             }
             catch (InvalidOperationException ex)
             {
+                peer.Problem = ex.Message;
                 await BrowserWire.WriteAsync(pipe, new JsonObject { ["type"] = "profile.refused", ["protocolVersion"] = 1, ["reason"] = ex.Message }, handshake.Token);
                 // Keep incompatible/colliding copies unarmed without a reconnect fight.
                 while (await BrowserWire.ReadAsync(pipe, cancellation, 4096) is not null) { }
@@ -322,14 +346,19 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     private static bool Trusted(NamedPipeServerStream pipe)
     {
         if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var pid)) return false;
-        try
-        {
-            using var caller = Process.GetProcessById((int)pid);
-            return caller.SessionId == RuntimeProfile.SessionId && Path.GetFileName(Environment.ProcessPath) == "machine-control-windows.exe" &&
-                string.Equals(caller.MainModule?.FileName, Environment.ProcessPath, StringComparison.OrdinalIgnoreCase);
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
+        if (!ProcessIdToSessionId(pid, out var session) || session != RuntimeProfile.SessionId ||
+            Path.GetFileName(Environment.ProcessPath) != "machine-control-windows.exe") return false;
+        using var process = new SafeProcessHandle(NativeMethods.OpenProcess(0x1000, false, pid), ownsHandle: true);
+        if (process.IsInvalid) return false;
+        var path = new System.Text.StringBuilder(32768);
+        var length = (uint)path.Capacity;
+        return QueryFullProcessImageName(process, 0, path, ref length) &&
+            string.Equals(path.ToString(), Environment.ProcessPath, StringComparison.OrdinalIgnoreCase);
     }
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool ProcessIdToSessionId(uint processId, out uint sessionId);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool QueryFullProcessImageName(SafeProcessHandle process, uint flags, System.Text.StringBuilder path, ref uint size);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint pid);
     public void Dispose() { Interlocked.Exchange(ref _disposed, 1); _host.Dispose(); EndAudits(); foreach (var peer in _peers.Values) peer.Pipe.Dispose(); }

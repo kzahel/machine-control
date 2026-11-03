@@ -59,6 +59,10 @@ internal static class BrowserDevToolsFixtures
             ["profileIds"] = new JsonArray(profileId), ["durationMs"] = 60000 });
         JsonObject Endpoint() => host.Call(new JsonObject { ["method"] = "browser.call", ["requestId"] = Guid.NewGuid().ToString("n"),
             ["authorityId"] = "fixture-native-owner", ["request"] = new JsonObject { ["operation"] = "browser.endpoint", ["browserProfileId"] = profileId } });
+        var checkpoint = host.Call(new JsonObject { ["method"] = "operator.checkpoint" });
+        host.Call(new JsonObject { ["method"] = "operator.configure", ["scopes"] = new JsonArray(), ["profileIds"] = new JsonArray(), ["durationMs"] = 1000 });
+        Require(host.State["effectiveScopes"]!.AsArray().Count == 0, "temporary non-browser selection has no browser authority");
+        host.Call(new JsonObject { ["method"] = "operator.restore", ["checkpointId"] = checkpoint["checkpointId"]!.DeepClone() });
         var endpoint = Endpoint();
         Require(endpoint["accepted"]!.GetValue<bool>(), "shared endpoint accepted");
         var uri = new Uri(endpoint["data"]!["browserEndpoint"]!.GetValue<string>());

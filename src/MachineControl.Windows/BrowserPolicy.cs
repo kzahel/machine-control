@@ -5,6 +5,8 @@ internal interface IBrowserPolicy
 {
     bool Allows(string scope);
     void Configure(string[] scopes, int? durationSeconds, string[] profileIds);
+    string? Checkpoint();
+    void Restore(string checkpointId);
     void Stop();
     void Refresh() { }
     object Profiles { get; }

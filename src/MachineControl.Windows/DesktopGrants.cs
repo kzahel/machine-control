@@ -295,11 +295,12 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         browserProfileIds = browserProfileIds?.ToArray();
         if (Journal?.Available == false) throw new InvalidOperationException("Audit storage unavailable");
         if (scopes.Any(BrowserScope) && BrowserPolicy is null) throw new InvalidOperationException("Browser runtime unavailable");
+        var checkpoint = origin == "request" && _grant?.Origin == "person" ? BrowserPolicy?.Checkpoint() : null;
         BrowserPolicy?.Configure(scopes.ToArray(), duration, browserProfileIds ?? []);
         Journal?.QueueEvent("access.enabled");
         _generation = Guid.NewGuid().ToString("n");
         if (origin == "person") _armed = null;
-        else if (_grant?.Origin == "person") _armed = _grant;
+        else if (_grant?.Origin == "person") _armed = _grant with { BrowserCheckpoint = checkpoint };
         _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp(), origin, _consoleIdentity, browserProfileIds ?? []);
         ++_authorizationRevision;
         _lastEnded = null;
@@ -313,7 +314,6 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             var ending = _grant;
             _generation = Guid.NewGuid().ToString("n");
             _grant = null;
-            BrowserPolicy?.Stop();
             ++_authorizationRevision;
             _lastEnded = reason;
             _pending?.Completion.TrySetResult(new GrantReply(false, reason));
@@ -324,11 +324,13 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (ending?.Origin == "request" && reason is "expired" or "revoked_by_caller" &&
                 _armed is { } armed && !(armed.Duration is int seconds && Elapsed(armed.Started) >= seconds))
             {
-                BrowserPolicy?.Configure(armed.Scopes.ToArray(), armed.Duration is int original ? Math.Max(1, (int)Math.Floor(original - Elapsed(armed.Started))) : null, armed.BrowserProfileIds ?? []);
+                if (armed.BrowserCheckpoint is { } checkpoint) BrowserPolicy?.Restore(checkpoint);
+                else BrowserPolicy?.Stop();
                 _grant = armed;
                 _lastEnded = null;
                 restored = true;
             }
+            if (!restored) BrowserPolicy?.Stop();
             _armed = null;
         }
         Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
@@ -470,7 +472,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         ? seconds : throw new ArgumentException("Duration must be 60-28800 seconds");
 
     private sealed record LiveGrant(HashSet<string> Scopes, int? Duration, string Reason, string Caller, long Started,
-        string Origin = "request", string? ConsoleIdentity = null, string[]? BrowserProfileIds = null)
+        string Origin = "request", string? ConsoleIdentity = null, string[]? BrowserProfileIds = null, string? BrowserCheckpoint = null)
     {
         internal string Id { get; } = Guid.NewGuid().ToString("n");
     }

@@ -19,6 +19,8 @@ const LABELS = {
 };
 // Chrome's native-messaging errors, in terms a person can act on.
 const DISCONNECTS = [
+  ["profile_conflict", "Another connected copy uses this profile identity. Reset the copied profile’s identity, then approve it again in Machine Control."],
+  ["protocol_required", "Update the extension and Machine Control app before approving this profile."],
   ["not found", "The Machine Control app is not installed, or its browser setup has not run."],
   ["forbidden", "The installed Machine Control app does not recognize this copy of the extension. Update the app and run its browser setup again."],
   ["exited", "The Machine Control app is not running."],
@@ -108,7 +110,7 @@ async function render() {
   if (!state) return;
   $("profile-card").hidden = !state.profileAware;
   $("profile-problem").hidden = !state.lastDisconnect;
-  $("profile-problem").textContent = state.lastDisconnect || "";
+  $("profile-problem").textContent = state.lastDisconnect ? setupReason(state.lastDisconnect) : "";
   if (state.profileAware && state.profile) {
     if (document.activeElement !== $("profile-name")) $("profile-name").value = state.profile.name;
     $("profile-enabled").checked = state.profile.enabled;

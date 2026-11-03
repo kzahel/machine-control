@@ -56,6 +56,8 @@ internal static class AdmissionChannelFixtures
                 using (var reader = new StreamReader(resident.GetStream(), Encoding.UTF8, false, 4096, leaveOpen: true))
                     await AdmissionChannel.RunAsync(resident.GetStream(), reader, opening, grants, (request, fence, cancellation) =>
                     {
+                        if (request.Operation is "capabilities" or "browser.profiles")
+                            return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "not_applicable" });
                         var denied = grants.Authorize(request with { ControlOwnership = fence });
                         if (denied is not null) return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, ErrorCode = denied });
                         lastFence = fence;
@@ -88,6 +90,12 @@ internal static class AdmissionChannelFixtures
                 ["resourceGenerations"] = active["resourceGenerations"]!.DeepClone(),
                 ["request"] = new JsonObject { ["operation"] = "type", ["text"] = "fixture" }
             };
+            foreach (var metadata in new[] { "capabilities", "browser.profiles" })
+            {
+                var request = Action(); request["request"] = new JsonObject { ["operation"] = metadata };
+                Require(!(await Call(b, "control.dispatch", (JsonObject)request.DeepClone()))["accepted"]!.GetValue<bool>() && effects == 0, "Metadata cannot borrow another owner's fence");
+                Require((await Call(a, "control.dispatch", request))["accepted"]!.GetValue<bool>() && effects == 0, "Owned metadata does not need an effect scope");
+            }
             Require(!(await Call(b, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 0, "Other owner cannot borrow fence");
             Require((await Call(a, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 1, "Owned effect observed");
             Require(lastFence!.StartedLocked == false, "Native unlocked task origin is carried in private ownership");

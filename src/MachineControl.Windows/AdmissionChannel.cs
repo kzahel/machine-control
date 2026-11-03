@@ -101,7 +101,7 @@ internal static class AdmissionChannel
                             if (denied is not null) throw new InvalidOperationException(denied);
                             var effect = Contract.ParseRequest(Required(request, "request").ToJsonString()) with { RequestId = id };
                             var scope = DesktopGrants.ScopeFor(effect.Operation);
-                            if (scope is null || !scopes.Contains(scope)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
+                            if (effect.Operation is not ("capabilities" or "browser.profiles") && (scope is null || !scopes.Contains(scope))) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && !prepared) throw new InvalidOperationException("prepared_console_required");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && fence.StartedLocked != true) throw new InvalidOperationException("task_did_not_start_locked");
                             action = Task.Run(async () =>

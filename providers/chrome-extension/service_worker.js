@@ -65,7 +65,7 @@ async function updateProfile(next) {
   const changedIdentity = profile.installationId !== next.installationId;
   profile = { protocolVersion: 1, installationId: next.installationId, name: next.name, enabled: next.enabled };
   if (profileAware && !profile.enabled) { granted = false; devtools = false; disconnectCleanup = detachAll(); }
-  if (changedIdentity) port?.disconnect();
+  if (changedIdentity) { retryDelayMs = 1000; port?.disconnect(); }
   else if (profileAware) port?.postMessage({ type: "profile.update", profile });
   updateBadge();
 }

@@ -62,6 +62,8 @@ test("reference browser implements ordinary effects behind the same policy", () 
   assert.equal(f.work.observe().saved, "fixture message");
   assert.deepEqual(f.work.observe().uploads, ["fixture.txt"]);
   assert.equal(f.personal.observe().clicks, 0);
+  const newTab = f.call(f.work, "browser.navigate", { newTab: true, url: "https://fixture.invalid/new" }).data.tab;
+  assert.equal(f.work.observe(newTab.tabId).url, "https://fixture.invalid/new");
   assert.equal(f.call(f.work, "browser.wait", { tabId: 1 }).data.ready, true);
   assert.deepEqual(
     f.call(f.work, "browser.capture", { tabId: 1 }).data.fixturePixels,
@@ -205,4 +207,49 @@ test("transport retirement releases bounded correlation without rewriting uncert
     false,
   );
   assert.equal(result.delivery, "unknown");
+});
+
+test("restoration keeps original consent deadline and cannot undo profile withdrawal", () => {
+  const f = setup(true), saved = f.core.checkpoint();
+  assert.ok(saved);
+  f.clock.advance(50);
+  f.core.approve([f.work.connection], 1000);
+  f.core.withdraw(f.personal.connection);
+  // Fresh temporary approval and availability changes cannot erase the
+  // withdrawal history that belongs to the earlier person's selection.
+  f.core.approve([f.work.connection, f.personal.connection], 500);
+  const restored = f.core.restore(saved);
+  assert.deepEqual(restored.approval.profiles, ["work"]);
+  assert.equal(restored.approval.expiresAt, Infinity);
+  assert.equal(restored.approval.devtools, true);
+  assert.throws(() => f.core.restore(saved), /invalid_request/);
+  assert.throws(() => f.core.restore({ generation: saved.generation }), /invalid_request/);
+});
+
+test("temporary non-browser consent preserves only the original remaining lifetime", () => {
+  const f = setup();
+  f.core.approve([f.work.connection], 1000);
+  const saved = f.core.checkpoint();
+  f.core.replaceWithoutApproval();
+  assert.deepEqual(f.core.inspect().approvedProfiles, []);
+  f.clock.advance(999);
+  const restored = f.core.restore(saved);
+  assert.equal(restored.approval.expiresAt, 1000);
+  assert.equal(f.core.inspect().remainingMs, 1);
+  f.clock.advance(1);
+  assert.deepEqual(f.core.inspect().approvedProfiles, []);
+  f.core.approve([f.work.connection], 1000);
+  const expired = f.core.checkpoint();
+  f.core.approve([f.personal.connection], 2000);
+  f.clock.advance(1000);
+  assert.equal(f.core.restore(expired).approval, undefined);
+  assert.deepEqual(f.core.inspect().approvedProfiles, []);
+});
+
+test("global Stop invalidates every saved consent token", () => {
+  const f = setup(), saved = f.core.checkpoint();
+  f.core.stop();
+  assert.throws(() => f.core.restore(saved), /invalid_request/);
+  f.core.approve([f.work.connection], null);
+  assert.throws(() => f.core.restore(saved), /invalid_request/);
 });

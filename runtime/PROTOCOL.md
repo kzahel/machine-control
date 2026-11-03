@@ -108,3 +108,11 @@ process namespace as well as connection/approval generations. A worker may
 outlive a native transport or child process; an old callback must not match a
 new request merely because numeric counters restart. Native parents still
 close the old transports and require fresh consent after child death.
+
+`operator.checkpoint` and `operator.restore` preserve an original person's
+browser consent while a temporary native grant replaces it. The parent holds
+only a one-shot opaque checkpoint ID. The core owns the original deadline and
+withdrawal history; the restore call accepts no replacement duration or profile
+set. `operator.configure` with no browser scopes ends current browser access
+while preserving a saved checkpoint. `operator.stop` invalidates every checkpoint.
+Neither method is exposed on an agent or extension transport.
