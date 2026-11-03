@@ -291,12 +291,21 @@ await using (var frame = new MemoryStream())
     await BrowserWire.WriteAsync(frame, new System.Text.Json.Nodes.JsonObject { ["type"] = "hello" }, CancellationToken.None);
     frame.Position = 0;
     Assert((await BrowserWire.ReadAsync(frame, CancellationToken.None))?["type"]?.GetValue<string>() == "hello", "Native framing round trip");
+    frame.Position = 0;
+    Assert(BrowserWire.Read(frame)?["type"]?.GetValue<string>() == "hello", "Dedicated reader accepts async framing");
+    frame.SetLength(0);
+    BrowserWire.Write(frame, new System.Text.Json.Nodes.JsonObject { ["type"] = "hello" });
+    frame.Position = 0;
+    Assert((await BrowserWire.ReadAsync(frame, CancellationToken.None))?["type"]?.GetValue<string>() == "hello", "Dedicated writer preserves framing");
 }
 foreach (var length in new uint[] { 0, BrowserWire.MaximumInput + 1 })
 {
     var header = new byte[4]; System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, length);
     await using var frame = new MemoryStream(header);
     try { await BrowserWire.ReadAsync(frame, CancellationToken.None); throw new Exception("Expected frame refusal"); }
+    catch (InvalidDataException) { }
+    frame.Position = 0;
+    try { BrowserWire.Read(frame); throw new Exception("Expected dedicated frame refusal"); }
     catch (InvalidDataException) { }
 }
 var original = broker.Generation;

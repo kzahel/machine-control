@@ -108,14 +108,22 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
             var writable = _grants.AuthorizeNative("browser.cdp", controlled: true) is null;
             var safety = (_grants.Generation, readable, writable);
             if (_nativeState == safety) return;
-            _host.Call(new JsonObject
+            try
             {
-                ["method"] = "native.state",
-                ["generation"] = safety.Item1,
-                ["readable"] = readable,
-                ["writable"] = writable
-            });
-            _nativeState = safety;
+                _host.Call(new JsonObject
+                {
+                    ["method"] = "native.state",
+                    ["generation"] = safety.Item1,
+                    ["readable"] = readable,
+                    ["writable"] = writable
+                });
+                _nativeState = safety;
+            }
+            catch (Exception ex) when (!_host.Alive && (ex is IOException or TimeoutException or OperationCanceledException))
+            {
+                // The host has already revoked browser authority. A terminal
+                // private transport failure must not end the native monitor.
+            }
         }
     }
 

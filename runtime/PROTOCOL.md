@@ -66,6 +66,14 @@ outcomes and rejects late callbacks; it never supplies a successful effect.
 
 ## Scheduling and failure
 
+The Windows parent drains synchronous anonymous-pipe reads and stderr on
+dedicated threads and serializes writes through one bounded dedicated worker.
+Blocking pipe I/O cannot occupy the managed pool needed for reply processing.
+The three-second write watchdog terminates the exact owned child to release a
+blocked or partial write; it never retries the frame. Terminal child failure
+revokes browser authority while the native safety monitor remains available.
+
+
 The core provides the next deadline. The executable schedules a single wake
 only while authority or a request has a deadline; Off has no periodic timer.
 Fresh dispatch and completion checks still enforce the exact deadline, even

@@ -38,6 +38,31 @@ internal static class BrowserWire
             ? reason : "provider_closed";
     }
 
+    // Process anonymous pipes are synchronous handles on Windows. Their
+    // owners call these on dedicated I/O threads, never pool workers.
+    internal static JsonObject? Read(Stream stream, int maximum = MaximumInput)
+    {
+        var header = new byte[4];
+        if (stream.Read(header, 0, 1) == 0) return null;
+        stream.ReadExactly(header.AsSpan(1));
+        var size = BinaryPrimitives.ReadUInt32LittleEndian(header);
+        if (size == 0 || size > maximum) throw new InvalidDataException("Invalid browser frame length");
+        var body = new byte[(int)size];
+        stream.ReadExactly(body);
+        return JsonNode.Parse(body)?.AsObject() ?? throw new InvalidDataException("Browser object required");
+    }
+
+    internal static void Write(Stream stream, JsonObject value, int maximum = MaximumOutput)
+    {
+        var body = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value, Contract.Json);
+        if (body.Length > maximum) throw new InvalidDataException("Browser response exceeds native messaging limit");
+        var header = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(header, (uint)body.Length);
+        stream.Write(header);
+        stream.Write(body);
+        stream.Flush();
+    }
+
     internal static async Task<JsonObject?> ReadAsync(Stream stream, CancellationToken cancellation, int maximum = MaximumInput)
     {
         var header = new byte[4];

@@ -12,6 +12,7 @@ internal static class BrowserDevToolsFixtures
     { if (!condition) throw new Exception("Shared browser native IPC: " + message); }
     internal static async Task RunAsync()
     {
+        BlockedWriter();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
         start.ArgumentList.Add(Path.GetFullPath("runtime/node/main.ts"));
         SharedBrowserHost? host = null;
@@ -124,6 +125,43 @@ internal static class BrowserDevToolsFixtures
                 host.Failure == "ipc_reply_timeout" && failure, "private timeout identifies its method and fails closed");
         }
         Console.WriteLine("Shared browser/native IPC contracts passed");
+    }
+
+    private static void BlockedWriter()
+    {
+        // The child acknowledges its private handshake, then stops consuming
+        // stdin. A frame larger than the pipe buffer must fail closed without
+        // blocking disposal or depending on OS cancellation of a partial write.
+        var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
+        start.ArgumentList.Add("--input-type=module");
+        start.ArgumentList.Add("--eval");
+        start.ArgumentList.Add("""
+            import fs from 'node:fs';
+            const read = size => { const b = Buffer.alloc(size); let n = 0;
+              while (n < size) { const got = fs.readSync(0, b, n, size-n, null); if (!got) process.exit(1); n += got; } return b; };
+            const hello = JSON.parse(read(read(4).readUInt32LE()).toString());
+            const body = Buffer.from(JSON.stringify({type:'reply', id:hello.id, ok:true, data:{}}));
+            const header = Buffer.alloc(4); header.writeUInt32LE(body.length);
+            fs.writeSync(1, header); fs.writeSync(1, body);
+            setInterval(() => {}, 1000);
+            """);
+        var failed = false;
+        using var host = new SharedBrowserHost(start, _ => { }, _ => false, () => failed = true);
+        var timer = Stopwatch.StartNew();
+        try
+        {
+            host.Call(new JsonObject { ["method"] = "fixture.blocked_write", ["padding"] = new string('x', 1024 * 1024) });
+            throw new Exception("Blocked private write unexpectedly completed");
+        }
+        catch (IOException)
+        {
+            Require(failed && !host.Alive && host.Failure == "ipc_write_timeout" &&
+                host.FailureMethod == "fixture.blocked_write", "blocked writer kills its exact child and classifies unknown delivery");
+            Require(timer.Elapsed < TimeSpan.FromSeconds(6), "blocked writer has a finite deadline");
+        }
+        timer.Restart();
+        host.Dispose();
+        Require(timer.Elapsed < TimeSpan.FromSeconds(2), "disposal cannot wait behind a blocked write");
     }
 
     private sealed class UnpumpedContext : SynchronizationContext

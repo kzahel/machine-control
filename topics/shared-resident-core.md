@@ -6,7 +6,7 @@ Status: **Windows adapter implemented; packaged candidate qualification active**
 
 ## Motivation
 
-**Current:** two Chrome profiles with the extension can contend for the
+**Current on the legacy path:** two Chrome profiles with the extension can contend for the
 resident's singleton browser connection. The [provider dossier](../research/providers/chrome-extension.md#multiple-profile-limit)
 owns the source findings and their live-evidence limits. Multi-profile work
 exposes a wider maintenance problem: grants, provider routing, deadlines,
@@ -26,8 +26,9 @@ The user requested using browser profiles to refactor this middle layer,
 with lightweight, fast verification rather than repeatedly assembling a
 desktop package or bringing up three OS appliances. The original language
 question compared iteration-friendly TS/Python with Rust's native deployment.
-The first deliverable makes that architecture concrete without claiming
-an all-platform migration or production browser-profile support.
+The first deliverable established the deterministic boundary; the Windows
+browser adoption below turns it into a native product path. Other desktop
+operations and platform adoption remain separate work.
 
 ## Terms and current scope
 
@@ -240,6 +241,14 @@ the client's next explicit operation. Unsettled provider work remains exclusive,
 and pending responses retain bounded capacity and disconnect cleanup. Both
 boundaries have deterministic failing-before/passing-after native regressions;
 the real Windows composition actor exercises the complete handoff with fake peers.
+
+Windows anonymous-pipe I/O uses dedicated blocking read, write and stderr
+workers, with one serialized outbound frame and the existing three-second
+write deadline. Qualification observed async-over-sync write cancellation on
+the older packaged runtime. A stalled-reader regression now proves finite
+failure, exact-child termination, unknown delivery and unblocked disposal;
+it fails against the old transport. Terminal policy-host loss cannot escape
+the native safety monitor. No action or consent deadline is extended.
 
 The Windows app supervisor gives native startup its own finite 30-second
 handshake budget, covering native session/STA setup and the policy child's

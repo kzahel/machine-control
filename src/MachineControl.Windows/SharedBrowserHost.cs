@@ -11,6 +11,7 @@ internal sealed class SharedBrowserHost : IDisposable
 {
     private readonly Process _process;
     private readonly SemaphoreSlim _writes = new(1, 1);
+    private readonly BlockingCollection<(JsonObject Frame, TaskCompletionSource<bool> Completion)> _outbound = new(1);
     private readonly CancellationTokenSource _stop = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> _pending = new();
     private readonly Channel<JsonObject> _events = Channel.CreateBounded<JsonObject>(512);
@@ -41,13 +42,21 @@ internal sealed class SharedBrowserHost : IDisposable
         if (OperatingSystem.IsWindows())
             start.Environment["SystemRoot"] = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         _process = Process.Start(start) ?? throw new IOException("Shared browser runtime did not start");
-        _ = Task.Run(ReadAsync);
-        _ = Task.Run(EventsAsync);
-        _ = Task.Run(async () =>
+        // Windows anonymous pipe handles do not support overlapped I/O.
+        // Async-over-sync reads can occupy the pool that must run writes and
+        // their deadline continuations. Own the three blocking directions.
+        StartIo(Read, "MachineControlPolicyRead");
+        StartIo(Write, "MachineControlPolicyWrite");
+        StartIo(() =>
         {
-            var discard = new char[4096];
-            while (await _process.StandardError.ReadAsync(discard.AsMemory(), _stop.Token) != 0) { }
-        });
+            try
+            {
+                var discard = new char[4096];
+                while (_process.StandardError.Read(discard, 0, discard.Length) != 0) { }
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
+        }, "MachineControlPolicyError");
+        _ = Task.Run(EventsAsync);
         try { _ = Call(new JsonObject { ["method"] = "hello", ["protocolVersion"] = 1 }, 15000); }
         catch { Dispose(); throw; }
     }
@@ -89,24 +98,50 @@ internal sealed class SharedBrowserHost : IDisposable
         }
     }
 
+    private static void StartIo(ThreadStart action, string name) =>
+        new Thread(action) { IsBackground = true, Name = name }.Start();
+
+    private void Write()
+    {
+        foreach (var item in _outbound.GetConsumingEnumerable())
+        {
+            try
+            {
+                BrowserWire.Write(_process.StandardInput.BaseStream, item.Frame, BrowserWire.MaximumInput);
+                item.Completion.TrySetResult(true);
+            }
+            catch (Exception ex)
+            {
+                item.Completion.TrySetException(ex);
+                Fault(ex is IOException or ObjectDisposedException ? "ipc_write_failed" : "ipc_write_invalid",
+                    item.Frame["method"]?.GetValue<string>());
+            }
+        }
+    }
+
     private async Task WriteAsync(JsonObject frame)
     {
         await _writes.WaitAsync(_stop.Token).ConfigureAwait(false);
         try
         {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
-            timeout.CancelAfter(TimeSpan.FromSeconds(3));
-            await BrowserWire.WriteAsync(_process.StandardInput.BaseStream, frame, timeout.Token, BrowserWire.MaximumInput).ConfigureAwait(false);
+            var written = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!_outbound.TryAdd((frame, written))) throw new IOException("Shared browser writer unavailable");
+            await written.Task.WaitAsync(TimeSpan.FromSeconds(3), _stop.Token).ConfigureAwait(false);
         }
-        catch (Exception ex) { Fault(ex is OperationCanceledException ? "ipc_write_timeout" : ex is IOException ? "ipc_write_failed" : "ipc_write_invalid", frame["method"]?.GetValue<string>()); throw; }
+        catch (Exception ex)
+        {
+            Fault(ex is TimeoutException or OperationCanceledException ? "ipc_write_timeout" :
+                ex is IOException ? "ipc_write_failed" : "ipc_write_invalid", frame["method"]?.GetValue<string>());
+            throw new IOException("Shared browser runtime write failed; delivery unknown", ex);
+        }
         finally { _writes.Release(); }
     }
 
-    private async Task ReadAsync()
+    private void Read()
     {
         try
         {
-            while (await BrowserWire.ReadAsync(_process.StandardOutput.BaseStream, _stop.Token) is { } frame)
+            while (BrowserWire.Read(_process.StandardOutput.BaseStream) is { } frame)
             {
                 var type = frame["type"]?.GetValue<string>();
                 if (type == "reply")
@@ -170,14 +205,28 @@ internal sealed class SharedBrowserHost : IDisposable
         foreach (var pending in _pending.Values) pending.TrySetException(new IOException("Shared browser runtime disconnected; delivery unknown"));
         _pending.Clear();
         Volatile.Write(ref _state, new JsonObject());
+        _outbound.CompleteAdding();
         if (_disposed == 0) _failed();
         try { if (!_process.HasExited) _process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
     }
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        try { _process.StandardInput.Close(); if (!_process.WaitForExit(3000)) _process.Kill(entireProcessTree: true); }
-        catch (InvalidOperationException) { }
+        _outbound.CompleteAdding();
+        try
+        {
+            // A blocked synchronous writer is released by terminating our
+            // exact child before closing its stream; disposal cannot queue
+            // behind that write's stream lock.
+            if (_writes.Wait(0))
+            {
+                try { _process.StandardInput.Close(); }
+                finally { _writes.Release(); }
+            }
+            else if (!_process.HasExited) _process.Kill(entireProcessTree: true);
+            if (!_process.WaitForExit(3000)) _process.Kill(entireProcessTree: true);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException) { }
         _stop.Cancel(); _events.Writer.TryComplete();
         Fault("host_disposed"); _process.Dispose();
     }
