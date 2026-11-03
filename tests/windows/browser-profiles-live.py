@@ -7,7 +7,9 @@ HTTP effect oracle, and temporary native-host registration. No installed
 product or ordinary Chrome profile is replaced. Reports remain private.
 """
 import argparse
+import base64
 import ctypes
+import faulthandler
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -45,6 +47,7 @@ def main():
     parser.add_argument('--install', type=Path, required=True)
     parser.add_argument('--chrome', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--settings', action='store_true', help='Also qualify the staged Tauri Settings lifecycle with UI Automation')
     args = parser.parse_args()
     assert args.chrome.name.lower() == 'chrome.exe'
     assert 'test' in str(args.chrome).lower(), 'Use a separately identified test browser'
@@ -60,11 +63,12 @@ def main():
                   operatorRoute='inherited_native_operator', browserProfiles=2, browserProcesses=1)
     received = []
     processes, sockets = [], []
-    runtime = owner = browser = None
+    runtime = owner = browser = app = None
     debug_port = None
     replies = queue.Queue()
     started = time.monotonic()
     logs = (args.output / 'actor.log').open('w', encoding='utf-8')
+    faulthandler.dump_traceback_later(90, repeat=True, file=logs)
     key_path = r'Software\Google\Chrome\NativeMessagingHosts\org.machine_control.browser'
     access = winreg.KEY_READ | winreg.KEY_WOW64_32KEY
     try:
@@ -152,7 +156,8 @@ def main():
             with socket.socket() as reservation:
                 reservation.bind(('127.0.0.1', 0))
                 debug_port = reservation.getsockname()[1]
-        command = [str(args.chrome), '--headless=new', '--allow-chrome-scheme-url', '--no-first-run', '--no-default-browser-check', '--disable-gpu',
+        command = [str(args.chrome), '--no-first-run', '--no-default-browser-check', '--disable-gpu',
+                   '--disable-background-networking', '--disable-component-update',
                    '--remote-debugging-port='+str(debug_port), '--enable-automation', '--remote-allow-origins=*', '--enable-logging=stderr', '--log-level=1',
                    '--user-data-dir=' + str(scratch / 'chrome'), '--profile-directory=' + profile,
                    '--disable-extensions-except=' + str(extension), '--load-extension=' + str(extension), url]
@@ -166,7 +171,7 @@ def main():
                 with urllib.request.urlopen(f'http://127.0.0.1:{debug_port}/json/version', timeout=1) as response:
                     return json.load(response)['webSocketDebuggerUrl']
             except (OSError, ValueError): return None
-        value = CdpSocket(poll(ready), timeout=60)
+        value = CdpSocket(poll(ready, seconds=180), timeout=60)
         sockets.append(value)
         command = value.call('Browser.getBrowserCommandLine')['result']['arguments']
         assert '--user-data-dir='+str(scratch/'chrome') in command, 'Only attach the exact owned test browser'
@@ -181,6 +186,51 @@ def main():
     def snapshot(profile, tab): return accepted('browser.snapshot', profile, tabId=tab)['elements']
     def ref(elements, name): return next(e['reference'] for e in elements if e['name'] == name)
 
+    def ui(action, name='', checked=True):
+        # UIA operates only the exact staged operator process. No private
+        # WebView debugging or direct arming hook is used for this phase.
+        script = r'''
+$ErrorActionPreference='Stop'
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+$deadline=[DateTime]::UtcNow.AddSeconds(30)
+do {
+ $process=Get-Process -Id APP_PID
+ $process.Refresh()
+ if($process.MainWindowHandle -ne [IntPtr]::Zero){
+  $window=[Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+  if(ACTION -eq 'close'){$window.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close();exit}
+  $all=$window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
+  foreach($item in $all){
+   if($item.Current.Name -notmatch NAME){continue}
+   if(ACTION -eq 'check' -and $item.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox){
+    $toggle=$item.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+    if(($toggle.Current.ToggleState -eq 'On') -ne CHECKED){$toggle.Toggle()}
+    exit
+   }
+   if(ACTION -eq 'press' -and $item.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $item.Current.IsEnabled){
+    $item.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();exit
+   }
+  }
+ }
+ Start-Sleep -Milliseconds 100
+}while([DateTime]::UtcNow -lt $deadline)
+throw 'Staged operator UI element unavailable'
+'''
+        quote = lambda value: "'" + str(value).replace("'", "''") + "'"
+        script = script.replace('APP_PID', str(app.pid)).replace('ACTION', quote(action)).replace('NAME', quote(name)).replace('CHECKED', '$true' if checked else '$false')
+        result = subprocess.run(['pwsh.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', base64.b64encode(script.encode('utf-16-le')).decode()], capture_output=True, text=True, timeout=45)
+        if result.returncode: raise RuntimeError(result.stderr[-2000:])
+
+    def start_app():
+        nonlocal app
+        app = subprocess.Popen([str(args.install/'machine-control.exe'), '--settings', '--presentation', 'minimal'], stdout=logs, stderr=logs)
+        processes.append(app)
+
+    def stop_app():
+        if app and app.poll() is None:
+            subprocess.run(['taskkill.exe', '/PID', str(app.pid), '/T', '/F'], stdout=logs, stderr=logs)
+            app.wait(timeout=15)
+
     try:
         manifest = scratch / 'native-host.json'
         manifest.write_text(json.dumps(dict(name='org.machine_control.browser', description='Claimed profile fixture',
@@ -192,9 +242,16 @@ def main():
         # Set only extension-local availability, through a test-browser worker.
         # The production native operator remains the sole approval authority.
         for directory, name in [('Default', 'Work'), ('Profile 1', 'Personal')]:
+            print('Configuring extension-local profile: '+name, flush=True)
             marker = uuid.uuid4().hex
             settings_url = 'chrome://extensions/?mc-profile-bootstrap='+marker
-            browser = launch(directory, settings_url)
+            # The marked initial tab belongs to the requested regular profile;
+            # root Target.createTarget would choose the default profile instead.
+            # Headless Chrome does not open a second regular-profile window.
+            if browser is None:
+                browser = launch(directory, settings_url)
+            else:
+                launch(directory, settings_url).wait(timeout=15)
             debug = browser_socket()
             debug.close()
             def settings_target():
@@ -203,7 +260,7 @@ def main():
                         return next((value for value in json.load(response) if marker in value.get('url', '')), None)
                 except (OSError, ValueError):
                     return None
-            target = poll(settings_target)
+            target = poll(settings_target, seconds=180)
             panel = CdpSocket(target['webSocketDebuggerUrl'], timeout=60)
             configured = panel.call('Runtime.evaluate', {'expression': 'new Promise(r=>chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode:true},r))', 'awaitPromise': True})
             assert 'exceptionDetails' not in configured.get('result', {}), 'Owned test profile developer setup'
@@ -219,15 +276,14 @@ def main():
                     raise RuntimeError('Extension profile panel unavailable: '+json.dumps(diagnostic))
                 result = panel.call('Runtime.evaluate', {'expression': "document.querySelector('#profile-name').value="+json.dumps(name)+";document.querySelector('#profile-enabled').checked=true;document.querySelector('#profile-enabled').dispatchEvent(new Event('change'));", 'returnByValue': True})
                 assert 'exceptionDetails' not in result.get('result', {}), json.dumps(result)
+                print('Waiting for resident metadata: '+name, flush=True)
                 poll(lambda: any(p['name'] == name and p['enabled'] for p in profiles()))
+                print('Checking absence of browser consent: '+name, flush=True)
                 check(direct('browser.tabs')['errorCode'] == 'approval_required', name+' extension availability alone cannot grant browser control')
             finally:
                 panel.close()
 
-            stop_browser()
-        browser = launch('Default', base + '/work')
-        browser_socket()
-        launch('Profile 1', base + '/personal').wait(timeout=15)
+        print('Checking both regular profiles in one headed browser', flush=True)
         connected = poll(lambda: [p for p in profiles() if p['connected']] if len([p for p in profiles() if p['connected']]) == 2 else None)
         ids = {p['name']: p['profileId'] for p in connected}
         check(set(ids) == {'Work', 'Personal'}, 'Both configured profile names retain distinct installation identities')
@@ -332,6 +388,40 @@ def main():
         operator('quit'); runtime.wait(timeout=15)
         start_runtime()
         check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Restart has no consent or request replay')
+        if args.settings:
+            operator('quit'); runtime.wait(timeout=15); runtime = None
+            start_app()
+            poll(lambda: len([p for p in direct('capabilities')['data']['browser']['profiles'] if p['connected']]) == 2)
+            check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Staged Tauri operator starts with browser access off')
+            ui('press', '^Access$')
+            for label, enabled in [('View desktop', False), ('Control apps and input', False), ('Browser tabs', True), ('Browser scripts and DevTools', True)]:
+                ui('check', '^'+label+'$', enabled)
+            ui('check', '^Work ·')
+            ui('check', '^Personal ·')
+            ui('press', '^Enable access$')
+            new_owner()
+            tab = accepted('browser.navigate', 'Work', url=base+'/work', newTab=True)['tab']['tabId']
+            ui('close')
+            # Destroying Settings must not destroy or replace the resident or
+            # transfer policy ownership into a WebView.
+            count = received.count(('/effect/work/click', b'true'))
+            accepted('browser.click', 'Work', reference=ref(snapshot('Work', tab), 'Increment fixture'))
+            poll(lambda: received.count(('/effect/work/click', b'true')) > count)
+            check(app.poll() is None, 'Closing the real Settings window leaves resident browser effects working')
+            subprocess.run([str(args.install/'machine-control.exe'), '--settings'], stdout=logs, stderr=logs, timeout=30)
+            ui('press', '^Access$')
+            ui('press', '^Stop access$')
+            check(not call('browser.tabs', 'Work')['accepted'], 'Recreated Settings stops the existing resident authority')
+            owner.close(); owner = None
+            stop_app(); start_app()
+            check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Tauri restart retains choices without restoring browser consent')
+            ui('press', '^Access$')
+            ui('press', '^Enable access$')
+            new_owner()
+            check(accepted('browser.tabs', 'Personal')['browserProfileId'] == ids['Personal'], 'Recreated Settings retains exact profile choices for fresh approval')
+            owner.close(); owner = None
+            ui('press', '^Stop access$')
+            stop_app()
         report['passed'] = True
     except BaseException as error:
         report['error'] = type(error).__name__ + ': ' + str(error)
@@ -349,6 +439,7 @@ def main():
         for sock in sockets:
             try: sock.close()
             except OSError: pass
+        stop_app()
         if browser and browser.poll() is None:
             subprocess.run(['taskkill.exe', '/PID', str(browser.pid), '/T', '/F'], stdout=logs, stderr=logs)
         if runtime and runtime.poll() is None:
@@ -365,6 +456,7 @@ def main():
             except FileNotFoundError: pass
         backup.unlink()
         server.shutdown(); server.server_close(); logs.close()
+        faulthandler.cancel_dump_traceback_later()
         try:
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:

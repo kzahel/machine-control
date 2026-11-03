@@ -1,23 +1,23 @@
 # Shared resident policy and browser adapter
 
-This development-only module is the beginning of the
-[shared resident core](../topics/shared-resident-core.md), not an installed
-resident or a new public protocol. [Tactical 150](../docs/tactical/150-shared-resident-core.md)
-records the first deterministic slice; [Tactical 151](../docs/tactical/151-shared-core-real-browser.md)
-records the real extension/native-messaging follow-up.
+This module implements the [shared resident core](../topics/shared-resident-core.md)
+and the Windows browser coordinator. [Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md)
+owns adoption and native/package qualification. The reference target uses the
+same policy with modeled browser effects; it is not another policy engine or
+a public approval service. The Python CLI/client remains the agent interface.
 
-With Node 24+, run the scenario and regressions without installing packages:
+With Node 24+, run the dependency-free reference scenario:
 
 ```sh
 node tests/runtime/scenario.mjs
-node --test tests/runtime/core.test.mjs tests/runtime/extension.test.mjs tests/runtime/process.test.mjs
 ```
 
-Install the pinned development compiler for strict checking:
+Install pinned development dependencies for the complete regression suite and strict checking:
 
 ```sh
 pnpm --dir runtime install --frozen-lockfile
 pnpm --dir runtime check
+pnpm --dir runtime test
 ```
 
 The policy and extension adapter are erasable TypeScript with no runtime
@@ -25,7 +25,8 @@ dependencies, Node imports, timers, native I/O or Tauri. Node-specific framing
 is isolated under `node/`. The [private inherited process inlet](PROTOCOL.md)
 composes policy and the extension adapter in a child; the fixture parent under
 `testing/` owns sockets and process cleanup. Node executes TypeScript directly;
-strict checking is a separate required check. Installed adoption is pending.
+strict checking is a separate required check. The production Node transport
+adapter uses pinned `ws`; the pure policy has no external runtime dependency.
 
 For real-browser acceptance on Mac/Linux, install the existing desktop's
 pinned Playwright and its full test browser (not headless-shell only):
@@ -57,8 +58,14 @@ python3 runtime/scripts/package.py --engine node --target all --output .artifact
 node tests/runtime/qualify.mjs .artifacts/policy-node/darwin-arm64 --browser
 ```
 
-Choose the matching target on other hosts; Windows supports process acceptance
-here, while scratch native-host browser registration remains Mac/Linux only.
+Choose the matching target on other hosts. The portable scratch native-host
+runner is Mac/Linux only. Windows uses
+[`tests/windows/browser-profiles-live.py`](../tests/windows/browser-profiles-live.py)
+in an interactive, exclusively claimed dedicated appliance session. That runner
+requires a separately identified test Chromium and a staged native companion;
+`--settings` also exercises the staged Tauri operator through UI Automation.
+The outside controller owns claims, credential lookup and power restoration.
+The runner owns its scratch profiles and temporary native-host registration.
 The qualifier checks file hashes, executes EOF/kill/expiry tests against that
 payload and samples startup/shutdown plus self-reported RSS. `--browser` runs
 the real extension against the packaged child. To evaluate Bun, use
@@ -74,8 +81,9 @@ using pinned `ws` 8.22.1 (MIT); Node payloads retain its upstream LICENSE.
 Every stream is bound to native owner checks and payload-free native audit
 acknowledgements. The native parent supplies safety and caller authority facts.
 
-`src/core.ts` owns bounded provider registration, exact-profile finite approval,
-typed browser tabs/snapshots/clicks, queue/dispatch lifetime, deadlines and revocation.
+`src/core.ts` owns bounded provider registration, exact-profile approval,
+original-consent checkpoints, typed browser operations, queue/dispatch lifetime,
+deadlines and revocation. Production approval may be timed or until Stop.
 `testing/reference-provider.ts` owns a manual clock and an independent counter
 target with held replies. It has no grant/routing policy. The scenario checks
 the counter separately from the core's delivery/effect result.
@@ -83,9 +91,10 @@ the counter separately from the core's delivery/effect result.
 `src/extension-provider.ts` implements `ProviderAdapter` over the existing
 protocol-v1 worker, projects exact core authority to grant messages, correlates
 wire replies to exact dispatch handles, normalizes bounded observations and
-forwards cancellation. Native framing caps each JSON object at 1 MiB and
-output backlog at 2 MiB. Discovery bounds are 256 tabs and 64 interactive
-snapshot elements. Budgets are rechecked at dispatch; less than the worker's
+forwards cancellation. Chrome-directed native messages are capped at 1 MiB;
+provider observations and the private child channel allow bounded 16 MiB frames.
+The original small tabs/snapshot fixture retains its stricter discovery limits;
+production operations use the bounded ordinary browser contract. Budgets are rechecked at dispatch; less than the worker's
 100 ms minimum refuses without forwarding. Unknown provider failure delivery
 is conservative. Malformed replies close only the affected route.
 
@@ -117,10 +126,9 @@ result or restore authority, even when public request labels are reused.
 
 An unsettled dispatched call retains its capacity after Stop, timeout,
 disconnect and reapproval until that exact provider completion arrives.
-If it never returns, that slot stays unavailable; a future native host needs
-an explicit independently confirmed quiescence/process-retirement contract
-before reclaiming it. The first slice deliberately does not infer physical
-completion from cancellation or disconnection. Returned effects are consumed
+An authenticated dead transport may explicitly retire its correlation capacity;
+this does not assert that the application effect stopped or was undone. A
+late reply still cannot complete or retarget a newer request. Returned effects are consumed
 by the host; the core retains no unbounded event/result history.
 
 The Windows desktop adapter now authenticates native peers and operator
