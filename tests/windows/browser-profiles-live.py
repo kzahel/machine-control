@@ -9,6 +9,7 @@ product or ordinary Chrome profile is replaced. Reports remain private.
 import argparse
 import base64
 import ctypes
+from collections import deque
 import faulthandler
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,7 +29,7 @@ import winreg
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'client'))
-from control_session import ControlSession
+from observed_owner import ObservedOwner
 from cdp_socket import CdpSocket
 
 
@@ -68,8 +69,16 @@ def main():
     report = dict(schema='machine-control-browser-profiles-live/v1', passed=False, checks=[],
                   runtimeSha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
                   operatorRoute='inherited_native_operator', browserProfiles=2, browserProcesses=1)
+    identity = json.loads((args.install/'runtime/build.json').read_text(encoding='utf-8'))
+    report.update(sourceRevision=identity['sourceRevision'], sourceDirty=identity['sourceDirty'],
+                  processPriorityClass=ctypes.windll.kernel32.GetPriorityClass(ctypes.c_void_p(-1)))
+    for label, path in [('actorSha256', Path(__file__)), ('ownerObserverSha256', Path(__file__).with_name('observed_owner.py')),
+                        ('policyPayloadSha256', args.install/'runtime/shared-policy/payload.json'),
+                        *([('appSha256', args.install/'machine-control.exe')] if args.settings else [])]:
+        with path.open('rb') as stream: report[label] = hashlib.file_digest(stream, 'sha256').hexdigest()
     report['reusedFixtureProfiles'] = reused
     received = []
+    owner_trace = deque(maxlen=256)
     processes, sockets = [], []
     runtime = owner = browser = app = None
     debug_port = None
@@ -148,9 +157,9 @@ def main():
     def arm(ids, seconds=900): operator('arm', scopes=['browser', 'devtools'], duration=seconds, browserProfileIds=ids)
     def new_owner():
         nonlocal owner
-        owner = ControlSession({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
+        owner = ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
                                             '--session-id', str(session.value)]},
-                               reason='Named-profile appliance acceptance', scopes=['browser', 'devtools'], wait=30, duration=900)
+                               reason='Named-profile appliance acceptance', scopes=['browser', 'devtools'], wait=30, duration=900, trace=owner_trace)
         owner.wait()
     def call(operation, profile=None, **fields):
         if profile is not None: fields['browserProfileId'] = profile
@@ -512,6 +521,7 @@ throw 'Staged operator UI element unavailable'
     except BaseException as error:
         report['error'] = type(error).__name__ + ': ' + str(error)
         report['errorCode'] = getattr(error, 'code', None)
+        report['ownerRpcTrace'] = list(owner_trace)[-80:]
         if runtime:
             report['nativeExited'] = runtime.poll()
             try:

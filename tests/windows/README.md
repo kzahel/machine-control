@@ -36,6 +36,10 @@ Run with `--install` in a claimed dedicated appliance's interactive Medium
 session, with its installed desktop app closed. It opens no browser and changes
 no native-host registration. Redirect its output to private evidence. Optional
 `--stack-tool` accepts a caller-staged `dotnet-stack` for failure diagnosis.
+`--sustain-seconds` adds a bounded live-owner continuity check. Both actors use
+[`observed_owner.py`](observed_owner.py) to retain only bounded RPC operation,
+timing and admission-state metadata on failure. Stage it and `client/` in the
+same relative layout; stage `cdp_socket.py` for real browser acceptance too.
 
 [`browser-profiles-live.py`](browser-profiles-live.py) adds two regular profiles
 in one separately identified test browser, independent HTTP/file effects,

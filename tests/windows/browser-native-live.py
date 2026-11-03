@@ -8,6 +8,7 @@ It neither installs a native-host registration nor opens a browser.
 """
 import argparse
 import ctypes
+from collections import deque
 import json
 import os
 from pathlib import Path
@@ -19,7 +20,7 @@ import threading
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client'))
-from control_session import ControlSession
+from observed_owner import ObservedOwner
 
 ORIGIN = 'chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/'
 
@@ -28,9 +29,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--install', type=Path, required=True)
     parser.add_argument('--stack-tool', type=Path, help='Write private managed stacks on failure')
+    parser.add_argument('--sustain-seconds', type=int, default=0, choices=range(601), metavar='0..600')
     args = parser.parse_args()
     exe = args.install / 'runtime/machine-control-windows.exe'
     processes, owner = [], None
+    owner_trace = deque(maxlen=256)
+    budget = max(60, args.sustain_seconds+120)
     runtime = subprocess.Popen([str(exe), 'desktop'], stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     processes.append(runtime)
@@ -102,24 +106,29 @@ def main():
             assert state['available'], state
             assert time.monotonic() < deadline, 'Native providers did not attach'
             time.sleep(.1)
-        operator('arm', scopes=['browser'], duration=60,
+        operator('arm', scopes=['browser'], duration=budget,
                  browserProfileIds=[p['profileId'] for p in profiles])
         session = ctypes.c_uint32()
         assert ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(session))
-        owner = ControlSession({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
+        owner = ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
                                             '--session-id', str(session.value)]},
-                               reason='Native browser composition fixture', scopes=['browser'], wait=30, duration=60)
+                               reason='Native browser composition fixture', scopes=['browser'], wait=30, duration=budget, trace=owner_trace)
         owner.wait()
         for profile in profiles:
             result = owner.call(dict(operation='browser.tabs', browserProfileId=profile['profileId']))
             assert result['accepted'], result
             assert result['data']['tabs'][0]['title'] == profile['name'], result
+        until = time.monotonic()+args.sustain_seconds
+        while time.monotonic() < until:
+            assert owner.status()['state'] == 'active', 'Native owner heartbeat ended'
+            time.sleep(.25)
         owner.close(); owner = None
         operator('stop')
         assert not operator('state')['state']['browser']['approvedProfiles']
         print('Windows native browser composition passed', flush=True)
     except BaseException as error:
         print('Failure code: '+str(getattr(error, 'code', type(error).__name__)), flush=True)
+        print(json.dumps(dict(ownerRpcTrace=list(owner_trace)[-80:])), flush=True)
         if args.stack_tool and runtime.poll() is None:
             try:
                 subprocess.run([str(args.stack_tool), 'report', '--process-id', str(runtime.pid)], timeout=30)
