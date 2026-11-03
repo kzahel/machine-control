@@ -145,12 +145,12 @@ def main():
             raise RuntimeError('Resident CLI exited without JSON: '+str(value.returncode)+' '+value.stderr[-1000:])
         return json.loads(value.stdout)
     def profiles(): return operator('state')['state']['browser']['profiles']
-    def arm(ids, seconds=300): operator('arm', scopes=['browser', 'devtools'], duration=seconds, browserProfileIds=ids)
+    def arm(ids, seconds=900): operator('arm', scopes=['browser', 'devtools'], duration=seconds, browserProfileIds=ids)
     def new_owner():
         nonlocal owner
         owner = ControlSession({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
                                             '--session-id', str(session.value)]},
-                               reason='Named-profile appliance acceptance', scopes=['browser', 'devtools'], wait=30, duration=300)
+                               reason='Named-profile appliance acceptance', scopes=['browser', 'devtools'], wait=30, duration=900)
         owner.wait()
     def call(operation, profile=None, **fields):
         if profile is not None: fields['browserProfileId'] = profile
@@ -402,9 +402,14 @@ throw 'Staged operator UI element unavailable'
                 effect(slug, 'upload', upload.read_bytes())
             finally: upload.unlink(missing_ok=True)
             accepted('browser.dialog', name, tabId=tab, action='status')
-            accepted('browser.click', name, reference=ref(snapshot(name, tab), 'Open dialog'))
+            opened = call('browser.click', name, reference=ref(snapshot(name, tab), 'Open dialog'))
+            # Opening a real modal can interrupt the click's CDP completion.
+            # Observe its exact dialog instead of replaying an uncertain action.
+            assert opened['accepted'] or (opened.get('errorCode') == 'dialog_open' and opened['delivery'] == 'unknown'), opened
             dialog = accepted('browser.dialog', name, tabId=tab, action='status')
+            check(dialog['state'] == 'open' and dialog['dialog']['message'] == 'Fixture dialog', name+' modal opening is independently observed without click replay')
             accepted('browser.dialog', name, tabId=tab, action='accept', dialogId=dialog['dialog']['id'])
+            poll(lambda: accepted('browser.dialog', name, tabId=tab, action='status')['state'] != 'open')
             accepted('browser.release', name)
             check(True, name+' ordinary input, upload and dialog effects are independent')
         reference = ref(snapshot('Work', tabs['Work']), 'Increment fixture')

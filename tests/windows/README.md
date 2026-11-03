@@ -27,6 +27,39 @@ operator transport, not a public approval API: consent/update exclusion,
 Stop, cancellation and exit. It dispatches no installer or replacement.
 The caller owns claims, staging and cleanup as above.
 
+## Shared browser/profile acceptance
+
+[`browser-native-live.py`](browser-native-live.py) checks the complete native
+composition with two fake browser peers: the actual desktop resident, private
+TypeScript child, authenticated native-host pipes and retained Python owner.
+Run with `--install` in a claimed dedicated appliance's interactive Medium
+session, with its installed desktop app closed. It opens no browser and changes
+no native-host registration. Redirect its output to private evidence. Optional
+`--stack-tool` accepts a caller-staged `dotnet-stack` for failure diagnosis.
+
+[`browser-profiles-live.py`](browser-profiles-live.py) adds two regular profiles
+in one separately identified test browser, independent HTTP/file effects,
+ordinary and streamed CDP operations, consent expiry, Stop, reconnect, child
+death and stale references. Pass `--install`, `--chrome`, private `--output`
+and `--settings` for the real Tauri operator lifecycle. Use `--chromium` for a
+Chromium snapshot's native-host registry key; Chrome for Testing is the default.
+Its explicit test consent/owner budget is 15 minutes; action deadlines remain
+unchanged and a separate check exercises actual 60-second consent expiry.
+Dialog-opening clicks may report unknown delivery: the actor observes the
+modal and handles its exact ID without replaying the click.
+
+Use normal interactive scheduling priority. For a Limited interactive
+scheduled task, set `New-ScheduledTaskSettingsSet -Priority 4`; the
+[default priority 7 is below normal](https://learn.microsoft.com/en-us/windows/win32/taskschd/tasksettings-priority).
+The controller must hold/renew its target claim, independently verify process
+and native-host registration cleanup, retrieve private evidence, remove its
+task/staging, restore original power and release the claim. Retained
+`--profile-data` must belong to the actor's output directory; with
+`--keep-profile-data-on-failure`, its removal remains the controller's duty.
+These actors do not establish signed installer or protected-desktop acceptance.
+[Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md) owns
+the cutover's execution evidence and remaining gates.
+
 ## Streaming CDP acceptance
 
 [`browser-cdp-live.py`](browser-cdp-live.py) runs in the interactive Medium
