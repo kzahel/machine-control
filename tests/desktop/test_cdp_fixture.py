@@ -4,7 +4,7 @@ from pathlib import Path
 import socket
 import unittest
 
-spec = importlib.util.spec_from_file_location('cdp_fixture', Path(__file__).parent / 'windows/cdp_socket.py')
+spec = importlib.util.spec_from_file_location('cdp_fixture', Path(__file__).resolve().parents[1] / 'windows/cdp_socket.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
