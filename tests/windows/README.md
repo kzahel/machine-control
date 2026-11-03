@@ -53,6 +53,9 @@ Settings uses an actor-owned WebView2 data folder and native accessibility,
 preserving the appliance's existing saved form choices.
 Its explicit test consent/owner budget is 15 minutes; action deadlines remain
 unchanged and a separate check exercises actual 60-second consent expiry.
+The owner queue budget covers the real 30-second startup quiet observation
+and announcement interval. Restart checks verify refusal, no native grant and
+no approved profiles even when activity pause takes refusal precedence.
 Dialog-opening clicks may report unknown delivery: the actor observes the
 modal and handles its exact ID without replaying the click.
 

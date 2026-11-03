@@ -150,14 +150,24 @@ def main():
                                capture_output=True, text=True, encoding='utf-8', timeout=60)
         if not value.stdout.strip():
             raise RuntimeError('Resident CLI exited without JSON: '+str(value.returncode)+' '+value.stderr[-1000:])
-        return json.loads(value.stdout)
+        result = json.loads(value.stdout)
+        report['lastDirectResult'] = {key: result.get(key) for key in ('operation', 'accepted', 'errorCode', 'delivery', 'effect')}
+        return result
+    def off(label):
+        refusal = direct('browser.tabs')
+        grant = direct('grant.status')['data']
+        browser_state = direct('capabilities')['data']['browser']
+        check(not refusal['accepted'] and refusal['delivery'] == 'refused'
+              and refusal['errorCode'] in ('approval_required', 'access_paused')
+              and grant['grant'] is None and not grant['effectiveScopes']
+              and browser_state['available'] and not browser_state['approvedProfiles'], label)
     def profiles(): return operator('state')['state']['browser']['profiles']
     def arm(ids, seconds=900): operator('arm', scopes=['browser', 'devtools'], duration=seconds, browserProfileIds=ids)
     def new_owner():
         nonlocal owner
         owner = ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
                                             '--session-id', str(session.value)]},
-                               reason='Named-profile appliance acceptance', scopes=['browser', 'devtools'], wait=30, duration=900, trace=owner_trace)
+                               reason='Named-profile appliance acceptance', scopes=['browser', 'devtools'], wait=90, duration=900, trace=owner_trace)
         owner.wait()
     def call(operation, profile=None, **fields):
         if profile is not None: fields['browserProfileId'] = profile
@@ -491,12 +501,12 @@ throw 'Staged operator UI element unavailable'
         check(not direct('browser.tabs')['accepted'], 'Policy death revokes native browser access and closes streams')
         operator('quit'); runtime.wait(timeout=15)
         start_runtime()
-        check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Restart has no consent or request replay')
+        off('Restart has no consent or request replay')
         if args.settings:
             operator('quit'); runtime.wait(timeout=15); runtime = None
             start_app()
             poll(lambda: len([p for p in direct('capabilities')['data']['browser']['profiles'] if p['connected']]) == 2)
-            check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Staged Tauri operator starts with browser access off')
+            off('Staged Tauri operator starts with browser access off')
             ui('press', '^Access$')
             for label, enabled in [('View desktop', False), ('Control apps and input', False), ('Browser tabs', True), ('Browser scripts and DevTools', True)]:
                 ui('check', '^'+label+'$', enabled)
@@ -520,7 +530,7 @@ throw 'Staged operator UI element unavailable'
             check(not call('browser.tabs', 'Work')['accepted'], 'Recreated Settings stops the existing resident authority')
             owner.close(); owner = None
             stop_app(); start_app()
-            check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Tauri restart retains choices without restoring browser consent')
+            off('Tauri restart retains choices without restoring browser consent')
             ui('press', '^Access$')
             ui('press', '^Enable access$')
             new_owner()
