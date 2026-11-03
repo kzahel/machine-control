@@ -127,7 +127,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
     [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint id);
 
-    internal static NamedPipeServerStream CreatePipe(string name, bool first)
+    internal static NamedPipeServerStream CreatePipe(string name, bool first, int maximumInstances = 8)
     {
         using var identity = WindowsIdentity.GetCurrent();
         var security = new PipeSecurity();
@@ -137,7 +137,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         if (string.Equals(Environment.ProcessPath, DesktopUacNative.Executable, StringComparison.OrdinalIgnoreCase))
             security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
                 PipeAccessRights.ReadWrite, AccessControlType.Allow));
-        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 8,
+        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, maximumInstances,
             PipeTransmissionMode.Byte, PipeOptions.Asynchronous | (first ? PipeOptions.FirstPipeInstance : PipeOptions.None),
             65536, 65536, security);
     }
@@ -272,7 +272,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         }
         if (browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal))
         {
-            if (grants?.Authorize(request, request.ExpectedGeneration) is { } denied)
+            if (request.Operation != "browser.profiles" && grants?.Authorize(request, request.ExpectedGeneration) is { } denied)
                 return Envelope(request) with { ErrorCode = denied, Data = DesktopGrants.RefusalData(request.Operation, denied) };
             return await browser.ExecuteAsync(request, Envelope(request), cancellationToken, ownership is not null);
         }

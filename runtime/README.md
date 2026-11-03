@@ -123,10 +123,17 @@ before reclaiming it. The first slice deliberately does not infer physical
 completion from cancellation or disconnection. Returned effects are consumed
 by the host; the core retains no unbounded event/result history.
 
-The API currently requires explicit profile IDs and provider-bound references.
-The fixture host assigns identities through private endpoint configuration;
-approval is an in-process fixture operator call, never a socket method. This
-does not implement production native peer authentication, durable extension
-profile names, same-process Chrome profiles, operator UI, consent persistence,
-full owner admission, CDP or screenshots. Existing Windows/Mac/Linux residents
-and the Python client remain authoritative and unchanged.
+The Windows desktop adapter now authenticates native peers and operator
+choices before invoking the production inlet. Extension-local UUIDs and labels
+supply profile identity; exact operator selection supplies authority. Native
+code retains session/owner safety, audit storage and artifact writes. The
+shared host owns browser scope, lifetime, routing, references and CDP streams.
+Its bundled Node runtime is required in Windows desktop companion payloads.
+Run `pnpm --dir runtime install --frozen-lockfile` before packaging.
+
+`testing/browser-host.ts` retains a private fixture inlet for the original
+real-browser regression. `testing/reference-browser.ts` supplies the complete
+ordinary-operation model behind the production inlet. Neither proves native
+Windows integration by itself. Mac and Linux residents have not adopted this
+boundary. The Python CLI/client remains in Python; `browser --profile` checks
+resident capability before dispatch and refuses an incompatible resident.

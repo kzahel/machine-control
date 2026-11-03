@@ -117,3 +117,71 @@ test(
     await once(denied, "error");
   },
 );
+
+async function fixture(t, native = async () => true) {
+  const clock = new ManualClock(), core = new ResidentCore(clock), streams = new Streams(core, clock);
+  const connection = core.connect("fixture", "fixture.browser");
+  const approval = core.approve([connection], 60_000, { devtools: true }).approval;
+  const sent = [], audits = [];
+  const bridge = new CdpBridge(streams, async (...args) => { audits.push(args); return native(...args); }, (peer, frame) => {
+    sent.push(frame);
+    if (frame.type === "session.open") queueMicrotask(() => bridge.receive(peer, { type: "session.opened", id: frame.id }));
+  });
+  t.after(() => bridge.close());
+  const endpoint = await bridge.endpoint(core.fence(approval, connection, "browser.cdp"), "fixture-owner");
+  async function open() {
+    const socket = new WebSocket(endpoint.browserEndpoint);
+    t.after(() => socket.terminate());
+    await once(socket, "open");
+    // The provider-open acknowledgement is asynchronous to the HTTP upgrade.
+    for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve));
+    return socket;
+  }
+  return { bridge, core, streams, clock, connection, sent, audits, endpoint, open };
+}
+
+for (const [name, payload, options] of [
+  ["duplicate command property", '{"id":1,"id":2,"method":"Runtime.enable"}'],
+  ["escaped duplicate property", '{"id":1,"method":"Runtime.enable","params":{"a":1,"\\u0061":2}}'],
+  ["unknown property", '{"id":1,"method":"Runtime.enable","extra":1}'],
+  ["invalid method", '{"id":1,"method":"Runtime.enable;"}'],
+  ["binary command", Buffer.from('{}'), { binary: true }],
+  ["oversize command", 'x'.repeat(1024 * 1024 + 1)],
+]) test(`CDP refuses ${name} before provider dispatch`, { timeout: 5000 }, async t => {
+  const f = await fixture(t), socket = await f.open(), closed = once(socket, "close");
+  socket.send(payload, options);
+  await closed;
+  assert.equal(f.sent.filter(frame => frame.type === "session.command").length, 0);
+  assert.ok(!JSON.stringify(f.audits).includes("Runtime.enable"), "journal metadata excludes payloads");
+});
+
+test("CDP bounds pending commands and journals abandoned delivery", { timeout: 5000 }, async t => {
+  const f = await fixture(t), socket = await f.open(), closed = once(socket, "close");
+  for (let id = 0; id < 17; id++) socket.send(JSON.stringify({ id, method: "Runtime.enable" }));
+  await closed;
+  assert.ok(f.sent.filter(frame => frame.type === "session.command").length <= 16);
+  assert.ok(f.audits.some(([phase,,, delivery]) => phase === "result" && delivery === "unknown"));
+});
+
+test("CDP rejects a duplicated outstanding client ID and wrong-session response", { timeout: 5000 }, async t => {
+  const f = await fixture(t), socket = await f.open();
+  const closed = once(socket, "close");
+  socket.send('{"id":1,"method":"Runtime.enable","sessionId":"expected"}');
+  while (!f.sent.some(frame => frame.type === "session.command")) await new Promise(resolve => setImmediate(resolve));
+  const command = f.sent.find(frame => frame.type === "session.command");
+  f.bridge.receive(f.connection, { type: "session.result", id: command.id, cmdId: command.cmdId, sessionId: "wrong", result: {} });
+  await closed;
+  const next = await f.open(), nextClosed = once(next, "close");
+  next.send('{"id":2,"method":"Runtime.enable"}');
+  next.send('{"id":2,"method":"Runtime.enable"}');
+  await nextClosed;
+});
+
+test("CDP requires native audit acceptance before dispatch", { timeout: 5000 }, async t => {
+  let begins = 0;
+  const f = await fixture(t, async phase => phase !== "begin" || ++begins === 1);
+  const socket = await f.open(), closed = once(socket, "close");
+  socket.send('{"id":1,"method":"Runtime.enable"}');
+  await closed;
+  assert.equal(f.sent.filter(frame => frame.type === "session.command").length, 0);
+});

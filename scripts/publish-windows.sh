@@ -54,6 +54,12 @@ dotnet publish \
   "$runtime_id" \
   "$staged_root"
 
+policy_stage="$(mktemp -d "$publish_parent/.policy.XXXXXX")"
+python3 "$repo_root/runtime/scripts/package.py" --engine node \
+  --target "$runtime_id" --output "$policy_stage"
+mv -- "$policy_stage/$runtime_id" "$staged_root/shared-policy"
+rmdir -- "$policy_stage"
+
 for fixture in MachineControl.Fixture MachineControl.ElevatedFixture; do
   dotnet publish \
     "$repo_root/src/$fixture/$fixture.csproj" \

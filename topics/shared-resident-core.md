@@ -2,7 +2,7 @@
 
 Topic: `shared-resident-core`
 
-Status: **language/deployment chosen; Windows adoption active; no installed integration**.
+Status: **Windows adapter implemented; packaged candidate qualification active**.
 
 ## Motivation
 

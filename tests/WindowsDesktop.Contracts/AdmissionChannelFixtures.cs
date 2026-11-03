@@ -19,13 +19,13 @@ internal static class AdmissionChannelFixtures
         Require(!order.Accept(new() { ["requestId"] = "boolean", ["requestSequence"] = true }), "Boolean refused");
         Require(order.Accept(new() { ["requestId"] = "next", ["requestSequence"] = 72001L }), "Next frame remains valid");
         var clock = new TestTime();
-        var grants = new DesktopGrants(clock); grants.SetReady(true); grants.PrepareConsole(true); grants.Arm(["observe", "control"], 900);
+        var grants = TestBrowserProjection.Create(clock); grants.SetReady(true); grants.PrepareConsole(true); grants.Arm(["observe", "control"], 900);
         foreach (var operation in new[] { "snapshot", "type", "app.launch", "screenshot", "uac.respond" })
             Require(grants.Authorize(new Request { Operation = operation }) == "control_session_required", "Idle grant cannot authorize unowned " + operation);
         var requirement = JsonNode.Parse(Contract.Serialize(DesktopGrants.RefusalData("type", "control_session_required")))!;
         Require(requirement["controlSession"]!["schema"]!.GetValue<string>() == AccessAdmission.Schema &&
             requirement["controlSession"]!["scope"]!.GetValue<string>() == "control", "Typed CLI handoff");
-        var browserGrants = new DesktopGrants(clock); browserGrants.SetReady(true); browserGrants.Arm(["devtools"], 900);
+        var browserGrants = TestBrowserProjection.Create(clock); browserGrants.SetReady(true); browserGrants.Arm(["devtools"], 900);
         Require(browserGrants.AdmissionAuthority(["browser"]) is null, "Devtools grant covers browser admission");
         Require(browserGrants.Authorize(new Request { Operation = "browser.tabs" }) == "control_session_required", "Browser grant still needs owner");
         var effects = 0;

@@ -104,24 +104,36 @@ internal sealed class DesktopNativePresentation : IDisposable
     private static Form Approval(DesktopGrants broker, JsonElement pending)
     {
         var id = pending.GetProperty("id").GetString()!;
-        var form = Window("Machine Control access request", 345);
+        var hasBrowser = pending.GetProperty("scopes").EnumerateArray().Any(value => DesktopGrants.BrowserScope(value.GetString()!));
+        var offset = hasBrowser ? 120 : 0;
+        var form = Window("Machine Control access request", 345 + offset);
         form.Controls.Add(Text(pending.GetProperty("reason").GetString()!, 18, 50));
         form.Controls.Add(Text(pending.GetProperty("caller").GetString()!, 72, 28));
         var scopes = new CheckedListBox { Location = new Point(18, 108), Size = new Size(384, 92), CheckOnClick = true, AccessibleName = "Access scopes" };
         foreach (var scope in pending.GetProperty("scopes").EnumerateArray()) scopes.Items.Add(scope.GetString()!, true);
         form.Controls.Add(scopes);
+        var profiles = new CheckedListBox { Location = new Point(18, 207), Size = new Size(384, 108), CheckOnClick = true, AccessibleName = "Browser profiles" };
+        if (hasBrowser)
+        {
+            var known = JsonSerializer.SerializeToElement(broker.BrowserPolicy?.Profiles, Contract.Json);
+            if (known.ValueKind == JsonValueKind.Array)
+                foreach (var profile in known.EnumerateArray())
+                    if (profile.GetProperty("enabled").GetBoolean()) profiles.Items.Add(new ProfileChoice(profile.GetProperty("profileId").GetString()!, profile.GetProperty("name").GetString()!), false);
+            form.Controls.Add(profiles);
+        }
         var duration = pending.GetProperty("duration").GetInt32();
-        form.Controls.Add(Text("Duration (seconds)", 215, 28));
-        var seconds = new NumericUpDown { Location = new Point(250, 215), Size = new Size(150, 28), Minimum = 60, Maximum = duration, Value = duration, AccessibleName = "Duration seconds" };
+        form.Controls.Add(Text("Duration (seconds)", 215 + offset, 28));
+        var seconds = new NumericUpDown { Location = new Point(250, 215 + offset), Size = new Size(150, 28), Minimum = 60, Maximum = duration, Value = duration, AccessibleName = "Duration seconds" };
         form.Controls.Add(seconds);
         var decided = false;
-        Button(form, "Deny", 18, 280, () => { broker.Decide(id, false, null, 0); decided = true; form.Close(); });
-        Button(form, "Allow", 154, 280, () => { broker.Decide(id, true, scopes.CheckedItems.Cast<string>().ToArray(), (int)seconds.Value); decided = true; form.Close(); });
-        Button(form, "Stop access", 286, 280, () => { broker.Stop("stopped_by_person"); decided = true; form.Close(); });
+        Button(form, "Deny", 18, 280 + offset, () => { broker.Decide(id, false, null, 0); decided = true; form.Close(); });
+        Button(form, "Allow", 154, 280 + offset, () => { broker.Decide(id, true, scopes.CheckedItems.Cast<string>().ToArray(), (int)seconds.Value, profiles.CheckedItems.Cast<ProfileChoice>().Select(value => value.Id).ToArray()); decided = true; form.Close(); });
+        Button(form, "Stop access", 286, 280 + offset, () => { broker.Stop("stopped_by_person"); decided = true; form.Close(); });
         form.FormClosing += (_, _) => { if (!decided) { try { broker.Decide(id, false, null, 0); } catch (InvalidOperationException) { } } };
-        form.Controls.Add(Text("Access applies to callers running as your user.", 318, 25));
+        form.Controls.Add(Text("Access applies to callers running as your user.", 318 + offset, 25));
         return form;
     }
+    private sealed record ProfileChoice(string Id, string Name) { public override string ToString() => Name + " · " + Id[^8..]; }
     private static Form Notice(DesktopGrants broker, JsonElement intent)
     {
         var id = intent.GetProperty("intentId").GetString()!;

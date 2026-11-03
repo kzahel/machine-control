@@ -108,6 +108,7 @@ class ControlSession:
     def _start_transport(self, target, operation, response_schema, cancel_operation):
         """Shared bounded byte transport; subclasses retain their own authority."""
         self.target = {**target}
+        self._profile_selection_checked = False
         self.response_schema = response_schema
         self.cancel_operation = cancel_operation
         self.renew_duration = None
@@ -248,6 +249,12 @@ class ControlSession:
         view = self.status()
         if view["state"] != "active":
             raise mc.ClientError("control_interrupted", "Control is paused or ended; wait for a fresh session before issuing new work", data=view)
+        if "browserProfileId" in request and not self._profile_selection_checked:
+            capabilities = self._rpc({"operation":"control.dispatch", "sessionId":view["sessionId"],
+                                      "resourceGenerations":view["resourceGenerations"],
+                                      "request":{"operation":"capabilities"}}, timeout=10)
+            mc.require_browser_profile_selection(capabilities)
+            self._profile_selection_checked = True
         result = self._rpc({"operation":"control.dispatch", "sessionId":view["sessionId"],
                            "resourceGenerations":view["resourceGenerations"], "request":request}, timeout=60)
         if not isinstance(result, dict) or type(result.get("accepted")) is not bool:

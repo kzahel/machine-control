@@ -88,6 +88,44 @@ try {
   assert.equal(await page.evaluate(() => window.armCalls), 0);
   await context.close();
   console.log("PASS: saved scopes/duration, Settings recreation, reload, Stop, migration and no automatic arming");
+  const profiles = await browser.newContext();
+  await profiles.addInitScript(() => {
+    window.armCalls = 0;
+    const state = { platform: "windows", manualUntilStoppedSupported: true,
+      deployment: { policy: { preset: "workstation", grantMode: "approval" }, grant: null, pendingRequest: null },
+      permissions: { accessibility: true, screenRecording: true }, activity: [], version: "fixture", socket: "fixture",
+      browser: { connected: true, profileSelectionSupported: true, profiles: [
+        { profileId: "extension.fixture:work", name: "Work", enabled: true, connected: true },
+        { profileId: "extension.fixture:personal", name: "Personal", enabled: true, connected: true },
+      ] } };
+    window.__TAURI_INTERNALS__ = { transformCallback: () => 1, unregisterCallback: () => {},
+      invoke: async (command, args) => {
+        if (command !== "operator_command") return 1;
+        if (args.command.method === "arm") {
+          window.armCalls++; window.lastArm = args.command;
+          state.deployment.grant = { scopes: args.command.scopes, lifetime: "timed", remainingSeconds: 300, origin: "person", requester: "local operator" };
+        }
+        if (args.command.method === "stop") state.deployment.grant = null;
+        return { state: structuredClone(state) };
+      } };
+  });
+  page = await profiles.newPage(); await page.goto(url); await ready();
+  await page.getByRole("checkbox", { name: "Browser tabs", exact: true }).check();
+  const picker = () => page.getByRole("group", { name: "Browser profiles", exact: true });
+  await picker().getByRole("checkbox", { name: /Work/ }).check();
+  await page.close(); page = await profiles.newPage(); await page.goto(url); await ready();
+  assert.equal(await picker().getByRole("checkbox", { name: /Work/ }).isChecked(), true);
+  assert.equal(await picker().getByRole("checkbox", { name: /Personal/ }).isChecked(), false);
+  assert.equal(await page.evaluate(() => window.armCalls), 0);
+  await page.getByRole("button", { name: "Enable access", exact: true }).click();
+  assert.deepEqual(await page.evaluate(() => window.lastArm.browserProfileIds), ["extension.fixture:work"]);
+  await page.getByRole("button", { name: "Stop access", exact: true }).click();
+  await ready(); await page.reload(); await ready();
+  assert.equal(await page.evaluate(() => window.armCalls), 0);
+  await picker().getByRole("checkbox", { name: /Work/ }).uncheck();
+  assert.equal(await page.getByRole("button", { name: "Enable access", exact: true }).isDisabled(), true);
+  await profiles.close();
+  console.log("PASS: exact profile choices persist without restoring authority");
 } finally {
   await browser.close();
   await new Promise((done) => server.close(done));

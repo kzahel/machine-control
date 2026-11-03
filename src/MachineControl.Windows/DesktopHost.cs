@@ -41,10 +41,7 @@ internal static class DesktopHost
         using var activity = new DesktopActivityMonitor(broker);
         using var shortcut = new DesktopStopShortcut(broker);
         using var nativePresentation = new DesktopNativePresentation(broker);
-        var browser = new BrowserRelay(broker);
-        using var devtools = new BrowserDevToolsBridge(broker, browser);
-        browser.DevTools = devtools;
-        var devtoolsTask = devtools.RunAsync(stop.Token);
+        using var browser = new BrowserRelay(broker);
         var browserTask = browser.RunAsync(stop.Token);
         var resident = new UserHost(instance, broker, browser, updates).RunAsync(stop.Token);
         var presentationServer = DesktopPresentationIpc.ServeAsync(instance, presentation, broker, stop.Token);
@@ -55,6 +52,7 @@ internal static class DesktopHost
                 DesktopSafety.RefreshAvailability(broker);
                 lockedUse.Tick();
                 broker.Refresh();
+                browser.SynchronizeSafety();
                 await Task.Delay(200, stop.Token);
             }
         });
@@ -64,7 +62,7 @@ internal static class DesktopHost
             while (!stop.IsCancellationRequested)
             {
                 var read = ReadCommandAsync(reader, stop.Token);
-                var completed = await Task.WhenAny(read, resident, browserTask, devtoolsTask, monitor, presentationServer);
+                var completed = await Task.WhenAny(read, resident, browserTask, monitor, presentationServer);
                 if (completed != read) { await completed; break; }
                 var line = await read;
                 if (line is null) break;
@@ -135,11 +133,11 @@ internal static class DesktopHost
                             reply = new { ok = true }; break;
                         case "arm":
                             broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900,
-                                command["lifetime"]?.GetValue<string>() ?? "timed");
+                                command["lifetime"]?.GetValue<string>() ?? "timed", command["browserProfileIds"]?.Deserialize<string[]>());
                             reply = new { ok = true }; break;
                         case "decision":
                             broker.Decide(command["id"]?.GetValue<string>() ?? "", command["allow"]?.GetValue<bool>() == true,
-                                command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 0);
+                                command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 0, command["browserProfileIds"]?.Deserialize<string[]>());
                             reply = new { ok = true }; break;
                         case "stop": broker.Stop("stopped_by_person"); reply = new { ok = true }; break;
                         case "pause": broker.Pause(command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
@@ -167,7 +165,6 @@ internal static class DesktopHost
             try { await resident; } catch (OperationCanceledException) { }
             try { await monitor; } catch (OperationCanceledException) { }
             try { await browserTask; } catch (OperationCanceledException) { }
-            try { await devtoolsTask; } catch (OperationCanceledException) { }
             try { await presentationServer; } catch (OperationCanceledException) { }
             journal.Event("resident.stop");
             DesktopSafety.Broker = null;

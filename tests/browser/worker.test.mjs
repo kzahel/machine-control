@@ -58,6 +58,7 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     storage: { local: { async get() { return storage; },
       async set(value) { Object.assign(storage, structuredClone(value)); },
       async remove(key) { delete storage[key]; } } },
+    windows: { async getAll() { return [{ id: 1, incognito: false }]; } },
     tabs: {
       onCreated: event(), onUpdated: event(), onRemoved: event(),
       async query() { return [...tabs.values()]; },
@@ -449,6 +450,12 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     native.onMessage.emit({ type:"grant", browser:false, devtools:false, grantGeneration:"stopped" });
     await wait(() => !attached.has(attachingTab.id));
     assert.equal(attached.has(attachingTab.id), false, "authority loss detaches even with an observed dialog");
+    native.onMessage.emit({ type:"grant", browser:true, devtools:true, grantGeneration:"private-exclusion" });
+    const privateTab = await chrome.tabs.create({url:"about:blank"});
+    privateTab.incognito = true;
+    assert.ok(!(await request("browser.tabs")).data.tabs.some(item => item.tabId === privateTab.id));
+    assert.equal((await request("browser.capture", {tabId:privateTab.id})).errorCode, "private_tab_not_permitted");
+    assert.equal(attached.has(privateTab.id), false);
     native.onDisconnect.emit();
     await wait(() => markers.get(tab) === false && !attached.has(tab));
   } finally {

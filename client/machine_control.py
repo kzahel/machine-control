@@ -2870,11 +2870,12 @@ def grant_request(arguments: list[str]) -> dict[str, Any]:
 
 
 BROWSER_COMMANDS = {
-    "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
+    "profiles", "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
     "cdp", "eval", "endpoint", "wait", "release", "dialog",
 }
 
 BROWSER_USAGE = {
+    "profiles": "browser profiles — list known profile IDs, names and availability",
     "tabs": "browser tabs — list open tabs (tabId, url, title, status, discarded)",
     "wait": "browser wait [--tab ID] [--timeout D] — wait until the tab finishes loading",
     "navigate": "browser navigate --url URL [--tab ID] [--new-tab [--background|--foreground]] — open "
@@ -2908,6 +2909,7 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
         raise ClientError("usage", BROWSER_USAGE.get(command, "browser " + command))
     parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
     parser.add_argument("--tab", type=int)
+    parser.add_argument("--profile")
     parser.add_argument("--url")
     parser.add_argument("--new-tab", action="store_true")
     presentation = parser.add_mutually_exclusive_group()
@@ -2943,6 +2945,12 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
         if not all(path_type(path).is_absolute() for path in options.file):
             raise ClientError("usage", "browser upload --file paths must be absolute")
     request: dict[str, Any] = {"operation": f"browser.{command}"}
+    if options.profile is not None:
+        if target_platform not in (None, "windows"):
+            raise ClientError("unsupported_browser_profile_selection", "This target has not adopted named browser profiles")
+        if not options.profile or len(options.profile) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in options.profile):
+            raise ClientError("usage", "--profile requires a profile ID or exact unique name")
+        request["browserProfileId"] = options.profile
     if options.tab is not None:
         request["tabId"] = options.tab
     required = {
@@ -3016,6 +3024,14 @@ def update_request(arguments: list[str]) -> dict[str, Any]:
     return {"operation": f"update.{arguments[0]}"}
 
 
+def require_browser_profile_selection(capabilities: dict[str, Any]) -> None:
+    data = capabilities.get("data")
+    browser = data.get("browser") if isinstance(data, dict) else None
+    if capabilities.get("accepted") is not True or not isinstance(browser, dict) or browser.get("profileSelectionSupported") is not True:
+        raise ClientError("browser_profile_selection_unavailable",
+                          "This resident cannot safely select browser profiles; update it before using --profile")
+
+
 def send_resident_request(
     alias: str, target: dict[str, Any], request: dict[str, Any]
 ) -> int:
@@ -3024,6 +3040,9 @@ def send_resident_request(
             "unsupported_desktop_interface",
             "This target does not expose the common resident interface",
         )
+    if "browserProfileId" in request:
+        _, capabilities, _ = run_adapter(target, ["control", '{"operation":"capabilities"}'], accept_json_failure=True)
+        require_browser_profile_selection(validate_resident(capabilities, target["platform"]))
     serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
     completed, parsed, elapsed_ms = run_adapter(
         target, ["control", serialized], accept_json_failure=True
@@ -3271,6 +3290,9 @@ def handle_ios(
             "The ios command family requires a native physical-iOS target",
         )
     request = ios_request(arguments)
+    if "browserProfileId" in request:
+        _, capabilities, _ = run_adapter(target, ["control", '{"operation":"capabilities"}'], accept_json_failure=True)
+        require_browser_profile_selection(validate_resident(capabilities, target["platform"]))
     serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
     completed, parsed, elapsed_ms = run_adapter(
         target,

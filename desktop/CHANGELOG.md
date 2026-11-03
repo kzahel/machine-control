@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Move Windows browser coordination into the shared TypeScript resident core,
+  shipped with a private pinned Node runtime. Keep native authentication,
+  session safety, owner admission and audit storage in Windows.
+- Support explicitly enabled, named Chrome profiles on Windows, with exact
+  approval sets and `browser --profile` selection. Stop, stale references and
+  disconnected profiles cannot silently redirect control.
+
 ## [0.6.11]
 
 - Remember selected access scopes and duration across Settings and app restarts,

@@ -1,5 +1,5 @@
 export type Scope = "observe" | "control" | "browser" | "devtools";
-export type AccessChoices = { scopes: Scope[]; duration: number };
+export type AccessChoices = { scopes: Scope[]; duration: number; browserProfileIds?: string[] };
 
 export const defaultAccessChoices: AccessChoices = {
   scopes: ["observe", "control"],
@@ -12,6 +12,8 @@ export function validAccessChoices(value: unknown): value is AccessChoices {
   if (!value || typeof value !== "object") return false;
   const candidate = value as AccessChoices;
   return (
+    (candidate.browserProfileIds === undefined || (Array.isArray(candidate.browserProfileIds) && candidate.browserProfileIds.length <= 16 &&
+      candidate.browserProfileIds.every(id => typeof id === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(id)) && new Set(candidate.browserProfileIds).size === candidate.browserProfileIds.length)) &&
     Array.isArray(candidate.scopes) &&
     candidate.scopes.every((scope) => scopes.has(scope)) &&
     new Set(candidate.scopes).size === candidate.scopes.length &&

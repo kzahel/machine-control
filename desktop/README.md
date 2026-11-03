@@ -383,3 +383,22 @@ build reports `callerEligibility: denied` until locked-use maintenance
 re-registers it, exactly as after a production update.
 
 Desktop Activity now reads durable history. See [history and diagnostics](../docs/desktop-audit.md) for privacy, retention, storage failure, and local export.
+
+### Named browser profiles on Windows (unreleased)
+
+The Windows desktop companion now ships its private TypeScript/Node browser
+coordinator. Each Chrome profile has its own installation identity and editable
+name in the extension panel. Turn on **Enable this profile**, then select its
+checkbox when enabling Browser or DevTools access in Settings or approving a
+request. Enabling the extension alone cannot grant agent access. Existing
+extension copies must support the profile subprotocol; update an incompatible
+copy before approving it.
+
+Use `machine-control browser profiles` to inspect connections and
+`machine-control browser tabs --profile "Work"` to select an approved profile.
+Use its exact `browserProfileId` when labels collide. With multiple approved
+profiles, omitting selection refuses; a disconnected profile never routes to
+another one. Saved Settings selections remember choices only. Stop revokes
+access across all profiles. Resetting an extension identity requires new
+approval. Mac and Linux retain their current single-profile behavior until
+separate adoption.

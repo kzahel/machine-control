@@ -6,7 +6,7 @@ internal static class DesktopActivityFixtures
     internal static void Run()
     {
         var clock = new TestTime(); clock.Advance(100);
-        var grants = new DesktopGrants(clock); grants.SetReady(true); grants.Arm(["observe", "control"], 900);
+        var grants = TestBrowserProjection.Create(clock); grants.SetReady(true); grants.Arm(["observe", "control"], 900);
         var policy = grants.Activity;
         bool? locked = false; double? idle = 100; bool healthy = true;
         grants.Admission.RefreshAvailability = () => policy.Tick(healthy, locked, idle);

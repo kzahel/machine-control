@@ -87,6 +87,7 @@ internal sealed record Request
     public int? DurationSeconds { get; init; }
     public int? TimeoutSeconds { get; init; }
     public string? Reason { get; init; }
+    public string? BrowserProfileId { get; init; }
     public int? TabId { get; init; }
     public string? Url { get; init; }
     public bool? NewTab { get; init; }

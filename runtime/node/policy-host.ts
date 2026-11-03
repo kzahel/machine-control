@@ -270,6 +270,7 @@ export class PolicyHost {
         this.#providers.delete(id);
         this.#retired.delete(id);
         this.#profileConnections.delete(id);
+        this.#transportTags.delete(id);
         return {};
       }
       case "native.state":
@@ -650,6 +651,7 @@ export class PolicyHost {
       if (this.#providers.get(id)?.pendingCount === 0) {
         this.#providers.delete(id);
         this.#profileConnections.delete(id);
+        this.#transportTags.delete(id);
         this.#retired.delete(id);
       }
     }

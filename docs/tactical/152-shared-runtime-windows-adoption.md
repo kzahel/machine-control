@@ -3,7 +3,7 @@
 Owning topics: [shared-resident-core](../../topics/shared-resident-core.md),
 [browser-profiles](../../topics/browser-profiles.md).
 
-Status: **Windows migration active; shared browser policy expansion implemented**.
+Status: **Windows migration implemented; packaged candidate acceptance active**.
 
 ## Motivation and objective
 
@@ -160,3 +160,15 @@ coverage, native browser-policy replacement, signed/installed Windows candidate
 and Settings lifecycle acceptance. No installed Windows policy has been deleted
 yet. Those remain completion gates for this tactical; executable qualification
 does not mark the complete milestone done.
+
+### Native implementation checkpoint
+
+The Windows singleton relay and `BrowserDevToolsBridge.cs` policy engine are
+replaced by authenticated concurrent pipe transport and `SharedBrowserHost`.
+Browser scope decisions in `DesktopGrants` delegate to the shared projection;
+native safety remains a denial ceiling over the same grant. Settings and native
+approval select exact installation IDs. Python remains the client language.
+The Windows companion build now includes the pinned Node payload and ws license.
+Portable native contracts exercise the actual shared process, alongside native
+broker units and portable CDP adversarial cases. ARM64 and x64 publish locally.
+Packaged candidate acceptance remains required before completing this tactical.

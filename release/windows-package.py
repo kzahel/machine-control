@@ -101,6 +101,15 @@ def build(directory, rid, revision, provider_digest=None, desktop_companion=Fals
     # Default build keeps the exact pinned provider bytes. Signing builds replace
     # this directory with the separately verified/signed copy before finalizing.
     fetch_provider(directory, rid)
+    # Browser coordination is a private child of the native desktop host. Ship
+    # its exact pinned runtime and licenses; never depend on system Node/npm.
+    if desktop_companion:
+        with tempfile.TemporaryDirectory() as temporary:
+            staging = Path(temporary) / 'shared-policy'
+            subprocess.run([sys.executable, str(ROOT / 'runtime/scripts/package.py'),
+                            '--engine', 'node', '--target', rid,
+                            '--output', str(staging)], check=True)
+            shutil.copytree(staging / rid, directory / 'shared-policy')
     if not desktop_companion:
         subprocess.run(['python', str(ROOT / 'release/build-unlock-setup.py'),
                         '--runtime', rid, '--output', str(directory / 'unlock-setup.exe')], check=True)

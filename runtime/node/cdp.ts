@@ -8,6 +8,7 @@ import type { AuthorityFence, ProviderConnection } from "../src/core.ts";
 import { Streams } from "../src/streams.ts";
 import type { Stream } from "../src/streams.ts";
 import type { NativeFrame } from "../src/extension-provider.ts";
+import { strictObject } from "./strict-json.ts";
 import { parameters } from "../src/browser-contract.ts";
 
 export type NativeCheck = (
@@ -81,7 +82,14 @@ export class CdpBridge {
         /^\/devtools\/(?:page\/([1-9][0-9]*)|browser)\?token=([a-f0-9]{64})$/.exec(
           request.url ?? "",
         );
+      const names = request.rawHeaders.filter((_value, index) => index % 2 === 0).map(name => name.toLowerCase());
       if (
+        new Set(names).size !== names.length || request.httpVersion !== "1.1" ||
+        request.headers.upgrade?.toLowerCase() !== "websocket" ||
+        !request.headers.connection?.toLowerCase().split(",").map(value => value.trim()).includes("upgrade") ||
+        request.headers["sec-websocket-version"] !== "13" ||
+        typeof request.headers["sec-websocket-key"] !== "string" || !/^[A-Za-z0-9+/]{22}==$/.test(request.headers["sec-websocket-key"]) ||
+        request.headers["sec-websocket-protocol"] !== undefined ||
         !match ||
         request.method !== "GET" ||
         request.headers.host !== `127.0.0.1:${this.#port}` ||
@@ -109,6 +117,7 @@ export class CdpBridge {
             !this.#streams.valid(endpoint) ||
             this.#closed
           ) {
+            if (allowed) void this.#native("result", endpoint.authorityId, auditId, "unknown");
             socket.destroy();
             return;
           }
@@ -129,8 +138,17 @@ export class CdpBridge {
             socket.destroy();
             return;
           }
+          let adopted = false;
+          const abandoned = () => {
+            if (adopted) return;
+            this.#streams.close(stream);
+            void this.#native("result", endpoint.authorityId, auditId, "unknown");
+          };
+          socket.once("close", abandoned);
           try {
             this.#ws.handleUpgrade(request, socket, head, (ws) => {
+              adopted = true;
+              socket.removeListener("close", abandoned);
               (socket as Socket).setTimeout(0);
               const client: Client = {
                 socket: ws,
@@ -173,7 +191,6 @@ export class CdpBridge {
               this.#schedule();
             });
           } catch {
-            this.#streams.close(stream);
             socket.destroy();
           }
         })
@@ -224,7 +241,7 @@ export class CdpBridge {
         : Buffer.from(new Uint8Array(data));
     if (bytes.byteLength > 1024 * 1024 || client.closed)
       throw new Error("invalid_cdp_command");
-    const command = JSON.parse(bytes.toString()) as Record<string, unknown>;
+    const command = strictObject(bytes.toString());
     if (
       !command ||
       typeof command !== "object" ||

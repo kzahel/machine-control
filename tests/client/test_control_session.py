@@ -16,6 +16,24 @@ from control_session import ControlSession, validate_view, complete_session_hand
 
 
 class ControlSessionTests(unittest.TestCase):
+    def test_explicit_profile_refuses_legacy_resident_before_action(self):
+        with self.session() as owner:
+            owner.wait()
+            with self.assertRaises(mc.ClientError) as error:
+                owner.call({"operation": "browser.click", "browserProfileId": "Work", "reference": "fixture"})
+            self.assertEqual(error.exception.code, "browser_profile_selection_unavailable")
+        events = self.record.read_text().splitlines()
+        self.assertEqual(events.count("control.dispatch"), 1, "only read-only capabilities were dispatched")
+
+    def test_profile_capability_requires_explicit_support(self):
+        for data in [None, {}, {"browser": None}, {"browser": {"profileSelectionSupported": 1}}]:
+            with self.assertRaises(mc.ClientError):
+                mc.require_browser_profile_selection({"accepted": True, "data": data})
+        mc.require_browser_profile_selection({"accepted": True, "data": {"browser": {"profileSelectionSupported": True}}})
+        self.assertEqual(mc.browser_request(["tabs", "--profile", "Work profile"], "windows"),
+                         {"operation": "browser.tabs", "browserProfileId": "Work profile"})
+        with self.assertRaises(mc.ClientError): mc.browser_request(["tabs", "--profile", "Work"], "macos")
+
     def test_typed_renewal_keeps_live_owner_and_refusal_closes_without_replay(self):
         with self.session("renewable") as owner:
             original = owner.wait()

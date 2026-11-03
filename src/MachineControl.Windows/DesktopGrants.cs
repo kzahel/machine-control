@@ -6,6 +6,7 @@ internal sealed record GrantReply(bool Accepted, string? ErrorCode = null, objec
 /// transitions and dispatch acceptance share Gate; durations are monotonic.
 internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? journal = null)
 {
+    internal IBrowserPolicy? BrowserPolicy { get; set; }
     internal DesktopJournal? Journal { get; } = journal;
     internal readonly object Gate = new();
     internal volatile bool ApprovalPresentationAvailable = true;
@@ -134,7 +135,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
-    internal string? Authorize(Request request, string? expectedGeneration = null)
+    internal string? AuthorizeNative(Request request, string? expectedGeneration = null) => Authorize(request, expectedGeneration, nativeOnly: true);
+    internal string? Authorize(Request request, string? expectedGeneration = null, bool nativeOnly = false)
     {
         lock (Gate)
         {
@@ -143,7 +145,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 ownership.Session, ownership.Generations) is { } denied) return denied;
             // Only AdmissionChannel can attach ControlOwnership (it is ignored
             // by JSON deserialization). A grant alone never owns the desktop.
-            return Authorize(request.Operation, expectedGeneration, ownership is not null)
+            return Authorize(request.Operation, expectedGeneration, ownership is not null, nativeOnly)
                 ?? (ownership is null ? "control_session_required" : null);
         }
     }
@@ -156,7 +158,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             ? new { schema = AccessAdmission.Schema, scope = ScopeFor(operation) } : null,
     };
 
-    internal string? Authorize(string operation, string? expectedGeneration = null, bool controlled = false)
+    internal string? AuthorizeNative(string operation, string? expectedGeneration = null, bool controlled = false) => Authorize(operation, expectedGeneration, controlled, nativeOnly: true);
+    internal string? Authorize(string operation, string? expectedGeneration = null, bool controlled = false, bool nativeOnly = false)
     {
         lock (Gate)
         {
@@ -174,6 +177,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (Admission.Blocks("desktop").Length > 0) return "access_paused";
             if (_pending is not null && (scope is "control" or "devtools" ||
                 scope == "browser" && !BrowserWire.Observes(operation))) return "approval_prompt_visible";
+            if (BrowserScope(scope)) return nativeOnly ? null : BrowserPolicy?.Allows(scope) == true ? null : "approval_required";
             if (_grant is null || !(_grant.Scopes.Contains(scope) ||
                 scope == "browser" && _grant.Scopes.Contains("devtools"))) return "approval_required";
             return null;
@@ -187,8 +191,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (Journal?.Available == false) return "audit_storage_unavailable";
             if (BrowserOnlyWhileLocked && !_preparedConsole && !scopes.All(BrowserScope)) return "desktop_locked_browser_only";
             if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) return "expired";
-            return _grant is not null && scopes.All(scope => _grant.Scopes.Contains(scope) ||
-                scope == "browser" && _grant.Scopes.Contains("devtools")) ? null : "approval_required";
+            return _grant is not null && scopes.All(scope => BrowserScope(scope) ? BrowserPolicy?.Allows(scope) == true : _grant.Scopes.Contains(scope)) ? null : "approval_required";
         }
     }
 
@@ -204,7 +207,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (timeout is < 5 or > 600 || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > 240)
                 throw new ArgumentException("Choose a reason (1-240 characters) and timeout (5-600 seconds)");
             if (_pending is not null) return Task.FromResult(new GrantReply(false, "approval_pending"));
-            if (_grant is not null && scopes.IsSubsetOf(_grant.Scopes))
+            if (_grant is not null && scopes.All(scope => BrowserScope(scope) ? BrowserPolicy?.Allows(scope) == true : _grant.Scopes.Contains(scope)))
             {
                 if (_ready || BrowserOnlyWhileLocked && scopes.All(BrowserScope))
                     return Task.FromResult(new GrantReply(true, Data: DeploymentState()));
@@ -221,7 +224,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
-    internal void Decide(string id, bool allow, string[]? scopes, int duration)
+    internal void Decide(string id, bool allow, string[]? scopes, int duration, string[]? browserProfileIds = null)
     {
         lock (Gate)
         {
@@ -240,13 +243,14 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (!selected.IsSubsetOf(pending.Scopes) || duration > pending.Duration)
                 throw new ArgumentException("Approval may only narrow scope and duration");
             if (!_ready || _updating) throw new InvalidOperationException("Desktop is unavailable");
+            Issue(selected, duration, pending.Reason, pending.Caller, browserProfileIds: browserProfileIds);
             _pending = null;
-            Issue(selected, duration, pending.Reason, pending.Caller);
+            BrowserPolicy?.Refresh();
             pending.Completion.TrySetResult(new GrantReply(true, Data: DeploymentState()));
         }
     }
 
-    internal void Arm(string[]? scopes, int duration, string lifetime = "timed")
+    internal void Arm(string[]? scopes, int duration, string lifetime = "timed", string[]? browserProfileIds = null)
     {
         lock (Gate)
         {
@@ -259,7 +263,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 "until_stopped" => null,
                 _ => throw new ArgumentException("Choose a supported access lifetime"),
             };
-            Issue(ValidateScopes(scopes), seconds, "Manually enabled by the person", "local operator", "person");
+            Issue(ValidateScopes(scopes), seconds, "Manually enabled by the person", "local operator", "person", browserProfileIds);
         }
     }
 
@@ -286,14 +290,17 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
-    private void Issue(HashSet<string> scopes, int? duration, string reason, string caller, string origin = "request")
+    private void Issue(HashSet<string> scopes, int? duration, string reason, string caller, string origin = "request", string[]? browserProfileIds = null)
     {
+        browserProfileIds = browserProfileIds?.ToArray();
         if (Journal?.Available == false) throw new InvalidOperationException("Audit storage unavailable");
+        if (scopes.Any(BrowserScope) && BrowserPolicy is null) throw new InvalidOperationException("Browser runtime unavailable");
+        BrowserPolicy?.Configure(scopes.ToArray(), duration, browserProfileIds ?? []);
         Journal?.QueueEvent("access.enabled");
         _generation = Guid.NewGuid().ToString("n");
         if (origin == "person") _armed = null;
         else if (_grant?.Origin == "person") _armed = _grant;
-        _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp(), origin, _consoleIdentity);
+        _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp(), origin, _consoleIdentity, browserProfileIds ?? []);
         ++_authorizationRevision;
         _lastEnded = null;
     }
@@ -306,6 +313,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             var ending = _grant;
             _generation = Guid.NewGuid().ToString("n");
             _grant = null;
+            BrowserPolicy?.Stop();
             ++_authorizationRevision;
             _lastEnded = reason;
             _pending?.Completion.TrySetResult(new GrantReply(false, reason));
@@ -316,6 +324,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (ending?.Origin == "request" && reason is "expired" or "revoked_by_caller" &&
                 _armed is { } armed && !(armed.Duration is int seconds && Elapsed(armed.Started) >= seconds))
             {
+                BrowserPolicy?.Configure(armed.Scopes.ToArray(), armed.Duration is int original ? Math.Max(1, (int)Math.Floor(original - Elapsed(armed.Started))) : null, armed.BrowserProfileIds ?? []);
                 _grant = armed;
                 _lastEnded = null;
                 restored = true;
@@ -416,7 +425,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 pendingRequest = _pending?.Id,
                 lastEnded = _lastEnded,
                 browserOnlyWhileLocked = BrowserOnlyWhileLocked,
-                effectiveScopes = _grant?.Scopes.Where(scope => _ready || BrowserOnlyWhileLocked && BrowserScope(scope)).Order().ToArray() ?? [],
+                effectiveScopes = _grant?.Scopes.Where(scope => !BrowserScope(scope) || BrowserPolicy?.Allows(scope) == true).Where(scope => _ready || BrowserOnlyWhileLocked && BrowserScope(scope)).Order().ToArray() ?? [],
                 availability = new { paused = Admission.Blocks("desktop").Length > 0, blockingReasons = Admission.Blocks("desktop") },
             };
         }
@@ -461,7 +470,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         ? seconds : throw new ArgumentException("Duration must be 60-28800 seconds");
 
     private sealed record LiveGrant(HashSet<string> Scopes, int? Duration, string Reason, string Caller, long Started,
-        string Origin = "request", string? ConsoleIdentity = null)
+        string Origin = "request", string? ConsoleIdentity = null, string[]? BrowserProfileIds = null)
     {
         internal string Id { get; } = Guid.NewGuid().ToString("n");
     }

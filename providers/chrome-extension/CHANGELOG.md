@@ -5,6 +5,11 @@ Store releases are tagged `extension-v<version>`; see
 
 ## Unreleased
 
+- Add extension-local profile identity, name, availability and identity reset.
+  Negotiated profile support keeps older Mac/Linux residents compatible;
+  migrated Windows residents require explicit profile selection and approval.
+- Exclude private tabs from ordinary browser discovery and debugger attachment.
+
 - Report the executing operation-code digest and extension identity in tab
   discovery, making stale development workers distinguishable from source
   files without exposing page contents or treating identity as authority.

@@ -470,19 +470,23 @@ function tabJSON(tab) {
 
 async function listTabs() {
   const tabs = await chrome.tabs.query({});
-  return { tabs: tabs.map(tabJSON), providerInfo:await providerInfo() };
+  return { tabs: tabs.filter(tab => !tab.incognito).map(tabJSON), providerInfo:await providerInfo() };
 }
 
 async function resolveTab(params) {
   if (Number.isInteger(params.tabId)) {
     try {
-      return await chrome.tabs.get(params.tabId);
-    } catch {
+      const tab = await chrome.tabs.get(params.tabId);
+      if (tab.incognito) throw new ProviderError("private_tab_not_permitted", "Private tabs are outside browser control");
+      return tab;
+    } catch (error) {
+      if (error instanceof ProviderError) throw error;
       throw new ProviderError("tab_not_found", `Tab ${params.tabId} does not exist`);
     }
   }
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!tab) throw new ProviderError("tab_not_found", "No active tab");
+  if (tab.incognito) throw new ProviderError("private_tab_not_permitted", "Private tabs are outside browser control");
   return tab;
 }
 
@@ -525,8 +529,12 @@ async function navigate(params) {
   let tab;
   if (params.newTab === true) {
     requireRequestAuthority();
+    const windows = await chrome.windows.getAll({ windowTypes: ["normal"] });
+    const window = windows.find(window => !window.incognito);
+    if (!window) throw new ProviderError("tab_not_found", "No ordinary browser window");
+    requireRequestAuthority();
     context.dispatch();
-    tab = await chrome.tabs.create({ url, active: params.active === true });
+    tab = await chrome.tabs.create({ url, active: params.active === true, windowId: window.id });
     context.tabId = tab.id;
     requireRequestAuthority();
     await ensureAttached(tab.id, true, true);
@@ -834,6 +842,7 @@ return { perform, prepare };
 }
 
 async function ensureAttached(tabId, newTab = false, ordinary = false, observe = true) {
+  if ((await chrome.tabs.get(tabId)).incognito) throw new ProviderError("private_tab_not_permitted", "Private tabs are outside browser control");
   if (!granted && !devtools) throw new ProviderError("approval_required", "Browser access ended");
   const unresolved = pendingAttachments.get(tabId);
   if (unresolved && (unresolved.abandoned || unresolved.authority !== authorityGeneration

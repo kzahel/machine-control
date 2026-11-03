@@ -31,7 +31,7 @@ type UpdateState = {
   error: string | null;
 };
 type State = {
-  accessChoices?: { scopes: Scope[]; duration: number };
+  accessChoices?: { scopes: Scope[]; duration: number; browserProfileIds?: string[] };
   nativeApproval?: boolean;
   presentation?: {
     profile: "personal" | "minimal" | "appliance";
@@ -89,7 +89,8 @@ type State = {
     pointer: boolean;
     keyboard: boolean;
   };
-  browser: { connected: boolean; available?: boolean };
+  browser: { connected: boolean; available?: boolean; profileSelectionSupported?: boolean;
+    profiles?: { profileId: string; name: string; connected: boolean; enabled: boolean }[] };
   pending?: {
     id: string;
     reason: string;
@@ -198,6 +199,8 @@ function App() {
   const [scopes, setScopes] = useState<Scope[]>(
     initialChoices?.scopes ?? defaultAccessChoices.scopes,
   );
+  const [browserProfileIds, setBrowserProfileIds] = useState<string[]>(initialChoices?.browserProfileIds ?? []);
+  const [pendingBrowserProfileIds, setPendingBrowserProfileIds] = useState<string[]>([]);
   const [yaChoice, setYaChoice] = useState(false);
   const [pauseMenu, setPauseMenu] = useState(false);
   const [duration, setDuration] = useState(
@@ -207,7 +210,7 @@ function App() {
     choicesInitialized.current = true;
     setScopes(nextScopes);
     setDuration(nextDuration);
-    if (!writeAccessChoices({ scopes: nextScopes, duration: nextDuration })) {
+    if (!writeAccessChoices({ scopes: nextScopes, duration: nextDuration, browserProfileIds })) {
       setError(
         "Could not save access choices. They may reset when Settings reopens.",
       );
@@ -324,6 +327,7 @@ function App() {
   useEffect(() => {
     if (state?.pending) {
       setPendingScopes(state.pending.scopes);
+      setPendingBrowserProfileIds([]);
       setPendingDuration(state.pending.duration);
     }
   }, [state?.pending?.id]);
@@ -489,6 +493,23 @@ function App() {
       </main>
     );
   }
+  const profilePicker = (chosenScopes: Scope[], chosen: string[], setChosen: (ids: string[]) => void, persist = false) => {
+    if (!state?.browser.profileSelectionSupported || !chosenScopes.some(scope => scope === "browser" || scope === "devtools")) return null;
+    return <div role="group" aria-label="Browser profiles" className="group">
+      <strong>Browser profiles</strong>
+      <p className="note">Choose exactly which profiles may be controlled. Enable and name each profile in its Chrome extension panel.</p>
+      {!state.browser.profiles?.length && <p>Connect the Chrome extension to discover profiles.</p>}
+      {state.browser.profiles?.map(profile => <label key={profile.profileId} className="scope-choice">
+        <input type="checkbox" disabled={!profile.enabled} checked={chosen.includes(profile.profileId)}
+          onChange={event => {
+            const next = event.target.checked ? [...chosen, profile.profileId] : chosen.filter(id => id !== profile.profileId);
+            setChosen(next);
+            if (persist) writeAccessChoices({ scopes, duration, browserProfileIds: next });
+          }} />
+        {profile.name} · {profile.profileId.slice(-8)} · {profile.connected ? "Connected" : "Disconnected"}{!profile.enabled ? " · Disabled in extension" : ""}
+      </label>)}
+    </div>;
+  };
   return (
     <div className="shell">
       <nav aria-label="Sections" inert={!!state?.pending}>
@@ -626,6 +647,7 @@ function App() {
                     standing ||
                     (!on &&
                       (armScopes.length === 0 ||
+                        (!!state.browser.profileSelectionSupported && armScopes.some(scope => scope === "browser" || scope === "devtools") && !browserProfileIds.some(id => state.browser.profiles?.some(profile => profile.profileId === id && profile.enabled))) ||
                         (yaOnly && !!state.admission?.active)))
                   }
                   onClick={() =>
@@ -641,6 +663,7 @@ function App() {
                           : {
                               method: "arm",
                               scopes: armScopes,
+                              browserProfileIds,
                               duration,
                               lifetime:
                                 duration === 0 ? "until_stopped" : "timed",
@@ -706,6 +729,7 @@ function App() {
                 aria-label="Access scopes"
                 disabled={on || !state || busy}
               >
+                {profilePicker(scopes, browserProfileIds, setBrowserProfileIds, true)}
                 <div className="scope-list">
                   {availableScopes.map((s) => {
                     const unavailable = yaOnly && !trustScopes.includes(s);
@@ -1930,6 +1954,7 @@ function App() {
                   ))}
               </select>
             </label>
+            {profilePicker(pendingScopes, pendingBrowserProfileIds, setPendingBrowserProfileIds)}
             <p className="note">
               Applies to all callers running as your user. Input is paused.
             </p>
@@ -1949,13 +1974,14 @@ function App() {
               </button>
               <button
                 className="primary"
-                disabled={busy || !pendingScopes.length}
+                disabled={busy || !pendingScopes.length || !!state.browser.profileSelectionSupported && pendingScopes.some(scope => scope === "browser" || scope === "devtools") && !pendingBrowserProfileIds.length}
                 onClick={() =>
                   void act({
                     method: "decision",
                     id: state.pending!.id,
                     allow: true,
                     scopes: pendingScopes,
+                    browserProfileIds: pendingBrowserProfileIds,
                     duration: pendingDuration,
                   })
                 }

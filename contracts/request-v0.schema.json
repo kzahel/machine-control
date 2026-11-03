@@ -5,6 +5,7 @@
   "type": "object",
   "required": ["operation"],
   "properties": {
+    "browserProfileId": { "type": "string", "minLength": 1, "maxLength": 128 },
     "requestId": { "type": "string", "minLength": 1 },
     "operation": { "type": "string", "minLength": 1 },
     "provider": { "type": "string", "minLength": 1 },
