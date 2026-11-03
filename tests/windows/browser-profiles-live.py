@@ -51,6 +51,7 @@ def main():
     parser.add_argument('--profile-data', type=Path, help='Reuse this actor-owned scratch profile directory under output')
     parser.add_argument('--configure-profiles', action='store_true', help='Repeat extension setup when reusing scratch profiles')
     parser.add_argument('--keep-profile-data-on-failure', action='store_true', help='Controller must remove retained scratch profiles after diagnosis')
+    parser.add_argument('--browser-startup-seconds', type=int, default=180, choices=range(60, 901), metavar='60..900')
     args = parser.parse_args()
     assert args.chrome.name.lower() == 'chrome.exe'
     assert 'test' in str(args.chrome).lower(), 'Use a separately identified test browser'
@@ -173,7 +174,7 @@ def main():
             # Startup-only debugger and extension flags belong to its first
             # process, rather than a second automation bootstrap.
             command = [str(args.chrome), '--user-data-dir='+str(scratch/'chrome'),
-                       '--profile-directory='+profile, '--new-window', url]
+                       '--profile-directory='+profile, '--new-window', '--no-first-run', '--no-default-browser-check', url]
         value = subprocess.Popen(command, stdout=logs, stderr=logs)
         processes.append(value)
         return value
@@ -198,6 +199,55 @@ def main():
         poll(lambda: (f'/effect/{profile}/{action}', body) in received)
     def snapshot(profile, tab): return accepted('browser.snapshot', profile, tabId=tab)['elements']
     def ref(elements, name): return next(e['reference'] for e in elements if e['name'] == name)
+
+    def open_second_profile():
+        # Use the real profile switcher. A forwarded automation command can
+        # acknowledge startup without opening another regular-profile window.
+        # This is fixture setup before browser effects, never resident consent.
+        quote = lambda value: "'"+str(value).replace("'", "''")+"'"
+        script = r'''
+$ErrorActionPreference='Stop'
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class FixtureProfileInput {
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+ [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
+ [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+}
+'@
+$browserPid=BROWSER_PID
+function FindButton($name){
+ $roots=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,$browserPid))
+ foreach($root in $roots){
+  $item=$root.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$name),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button)))
+  if($item){return $item}
+ }
+}
+function Press($item){
+ $pattern=$null
+ try{if($item.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern,[ref]$pattern)){$pattern.Invoke();return}}catch{}
+ try{if($item.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern,[ref]$pattern)){$pattern.Expand();return}}catch{}
+ try{if($item.TryGetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern,[ref]$pattern)){$pattern.DoDefaultAction();return}}catch{}
+ $rect=$item.Current.BoundingRectangle
+ [FixtureProfileInput]::SetCursorPos([int]($rect.Left+$rect.Width/2),[int]($rect.Top+$rect.Height/2))|Out-Null
+ [FixtureProfileInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+ [FixtureProfileInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+}
+$until=[DateTime]::UtcNow.AddSeconds(60)
+do{$avatar=FindButton DEFAULT_NAME;if($avatar){break};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $until)
+if(-not $avatar){throw 'Owned browser profile switcher unavailable'}
+$browser=Get-Process -Id $browserPid
+[FixtureProfileInput]::SetForegroundWindow($browser.MainWindowHandle)|Out-Null
+Press $avatar
+do{$other=FindButton OTHER_NAME;if($other){break};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $until)
+if(-not $other){throw 'Owned second profile missing from browser switcher'}
+Press $other
+'''
+        script = script.replace('BROWSER_PID', str(browser.pid)).replace('DEFAULT_NAME', quote(profile_names['Default'])).replace('OTHER_NAME', quote(profile_names['Profile 1']))
+        result = subprocess.run(['pwsh.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', base64.b64encode(script.encode('utf-16-le')).decode()], capture_output=True, text=True, timeout=90, creationflags=subprocess.CREATE_NO_WINDOW)
+        if result.returncode: raise RuntimeError(result.stderr[-2000:])
 
     def ui(action, name='', checked=True):
         # UIA operates only the exact staged operator process. No private
@@ -304,20 +354,24 @@ throw 'Staged operator UI element unavailable'
             finally:
                 panel.close()
             stop_browser()
+        # Read only fixture display names while Chrome is stopped; Windows can
+        # exclusively replace Local State during startup.
+        cache = json.loads((scratch/'chrome/Local State').read_text(encoding='utf-8'))['profile']['info_cache']
+        profile_names = {directory: cache[directory]['name'] for directory in ['Default', 'Profile 1']}
         browser = launch('Default', base+'/work')
         browser_socket()
-        launch('Profile 1', base+'/personal').wait(timeout=15)
+        open_second_profile()
         print('Checking both regular profiles in one headed browser', flush=True)
-        connected = poll(lambda: [p for p in profiles() if p['connected']] if len([p for p in profiles() if p['connected']]) == 2 else None, seconds=180)
+        connected = poll(lambda: [p for p in profiles() if p['connected']] if len([p for p in profiles() if p['connected']]) == 2 else None, seconds=args.browser_startup_seconds)
         ids = {p['name']: p['profileId'] for p in connected}
         check(set(ids) == {'Work', 'Personal'}, 'Both configured profile names retain distinct installation identities')
         before = [p['profileId'] for p in connected]
         time.sleep(5)
         check([p['profileId'] for p in profiles() if p['connected']] == before,
               'Two profile identities remain connected through one registration')
-        # Chromium's singleton accepted the second launch; exactly one owned
-        # root process remains. Both workers use the single registered helper.
-        check(browser.poll() is None and processes[-1].returncode == 0, 'Both profiles belong to one test browser process')
+        # The real switcher opens a regular-profile window in our exact live
+        # browser process, rather than starting another automation browser.
+        check(browser.poll() is None, 'Both profiles belong to one test browser process')
         arm(list(ids.values())); new_owner()
         generations = {name: accepted('browser.tabs', name)['providerGeneration'] for name in ids}
         time.sleep(5)
@@ -391,8 +445,8 @@ throw 'Staged operator UI element unavailable'
         before_disconnect = ref(snapshot('Work', tabs['Work']), 'Increment fixture')
         stop_browser()
         check(call('browser.tabs', ids['Work'])['errorCode'] == 'profile_unavailable', 'Offline selection refuses without fallback')
-        browser = launch('Default', base+'/work'); browser_socket(); launch('Profile 1', base+'/personal').wait(timeout=15)
-        poll(lambda: len([p for p in profiles() if p['connected']]) == 2, seconds=180)
+        browser = launch('Default', base+'/work'); browser_socket(); open_second_profile()
+        poll(lambda: len([p for p in profiles() if p['connected']]) == 2, seconds=args.browser_startup_seconds)
         check(not call('browser.click', 'Work', reference=before_disconnect)['accepted'], 'Reconnect invalidates old provider references')
         owner.close(); owner = None
         # Kill the exact owned policy child while a native owner exists.
