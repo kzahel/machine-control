@@ -183,3 +183,54 @@ test("management timeouts retain bounded physical slots and independent discover
   assert.equal(cdp.managementInFlight,0);
   await cdp.closeAll("finished");
 });
+
+function creationFixture(getTargets, managementTimeoutMs = 1000) {
+  const frames = [];
+  let creations = 0;
+  const noopEvent = { addListener() {} };
+  const chrome = {
+    tabs: { onCreated: noopEvent, onUpdated: noopEvent, onRemoved: noopEvent,
+      async query() { return [{ id: 1, url: "https://fixture.invalid/new" }]; },
+      async create() { creations++; return { id: 1 }; } },
+    debugger: { onEvent: noopEvent, onDetach: noopEvent, getTargets },
+  };
+  const cdp = new BrowserCdp({ chrome, ensureAttached: async () => {}, releaseTab: async () => {},
+    trackNewTab: async () => {}, authority: () => "fixture", post: frame => frames.push(frame), managementTimeoutMs });
+  return { cdp, frames, creations: () => creations };
+}
+
+test("new tab target discovery can lag creation without creating another tab", async t => {
+  let observations = 0;
+  const f = creationFixture(async () => ++observations < 3 ? [] : [{ id: "new-page", tabId: 1, type: "page" }]);
+  t.after(() => f.cdp.closeAll("finished"));
+  await f.cdp.open("root", 0);
+  await f.cdp.command({ id: "root", cmdId: 1, method: "Target.createTarget", params: { url: "https://fixture.invalid/new" } });
+  assert.deepEqual(f.frames.find(frame => frame.type === "session.result")?.result, { targetId: "new-page" });
+  assert.equal(f.creations(), 1, "creation is never replayed while waiting for observation");
+});
+
+test("target discovery wait stays bounded and never replays creation", async t => {
+  const f = creationFixture(async () => [], 30);
+  t.after(() => f.cdp.closeAll("finished"));
+  await f.cdp.open("root", 0);
+  await f.cdp.command({ id: "root", cmdId: 1, method: "Target.createTarget", params: { url: "https://fixture.invalid/new" } });
+  assert.equal(f.creations(), 1);
+  assert.equal(f.cdp.sessions.has("root"), false, "deadline fences the connection with unknown creation effect");
+  assert.ok(f.frames.some(frame => frame.type === "session.closed" && frame.reason === "browser_management_timeout_effect_unknown"));
+});
+
+test("late target observation cannot enter a replacement root session", async t => {
+  let observe;
+  const f = creationFixture(() => new Promise(resolve => { observe = resolve; }));
+  t.after(() => f.cdp.closeAll("finished"));
+  await f.cdp.open("old", 0);
+  const pending = f.cdp.command({ id: "old", cmdId: 1, method: "Target.createTarget", params: { url: "https://fixture.invalid/new" } });
+  while (!observe) await new Promise(resolve => setImmediate(resolve));
+  await f.cdp.close("old", "revoked");
+  await f.cdp.open("new", 0);
+  observe([{ id: "new-page", tabId: 1, type: "page" }]);
+  await pending;
+  assert.equal(f.creations(), 1);
+  assert.equal(f.frames.some(frame => frame.type === "session.result" && frame.id === "old"), false);
+  assert.equal(f.cdp.sessions.get("new").ownedTabs.size, 0);
+});

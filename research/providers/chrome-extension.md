@@ -131,6 +131,14 @@ the deployment decision and remaining Windows adoption gates.
 
 ## Fidelity, consequences, and gaps
 
+**Current (2026-11-03), source repair with deterministic regression:** a real
+Windows root-CDP run observed successful tab creation before `getTargets`
+published its page target. `Target.createTarget` now waits for observation
+inside the existing management deadline, creates exactly once, and fences late
+observations on connection replacement. Delayed/missing-target and replacement
+fixtures cover those cases. Repeated Windows qualification remains in
+[Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md).
+
 **Current (2026-11-02), bounded physical-macOS `live-tested` recovery:** the
 connected native-host origin identified the development provider. Its legacy
 references and hidden-input behavior differed from current source. Chrome

@@ -65,6 +65,12 @@ and timeouts fence the owning connection without replay. The
 qualification limits; [Tactical 140](../docs/tactical/140-background-browser-control.md)
 owns validation and store submission.
 
+**Current (2026-11-03), source repair:** new-tab creation can precede native
+CDP target discovery. The facade waits for that target within its existing
+management deadline, without creating another tab or adopting a late observation
+into a replacement session. The provider dossier and Tactical 152 own the
+bounded regression and Windows live evidence; this adds no store qualification.
+
 **Current (2026-10-25), unreleased extension 0.8.1:** ordinary requests use
 bounded per-tab scheduling and request-local authority. Discovery, dialog
 handling, release and grant changes progress independently of stalled page

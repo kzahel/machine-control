@@ -176,6 +176,10 @@ def main():
         value = call(operation, profile, **fields)
         assert value['accepted'], value
         return value['data']
+    def cdp_accepted(connection, method, params=None):
+        value = connection.call(method, params)
+        assert 'error' not in value, dict(method=method, error=value.get('error'))
+        return value['result']
     def launch(profile, url='about:blank', *, headless=False):
         nonlocal debug_port
         forwarding = browser is not None and browser.poll() is None
@@ -467,15 +471,17 @@ throw 'Staged operator UI element unavailable'
         for name, slug in [('Work','work'), ('Personal','personal')]:
             endpoints[name] = accepted('browser.endpoint', name)
             root = CdpSocket(endpoints[name]['browserEndpoint'], timeout=endpoints[name]['commandTimeoutMs']/1000+5); sockets.append(root)
-            targets = root.call('Target.getTargets')['result']['targetInfos']
+            targets = cdp_accepted(root, 'Target.getTargets')['targetInfos']
             check(any(t['url'] == base+'/'+slug for t in targets) and not any(t['url'] == base+'/'+('personal' if slug=='work' else 'work') for t in targets), name+' root discovery stays within selected profile')
-            created = root.call('Target.createTarget', {'url': base+'/'+slug})['result']['targetId']
-            attached = root.call('Target.attachToTarget', {'targetId': created, 'flatten': True})['result']['sessionId']
+            created = cdp_accepted(root, 'Target.createTarget', {'url': base+'/'+slug})['targetId']
+            attached = cdp_accepted(root, 'Target.attachToTarget', {'targetId': created, 'flatten': True})['sessionId']
             response = root.call('Runtime.evaluate', {'expression': "fetch('/effect/"+slug+"/flattened',{method:'POST',body:'flattened'})", 'awaitPromise': True}, session_id=attached)
             check('result' in response and 'error' not in response, name+' flattened root session completes')
             effect(slug, 'flattened', b'flattened')
-            root.call('Target.detachFromTarget', {'sessionId': attached})
-            root.call('Target.closeTarget', {'targetId': created})
+            cdp_accepted(root, 'Target.detachFromTarget', {'sessionId': attached})
+            assert 'error' in root.call('Runtime.evaluate', {'expression': '1'}, session_id=attached), 'Detached root session must refuse'
+            assert cdp_accepted(root, 'Target.closeTarget', {'targetId': created})['success'], 'Root target close must complete'
+            poll(lambda: all(target['targetId'] != created for target in cdp_accepted(root, 'Target.getTargets')['targetInfos']))
             root.close()
         owner.close(); owner = None
         operator('stop')

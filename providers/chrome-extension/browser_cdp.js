@@ -287,10 +287,16 @@ export class BrowserCdp {
         state.ownedTabs.add(tab.id);
         await this.trackNewTab(tab.id);
         if (!this.current(state)) { await this.releaseTab(tab.id); fail("Session ended during tab attachment"); }
-        const targets = await this.sync(state);
-        const target = targets.find((item) => item.tabId === tab.id && item.type === "page");
-        if (!target) fail("New tab target unavailable; do not replay creation");
-        return { targetId: target.targetId };
+        // tabs.create can settle before getTargets publishes the page target.
+        // Wait for observation inside enqueue's existing deadline; never
+        // repeat creation, and check the same connection after every await.
+        while (this.current(state)) {
+          const targets = await this.sync(state);
+          const target = targets.find((item) => item.tabId === tab.id && item.type === "page");
+          if (target) return { targetId: target.targetId };
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        fail("Session ended before new tab target observation; do not replay creation");
       }
       case "Target.closeTarget":
       case "Target.activateTarget": {
