@@ -103,10 +103,23 @@ internal sealed class DesktopJournal
         if (OperatingSystem.IsWindows())
         {
             var sid = WindowsIdentity.GetCurrent().User!;
+            var directory = new DirectoryInfo(path);
+            var current = directory.GetAccessControl(AccessControlSections.Access);
+            var rules = current.GetAccessRules(true, true, typeof(SecurityIdentifier))
+                .Cast<FileSystemAccessRule>().ToArray();
+            // Reapplying an inheritable DACL propagates through the subtree.
+            // Verify the desired private ACL on every write, but change it
+            // only when necessary; audit must not repeatedly walk app storage.
+            if (current.AreAccessRulesProtected && rules.Length == 1 &&
+                !rules[0].IsInherited && rules[0].IdentityReference.Equals(sid) &&
+                rules[0].AccessControlType == AccessControlType.Allow &&
+                rules[0].FileSystemRights == FileSystemRights.FullControl &&
+                rules[0].InheritanceFlags == (InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit) &&
+                rules[0].PropagationFlags == PropagationFlags.None) return;
             var acl = new DirectorySecurity();
             acl.SetAccessRuleProtection(true, false);
             acl.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-            new DirectoryInfo(path).SetAccessControl(acl);
+            directory.SetAccessControl(acl);
         }
         else File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
