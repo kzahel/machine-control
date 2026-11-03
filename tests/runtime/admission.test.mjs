@@ -68,14 +68,17 @@ test("typing during countdown does not defer; movement never interrupts; takeove
 test("Ask first approval survives a pause only for the same live task and does not extend consent", () => {
   const f = fixture("ask");
   f.policy.configure("desktop", { mode: "ask", durationMs: 90_000 });
-  const first = f.request(), second = f.request("desktop", {}, f.policy.open());
+  const secondOwner = f.policy.open();
+  const first = f.request(), second = f.request("desktop", {}, secondOwner);
   assert.equal(first.state, "waiting_for_approval");
-  assert.equal(second.state, "waiting_for_resource", "one relevant approval notice");
+  assert.equal(second.state, "waiting_for_approval", "unapproved tasks hold no resources");
   f.policy.approve(first.intentId);
   const active = f.activate(first);
   f.policy.pause("desktop", "manual", 30_000);
   assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
   f.advance(30_000);
+  assert.equal(f.inspect(second, secondOwner).state, "waiting_for_approval", "yielded ownership does not grant the successor approval");
+  f.policy.deny(second.intentId);
   assert.equal(f.inspect(first).state, "announcing");
   const resumed = f.activate(first);
   for (let i = 0; i < 12; ++i) { f.advance(4000); f.inspect(first, f.owner, true); }
@@ -94,6 +97,34 @@ test("Start now acknowledges warning input without exempting the next key", () =
   assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
 });
 
+test("Start now tolerates the countdown boundary and never revives a retired session", () => {
+  const f = fixture(), intent = f.request();
+  f.advance(10_000);
+  f.policy.startNow(intent.intentId);
+  const active = f.activate(intent);
+  f.policy.startNow(intent.intentId);
+  assert.equal(f.policy.authorize(f.owner, active), null);
+  f.policy.input("desktop", "button");
+  f.policy.startNow(intent.intentId);
+  const fresh = f.activate(intent);
+  assert.notEqual(fresh.sessionId, active.sessionId);
+  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+  f.policy.pause("desktop", "manual", null);
+  assert.throws(() => f.policy.startNow(intent.intentId), /stale_activation_notice/);
+  assert.equal(f.inspect(intent).state, "paused");
+});
+
+test("queue and owner budgets refuse excess work without borrowing another channel", () => {
+  const f = fixture(), owners = [f.owner];
+  while (owners.length < 64) owners.push(f.policy.open());
+  for (const owner of owners) for (let i = 0; i < 4; ++i) f.request("desktop", {}, owner);
+  assert.equal(f.policy.status().waiting, 256);
+  assert.throws(() => f.request(), /admission_queue_full/);
+  f.policy.close(owners[1]);
+  const newcomer = f.policy.open();
+  assert.equal(f.request("desktop", {}, newcomer).state, "waiting_for_resource");
+});
+
 test("surface pauses and Off leave unrelated background browser work available", () => {
   const f = fixture("off"), browser = f.request("browser");
   const active = f.activate(browser);
@@ -105,6 +136,18 @@ test("surface pauses and Off leave unrelated background browser work available",
   assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
   f.policy.resume("browser", "manual");
   assert.equal(f.inspect(browser).state, "offered");
+});
+
+test("unapproved Desktop and compound tasks do not hold back automatic Browser work", () => {
+  const f = fixture("ask");
+  const desktop = f.request();
+  assert.equal(desktop.state, "waiting_for_approval");
+  const browser = f.request("browser", { disruptive: true });
+  assert.equal(browser.state, "announcing", "full CDP impact still proceeds under Browser Automatic");
+  f.policy.cancel(f.owner, browser.intentId);
+  const compound = f.request("browser", { surfaces: ["desktop", "browser"], disruptive: true });
+  assert.equal(compound.state, "waiting_for_approval");
+  assert.equal(f.request("browser").state, "offered", "an unapproved compound intent holds no profile reservation");
 });
 
 test("compound work acquires all resources atomically under both modes", () => {
@@ -176,6 +219,41 @@ test("configuration replacement and restart cannot restore tasks or old Ask appr
   assert.equal(fresh.nextDeadline(), null);
 });
 
+test("changing clients or surfaces cannot bypass a disruptive resource deferral", () => {
+  const f = fixture(), first = f.request();
+  f.policy.defer(first.intentId, 30_000);
+  const other = f.policy.open();
+  assert.equal(f.request("browser", { disruptive: true }, other).state, "paused");
+  assert.equal(f.request("browser", { profileIds: ["personal"] }, other).state, "offered", "independent background work remains available");
+  assert.equal(f.policy.status().deferrals.find(pause => pause.resource === "human-input").remainingSeconds, 30);
+  f.policy.resume("desktop", "operator_deferral");
+  assert.equal(f.inspect(first).state, "announcing");
+});
+
+test("deliberate takeover cooldown spans disruptive surfaces and preserves background owners", () => {
+  const f = fixture(), active = f.activate(f.request());
+  const background = f.activate(f.request("browser", { profileIds: ["personal"] }));
+  f.policy.input("desktop", "button");
+  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+  assert.equal(f.policy.authorize(f.owner, background), null);
+  assert.equal(f.request("browser", { disruptive: true }).state, "paused");
+  assert.equal(f.policy.status().handoffCooldownRemainingSeconds, 60);
+});
+
+test("an explicitly ready locked route skips an invisible warning but keeps impact reservations and Ask", () => {
+  const f = fixture();
+  f.policy.ready("desktop", true, false);
+  const first = f.request();
+  assert.equal(first.state, "offered");
+  const active = f.activate(first);
+  assert.ok(Object.hasOwn(active.resourceGenerations, "human-input"));
+  const competing = f.request("browser", { disruptive: true });
+  assert.equal(competing.state, "waiting_for_resource");
+  f.policy.cancel(f.owner, competing.intentId);
+  f.policy.configure("desktop", { mode: "ask", durationMs: null });
+  assert.equal(f.request().state, "waiting_for_approval", "a locked native fact never supplies task approval");
+});
+
 test("production process inlet carries independent owners and negotiates v2 without restoring authority after EOF", async () => {
   const process = new ProcessClient(() => {}, () => {});
   await process.start();
@@ -188,7 +266,7 @@ test("production process inlet carries independent owners and negotiates v2 with
     const request = { requestId: "task", surfaces: ["desktop"], disruptive: true, reason: "Process fixture", waitMs: 30_000, durationMs: 30_000 };
     const desktop = await call("submit", { owner: "one", request });
     assert.equal(desktop.state, "waiting_for_approval");
-    const browser = await call("submit", { owner: "two", request: { ...request, surfaces: ["browser"], profileIds: ["work"], disruptive: false } });
+    const browser = await call("submit", { owner: "two", request: { ...request, surfaces: ["browser"], profileIds: ["work"], operations: ["browser.tabs"], disruptive: false } });
     assert.equal(browser.state, "offered");
     const active = await call("accept", { owner: "two", intentId: browser.intentId, offerGeneration: browser.offerGeneration });
     assert.equal((await call("authorize", { owner: "two", fence: active })).refusal, null);

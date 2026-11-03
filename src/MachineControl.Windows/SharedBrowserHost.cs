@@ -57,7 +57,7 @@ internal sealed class SharedBrowserHost : IDisposable
             catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
         }, "MachineControlPolicyError");
         _ = Task.Run(EventsAsync);
-        try { _ = Call(new JsonObject { ["method"] = "hello", ["protocolVersion"] = 1 }, 15000); }
+        try { _ = Call(new JsonObject { ["method"] = "hello", ["protocolVersion"] = 2 }, 15000); }
         catch { Dispose(); throw; }
     }
 

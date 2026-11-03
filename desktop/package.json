@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
     "test:access-choices": "node ../tests/desktop/access-choices.mjs",
+    "test:surface-access": "node ../tests/desktop/surface-access.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

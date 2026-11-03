@@ -4,8 +4,8 @@ Owning topics: [access admission and pause](../../topics/access-admission-and-pa
 [shared resident core](../../topics/shared-resident-core.md),
 [browser profiles](../../topics/browser-profiles.md).
 
-Status: **implementation in progress; shared surface-policy checkpoint
-implemented, Windows adoption and native acceptance pending**.
+Status: **implementation in progress; shared policy and Windows adapter/UI/client implemented;
+new native/package acceptance pending**.
 
 ## Motivation and objective
 
@@ -157,10 +157,13 @@ its declared migration gates pass.
 **Current:** the pure TypeScript surface-policy engine and its private Node
 host inlet implement independent modes, task approval, original consent
 ceilings, atomic resources, handoff, pauses, cooldown and ownership fencing.
-Nineteen deterministic and real-process tests cover all nine mode combinations
+Twenty-five deterministic and real-process tests cover all nine mode combinations
 and interrupted effects. This checkpoint does not change installed behavior:
-Windows still needs to adopt the engine, operator UI and client contract, then
-pass new native/package acceptance before the requested broad review.
+Windows now delegates admission to that engine and exposes the v2 operator UI
+and Python channel. Its former C# queue/grant-request policy was removed.
+Native contracts use the real shared process; the fixture clock host is not
+packaged. New native/package acceptance remains pending before the requested
+broad review.
 
 The approved autonomous sequence is Windows/shared/reference implementation and
 acceptance, one broad Opus 5.5 High review through the work-account router pool
@@ -168,3 +171,48 @@ with weekly-pace routing and bypass permissions, findings correction, then
 macOS and Linux adoption with their own acceptance. Reviewer routing evidence
 and appliance details remain private. Do not substitute a different model or
 account when the requested route is unavailable.
+
+### Implementation choices under qualification
+
+- Private host and public resident admission both negotiate v2. Incompatible
+  resident clients refuse explicitly; extension messaging remains v1.
+- Unrestricted Browser/CDP/eval work conservatively affects the human browser
+  context. A narrowed server-checked observation set may skip the warning.
+  Disruptive tasks share a human-input reservation; independent background
+  profile work remains available while Desktop is Off, paused or awaiting Ask.
+- Consent is never restored across resident restart. Form preferences remember
+  the selected Ask/Automatic mode and exact profiles without arming.
+- Native admission keeps channel identities, safety facts and event-generation
+  projections. It does not retain a second queue or task-approval engine.
+- Native `observe`/`control` and `browser`/`devtools` strings remain internal
+  provider capability mappings. The v2 operator and public admission contract
+  expose Desktop and full Browser, rather than separate script consent.
+- The separate borrowed-claim outer recovery protocol stays explicitly v1
+  during migration. It cannot silently satisfy v2 resident requests.
+
+- Deferral and deliberate-takeover cooldown bind the shared human-input resource
+  so switching clients or surfaces cannot bypass them. Background Browser work
+  remains independent. Prepared locked routes skip an invisible notice using a
+  trusted native visibility fact, while retaining reservations and Ask approval.
+- Operator state limits detailed requests to sixteen and prioritizes actionable
+  notices; total counts remain complete. The private engine retains its bounded
+  full queue. Native physical-HID input remains a separate qualification from
+  explicit policy facts and real injected-hook observations.
+
+### Local validation checkpoint
+
+**Current:** strict runtime checks and all 73 runtime tests pass. Windows native
+contract tests run the real Node process through the C# inherited IPC client;
+the mode matrix, live channel ownership, native safety, activity classification,
+audit, bounded work and late-result checks pass. Windows runtime formatting
+verification and self-contained ARM64/x64 publishes pass. The native interactive
+handoff actor builds for ARM64; its new Windows live execution is still pending.
+These are source/build and fixture results, not packaged Windows acceptance.
+
+- Legacy Windows operator `arm`/target-wide `decision` commands and the old C#
+  policy-only test project are removed. The v2 Python API/CLI uses surfaces;
+  old SDK scope arguments fail explicitly rather than silently widening a
+  narrow task. Native provider scope strings remain an internal mapping.
+- Start now acknowledges the native input watermark and tolerates the countdown
+  boundary. A click already classified as takeover can lead only to a fresh
+  owner; manual/protected pauses and missing approval remain blocking.

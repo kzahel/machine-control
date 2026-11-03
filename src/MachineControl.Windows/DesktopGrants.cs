@@ -1,9 +1,12 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
 namespace MachineControl.Windows;
 
 internal sealed record GrantReply(bool Accepted, string? ErrorCode = null, object? Data = null);
 
-/// Authority lives in the resident, not in the WebView or public pipe. All
-/// transitions and dispatch acceptance share Gate; durations are monotonic.
+/// Native safety ceilings and effects. Surface consent, task approval and
+/// admission belong to the shared policy, never to the WebView or public pipe.
 internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? journal = null)
 {
     internal IBrowserPolicy? BrowserPolicy { get; set; }
@@ -12,26 +15,57 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     internal volatile bool ApprovalPresentationAvailable = true;
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private string _generation = Guid.NewGuid().ToString("n");
-    private LiveGrant? _grant;
-    // Person-armed access that an approved agent request replaced; it returns
-    // when that request grant expires or its caller revokes it.
-    private LiveGrant? _armed;
-    private PendingGrant? _pending;
-    private bool _ready;
-    private bool _preparedConsole;
-    private bool _lockedConsole;
-    private bool _browserWhileLocked;
-    private string? _consoleIdentity;
+    private string _browserGeneration = Guid.NewGuid().ToString("n");
+    private bool _ready, _preparedConsole, _lockedConsole, _browserWhileLocked, _updating;
+    private string? _consoleIdentity, _browserConsentConsole, _lastEnded;
+    private long _authorizationRevision;
+    private AccessAdmission? _admission;
+    private DesktopActivityPolicy? _activityPolicy;
+    private readonly Queue<object> _activity = new();
+    internal static readonly string[] SupportedScopes = ["observe", "control", "browser", "devtools"];
+    internal static bool BrowserScope(string scope) => scope is "browser" or "devtools";
+    internal static string SurfaceFor(string scope) => BrowserScope(scope) ? "browser" : "desktop";
+    internal static string? ScopeFor(string operation) => operation switch
+    {
+        "windows" or "snapshot" or "screenshot" => "observe",
+        "app.launch" or "app.activate" or "invoke" or "set.value" or "click" or "move" or "drag" or "scroll" or
+        "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" or "session.unlock.prepare" or "session.unlock" => "control",
+        "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or "browser.click" or "browser.type" or
+        "browser.key" or "browser.capture" or "browser.upload" or "browser.release" or "browser.dialog" => "browser",
+        "browser.cdp" or "browser.eval" or "browser.endpoint" => "devtools",
+        _ => null
+    };
+    internal string Generation { get { lock (Gate) return _generation; } }
+    internal string BrowserGeneration { get { lock (Gate) return _browserGeneration; } }
+    internal string GenerationFor(string operation) => BrowserScope(ScopeFor(operation) ?? "") ? BrowserGeneration : Generation;
+    internal bool PreparedConsole { get { lock (Gate) return _preparedConsole; } }
+    internal bool ConsoleReady { get { lock (Gate) return _ready; } }
+    internal bool? TaskStartLocked { get { lock (Gate) return _ready ? false : _lockedConsole ? true : null; } }
+    internal long AuthorizationRevision { get { lock (Gate) return _authorizationRevision; } }
+    internal DesktopActivityPolicy Activity => _activityPolicy ??= new(this, _time);
+    internal AccessAdmission Admission
+    {
+        get
+        {
+            lock (Gate)
+            {
+                if (_admission is not null) return _admission;
+                _admission = new AccessAdmission(gate: Gate);
+                _admission.Register("desktop", _ready || _preparedConsole && _lockedConsole, _ready);
+                _admission.Register("browser", _ready);
+                _admission.OwnershipChanged += surfaces => { if (surfaces.Contains("desktop")) _generation = Guid.NewGuid().ToString("n"); };
+                return _admission;
+            }
+        }
+    }
     internal bool BrowserOnlyWhileLocked
     {
         get
         {
-            lock (Gate) return !_ready && _lockedConsole && _browserWhileLocked &&
-                _grant is not null && _consoleIdentity is not null && _grant.ConsoleIdentity == _consoleIdentity &&
-                _grant.Scopes.Any(BrowserScope);
+            lock (Gate) return !_ready && _lockedConsole && _browserWhileLocked && _consoleIdentity is not null &&
+            _browserConsentConsole == _consoleIdentity && Admission.Enabled("browser");
         }
     }
-    internal static bool BrowserScope(string scope) => scope is "browser" or "devtools";
     internal bool ReadyForScopes(string[] scopes) => ConsoleReady || BrowserOnlyWhileLocked && scopes.All(BrowserScope);
     internal bool CanEnableBrowserWhileLocked { get { lock (Gate) return _ready && _consoleIdentity is not null; } }
     internal object BrowserWhileLockedState() => new
@@ -46,436 +80,201 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         lock (Gate)
         {
-            if (!loading && enabled && (!_ready || _consoleIdentity is null))
-                throw new InvalidOperationException("Enable browser access on the current unlocked console");
+            if (!loading && enabled && (!_ready || _consoleIdentity is null)) throw new InvalidOperationException("Enable browser access on the current unlocked console");
             _browserWhileLocked = enabled;
-            if (!enabled && !_ready && _lockedConsole && _grant is not null) Stop("browser_locked_access_disabled");
-            Admission.SetReady("desktop", _ready || _preparedConsole && _lockedConsole || BrowserOnlyWhileLocked);
+            if (!enabled && !_ready && _lockedConsole) Stop("browser_locked_access_disabled");
+            PublishReady();
         }
     }
-    private long _authorizationRevision;
-    internal bool PreparedConsole { get { lock (Gate) return _preparedConsole; } }
-    internal bool ConsoleReady { get { lock (Gate) return _ready; } }
-    internal bool? TaskStartLocked { get { lock (Gate) return _ready ? false : _lockedConsole ? true : null; } }
-    internal long AuthorizationRevision { get { lock (Gate) return _authorizationRevision; } }
     internal void PrepareConsole(bool enabled)
     {
-        lock (Gate)
-        {
-            Stop("locked_use_preference_changed");
-            _preparedConsole = enabled;
-            Admission.SetReady("desktop", _ready || enabled && _lockedConsole);
-        }
+        lock (Gate) { Stop("locked_use_preference_changed"); _preparedConsole = enabled; PublishReady(); }
     }
-    private bool _updating;
-    private string? _lastEnded;
-    private readonly Queue<object> _activity = new();
-    private AccessAdmission? _admission;
-    private DesktopActivityPolicy? _activityPolicy;
-    internal DesktopActivityPolicy Activity => _activityPolicy ??= new(this, _time);
-    internal void ActivityPause(string reason)
+    private void PublishReady()
     {
-        lock (Gate)
-        {
-            _generation = Guid.NewGuid().ToString("n");
-            Admission.Pause("desktop", reason);
-        }
+        var healthy = Journal?.Available != false && !_updating;
+        Admission.SetReady("desktop", healthy && (_ready || _preparedConsole && _lockedConsole), healthy && _ready);
+        Admission.SetReady("browser", healthy && (_ready || BrowserOnlyWhileLocked), healthy && _ready);
     }
-    internal AccessAdmission Admission
-    {
-        get
-        {
-            lock (Gate)
-            {
-                if (_admission is not null) return _admission;
-                _admission = new AccessAdmission(_time, Gate);
-                _admission.Register("desktop", _ready);
-                _admission.SessionActivated += () => _generation = Guid.NewGuid().ToString("n");
-                _admission.SessionEnded += (_, _, _) => _generation = Guid.NewGuid().ToString("n");
-                return _admission;
-            }
-        }
-    }
-
-    internal static readonly string[] SupportedScopes = ["observe", "control", "browser", "devtools"];
-    internal string Generation { get { lock (Gate) { Refresh(); return _generation; } } }
-
-    internal static string? ScopeFor(string operation) => operation switch
-    {
-        "windows" or "snapshot" or "screenshot" => "observe",
-        "app.launch" or "app.activate" or "invoke" or "set.value" or
-        "click" or "move" or "drag" or "scroll" or "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" or "session.unlock.prepare" or "session.unlock" => "control",
-        "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or
-        "browser.click" or "browser.type" or "browser.key" or "browser.capture" or
-        "browser.upload" or "browser.release" or "browser.dialog" => "browser",
-        "browser.cdp" or "browser.eval" or "browser.endpoint" => "devtools",
-        _ => null,
-    };
-
     internal void SetReady(bool ready, bool lockedConsole = false, string? consoleIdentity = null)
     {
         lock (Gate)
         {
-            Refresh();
-            if (_ready != ready)
-            {
-                _generation = Guid.NewGuid().ToString("n");
-                if (!ready)
-                {
-                    _pending?.Completion.TrySetResult(new GrantReply(false, "desktop_unavailable"));
-                    _pending = null;
-                }
-            }
-            _ready = ready;
-            _lockedConsole = lockedConsole;
-            _consoleIdentity = consoleIdentity;
-            if (_browserWhileLocked && _grant is not null && _grant.Scopes.Any(BrowserScope) && (consoleIdentity is null ||
-                _grant.ConsoleIdentity != consoleIdentity || !ready && !lockedConsole)) Stop("console_session_changed");
-            Admission.SetReady("desktop", ready || _preparedConsole && lockedConsole || BrowserOnlyWhileLocked);
+            if (_ready != ready || _consoleIdentity != consoleIdentity)
+            { _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n"); }
+            _ready = ready; _lockedConsole = lockedConsole; _consoleIdentity = consoleIdentity;
+            if (_browserConsentConsole is not null && (consoleIdentity != _browserConsentConsole || !ready && !lockedConsole)) Stop("console_session_changed");
+            PublishReady();
         }
     }
-
+    internal void ActivityPause(string reason)
+    {
+        lock (Gate) { Admission.Pause("desktop", reason); }
+    }
+    internal void ConfigureSurface(string surface, string mode, int duration, string lifetime, string[]? browserProfileIds = null)
+    {
+        lock (Gate)
+        {
+            if (surface is not ("desktop" or "browser") || mode is not ("off" or "ask" or "automatic")) throw new ArgumentException("Choose a surface and access mode");
+            if (mode != "off" && (!_ready || _updating || !ApprovalPresentationAvailable)) throw new InvalidOperationException("Use an unlocked desktop with native notifications before enabling access");
+            if (Journal?.Available == false && mode != "off") throw new InvalidOperationException("Audit storage unavailable");
+            int? seconds = lifetime switch { "until_stopped" => null, "timed" => ValidateDuration(duration), _ => throw new ArgumentException("Choose an access lifetime") };
+            if (surface == "browser")
+            {
+                if (BrowserPolicy is null && mode != "off") throw new InvalidOperationException("Browser runtime unavailable");
+                // Browser is one complete surface. Old scope names are only a
+                // native provider capability mapping, not separate consent.
+                BrowserPolicy?.Configure(mode == "off" ? [] : ["browser", "devtools"], seconds, browserProfileIds ?? []);
+                _browserConsentConsole = mode == "off" ? null : _consoleIdentity;
+                _browserGeneration = Guid.NewGuid().ToString("n");
+            }
+            else _generation = Guid.NewGuid().ToString("n");
+            Admission.Configure(surface, mode, seconds, surface == "browser" ? browserProfileIds ?? [] : []);
+            ++_authorizationRevision; _lastEnded = null;
+            Journal?.QueueEvent(mode == "off" ? "access.disabled" : "access.enabled");
+            PublishReady();
+        }
+    }
     internal string? AuthorizeNative(Request request, string? expectedGeneration = null) => Authorize(request, expectedGeneration, nativeOnly: true);
     internal string? Authorize(Request request, string? expectedGeneration = null, bool nativeOnly = false)
     {
         lock (Gate)
         {
-            var ownership = request.ControlOwnership;
-            if (ownership is not null && Admission.Authorize(ownership.Owner, ownership.Intent,
-                ownership.Session, ownership.Generations) is { } denied) return denied;
-            // Only AdmissionChannel can attach ControlOwnership (it is ignored
-            // by JSON deserialization). A grant alone never owns the desktop.
-            return Authorize(request.Operation, expectedGeneration, ownership is not null, nativeOnly)
-                ?? (ownership is null ? "control_session_required" : null);
+            var scope = ScopeFor(request.Operation);
+            if (scope is null) return "unsupported_operation";
+            var surface = SurfaceFor(scope);
+            if (!Admission.Enabled(surface)) return "surface_disabled";
+            // A paused/busy caller still negotiates one live waiting intent.
+            if (request.ControlOwnership is not { } owner) return "control_session_required";
+            if (Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is { } denied) return denied;
+            return Authorize(request.Operation, expectedGeneration, controlled: true, nativeOnly: nativeOnly);
         }
     }
-
-    internal static object RefusalData(string operation, string code) => new
-    {
-        requiredScope = ScopeFor(operation),
-        requestOperation = code == "control_session_required" ? "control.open" : "grant.request",
-        controlSession = code == "control_session_required"
-            ? new { schema = AccessAdmission.Schema, scope = ScopeFor(operation) } : null,
-    };
-
     internal string? AuthorizeNative(string operation, string? expectedGeneration = null, bool controlled = false) => Authorize(operation, expectedGeneration, controlled, nativeOnly: true);
     internal string? Authorize(string operation, string? expectedGeneration = null, bool controlled = false, bool nativeOnly = false)
     {
         lock (Gate)
         {
             Refresh();
-            if (expectedGeneration is not null && expectedGeneration != _generation)
-                return "stale_generation";
-            if (Journal?.Available == false) return "audit_storage_unavailable";
             var scope = ScopeFor(operation);
             if (scope is null) return "unsupported_operation";
-            if (!controlled && Admission.Reserved) return "control_session_required";
+            if (expectedGeneration is not null && expectedGeneration != GenerationFor(operation)) return "stale_generation";
+            if (Journal?.Available == false) return "audit_storage_unavailable";
+            if (_updating) return "update_in_progress";
+            var surface = SurfaceFor(scope);
+            if (!Admission.Enabled(surface)) return "surface_disabled";
             if (!_ready && !(BrowserOnlyWhileLocked && BrowserScope(scope)) &&
                 !(controlled && operation is ("session.unlock.prepare" or "session.unlock") && _preparedConsole && _lockedConsole))
                 return BrowserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable";
-            if (_updating) return "update_in_progress";
-            if (Admission.Blocks("desktop").Length > 0) return "access_paused";
-            if (_pending is not null && (scope is "control" or "devtools" ||
-                scope == "browser" && !BrowserWire.Observes(operation))) return "approval_prompt_visible";
-            if (BrowserScope(scope)) return nativeOnly ? null : BrowserPolicy?.Allows(scope) == true ? null : "approval_required";
-            if (_grant is null || !(_grant.Scopes.Contains(scope) ||
-                scope == "browser" && _grant.Scopes.Contains("devtools"))) return "approval_required";
+            if (Admission.Blocks(surface).Length > 0) return "access_paused";
+            if (BrowserScope(scope) && !nativeOnly && BrowserPolicy?.Allows(scope) != true) return "browser_runtime_unavailable";
             return null;
         }
     }
-
-    internal string? AdmissionAuthority(string[] scopes)
+    internal static object RefusalData(string operation, string code) => new
     {
-        lock (Gate)
+        requiredSurface = SurfaceFor(ScopeFor(operation) ?? ""),
+        requestOperation = code == "control_session_required" ? "control.open" : null,
+        controlSession = code == "control_session_required" ? new
         {
-            if (Journal?.Available == false) return "audit_storage_unavailable";
-            if (BrowserOnlyWhileLocked && !_preparedConsole && !scopes.All(BrowserScope)) return "desktop_locked_browser_only";
-            if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) return "expired";
-            return _grant is not null && scopes.All(scope => BrowserScope(scope) ? BrowserPolicy?.Allows(scope) == true : _grant.Scopes.Contains(scope)) ? null : "approval_required";
-        }
-    }
-
-    internal Task<GrantReply> RequestAsync(Request request, string caller)
-    {
-        lock (Gate)
-        {
-            Refresh();
-            if (_updating) return Task.FromResult(new GrantReply(false, "update_in_progress"));
-            var scopes = ValidateScopes(request.Scopes);
-            var duration = ValidateDuration(request.DurationSeconds ?? 900);
-            var timeout = request.TimeoutSeconds ?? 120;
-            if (timeout is < 5 or > 600 || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > 240)
-                throw new ArgumentException("Choose a reason (1-240 characters) and timeout (5-600 seconds)");
-            if (_pending is not null) return Task.FromResult(new GrantReply(false, "approval_pending"));
-            if (_grant is not null && scopes.All(scope => BrowserScope(scope) ? BrowserPolicy?.Allows(scope) == true : _grant.Scopes.Contains(scope)))
-            {
-                if (_ready || BrowserOnlyWhileLocked && scopes.All(BrowserScope))
-                    return Task.FromResult(new GrantReply(true, Data: DeploymentState()));
-            }
-            if (!_ready) return Task.FromResult(new GrantReply(false,
-                _lockedConsole ? "approval_unavailable_while_locked" : "desktop_unavailable"));
-            if (!ApprovalPresentationAvailable) return Task.FromResult(new GrantReply(false, "native_presentation_unavailable"));
-            var completion = new TaskCompletionSource<GrantReply>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (Journal?.Available == false) return Task.FromResult(new GrantReply(false, "audit_storage_unavailable"));
-            Journal?.QueueEvent("access.requested");
-            _pending = new PendingGrant(Guid.NewGuid().ToString("n"), scopes, duration,
-                timeout, request.Reason.Trim(), caller, _time.GetTimestamp(), completion);
-            return completion.Task;
-        }
-    }
-
-    internal void Decide(string id, bool allow, string[]? scopes, int duration, string[]? browserProfileIds = null)
-    {
-        lock (Gate)
-        {
-            Refresh();
-            var pending = _pending ?? throw new InvalidOperationException("No pending approval");
-            if (pending.Id != id) throw new InvalidOperationException("Approval request changed");
-            if (!allow)
-            {
-                Journal?.QueueEvent("access.denied", false);
-                _pending = null;
-                pending.Completion.TrySetResult(new GrantReply(false, "approval_denied"));
-                return;
-            }
-            var selected = ValidateScopes(scopes);
-            ValidateDuration(duration);
-            if (!selected.IsSubsetOf(pending.Scopes) || duration > pending.Duration)
-                throw new ArgumentException("Approval may only narrow scope and duration");
-            if (!_ready || _updating) throw new InvalidOperationException("Desktop is unavailable");
-            Issue(selected, duration, pending.Reason, pending.Caller, browserProfileIds: browserProfileIds);
-            _pending = null;
-            BrowserPolicy?.Refresh();
-            pending.Completion.TrySetResult(new GrantReply(true, Data: DeploymentState()));
-        }
-    }
-
-    internal void Arm(string[]? scopes, int duration, string lifetime = "timed", string[]? browserProfileIds = null)
-    {
-        lock (Gate)
-        {
-            Refresh();
-            if (!_ready || _updating || _pending is not null)
-                throw new InvalidOperationException("Finish approval and use an unlocked desktop before enabling access");
-            int? seconds = lifetime switch
-            {
-                "timed" => ValidateDuration(duration),
-                "until_stopped" => null,
-                _ => throw new ArgumentException("Choose a supported access lifetime"),
-            };
-            Issue(ValidateScopes(scopes), seconds, "Manually enabled by the person", "local operator", "person", browserProfileIds);
-        }
-    }
-
-    internal void Pause(int? seconds = null)
-    {
-        lock (Gate)
-        {
-            if (seconds is < 1 or > 28800) throw new ArgumentException("Invalid pause duration");
-            _generation = Guid.NewGuid().ToString("n");
-            Admission.Pause("desktop", "manual", seconds);
-            Journal?.QueueEvent("access.paused");
-        }
-    }
-
+            schema = AccessAdmission.Schema,
+            surface = SurfaceFor(ScopeFor(operation) ?? ""),
+            profileSelection = "exact"
+        } : null
+    };
+    internal Task<GrantReply> RequestAsync(Request request, string caller) => Task.FromResult(new GrantReply(false,
+        request.Scopes?.Any(scope => Admission.Enabled(SurfaceFor(scope))) == true ? "legacy_grant_request_unsupported" : "surface_disabled"));
+    internal void Pause(int? seconds = null) { lock (Gate) { Admission.Pause("all", "manual", seconds); Journal?.QueueEvent("access.paused"); } }
     internal void Resume()
     {
         lock (Gate)
         {
-            Admission.Resume("desktop", "manual");
-            Admission.Resume("desktop", "operator_deferral");
-            Activity.ResumeFromOperator();
-            Admission.Resume("desktop", "physical_takeover");
-            Journal?.QueueEvent("access.resumed");
+            Admission.Resume("all", "manual"); Admission.Resume("all", "operator_deferral");
+            Activity.ResumeFromOperator(); Admission.Resume("all", "physical_takeover"); Journal?.QueueEvent("access.resumed");
         }
     }
-
-    private void Issue(HashSet<string> scopes, int? duration, string reason, string caller, string origin = "request", string[]? browserProfileIds = null)
+    internal void PauseRequest(string id, int? seconds)
     {
-        browserProfileIds = browserProfileIds?.ToArray();
-        if (Journal?.Available == false) throw new InvalidOperationException("Audit storage unavailable");
-        if (scopes.Any(BrowserScope) && BrowserPolicy is null) throw new InvalidOperationException("Browser runtime unavailable");
-        var checkpoint = origin == "request" && _grant?.Origin == "person" ? BrowserPolicy?.Checkpoint() : null;
-        BrowserPolicy?.Configure(scopes.ToArray(), duration, browserProfileIds ?? []);
-        Journal?.QueueEvent("access.enabled");
-        _generation = Guid.NewGuid().ToString("n");
-        if (origin == "person") _armed = null;
-        else if (_grant?.Origin == "person") _armed = _grant with { BrowserCheckpoint = checkpoint };
-        _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp(), origin, _consoleIdentity, browserProfileIds ?? []);
-        ++_authorizationRevision;
-        _lastEnded = null;
+        lock (Gate) Admission.Defer(id, seconds);
     }
-
+    internal void ResumeSurface(string surface)
+    {
+        if (surface is not ("desktop" or "browser")) throw new ArgumentException("Choose a surface");
+        lock (Gate)
+        {
+            Admission.Resume(surface, "manual"); Admission.Resume(surface, "operator_deferral");
+            if (surface == "desktop") Activity.ResumeFromOperator();
+            Admission.Resume(surface, "physical_takeover");
+        }
+    }
     internal void Stop(string reason)
     {
-        var restored = false;
         lock (Gate)
         {
-            var ending = _grant;
-            _generation = Guid.NewGuid().ToString("n");
-            _grant = null;
-            ++_authorizationRevision;
-            _lastEnded = reason;
-            _pending?.Completion.TrySetResult(new GrantReply(false, reason));
-            _pending = null;
-            _admission?.Stop(reason);
-            // Only an agent grant's own end returns the person's access; the
-            // person's Stop, locking, updates and failures clear it too.
-            if (ending?.Origin == "request" && reason is "expired" or "revoked_by_caller" &&
-                _armed is { } armed && !(armed.Duration is int seconds && Elapsed(armed.Started) >= seconds))
-            {
-                if (armed.BrowserCheckpoint is { } checkpoint) BrowserPolicy?.Restore(checkpoint);
-                else BrowserPolicy?.Stop();
-                _grant = armed;
-                _lastEnded = null;
-                restored = true;
-            }
-            if (!restored) BrowserPolicy?.Stop();
-            _armed = null;
-        }
-        Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
-        if (restored) Journal?.QueueEvent("access.restored");
-    }
-
-    /// <summary>
-    /// A socket caller's revoke ends only access an agent requested. Access the
-    /// person armed stays on and is reported as retained.
-    /// </summary>
-    internal (bool Revoked, bool Retained) RevokeFromCaller()
-    {
-        lock (Gate)
-        {
-            Refresh();
-            if (_grant is null) return (false, false);
-            if (_grant.Origin == "person")
-            {
-                Journal?.QueueEvent("access.revoke_retained");
-                return (false, true);
-            }
-            Stop("revoked_by_caller");
-            return (true, false);
+            _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n");
+            ++_authorizationRevision; _lastEnded = reason; _browserConsentConsole = null;
+            _admission?.Stop(reason); BrowserPolicy?.Stop(); Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
         }
     }
-
+    internal (bool Revoked, bool Retained) RevokeFromCaller() => (false, Admission.Enabled("desktop") || Admission.Enabled("browser"));
     internal void PrepareUpdate()
     {
         lock (Gate)
         {
-            Refresh();
-            if (_updating || _grant is not null || _pending is not null)
-                throw new InvalidOperationException("Stop access and finish approval before updating");
-            _updating = true;
-            Stop("update_in_progress");
+            if (_updating || Admission.Enabled("desktop") || Admission.Enabled("browser")) throw new InvalidOperationException("Stop access before updating");
+            _updating = true; Stop("update_in_progress");
         }
     }
-
     internal void CancelUpdate() { lock (Gate) _updating = false; }
-
-    internal void Refresh()
-    {
-        lock (Gate)
-        {
-            if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) Stop("expired");
-            if (_pending is not null && Elapsed(_pending.Started) >= _pending.Timeout)
-            {
-                Journal?.QueueEvent("access.approval_timeout", false);
-                _pending.Completion.TrySetResult(new GrantReply(false, "approval_timeout"));
-                _pending = null;
-            }
-            _admission?.Refresh();
-        }
-    }
-
+    internal void Refresh() { lock (Gate) { PublishReady(); _admission?.Refresh(); } }
     internal void Record(Result result)
     {
         lock (Gate)
         {
-            _activity.Enqueue(new
-            {
-                at = _time.GetUtcNow(),
-                operation = result.Operation,
-                accepted = result.Accepted,
-                errorCode = result.ErrorCode
-            });
+            _activity.Enqueue(new { at = _time.GetUtcNow(), operation = result.Operation, accepted = result.Accepted, errorCode = result.ErrorCode });
             while (_activity.Count > 100) _activity.Dequeue();
         }
     }
-
-    private double Elapsed(long stamp) => _time.GetElapsedTime(stamp).TotalSeconds;
-    private object? GrantState() => _grant is null ? null : new
-    {
-        grantId = _grant.Id,
-        scopes = _grant.Scopes.Order().ToArray(),
-        lifetime = _grant.Duration is null ? "until_stopped" : "timed",
-        remainingSeconds = System.Text.Json.JsonSerializer.SerializeToElement(_grant.Duration is int duration
-            ? (int?)Math.Max(0, (int)Math.Ceiling(duration - Elapsed(_grant.Started))) : null),
-        reason = _grant.Reason,
-        requester = _grant.Caller,
-        origin = _grant.Origin,
-        binding = "target_wide",
-    };
-
+    private string[] EffectiveScopes() => SupportedScopes.Where(scope => Admission.Enabled(SurfaceFor(scope))).ToArray();
     internal object DeploymentState()
     {
-        lock (Gate)
+        lock (Gate) return new
         {
-            Refresh();
-            return new
-            {
-                policy = new { preset = "workstation", grantMode = "approval", operationSet = "ordinary" },
-                grant = GrantState(),
-                pendingRequest = _pending?.Id,
-                lastEnded = _lastEnded,
-                browserOnlyWhileLocked = BrowserOnlyWhileLocked,
-                effectiveScopes = _grant?.Scopes.Where(scope => !BrowserScope(scope) || BrowserPolicy?.Allows(scope) == true).Where(scope => _ready || BrowserOnlyWhileLocked && BrowserScope(scope)).Order().ToArray() ?? [],
-                availability = new { paused = Admission.Blocks("desktop").Length > 0, blockingReasons = Admission.Blocks("desktop") },
-            };
-        }
+            policy = new { preset = "workstation", grantMode = "surface_modes", operationSet = "ordinary" },
+            grant = (object?)null,
+            pendingRequest = (string?)null,
+            lastEnded = _lastEnded,
+            browserOnlyWhileLocked = BrowserOnlyWhileLocked,
+            effectiveScopes = EffectiveScopes(),
+            availability = new { paused = Admission.Blocks("desktop").Length > 0, blockingReasons = Admission.Blocks("desktop") }
+        };
     }
-
     internal object State()
     {
         lock (Gate)
         {
             Refresh();
+            var admission = (JsonObject)Admission.Status();
+            var requests = admission["requests"]!.AsArray();
+            admission["requestsTruncated"] = requests.Count > 16;
+            admission["requests"] = new JsonArray(requests.OrderBy(request => request?["state"]?.GetValue<string>() switch
+            { "announcing" => 0, "waiting_for_approval" => 1, "active" => 2, _ => 3 }).Take(16).Select(request => request?.DeepClone()).ToArray());
             return new
             {
                 generation = _generation,
+                browserGeneration = _browserGeneration,
                 manualUntilStoppedSupported = true,
                 deployment = DeploymentState(),
-                pending = _pending is null ? null : new
-                {
-                    id = _pending.Id,
-                    scopes = _pending.Scopes.Order().ToArray(),
-                    duration = _pending.Duration,
-                    reason = _pending.Reason,
-                    caller = _pending.Caller,
-                },
+                pending = (object?)null,
                 activity = _activity.Reverse().Take(30).ToArray(),
                 supportedScopes = SupportedScopes,
                 logging = Journal?.Health,
-                admission = Admission.Status(),
+                admission,
+                accessPolicy = admission,
                 pauseSupported = true,
-                browserWhileLocked = BrowserWhileLockedState(),
+                browserWhileLocked = BrowserWhileLockedState()
             };
         }
     }
-
-    private static HashSet<string> ValidateScopes(string[]? scopes)
-    {
-        if (scopes is null || scopes.Length is < 1 or > 4 ||
-            scopes.Any(scope => !SupportedScopes.Contains(scope, StringComparer.Ordinal)))
-            throw new ArgumentException("Choose supported access scopes");
-        return scopes.ToHashSet(StringComparer.Ordinal);
-    }
-    private static int ValidateDuration(int seconds) => seconds is >= 60 and <= 28800
-        ? seconds : throw new ArgumentException("Duration must be 60-28800 seconds");
-
-    private sealed record LiveGrant(HashSet<string> Scopes, int? Duration, string Reason, string Caller, long Started,
-        string Origin = "request", string? ConsoleIdentity = null, string[]? BrowserProfileIds = null, string? BrowserCheckpoint = null)
-    {
-        internal string Id { get; } = Guid.NewGuid().ToString("n");
-    }
-    private sealed record PendingGrant(string Id, HashSet<string> Scopes, int Duration, int Timeout,
-        string Reason, string Caller, long Started, TaskCompletionSource<GrantReply> Completion);
+    private static int ValidateDuration(int seconds) => seconds is >= 60 and <= 28800 ? seconds : throw new ArgumentException("Duration must be 60-28800 seconds");
 }

@@ -1,6 +1,8 @@
 # Private native host inlet
 
-Status: **Windows production inlet accepted in a bounded unsigned ARM64 candidate**.
+Status: **v2 surface-policy integration under qualification**. The earlier
+Windows browser inlet was accepted in a bounded unsigned ARM64 candidate; that
+evidence does not qualify the new permissions and handoff implementation.
 This private inlet is not an agent API or an independently installed service.
 The language/deployment decision and migration gates live in
 [the shared-core topic](../topics/shared-resident-core.md) and
@@ -26,8 +28,10 @@ agent with unrestricted shell access.
 ## Original fixture inlet and correlation
 
 Every parent call has a bounded string `id` and one `method`. The first call is
-`hello` with `protocolVersion: 1`. The reply is
-`{type:"reply", id, ok:true, data:{protocolVersion:1, bootId}}`.
+`hello` with `protocolVersion: 2`. The reply is
+`{type:"reply", id, ok:true, data:{protocolVersion:2, bootId, admissionSchema:"machine-control-admission/v2"}}`.
+A v1 parent or child is refused before arming; there is no silent downgrade.
+The Chrome extension/native-messaging protocol remains version 1.
 `bootId` changes on each process creation. IDs and generations are diagnostic
 selectors, never public authority. The host never deserializes a core handle.
 
@@ -127,3 +131,63 @@ withdrawal history; the restore call accepts no replacement duration or profile
 set. `operator.configure` with no browser scopes ends current browser access
 while preserving a saved checkpoint. `operator.stop` invalidates every checkpoint.
 Neither method is exposed on an agent or extension transport.
+
+## Surface policy and native channel ownership (v2)
+
+`src/admission.ts` is the only resident surface/admission engine. Its trusted
+`access.*` inlet supports `configure`, `notice`, `ready`, `pause`, `resume`,
+`input`, `approve`, `start`, `defer`, `deny`, `stop` and `state`. Configuration names one
+surface (`desktop` or `browser`), mode (`off`, `ask`, `automatic`), finite
+`durationMs` or null until-off lifetime, and exact Browser `profileIds`.
+Native facts never supply permission: readiness, notice visibility and pause
+are independent of consent. An explicitly ready locked route keeps its impact
+reservation while skipping an invisible warning; Ask still requires approval. Unknown native activity blocks Desktop; background Browser work does
+not inherit that block. Restart starts both surfaces Off with no owners.
+
+The parent opens each authenticated agent channel through `access.open` using
+a private native owner label. The host maps it to an unforgeable runtime-local
+owner object. `submit`, `inspect`, `accept`, `authorize`, `cancel` and `close`
+require that binding. Native channel EOF calls close. A public session ID,
+request ID, profile name or fence cannot open a native channel or impersonate
+another owner. This is still same-user coordination, not shell containment.
+The Windows public channel and state negotiate
+`machine-control-admission-channel/v2` and `machine-control-admission/v2`.
+Python remains the client language and maintains the live channel/heartbeat.
+
+A request names required surfaces, exact profiles, bounded wait/use durations,
+a reason and an optional narrowed operation set. The trusted native operation
+router derives human interference; callers cannot assert a safe/background
+flag. Known noninterfering browser observations skip the warning. Unrestricted
+browser channels, JavaScript/CDP, navigation and mutations conservatively use
+the Browser warning. Disruptive tasks atomically reserve the shared human-input
+resource in addition to their surface/profile resources. Blocked compound work
+holds no partial reservation. Notice deferrals bind the required resources,
+including shared human input, so another client/surface cannot bypass them. A
+deliberate takeover starts a fixed human-input cooldown while independent
+background work remains eligible. Native dialogs/input require Desktop admission;
+there is no browser-to-native fallback.
+
+An ordinary `browser.call` also carries the parent's trusted `ownerSession` and
+`ownerProfileIds`, derived from authenticated native ownership. Profile names
+resolve in the shared profile registry, then must belong to that exact owner.
+Returned semantic references include the owner-session namespace as well as
+process, provider and consent generations. A new task/owner cannot reuse old
+references. This avoids revoking unrelated profiles merely to retire one owner.
+Streaming CDP retains its original native owner checks and audit acknowledgements.
+
+Production scheduling considers both engines' next deadlines. The native
+adapter retains transport bindings and readiness facts, not a translated queue,
+approval engine or countdown. Child failure closes streams, retires native
+owners and projects an unavailable/off state with working Stop. The fixture-only
+`testing/admission-host.ts` supplies a manual clock for native contract tests;
+it is excluded from production payloads, which copy only `src/` and `node/`.
+
+The outer recovery channel remains explicitly version 1 under its separate
+borrowed-claim contract. It cannot serve as fallback for the v2 resident UI or
+client. Its convergence/removal belongs to the platform migration accounting.
+
+The private state retains bounded complete queue data. Windows operator state
+prioritizes warnings/approvals and limits detailed requests to sixteen while
+reporting complete counts and a truncation flag, keeping the native operator
+frame below its 1 MiB bound even with maximal profile selections. This is a
+presentation bound, never a second admission decision.

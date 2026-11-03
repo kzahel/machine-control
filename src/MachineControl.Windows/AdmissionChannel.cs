@@ -9,10 +9,10 @@ namespace MachineControl.Windows;
 /// No public owner label, session identifier or request ID supplies authority.
 internal static class AdmissionChannel
 {
-    internal const string Schema = "machine-control-admission-channel/v1";
+    internal const string Schema = "machine-control-admission-channel/v2";
     internal static async Task RunAsync(Stream stream, StreamReader reader, JsonObject open,
         DesktopGrants grants, Func<Request, ControlOwnership, CancellationToken, Task<Result>> dispatch,
-        CancellationToken stop, double noticeSeconds = 10, Action? refreshConsole = null)
+        CancellationToken stop, Action? refreshConsole = null)
     {
         var owner = Guid.NewGuid().ToString("n");
         var admission = grants.Admission;
@@ -52,18 +52,27 @@ internal static class AdmissionChannel
         }
         try
         {
-            Keys(open, ["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "preparedConsole"]);
+            Keys(open, ["operation", "schema", "requestId", "reason", "surfaces", "profileIds", "operations", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "preparedConsole"]);
             if (!order.Accept(open)) throw new ArgumentException("invalid_admission_request_order");
             if (open["schema"]?.GetValue<string>() != AccessAdmission.Schema) throw new ArgumentException("unsupported_admission_schema");
-            var scopes = open["scopes"]?.Deserialize<string[]>() ?? [];
-            if (scopes.Length == 0 || scopes.Distinct().Count() != scopes.Length || scopes.Any(s => !DesktopGrants.SupportedScopes.Contains(s))) throw new ArgumentException("invalid_admission_scopes");
+            var surfaces = open["surfaces"]?.Deserialize<string[]>() ?? [];
+            if (surfaces.Length is < 1 or > 2 || surfaces.Distinct().Count() != surfaces.Length || surfaces.Any(s => s is not ("desktop" or "browser"))) throw new ArgumentException("invalid_admission_surfaces");
+            var scopes = DesktopGrants.SupportedScopes.Where(scope => surfaces.Contains(DesktopGrants.SurfaceFor(scope))).ToArray();
+            var profileIds = open["profileIds"]?.Deserialize<string[]>() ?? [];
+            if (surfaces.Contains("browser") && profileIds.Length == 0) throw new ArgumentException("exact_browser_profile_required");
+            var operations = open["operations"]?.Deserialize<string[]>();
+            if (operations is not null && (operations.Length is < 1 or > 64 || operations.Distinct().Count() != operations.Length ||
+                operations.Any(op => DesktopGrants.ScopeFor(op) is not { } scope || !scopes.Contains(scope)))) throw new ArgumentException("invalid_admission_operations");
             var prepared = open["preparedConsole"]?.GetValue<bool>() == true;
             if (prepared && (!grants.PreparedConsole || !scopes.Order().SequenceEqual(new[] { "control", "observe" })))
                 throw new InvalidOperationException("prepared_console_unavailable");
             if (!grants.ReadyForScopes(scopes) && !prepared) throw new InvalidOperationException("prepared_console_required");
-            var initial = admission.Submit(owner, Required(open, "requestId").GetValue<string>(), ["desktop"],
+            // The shared host classifies impact from this enforced operation
+            // set. Callers cannot assert that arbitrary effects are background.
+            var initial = admission.Submit(owner, Required(open, "requestId").GetValue<string>(), surfaces,
                 Required(open, "waitSeconds").GetValue<int>(), Required(open, "durationSeconds").GetValue<int>(),
-                Required(open, "reason").GetValue<string>(), () => grants.AdmissionAuthority(scopes), !grants.ConsoleReady ? 0 : noticeSeconds);
+                Required(open, "reason").GetValue<string>(),
+                profileIds, operations);
             intentId = JsonSerializer.SerializeToElement(initial).GetProperty("intentId").GetString()!;
             await Reply(Required(open, "requestId").GetValue<string>(), initial);
             while (!lifetime.IsCancellationRequested)
@@ -110,6 +119,7 @@ internal static class AdmissionChannel
                             var effect = Contract.ParseRequest(Required(request, "request").ToJsonString()) with { RequestId = id };
                             var scope = DesktopGrants.ScopeFor(effect.Operation);
                             if (effect.Operation is not ("capabilities" or "browser.profiles") && (scope is null || !scopes.Contains(scope))) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
+                            if (operations is not null && effect.Operation is not ("capabilities" or "browser.profiles") && !operations.Contains(effect.Operation)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && !prepared) throw new InvalidOperationException("prepared_console_required");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && fence.StartedLocked != true) throw new InvalidOperationException("task_did_not_start_locked");
                             var actionToken = new object();

@@ -22,7 +22,8 @@ internal static class Program
         }
         Directory.CreateDirectory(EvidenceDirectory);
         var marker = Path.Combine(EvidenceDirectory, "elevation-approved.json");
-        Application.Run(new FixtureForm(marker));
+        var counterOutput = args.Length == 2 && args[0] == "--counter-output" ? Path.GetFullPath(args[1]) : null;
+        Application.Run(new FixtureForm(marker, counterOutput));
     }
 }
 
@@ -34,10 +35,10 @@ internal sealed class FixtureForm : Form
     private readonly Label _counter;
     private int _counterValue;
 
-    public FixtureForm(string marker)
+    public FixtureForm(string marker, string? counterOutput = null)
     {
         _marker = marker;
-        _counterMarker = Path.Combine(
+        _counterMarker = counterOutput ?? Path.Combine(
             Path.GetDirectoryName(marker)!,
             "counter.json");
         Text = "Machine Control Medium Fixture";

@@ -3,7 +3,12 @@ import threading
 import time
 
 import machine_control as mc
-from control_session import ControlSession, validate_view, SCHEMA, CHANNEL_SCHEMA
+from control_session import ControlSession
+
+# Explicitly separate legacy outer-recovery protocol. It cannot silently serve
+# as a fallback for the v2 resident surface contract during desktop migration.
+SCHEMA = "machine-control-admission/v1"
+CHANNEL_SCHEMA = "machine-control-admission-channel/v1"
 
 
 class OuterSession(ControlSession):
@@ -14,13 +19,14 @@ class OuterSession(ControlSession):
     Every native effect rechecks its VM lease under the claim-store operation
     lock and the native desktop ownership fence. No action is replayed.
     """
+    _admission_schema = SCHEMA
     def __init__(self, host, binding, *, reason, wait=300, duration=300):
         if not reason or len(reason) > 240 or type(wait) is not int or not 1 <= wait <= 14400 \
                 or type(duration) is not int or not 1 <= duration <= 900:
             raise mc.ClientError("invalid_admission_request", "Invalid outer admission timings")
         self._start_transport(host, "channel", CHANNEL_SCHEMA, "control.cancel")
         try:
-            self.view = validate_view(self._rpc(dict(operation="control.open", schema=SCHEMA,
+            self.view = self._validate_view(self._rpc(dict(operation="control.open", schema=SCHEMA,
                 scopes=["observe", "control"], reason=reason, waitSeconds=wait,
                 durationSeconds=duration, outerRecovery=binding), timeout=10))
             if self.view.get("outerRecovery") != "borrowed_exact_claim/v1":

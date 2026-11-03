@@ -11,7 +11,6 @@ static void Refuses(Action action, string message)
     throw new Exception("Expected refusal: " + message);
 }
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
-static string Pending(DesktopGrants broker) => State(broker).GetProperty("pending").GetProperty("id").GetString()!;
 JournalAclFixtures.Run();
 var journalRoot = Path.Combine(Path.GetTempPath(), "mc-journal-" + Guid.NewGuid().ToString("n"));
 try
@@ -61,7 +60,7 @@ try
     var unavailable = new DesktopJournal(blocked);
     Assert(!unavailable.Begin("click", "x"), "Unavailable storage refuses intent");
     var gated = TestBrowserProjection.Create(journal: unavailable); gated.SetReady(true);
-    Refuses(() => gated.Arm(["control"], 60), "Unlogged grant refused");
+    Refuses(() => gated.ConfigureSurface("desktop", "automatic", 60, "timed"), "Unlogged grant refused");
     gated.Stop("stopped_by_person");
     Assert(!State(gated).GetProperty("deployment").TryGetProperty("grant", out _) || State(gated).GetProperty("deployment").GetProperty("grant").ValueKind == JsonValueKind.Null, "Stop works without logging");
 }
@@ -103,148 +102,13 @@ updates.Sync(busyUpdates);
 updates.Request(true);
 Assert(!updates.Sync(idleUpdates), "Installation excludes discovery");
 var broker = TestBrowserProjection.Create(clock);
-var lockedBrowser = TestBrowserProjection.Create(clock);
-lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
-lockedBrowser.ConfigureBrowserWhileLocked(true);
-Assert(lockedBrowser.Authorize("browser.tabs") == "approval_required", "Browser lock preference grants no access");
-lockedBrowser.Arm(["observe", "control", "browser"], 300);
-var lockedGrantId = JsonSerializer.SerializeToElement(lockedBrowser.DeploymentState()).GetProperty("grant").GetProperty("grantId").GetString();
-lockedBrowser.SetReady(false, true, "logon-one");
-Assert(lockedBrowser.BrowserOnlyWhileLocked && lockedBrowser.ReadyForScopes(["browser"]), "Same locked logon supports browser owners");
-Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) is null, "Locked browser operation allowed");
-Assert(lockedBrowser.Authorize("snapshot", controlled: true) == "desktop_locked_browser_only", "Mixed grant cannot observe locked desktop");
-Assert(lockedBrowser.Authorize("browser.eval", controlled: true) == "approval_required", "DevTools remains separate");
-Assert(lockedBrowser.AdmissionAuthority(["control"]) == "desktop_locked_browser_only", "Desktop admission fenced while locked");
-Assert(JsonSerializer.SerializeToElement(lockedBrowser.DeploymentState()).GetProperty("grant").GetProperty("grantId").GetString() == lockedGrantId, "Lock preserves grant identity");
-Assert((await lockedBrowser.RequestAsync(new Request { Operation = "grant.request", Scopes = ["browser"], Reason = "reuse" }, "fixture")).Accepted, "Covered browser approval reused while locked");
-Assert((await lockedBrowser.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], Reason = "expand" }, "fixture")).ErrorCode == "approval_unavailable_while_locked", "New locked approval refused");
-lockedBrowser.Pause();
-Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) == "access_paused", "Locked browser honors Pause");
-lockedBrowser.Resume();
-Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) is null, "Locked browser resumes same approval");
-lockedBrowser.ConfigureBrowserWhileLocked(false);
-Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) == "desktop_unavailable", "Disable ends retained access");
-lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
-lockedBrowser.ConfigureBrowserWhileLocked(true);
-lockedBrowser.Arm(["browser", "devtools"], 60);
-lockedBrowser.SetReady(false, true, "logon-one");
-Assert(lockedBrowser.Authorize("browser.eval", controlled: true) is null, "Approved DevTools works while locked");
-clock.Advance(61);
-Assert(lockedBrowser.Authorize("browser.eval", controlled: true) is not null, "Locked browser expiry enforced");
-lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
-lockedBrowser.Arm(["browser"], 300);
-lockedBrowser.SetReady(false, true, "replacement-logon");
-Assert(!lockedBrowser.BrowserOnlyWhileLocked && lockedBrowser.AdmissionAuthority(["browser"]) == "approval_required", "Replacement logon loses authority");
-lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
-lockedBrowser.Arm(["browser"], 300);
-lockedBrowser.SetReady(false, false, null);
-Assert(lockedBrowser.AdmissionAuthority(["browser"]) == "approval_required", "Unknown session loses authority");
 broker.SetReady(true);
-Assert(State(broker).GetProperty("manualUntilStoppedSupported").GetBoolean(), "Indefinite manual access advertised");
-Refuses(() => broker.Arm(["observe"], 60, "unknown"), "Unknown lifetime");
-Refuses(() => broker.Arm(["observe"], 0), "Zero is not implicitly indefinite");
-Refuses(() => broker.Arm(["protected"], 0, "until_stopped"), "Indefinite grant retains scope validation");
-broker.Arm(["observe"], 0, "until_stopped");
-clock.Advance(60 * 60 * 24 * 365);
-var indefinite = State(broker).GetProperty("deployment").GetProperty("grant");
-Assert(indefinite.GetProperty("lifetime").GetString() == "until_stopped" &&
-    indefinite.GetProperty("remainingSeconds").ValueKind == JsonValueKind.Null, "Explicit lifetime and null countdown");
-Assert(broker.Authorize("snapshot") is null && broker.AdmissionAuthority(["observe"]) is null, "No expiry in dispatch or admission");
-Assert(broker.Authorize("invoke") == "approval_required", "Indefinite grant preserves scopes");
-Refuses(broker.PrepareUpdate, "Indefinite access blocks replacement");
-var indefiniteGeneration = broker.Generation;
-broker.Pause(); clock.Advance(60 * 60 * 24 * 365);
-Assert(broker.Authorize("snapshot") == "access_paused", "Indefinite access obeys pause");
-broker.Resume();
-Assert(broker.Authorize("snapshot") is null, "Resume retains indefinite access");
-Assert(broker.Authorize("snapshot", indefiniteGeneration) == "stale_generation", "Pause fences indefinite references");
-broker.SetReady(false);
-Assert(broker.Authorize("snapshot") == "desktop_unavailable", "Indefinite access obeys availability");
-broker.SetReady(true);
-Assert(broker.Authorize("snapshot") is null, "Availability recovery retains existing Windows semantics");
-Refuses(() => broker.RequestAsync(new Request { Operation = "grant.request", Scopes = ["observe"], DurationSeconds = 0, Reason = "No public indefinite grant" }, "caller"), "Public duration still bounded even with coverage");
-var indefinitePending = broker.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], DurationSeconds = 60, Reason = "Timed approval" }, "caller");
-Refuses(() => broker.Arm(["observe"], 0, "until_stopped"), "Pending approval blocks indefinite arm");
-Refuses(() => broker.Decide(Pending(broker), true, ["control"], 0), "Approval cannot issue indefinite grant");
-broker.Decide(Pending(broker), true, ["control"], 60);
-Assert((await indefinitePending).Accepted, "Bounded approval replaces indefinite grant");
-clock.Advance(60);
-Assert(broker.AdmissionAuthority(["control"]) == "expired", "Timed admission expiry retained");
-Assert(broker.Authorize("invoke") == "approval_required", "Timed replacement expires");
-broker.Arm(["observe"], 0, "until_stopped");
-indefiniteGeneration = broker.Generation;
-broker.Stop("stopped_by_person");
-Assert(broker.Authorize("snapshot", indefiniteGeneration) == "stale_generation", "Stop fences indefinite references");
-Assert(broker.AdmissionAuthority(["observe"]) == "approval_required", "Stop revokes indefinite admission");
-broker.PrepareUpdate();
-Refuses(() => broker.Arm(["observe"], 0, "until_stopped"), "Update blocks indefinite arming");
-broker.CancelUpdate();
-Assert(broker.Authorize("snapshot") == "approval_required", "Off by default");
-var retained = TestBrowserProjection.Create(clock);
-retained.SetReady(true);
-retained.Arm(["observe"], 0, "until_stopped");
-Assert(retained.RevokeFromCaller() == (false, true), "Caller revoke retains person-armed access");
-Assert(retained.Authorize("snapshot") is null, "Person access survives caller revoke");
-Assert(State(retained).GetProperty("deployment").GetProperty("grant").GetProperty("origin").GetString() == "person",
-    "Grant reports person origin");
-async Task ApproveControl(DesktopGrants grants, int seconds)
-{
-    var reply = grants.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], DurationSeconds = seconds, Reason = "Broader agent access" }, "caller");
-    grants.Decide(Pending(grants), true, ["control"], seconds);
-    Assert((await reply).Accepted, "Broader request approved");
-}
-await ApproveControl(retained, 60);
-Assert(State(retained).GetProperty("deployment").GetProperty("grant").GetProperty("origin").GetString() == "request",
-    "Approved request replaces person access");
-Assert(retained.RevokeFromCaller() == (true, false), "Caller ends its own request grant");
-Assert(retained.Authorize("snapshot") is null && retained.Authorize("invoke") == "approval_required",
-    "Person access returns after caller revoke");
-await ApproveControl(retained, 60);
-clock.Advance(61);
-Assert(retained.Authorize("snapshot") is null && retained.Authorize("invoke") == "approval_required",
-    "Person access returns after request expiry");
-await ApproveControl(retained, 60);
-retained.Stop("stopped_by_person");
-Assert(retained.Authorize("snapshot") == "approval_required", "Person Stop clears replaced access");
-Assert(retained.RevokeFromCaller() == (false, false), "Nothing left to revoke");
-var lapsed = TestBrowserProjection.Create(clock);
-lapsed.SetReady(true);
-lapsed.Arm(["observe"], 60);
-await ApproveControl(lapsed, 120);
-clock.Advance(121);
-Assert(lapsed.Authorize("snapshot") == "approval_required", "Expired person access is not restored");
-Assert(broker.Authorize("session.login") == "unsupported_operation", "No protected scope");
-Refuses(() => broker.Arm(["protected"], 60), "Unsupported scope");
-Refuses(() => broker.Arm(["observe"], 59), "Unbounded duration");
-broker.Arm(["browser"], 60);
-Assert(broker.Authorize("browser.tabs") is null, "Browser scope authorizes tabs");
-Assert(broker.Authorize("browser.eval") == "approval_required", "Browser is not raw DevTools");
-Assert(broker.Authorize("snapshot") == "approval_required", "Browser is not desktop observation");
-Assert(BrowserWire.Operations.Contains("browser.upload") && !BrowserWire.Observes("browser.upload"), "Upload is an advertised browser mutation");
-Assert(DesktopGrants.ScopeFor("browser.dialog") == "browser" && broker.Authorize("browser.dialog") is null,
-    "Typed dialog handling uses the browser grant");
-foreach (var operation in BrowserWire.Operations) Assert(DesktopJournal.Known(operation), "Browser audit operation is typed: " + operation);
-Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.closed", ["reason"] = "native_debugger_detached" }) == "native_debugger_detached", "Known stream lifecycle code is observable");
-Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.closed", ["reason"] = "private page content" }) == "provider_closed", "Untrusted provider reason is never reflected");
-Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.failed", ["message"] = "private page content" }) == "provider_session_failed", "Provider error message is never reflected");
-Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.event" }) is null, "Nonterminal frames do not alter stream end observation");
-Assert(DesktopGrants.ScopeFor("browser.profiles") is null, "Profile metadata requires no page-control grant");
+await SurfacePolicyFixtures.RunAsync();
 foreach (var operation in BrowserWire.Operations.Where(value => value != "browser.profiles"))
-    Assert(DesktopGrants.ScopeFor(operation) is not null, "Every advertised browser operation has a control-session scope: " + operation);
-Assert(broker.Authorize("browser.upload") is null, "Browser scope permits upload without DevTools");
-Assert(broker.Authorize(new Request { Operation = "browser.upload" }) == "control_session_required", "Upload requires live ownership");
-Assert(broker.Authorize(new Request { Operation = "browser.dialog" }) == "control_session_required", "Typed dialogs require live ownership");
-broker.Stop("test");
-broker.Arm(["devtools"], 60);
-Assert(broker.Authorize("browser.eval") is null && broker.Authorize("browser.tabs") is null, "DevTools includes browser");
-var browserPending = broker.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], DurationSeconds = 60, Reason = "Other scope" }, "caller");
-Assert(broker.Authorize("browser.eval") == "approval_prompt_visible" && broker.Authorize("browser.click") == "approval_prompt_visible", "Prompt pauses browser writes and raw evaluation");
-Assert(broker.Authorize("browser.tabs") is null, "Prompt permits browser observation");
-Assert(broker.Authorize("browser.upload") == "approval_prompt_visible", "Prompt fences uploads");
-broker.Stop("test");
-Assert(broker.Authorize("browser.upload") == "approval_required", "Stop revokes uploads");
-Assert(broker.Authorize("browser.dialog") == "approval_required", "Stop revokes typed dialogs");
-Assert((await browserPending).ErrorCode == "test", "Stop cancels browser prompt");
+    Assert(DesktopGrants.ScopeFor(operation) is not null, "Browser operation has a native capability mapping");
+Assert(DesktopGrants.ScopeFor("browser.profiles") is null, "Profile metadata has no page-control capability");
+foreach (var operation in BrowserWire.Operations) Assert(DesktopJournal.Known(operation), "Browser audit operation is typed");
+Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.closed", ["reason"] = "private page content" }) == "provider_closed", "Untrusted stream reason is not reflected");
 Assert(Contract.ParseRequest("{\"operation\":\"browser.upload\",\"files\":[\"C:\\\\fixture.txt\"]}").Files?.Single() == @"C:\fixture.txt", "Upload file list survives request parsing");
 Assert(BrowserUpload.Validate(null).ErrorCode == "invalid_request" && BrowserUpload.Validate([]).ErrorCode == "invalid_request", "Upload needs files");
 Assert(BrowserUpload.Validate(Enumerable.Repeat(@"C:\fixture.txt", 21).ToArray()).ErrorCode == "invalid_request", "Upload file count bounded");
@@ -308,126 +172,10 @@ foreach (var length in new uint[] { 0, BrowserWire.MaximumInput + 1 })
     try { BrowserWire.Read(frame); throw new Exception("Expected dedicated frame refusal"); }
     catch (InvalidDataException) { }
 }
-var original = broker.Generation;
-broker.Arm(["observe"], 60);
-Assert(broker.Generation != original, "Arming changes generation");
-Assert(broker.Authorize("snapshot") is null && broker.Authorize("invoke") == "approval_required", "View-only scope");
-Assert(broker.Authorize("snapshot", original) == "stale_generation", "Old references invalidated");
-Refuses(broker.PrepareUpdate, "No replacement with active access");
-clock.Advance(61);
-Assert(broker.Authorize("snapshot") == "approval_required", "Monotonic expiry");
-var request = new Request
-{
-    Operation = "grant.request",
-    Scopes = ["observe", "control"],
-    DurationSeconds = 300,
-    TimeoutSeconds = 5,
-    Reason = "Fixture control"
-};
-broker.Arm(["observe", "control"], 60);
-var covered = await broker.RequestAsync(request, "caller");
-Assert(covered.Accepted, "Covered request reuses access");
-broker.Stop("test");
-var waiting = broker.RequestAsync(request, "caller");
-Assert(broker.Authorize("click") == "approval_prompt_visible", "Prompt pauses control");
-Assert(!(await broker.RequestAsync(request, "other")).Accepted, "One pending request");
-Refuses(() => broker.Decide("stale", true, ["observe"], 60), "Stale approval");
-Refuses(() => broker.Decide(Pending(broker), true, ["observe"], 301), "Duration widening");
-Refuses(() => broker.Decide(Pending(broker), true, ["browser"], 60), "Scope widening");
-broker.Decide(Pending(broker), true, ["observe"], 60);
-Assert((await waiting).Accepted && broker.Authorize("invoke") == "approval_required", "Narrowed approval enforced");
-broker.Stop("test");
-waiting = broker.RequestAsync(request, "caller");
-broker.Decide(Pending(broker), false, null, 0);
-Assert((await waiting).ErrorCode == "approval_denied", "Denied request");
-waiting = broker.RequestAsync(request, "caller");
-clock.Advance(6); broker.Refresh();
-Assert((await waiting).ErrorCode == "approval_timeout", "Bounded request timeout");
-broker.Arm(["observe", "control"], 300);
-original = broker.Generation;
-broker.SetReady(false);
-Assert(broker.Authorize("invoke") == "desktop_unavailable", "Unavailable desktop refuses use");
-broker.SetReady(true);
-Assert(broker.Authorize("invoke") is null && broker.Generation != original, "Lock pauses availability and fences old references without revoking authorization");
-original = broker.Generation;
-broker.Pause();
-Assert(broker.Authorize("snapshot") == "access_paused" && broker.Authorize("invoke") == "access_paused", "Pause gates observation and action");
-foreach (var operation in new[] { "key.timeline", "key.delayed_hold" })
-{
-    Assert(DesktopGrants.ScopeFor(operation) == "control", "Key timing requires control scope");
-    Assert(broker.Authorize(operation) == "access_paused", "Pause gates key timing");
-    var timing = TestBrowserProjection.Create(new TestTime());
-    timing.SetReady(true);
-    Assert(timing.Authorize(operation) == "approval_required", "Key timing is off by default");
-    timing.Arm(["observe"], 60);
-    Assert(timing.Authorize(operation) == "approval_required", "Observation does not allow key timing");
-    timing.Arm(["control"], 60);
-    var timingGeneration = timing.Generation;
-    Assert(timing.Authorize(operation, timingGeneration) is null, "Control scope permits key timing");
-    timing.Stop("test");
-    Assert(timing.Authorize(operation, timingGeneration) == "stale_generation", "Stop fences key timing references");
-    Assert(timing.Authorize(operation) == "approval_required", "Stop revokes key timing access");
-}
-Assert(broker.Generation != original && State(broker).GetProperty("deployment").GetProperty("grant").ValueKind == JsonValueKind.Object, "Pause preserves grant and fences references");
-broker.Admission.Pause("desktop", "safety_fault"); broker.Resume();
-Assert(broker.Authorize("invoke") == "access_paused", "Resume leaves independent safety block");
-broker.Admission.Resume("desktop", "safety_fault");
-Assert(broker.Authorize("invoke") is null, "No fresh permission after ordinary pause");
-broker.Pause(1); clock.Advance(1);
-Assert(broker.Authorize("invoke") is null, "Timed pause expires");
-broker.Pause(); clock.Advance(300);
-Assert(broker.Authorize("invoke") == "access_paused", "Expired authorization cannot bypass pause");
-broker.Resume();
-Assert(broker.Authorize("invoke") == "approval_required", "Grant clock ran while paused");
-waiting = broker.RequestAsync(request, "caller");
-broker.Stop("stopped_by_person");
-Assert((await waiting).ErrorCode == "stopped_by_person", "Stop dismisses approval");
-broker.PrepareUpdate();
-Refuses(() => broker.Arm(["control"], 60), "Update gate blocks arming");
-Assert((await broker.RequestAsync(request, "caller")).ErrorCode == "update_in_progress", "Update gate blocks requests");
-broker.CancelUpdate();
-broker.Arm(["control"], 60);
-Assert(broker.Authorize("type") is null, "Update failure restores availability with explicit rearm");
 for (var i = 0; i < 150; i++) broker.Record(new Result { RequestId = "test", Operation = "invoke", Accepted = false });
 Assert(State(broker).GetProperty("activity").GetArrayLength() == 30, "Bounded activity projection");
 await AdmissionChannelFixtures.RunAsync();
 DesktopActivityFixtures.Run();
-var independentDesktop = TestBrowserProjection.Create(new TestTime());
-independentDesktop.SetReady(true, consoleIdentity: "same-logon");
-independentDesktop.ConfigureBrowserWhileLocked(true);
-independentDesktop.PrepareConsole(true);
-independentDesktop.Arm(["observe", "control"], 300);
-independentDesktop.SetReady(false, false, "same-logon");
-Assert(independentDesktop.AdmissionAuthority(["control"]) is null, "Browser preference cannot revoke a desktop-only approval during a lock transition");
-Assert(independentDesktop.Authorize("snapshot", controlled: true) == "desktop_unavailable", "Unavailable desktop still refuses ordinary effects");
-independentDesktop.SetReady(false, true, "same-logon");
-Assert(independentDesktop.Authorize("session.unlock", controlled: true) is null, "Stable locked desktop permits its enrolled operation independently of browser preference");
-var preparedGrant = TestBrowserProjection.Create(new TestTime());
-preparedGrant.SetReady(true);
-preparedGrant.Arm(["observe", "control"], 300);
-var oldAuthorization = preparedGrant.AuthorizationRevision;
-preparedGrant.PrepareConsole(true);
-Assert(preparedGrant.AuthorizationRevision > oldAuthorization && preparedGrant.AdmissionAuthority(["control"]) == "approval_required", "Protected preference changes revoke ordinary consent");
-preparedGrant.Arm(["observe", "control"], 300);
-preparedGrant.SetReady(false, lockedConsole: true);
-Assert(preparedGrant.Admission.Blocks("desktop").Length == 0, "Explicit preparation makes the locked console reservable");
-Assert(preparedGrant.Authorize("snapshot", controlled: true) == "desktop_unavailable", "Prepared ownership never permits ordinary locked-screen dispatch");
-Assert(preparedGrant.Authorize("session.unlock.prepare", controlled: true) is null, "Control consent permits typed unlock preparation");
-Assert(preparedGrant.Authorize("session.unlock.prepare") == "desktop_unavailable", "Preparation requires an owned channel");
-preparedGrant.Pause(null);
-Assert(preparedGrant.Authorize("session.unlock.prepare", controlled: true) == "access_paused", "Pause refuses before credential preparation");
-preparedGrant.Resume();
-preparedGrant.Stop("fixture_stop");
-Assert(preparedGrant.Authorize("session.unlock.prepare", controlled: true) == "approval_required", "Stop invalidates protected authority");
-preparedGrant.SetReady(true);
-preparedGrant.Arm(["observe"], 300);
-preparedGrant.SetReady(false, lockedConsole: true);
-Assert(preparedGrant.Authorize("session.unlock.prepare", controlled: true) == "approval_required", "Observe-only access cannot prepare a credential operation");
-preparedGrant.SetReady(false, lockedConsole: false);
-Assert(preparedGrant.Admission.Blocks("desktop").Contains("resource_unavailable"), "Unknown or foreign console cannot reserve protected control");
-preparedGrant.PrepareConsole(false);
-preparedGrant.SetReady(false, lockedConsole: true);
-Assert(preparedGrant.Admission.Blocks("desktop").Contains("resource_unavailable"), "Disabled preparation never makes lock available");
 await BrowserDevToolsFixtures.RunAsync();
 Console.WriteLine("Windows desktop grant contracts passed");
 
@@ -450,7 +198,7 @@ var work = new DesktopWork();
 var dependency = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 var fencedBroker = TestBrowserProjection.Create();
-fencedBroker.SetReady(true); fencedBroker.Arm(["control"], 300);
+fencedBroker.SetReady(true); fencedBroker.ConfigureSurface("desktop", "automatic", 300, "timed");
 var oldGeneration = fencedBroker.Generation;
 var effects = 0;
 var faultRequest = new Request { Operation = "invoke", RequestId = "fault" };
@@ -466,7 +214,7 @@ await entered.Task;
 var stopTimer = System.Diagnostics.Stopwatch.StartNew();
 fencedBroker.Stop("stopped_by_person");
 Assert(stopTimer.ElapsedMilliseconds < 250, "Stop independent of blocked provider");
-fencedBroker.Arm(["control"], 300);
+fencedBroker.ConfigureSurface("desktop", "automatic", 300, "timed");
 Assert((await blockedWork).ErrorCode == "native_provider_timeout", "Caller deadline completes");
 for (var i = 0; i < 1000; i++)
     Assert((await work.RunAsync(faultRequest, fencedBroker.Generation, _ => throw new Exception("Busy work dispatched"), CancellationToken.None)).ErrorCode == "native_provider_busy", "No queue or new worker after timeout");

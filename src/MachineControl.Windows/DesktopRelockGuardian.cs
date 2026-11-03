@@ -44,9 +44,12 @@ internal static class DesktopRelockGuardian
                 {
                     var keyboard = message.ToInt64() is >= 0x100 and <= 0x109;
                     var flags = Marshal.ReadInt32(data, keyboard ? 8 : 12);
-                    if ((flags & (keyboard ? 0x12 : 0x03)) == 0)
+                    if (DesktopActivityPolicy.Physical(keyboard, flags))
                     {
-                        Interlocked.Exchange(ref physical, 1); Interlocked.Exchange(ref ending, 1);
+                        if (DesktopActivityPolicy.Deliberate(keyboard, message.ToInt64()))
+                        { Interlocked.Exchange(ref physical, 1); Interlocked.Exchange(ref ending, 1); }
+                        // Motion alone is not takeover. Still swallow it and
+                        // releases so no physical input reaches a hidden app.
                         // Swallow the entire physical sequence until relock;
                         // an interrupt must not click/type into a hidden app.
                         return new IntPtr(1);

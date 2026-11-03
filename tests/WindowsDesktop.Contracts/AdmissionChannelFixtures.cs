@@ -19,14 +19,14 @@ internal static class AdmissionChannelFixtures
         Require(!order.Accept(new() { ["requestId"] = "boolean", ["requestSequence"] = true }), "Boolean refused");
         Require(order.Accept(new() { ["requestId"] = "next", ["requestSequence"] = 72001L }), "Next frame remains valid");
         var clock = new TestTime();
-        var grants = TestBrowserProjection.Create(clock); grants.SetReady(true); grants.PrepareConsole(true); grants.Arm(["observe", "control"], 900);
+        var grants = TestBrowserProjection.Create(clock); grants.SetReady(true); grants.PrepareConsole(true); grants.ConfigureSurface("desktop", "automatic", 900, "timed");
         foreach (var operation in new[] { "snapshot", "type", "app.launch", "screenshot", "uac.respond" })
             Require(grants.Authorize(new Request { Operation = operation }) == "control_session_required", "Idle grant cannot authorize unowned " + operation);
         var requirement = JsonNode.Parse(Contract.Serialize(DesktopGrants.RefusalData("type", "control_session_required")))!;
         Require(requirement["controlSession"]!["schema"]!.GetValue<string>() == AccessAdmission.Schema &&
-            requirement["controlSession"]!["scope"]!.GetValue<string>() == "control", "Typed CLI handoff");
-        var browserGrants = TestBrowserProjection.Create(clock); browserGrants.SetReady(true); browserGrants.Arm(["devtools"], 900);
-        Require(browserGrants.AdmissionAuthority(["browser"]) is null, "Devtools grant covers browser admission");
+            requirement["controlSession"]!["surface"]!.GetValue<string>() == "desktop", "Typed CLI handoff");
+        var browserGrants = TestBrowserProjection.Create(clock); browserGrants.SetReady(true); browserGrants.ConfigureSurface("browser", "automatic", 900, "timed", ["fixture-profile"]);
+        Require(browserGrants.Admission.Enabled("browser"), "Devtools grant covers browser admission");
         Require(browserGrants.Authorize(new Request { Operation = "browser.tabs" }) == "control_session_required", "Browser grant still needs owner");
         var effects = 0;
         var boundaryDispatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -53,7 +53,7 @@ internal static class AdmissionChannelFixtures
                 ["reason"] = "fixture",
                 ["durationSeconds"] = 60,
                 ["waitSeconds"] = 120,
-                ["scopes"] = new JsonArray("observe", "control")
+                ["surfaces"] = new JsonArray("desktop")
             };
             if (prepared) opening["preparedConsole"] = true;
             owners.Add(Task.Run(async () =>
@@ -71,7 +71,7 @@ internal static class AdmissionChannelFixtures
                         lastFence = fence;
                         Interlocked.Increment(ref effects);
                         return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "observed" });
-                    }, stop.Token, noticeSeconds: 0);
+                    }, stop.Token);
             }));
             var readerClient = new StreamReader(client.GetStream());
             var writerClient = new StreamWriter(client.GetStream(), new UTF8Encoding(false)) { AutoFlush = true };
@@ -127,14 +127,14 @@ internal static class AdmissionChannelFixtures
             Require(!(await Call(b, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 0, "Other owner cannot borrow fence");
             Require((await Call(a, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 1, "Owned effect observed");
             Require(lastFence!.StartedLocked == false, "Native unlocked task origin is carried in private ownership");
-            Require(grants.Authorize("type") == "control_session_required", "Legacy callers cannot borrow holder");
+            Require(grants.Authorize(new Request { Operation = "type" }) == "control_session_required", "Legacy callers cannot borrow holder");
             var forged = Contract.ParseRequest("{\"operation\":\"type\",\"controlOwnership\":{\"owner\":\"forged\"}}");
             Require(forged.ControlOwnership is null && grants.Authorize(forged) == "control_session_required", "JSON cannot supply native owner context");
             grants.Pause();
             Require(!(await Call(a, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 1, "Paused effect refused");
             grants.Resume();
             var next = (await Call(b, "control.status"))["data"]!.AsObject();
-            Require(next["state"]!.GetValue<string>() == "offered", "Pause yields position");
+            Require(next["state"]!.GetValue<string>() == "offered", "Paused owner yields queue position without losing its task");
             clock.Advance(15);
             Require(!(await Call(b, "control.accept", new() { ["offerGeneration"] = next["offerGeneration"]!.DeepClone() }))["accepted"]!.GetValue<bool>(), "Late accept refused");
             Require(effects == 1, "No effect from late offer");
@@ -155,7 +155,7 @@ internal static class AdmissionChannelFixtures
             Require(!(await Call(d, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 3, "Expired heartbeat refuses before effect");
             foreach (var origin in new[] { false, true })
             {
-                grants.SetReady(true); grants.Arm(["observe", "control"], 900); grants.SetReady(!origin, lockedConsole: origin);
+                grants.SetReady(true); grants.ConfigureSurface("desktop", "automatic", 900, "timed"); grants.SetReady(!origin, lockedConsole: origin);
                 var prepared = await Open("prepared-" + origin, prepared: true);
                 active = (await Call(prepared, "control.accept", new() { ["offerGeneration"] = prepared.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();
                 grants.SetReady(false, lockedConsole: true);

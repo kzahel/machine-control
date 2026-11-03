@@ -148,7 +148,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         Operation = request.Operation,
         ActualRoute = "windows.user_session/workstation",
         SessionId = (uint)RuntimeProfile.SessionId,
-        Generation = Generation,
+        Generation = grants?.GenerationFor(request.Operation) ?? Generation,
         Delivery = "refused",
         Effect = "refused",
         RetrySafety = "safe_not_dispatched",
@@ -158,11 +158,11 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
     {
         request = request with { ControlOwnership = ownership };
         if (grants is not null) DesktopSafety.RefreshAvailability(grants);
-        var admittedGeneration = Generation;
+        var admittedGeneration = grants?.GenerationFor(request.Operation) ?? Generation;
         var result = Envelope(request);
         string? OwnershipRefusal() => ownership is null ? null : grants!.Admission.Authorize(ownership.Owner, ownership.Intent, ownership.Session, ownership.Generations);
         if (OwnershipRefusal() is { } ownerDenied) return result with { ErrorCode = ownerDenied };
-        if (request.ExpectedGeneration is not null && request.ExpectedGeneration != Generation)
+        if (request.ExpectedGeneration is not null && request.ExpectedGeneration != admittedGeneration)
             return result with { ErrorCode = "stale_generation", Message = "Runtime generation changed" };
         if (!Operations.Contains(request.Operation, StringComparer.Ordinal) &&
             !(updates is not null && request.Operation is "update.check" or "update.status") &&

@@ -3,7 +3,7 @@
 Topic: `access-admission-and-pause`
 
 Status: **unified Desktop/Browser permissions and handoff design agreed;
-Windows implementation next, before Mac/Linux adoption**. Existing admission
+Windows/shared implementation under native qualification, before Mac/Linux adoption**. Existing admission
 implementations and their bounded acceptance remain current evidence below;
 they do not implement or qualify the complete new experience.
 

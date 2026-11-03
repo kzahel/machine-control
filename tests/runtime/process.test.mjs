@@ -20,7 +20,8 @@ test("trusted host fences references across profiles, consent and process epochs
     return reply;
   }
   assert.equal(call("provider.connect", { profileId: "work" }).ok, false);
-  assert.equal(call("hello", { protocolVersion: 1 }).ok, true);
+  assert.equal(call("hello", { protocolVersion: 1 }).errorCode, "host_protocol_mismatch", "a legacy parent cannot arm the v2 host");
+  assert.equal(call("hello", { protocolVersion: 2 }).ok, true);
   const work = call("provider.connect", { profileId: "work" }).data.connectionId;
   const personal = call("provider.connect", { profileId: "personal" }).data.connectionId;
   call("request", { connectionId: work, requestId: "off", operation: "browser.tabs", timeoutMs: 1000 });
@@ -67,7 +68,7 @@ test("wire request and grant identities cannot repeat after policy restart", () 
       if (method === "operator.approve") generation = reply.data.generation;
       return reply.data;
     }
-    call("hello", { protocolVersion: 1 });
+    call("hello", { protocolVersion: 2 });
     const { connectionId } = call("provider.connect", { profileId: "work" });
     call("operator.approve", { connectionIds: [connectionId], durationMs: 60_000 });
     const grant = frames.findLast(frame => frame.type === "provider.send" && frame.frame.type === "grant").frame;
@@ -119,7 +120,7 @@ function child() {
 test("executable EOF revokes unsettled work and exits without live handles", { timeout: 45_000 }, async (t) => {
   const actor = child();
   t.after(() => actor.child.kill());
-  await actor.call("hello", { protocolVersion: 1 });
+  await actor.call("hello", { protocolVersion: 2 });
   const { connectionId } = await actor.call("provider.connect", { profileId: "work" });
   await actor.call("operator.approve", { connectionIds: [connectionId], durationMs: 60_000 });
   await actor.call("request", { connectionId, requestId: "held", operation: "browser.tabs", timeoutMs: 1000 });
@@ -135,7 +136,7 @@ test("executable EOF revokes unsettled work and exits without live handles", { t
 test("killed executable restarts empty, with no consent or request replay", { timeout: 45_000 }, async (t) => {
   const actor = child();
   t.after(() => actor.child.kill());
-  const first = await actor.call("hello", { protocolVersion: 1 });
+  const first = await actor.call("hello", { protocolVersion: 2 });
   const { connectionId } = await actor.call("provider.connect", { profileId: "work" });
   await actor.call("operator.approve", { connectionIds: [connectionId], durationMs: 60_000 });
   await actor.call("request", { connectionId, requestId: "held", operation: "browser.tabs", timeoutMs: 1000 });
@@ -144,7 +145,7 @@ test("killed executable restarts empty, with no consent or request replay", { ti
   await exited;
   const fresh = child();
   t.after(() => fresh.child.kill());
-  const second = await fresh.call("hello", { protocolVersion: 1 });
+  const second = await fresh.call("hello", { protocolVersion: 2 });
   assert.notEqual(first.bootId, second.bootId);
   const state = await fresh.call("state");
   assert.deepEqual(state.approvedProfiles, []);
@@ -159,7 +160,7 @@ test("killed executable restarts empty, with no consent or request replay", { ti
 test("executable deadline wakes revoke authority without a state polling client", { timeout: 45_000 }, async (t) => {
   const actor = child();
   t.after(() => actor.child.kill());
-  await actor.call("hello", { protocolVersion: 1 });
+  await actor.call("hello", { protocolVersion: 2 });
   const { connectionId } = await actor.call("provider.connect", { profileId: "work" });
   // Emulated x64 process/pipe startup can consume seconds on ARM64 Windows.
   // Exercise expiration after dispatch, rather than assuming an IPC budget.

@@ -3,7 +3,7 @@
 Topic: `shared-resident-core`
 
 Status: **Windows browser cutover accepted in an unsigned ARM64 candidate;
-unified permissions/handoff next on Windows and reference clients, then Mac/Linux**.
+unified Windows/reference permissions and handoff under native qualification, then Mac/Linux**.
 
 ## Motivation
 

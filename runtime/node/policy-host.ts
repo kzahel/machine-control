@@ -9,10 +9,11 @@ import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { ResidentCore, CoreError } from "../src/core.ts";
 import type { Approval, ApprovalCheckpoint, BrowserRequest, Effect } from "../src/core.ts";
+import type { Clock } from "../src/core.ts";
 import { ExtensionProvider } from "../src/extension-provider.ts";
 import type { NativeFrame } from "../src/extension-provider.ts";
 import { dispatchToProvider } from "../src/provider-dispatch.ts";
-import { AccessAdmission } from "../src/admission.ts";
+import { AccessAdmission, backgroundOperations } from "../src/admission.ts";
 import type { AdmissionOwner, AdmissionRequest, Surface, SurfaceConfiguration, SessionFence, HumanInput } from "../src/admission.ts";
 
 function string(value: unknown): string {
@@ -44,7 +45,7 @@ export class PolicyHost {
   readonly core = new ResidentCore({
     now: () => Math.floor(performance.now()),
   });
-  readonly access = new AccessAdmission({ now: () => Math.floor(performance.now()) });
+  readonly access: AccessAdmission;
   readonly #accessOwners = new Map<string, AdmissionOwner>();
   readonly #send: (frame: NativeFrame) => void;
   readonly #providers = new Map<string, ExtensionProvider>();
@@ -54,6 +55,7 @@ export class PolicyHost {
   readonly #transportTags = new Map<string, string>();
   readonly #waiters = new Map<string, (value: unknown) => void>();
   readonly #requestAuthorities = new Map<string, string>();
+  readonly #requestOwners = new Map<string, string>();
   readonly #nativeWaiters = new Map<string, (accepted: boolean) => void>();
   readonly #streams = new Streams(this.core, {
     now: () => Math.floor(performance.now()),
@@ -66,8 +68,9 @@ export class PolicyHost {
   #sequence = 0;
   #closed = false;
 
-  constructor(send: (frame: NativeFrame) => void) {
+  constructor(send: (frame: NativeFrame) => void, admissionClock: Clock = { now: () => Math.floor(performance.now()) }) {
     this.#send = send;
+    this.access = new AccessAdmission(admissionClock);
   }
 
   receive(frame: NativeFrame): void {
@@ -142,10 +145,10 @@ export class PolicyHost {
     if (typeof frame.method === "string" && frame.method.startsWith("access.")) return this.#access(frame);
     switch (frame.method) {
       case "hello":
-        if (this.#hello || frame.protocolVersion !== 1)
+        if (this.#hello || frame.protocolVersion !== 2)
           throw new Error("host_protocol_mismatch");
         this.#hello = true;
-        return { protocolVersion: 1, bootId: this.bootId };
+        return { protocolVersion: 2, bootId: this.bootId, admissionSchema: "machine-control-admission/v2" };
       case "state":
         this.tick();
         return {
@@ -459,13 +462,15 @@ export class PolicyHost {
     } else if (method === "access.notice") this.access.notice(integer(frame.milliseconds));
     else if (method === "access.ready") {
       if (typeof frame.ready !== "boolean") throw new Error("invalid_host_request");
-      this.access.ready(string(frame.surface) as Surface, frame.ready);
+      if (frame.noticeVisible !== undefined && typeof frame.noticeVisible !== "boolean") throw new Error("invalid_host_request");
+      this.access.ready(string(frame.surface) as Surface, frame.ready, frame.noticeVisible as boolean | undefined);
     } else if (method === "access.pause") this.access.pause(string(frame.surface) as Surface | "all", string(frame.reason), frame.milliseconds === null ? null : integer(frame.milliseconds));
     else if (method === "access.resume") this.access.resume(string(frame.surface) as Surface | "all", string(frame.reason));
     else if (method === "access.input") this.access.input(string(frame.surface) as Surface, string(frame.kind) as HumanInput);
     else if (method === "access.approve") this.access.approve(string(frame.intentId));
     else if (method === "access.start") this.access.startNow(string(frame.intentId));
     else if (method === "access.deny") this.access.deny(string(frame.intentId));
+    else if (method === "access.defer") this.access.defer(string(frame.intentId), frame.milliseconds === null ? null : integer(frame.milliseconds));
     else if (method === "access.stop") this.access.stop();
     else {
       const label = string(frame.owner);
@@ -476,7 +481,13 @@ export class PolicyHost {
         const owner = this.#accessOwners.get(label);
         if (!owner) throw new Error("admission_owner_mismatch");
         if (method === "access.close") { this.access.close(owner); this.#accessOwners.delete(label); }
-        else if (method === "access.submit") return this.access.submit(owner, object(frame.request) as unknown as AdmissionRequest);
+        else if (method === "access.submit") {
+          const request = object(frame.request);
+          const narrowed = request.operations ?? undefined;
+          if (narrowed !== undefined && (!Array.isArray(narrowed) || narrowed.length < 1 || narrowed.length > 64)) throw new Error("invalid_host_request");
+          const operations = (narrowed as unknown[] | undefined)?.map(string);
+          return this.access.submit(owner, { ...request, disruptive: !backgroundOperations(operations) } as unknown as AdmissionRequest);
+        }
         else if (method === "access.inspect") return this.access.inspect(owner, string(frame.intentId), frame.heartbeat === true);
         else if (method === "access.accept") return this.access.accept(owner, string(frame.intentId), integer(frame.offerGeneration));
         else if (method === "access.authorize") return { refusal: this.access.authorize(owner, object(frame.fence) as unknown as SessionFence) };
@@ -495,7 +506,7 @@ export class PolicyHost {
           const data = object(result.data);
           if (!Array.isArray(data.elements))
             throw new Error("invalid_provider_data");
-          const prefix = this.#referencePrefix(result.providerGeneration!);
+          const prefix = this.#referencePrefix(result.providerGeneration!, this.#requestOwners.get(result.requestId));
           result = {
             ...result,
             data: {
@@ -512,6 +523,7 @@ export class PolicyHost {
         if (resolve) {
           this.#waiters.delete(result.requestId);
           this.#requestAuthorities.delete(result.requestId);
+          this.#requestOwners.delete(result.requestId);
           resolve(result);
         }
       } else {
@@ -533,8 +545,8 @@ export class PolicyHost {
     this.#cdp?.sweep();
   }
 
-  #referencePrefix(connectionGeneration: number): string {
-    return `${this.bootId}:${connectionGeneration}:${this.core.inspect().authorizationGeneration}:`;
+  #referencePrefix(connectionGeneration: number, ownerSession = "fixture"): string {
+    return `${this.bootId}:${connectionGeneration}:${this.core.inspect().authorizationGeneration}:${ownerSession}:`;
   }
 
   #error(error: unknown): string {
@@ -602,8 +614,12 @@ export class PolicyHost {
         accepted: true,
         delivery: "confirmed",
         effect: "not_applicable",
-        data: { profiles: this.#profiles.state() },
+        data: { profiles: this.#profiles.state(), approvedProfiles: this.core.inspect().selectedProfiles },
       };
+    const ownerSession = string(frame.ownerSession);
+    if (!Array.isArray(frame.ownerProfileIds) || frame.ownerProfileIds.length > 64)
+      throw new Error("invalid_host_request");
+    const ownerProfiles = frame.ownerProfileIds.map(string);
     const selector =
       request.browserProfileId === undefined
         ? undefined
@@ -618,8 +634,9 @@ export class PolicyHost {
       throw new Error("invalid_request");
     const profile = this.#profiles.select(
       selector,
-      this.core.inspect().selectedProfiles,
+      ownerProfiles,
     );
+    if (!ownerProfiles.includes(profile.profileId)) throw new Error("profile_not_permitted_by_control_channel");
     const connection = profile.connection!;
     const common = {
       requestId,
@@ -685,7 +702,7 @@ export class PolicyHost {
     ])
       delete payload[key];
     if (payload.reference !== undefined) {
-      const prefix = this.#referencePrefix(connection.generation);
+      const prefix = this.#referencePrefix(connection.generation, ownerSession);
       if (
         typeof payload.reference !== "string" ||
         !payload.reference.startsWith(prefix)
@@ -699,6 +716,7 @@ export class PolicyHost {
     return new Promise((resolve, reject) => {
       this.#waiters.set(requestId, resolve);
       this.#requestAuthorities.set(requestId, authorityId);
+      this.#requestOwners.set(requestId, ownerSession);
       try {
         this.#consume(
           this.core.request(this.#approval!, {
@@ -713,6 +731,7 @@ export class PolicyHost {
       } catch (error) {
         this.#waiters.delete(requestId);
         this.#requestAuthorities.delete(requestId);
+        this.#requestOwners.delete(requestId);
         reject(error);
       }
     });

@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import "./style.css";
+import { SurfaceAccess, type SurfacePolicy } from "./surface-access";
 import {
   type Scope,
   defaultAccessChoices,
@@ -31,6 +32,7 @@ type UpdateState = {
   error: string | null;
 };
 type State = {
+  accessPolicy?: SurfacePolicy;
   accessChoices?: { scopes: Scope[]; duration: number; browserProfileIds?: string[] };
   nativeApproval?: boolean;
   presentation?: {
@@ -354,6 +356,9 @@ function App() {
   const availableScopes =
     state?.supportedScopes ?? (Object.keys(labels) as Scope[]);
   const grant = state?.deployment.grant;
+  const unifiedOn = Object.values(state?.accessPolicy?.surfaces ?? {}).some(
+    (surface) => surface.mode !== "off" && !surface.expired,
+  );
   const standing = state?.deployment.policy.grantMode === "standing";
   const updateInstallBlockedReason = update?.installing
     ? "Installing the update. Wait for the app to restart."
@@ -365,13 +370,13 @@ function App() {
           ? "Resolve the pending access request before installing the update."
           : standing
             ? "Updates for appliances with standing access are managed by your administrator."
-            : grant
+            : grant || unifiedOn
               ? "Stop access before installing the update. The app will restart."
               : undefined;
   const trustedAccess = state?.desktopCallerTrust?.enabled === true;
   const availability = state?.deployment.availability;
   const blocks = availability?.blockingReasons ?? [];
-  const on = !!grant || trustedAccess;
+  const on = !!grant || trustedAccess || unifiedOn;
   // Physical activity only delays a waiting agent; these hold access itself.
   const paused =
     (on || standing) &&
@@ -555,8 +560,11 @@ function App() {
             {notice}
           </div>
         )}
-        {page === "access" && (
+        {page === "access" && (state?.accessPolicy?.schema === "machine-control-admission/v2" ?
+          <SurfaceAccess policy={state.accessPolicy} profiles={state.browser.profiles ?? []}
+            requests={state.admission?.requests ?? []} busy={!!busy} act={act} protectedAccess={state.lockedUse} /> :
           <>
+            {state && <p role="status" className="note">This platform uses the legacy control model while unified surface permissions are being migrated.</p>}
             <div className="access-status">
               <div>
                 <h1>
@@ -1037,7 +1045,7 @@ function App() {
                       {state?.uac?.installed ? "Installed" : "Not installed"}
                     </span>
                     <button
-                      disabled={busy || !!grant || !!state?.pending}
+                      disabled={busy || !!grant || unifiedOn || !!state?.pending}
                       onClick={() =>
                         void act({
                           method: "permission.uac",
@@ -1095,7 +1103,7 @@ function App() {
                     <button
                       disabled={
                         busy ||
-                        !!grant ||
+                        !!grant || unifiedOn ||
                         !!state?.pending ||
                         state?.portal?.state === "pending"
                       }
@@ -1314,7 +1322,7 @@ function App() {
                         <p className="note">
                           In Chrome, open chrome://extensions, enable Developer
                           mode, then choose Load unpacked and paste the copied
-                          folder path. Use one copy of the extension at a time.
+                          folder path. Load one extension copy per profile, then name and enable each profile in the extension.
                         </p>
                         <button
                           disabled={busy}
@@ -1661,8 +1669,7 @@ function App() {
                   Allow approved browser access while locked
                 </label>
                 <p className="note group-note">
-                  Approve access before locking. Browser tabs and separately
-                  approved scripts can keep working while your computer stays
+                  Approve access before locking. Browser actions, CDP and JavaScript can keep working while your computer stays
                   locked. Desktop control and new approvals still require
                   unlocking. Pause, Stop and expiry still apply.
                 </p>

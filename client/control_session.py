@@ -17,8 +17,25 @@ import uuid
 
 import machine_control as mc
 
-SCHEMA = "machine-control-admission/v1"
-CHANNEL_SCHEMA = "machine-control-admission-channel/v1"
+SCHEMA = "machine-control-admission/v2"
+CHANNEL_SCHEMA = "machine-control-admission-channel/v2"
+
+
+def resolve_browser_profile(target, selector=None):
+    """Resolve once before admission; the owner always names an exact profile."""
+    mc.require_selected_claim(target)
+    _, result, _ = mc.run_adapter(target, ["control", '{"operation":"browser.profiles"}'], accept_json_failure=True)
+    value = mc.validate_resident(result, target["platform"])
+    data = value.get("data") or {}
+    profiles = data.get("profiles", [])
+    approved = data.get("approvedProfiles", [])
+    candidates = [profile for profile in profiles if profile.get("enabled") is True
+                  and profile.get("connected") is True and profile.get("profileId") in approved
+                  and (selector is None or selector in (profile.get("profileId"), profile.get("name")))]
+    if len(candidates) != 1:
+        raise mc.ClientError("browser_profile_selection_required",
+                             "Choose one enabled, connected profile allowed in Machine Control")
+    return candidates[0]["profileId"]
 
 
 def complete_session_handoff(target, request, refusal):
@@ -37,21 +54,26 @@ def complete_session_handoff(target, request, refusal):
             or refusal.get("uncertainty") != "none" or refusal.get("retrySafety") != "safe_not_dispatched":
         return refusal, None
     if not isinstance(requirement, dict) or requirement.get("schema") != SCHEMA \
-            or requirement.get("scope") not in {"observe", "control", "browser", "devtools"}:
+            or requirement.get("surface") not in {"desktop", "browser"}:
         raise mc.ClientError("admission_unsupported", "Resident requires an unsupported control session")
     if request.get("operation") == "browser.endpoint":
         raise mc.ClientError("retained_owner_required",
                              "Request browser.endpoint through control stream or a retained ControlSession; "
                              "keep that owner open while using the target-loopback WebSocket")
     started = time.monotonic()
-    with ControlSession(target, reason="CLI desktop operation", scopes=[requirement["scope"]]) as session:
+    profile_ids = None
+    if requirement["surface"] == "browser":
+        profile_ids = [resolve_browser_profile(target, request.get("browserProfileId"))]
+        request = {**request, "browserProfileId": profile_ids[0]}
+    with ControlSession(target, reason="CLI computer operation", surfaces=[requirement["surface"]],
+                        profile_ids=profile_ids, operations=[request["operation"]]) as session:
         session.wait()
         value = mc.validate_resident(session.call(request), target["platform"])
     return value, int((time.monotonic() - started) * 1000)
 
 
-def validate_view(value):
-    if not isinstance(value, dict) or value.get("schema") != SCHEMA:
+def validate_view(value, *, schema=SCHEMA):
+    if not isinstance(value, dict) or value.get("schema") != schema:
         raise mc.ClientError("invalid_admission_status", "Invalid admission status")
     states = {"waiting_for_approval", "waiting_for_resource", "paused", "announcing", "offered", "active", "ended"}
     if value.get("state") not in states or not isinstance(value.get("intentId"), str) \
@@ -74,28 +96,51 @@ def validate_view(value):
 
 
 class ControlSession:
-    def __init__(self, target, *, reason, scopes=("observe", "control"), wait=300, duration=300, prepared_console=False, renew=False):
+    _admission_schema = SCHEMA
+
+    def _validate_view(self, value):
+        return validate_view(value, schema=self._admission_schema)
+
+    def __init__(self, target, *, reason, surfaces=("desktop",), scopes=None,
+                 profile_ids=None, operations=None, wait=300, duration=300, prepared_console=False, renew=False):
         if type(prepared_console) is not bool or type(renew) is not bool:
             raise mc.ClientError("invalid_admission_request", "Invalid prepared console option")
+        if scopes is not None:
+            raise mc.ClientError("legacy_scope_contract_unsupported", "Admission v2 uses surfaces and an optional typed operation set")
         if not reason or len(reason) > 240 or type(wait) is not int or not 1 <= wait <= 14400 \
-                or type(duration) is not int or not 1 <= duration <= 900 \
-                or not scopes or len(set(scopes)) != len(scopes) \
-                or any(scope not in {"observe", "control", "browser", "devtools"} for scope in scopes):
+                or type(duration) is not int or not 1 <= duration <= 900:
             raise mc.ClientError("invalid_admission_request", "Invalid control admission options")
-        if prepared_console and set(scopes) != {"observe", "control"}:
-            raise mc.ClientError("invalid_admission_request", "Prepared console requires observation and control scopes")
         if renew and duration < 15:
             raise mc.ClientError("invalid_admission_request", "Automatic renewal requires an interval of at least 15 seconds")
         mc.require_selected_claim(target)
+        if not isinstance(surfaces, (list, tuple)):
+            raise mc.ClientError("invalid_admission_request", "Choose Desktop and/or Browser")
+        selected = list(surfaces)
+        if not selected or len(set(selected)) != len(selected) or any(surface not in {"desktop", "browser"} for surface in selected):
+            raise mc.ClientError("invalid_admission_request", "Choose Desktop and/or Browser")
+        if prepared_console and selected != ["desktop"]:
+            raise mc.ClientError("invalid_admission_request", "Prepared console requires Desktop")
+        if "browser" in selected and profile_ids is None:
+            profile_ids = [resolve_browser_profile(target)]
+        profile_ids = list(profile_ids or [])
+        if len(profile_ids) > 64 or len(set(profile_ids)) != len(profile_ids) or any(not isinstance(profile, str) or not profile or len(profile) > 128 for profile in profile_ids):
+            raise mc.ClientError("invalid_admission_request", "Choose exact browser profiles")
+        if operations is not None and (not isinstance(operations, (list, tuple)) or not 1 <= len(operations) <= 64 or
+                                       any(not isinstance(operation, str) or not operation for operation in operations)):
+            raise mc.ClientError("invalid_admission_request", "Choose typed operations")
+        self.profile_ids = profile_ids
+        self.surfaces = selected
         self._start_transport(target, "channel", CHANNEL_SCHEMA, "control.cancel")
         try:
-            request = dict(operation="control.open", schema=SCHEMA, reason=reason, scopes=list(scopes),
+            request = dict(operation="control.open", schema=SCHEMA, reason=reason, surfaces=selected, profileIds=profile_ids,
                            waitSeconds=wait, durationSeconds=duration)
+            if operations is not None:
+                request["operations"] = list(operations)
             if prepared_console:
                 request["preparedConsole"] = True
             if target.get("_claimId"):
                 request["claimId"] = target["_claimId"]
-            self.view = validate_view(self._rpc(request, timeout=10))
+            self.view = self._validate_view(self._rpc(request, timeout=10))
             self.sequenced = self.view.get("requestSequencing") == "strict"
         except BaseException:
             self.close(cancel=False)
@@ -201,7 +246,7 @@ class ControlSession:
                 return
             try:
                 mc.require_selected_claim(self.target)
-                current = validate_view(self._rpc({"operation": "control.heartbeat"}))
+                current = self._validate_view(self._rpc({"operation": "control.heartbeat"}))
                 self.view = current
                 if self.renew_duration and current['state'] == 'active' \
                         and current.get('renewal') == 'owner_connection/v1' \
@@ -213,7 +258,7 @@ class ControlSession:
                 return
 
     def status(self):
-        current = validate_view(self._rpc({"operation": "control.status"}))
+        current = self._validate_view(self._rpc({"operation": "control.status"}))
         self.view = current
         return current
 
@@ -230,7 +275,7 @@ class ControlSession:
             if view["state"] == "offered":
                 mc.require_selected_claim(self.target)
                 try:
-                    accepted = validate_view(self._rpc({"operation":"control.accept", "offerGeneration":view["offerGeneration"]}))
+                    accepted = self._validate_view(self._rpc({"operation":"control.accept", "offerGeneration":view["offerGeneration"]}))
                     self.view = accepted
                     if self.renew_duration and accepted.get('renewal') != 'owner_connection/v1':
                         raise mc.ClientError('control_renewal_unavailable', 'This provider does not support renewable owners')
@@ -249,6 +294,9 @@ class ControlSession:
         view = self.status()
         if view["state"] != "active":
             raise mc.ClientError("control_interrupted", "Control is paused or ended; wait for a fresh session before issuing new work", data=view)
+        if request.get("operation", "").startswith("browser.") and request.get("operation") != "browser.profiles" and "browser" in getattr(self, "surfaces", []):
+            if "browserProfileId" not in request and len(self.profile_ids) == 1:
+                request = {**request, "browserProfileId": self.profile_ids[0]}
         if "browserProfileId" in request and not self._profile_selection_checked:
             capabilities = self._rpc({"operation":"control.dispatch", "sessionId":view["sessionId"],
                                       "resourceGenerations":view["resourceGenerations"],
@@ -262,7 +310,7 @@ class ControlSession:
         return result
 
     def cancel(self):
-        return validate_view(self._rpc({"operation":"control.cancel"}))
+        return self._validate_view(self._rpc({"operation":"control.cancel"}))
 
     def renew(self, duration=900):
         """Extend this live owner under remaining approval; never reopen it."""
@@ -273,7 +321,7 @@ class ControlSession:
         if view["state"] != "active" or view.get("renewal") != "owner_connection/v1":
             raise mc.ClientError("control_renewal_unavailable", "This owner cannot renew")
         try:
-            renewed = validate_view(self._rpc({"operation":"control.renew",
+            renewed = self._validate_view(self._rpc({"operation":"control.renew",
                 "sessionId":view["sessionId"], "resourceGenerations":view["resourceGenerations"],
                 "durationSeconds":duration}, timeout=10))
             if renewed["state"] != "active":
@@ -324,7 +372,8 @@ def handle_control(alias, target, arguments):
     parser.add_argument("command", choices=["call", "stream"])
     parser.add_argument("json", nargs="?")
     parser.add_argument("--reason", required=True)
-    parser.add_argument("--scope", action="append", choices=["observe", "control", "browser", "devtools"])
+    parser.add_argument("--surface", action="append", choices=["desktop", "browser"])
+    parser.add_argument("--profile", action="append", help="Exact browser profile bound to this owner")
     parser.add_argument("--wait", default="5m")
     parser.add_argument("--duration", default="5m")
     parser.add_argument("--prepared-console", action="store_true")
@@ -358,8 +407,10 @@ def handle_control(alias, target, arguments):
         first = next(pending, None)
         if first is None:
             return 0
-        scopes = options.scope or ["observe", "control"]
-        with ControlSession(target, reason=options.reason, scopes=scopes,
+        profiles = [resolve_browser_profile(target, profile) for profile in options.profile] if options.profile else None
+        with ControlSession(target, reason=options.reason,
+                surfaces=options.surface or ["desktop"], profile_ids=profiles,
+                operations=[first["operation"]] if options.command == "call" else None,
                 wait=mc.parse_duration_seconds(options.wait), duration=mc.parse_duration_seconds(options.duration),
                 prepared_console=options.prepared_console, renew=options.renew) as session:
             session.wait()

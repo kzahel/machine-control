@@ -4,11 +4,13 @@ import os
 from pathlib import Path
 import sys
 
-schema = "machine-control-admission/v1"
 state = "offered"
 sequence = 0
 remaining = 60
 mode = os.environ.get("MC_ADMISSION_FIXTURE", "ready")
+version = "v1" if (mode.startswith("outer") or mode == "legacy-ready") else "v2"
+schema = "machine-control-admission/" + version
+channel_schema = "machine-control-admission-channel/" + version
 record = Path(os.environ["MC_ADMISSION_RECORD"])
 
 def event(name):
@@ -28,7 +30,7 @@ for line in sys.stdin.buffer:
             break
         sequence += 1
     if operation == "control.open" and mode == "prepared-required":
-        if request.get("preparedConsole") is not True or request.get("scopes") != ["observe", "control"]:
+        if request.get("preparedConsole") is not True or request.get("surfaces") != ["desktop"]:
             break
         event("prepared-console")
     event(operation)
@@ -47,7 +49,7 @@ for line in sys.stdin.buffer:
     if operation == "control.renew":
         assert request['sessionId'] == 'fixture-session' and request['resourceGenerations'] == {'desktop':1}
         if mode == "renewable-refused":
-            print(json.dumps(dict(schema="machine-control-admission-channel/v1", requestId=request["requestId"],
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"],
                                   accepted=False, errorCode="access_ended")), flush=True)
             continue
         remaining = request['durationSeconds']
@@ -70,5 +72,5 @@ for line in sys.stdin.buffer:
         data["data"] = {"reference":"fixture-outer-reference"}
         if mode == "outer-refused" and request["request"]["operation"] == "outer.step":
             data.update(accepted=False, errorCode="outer_claim_changed_or_expired", uncertainty="interrupted_after_possible_dispatch")
-    print(json.dumps(dict(schema="machine-control-admission-channel/v1", requestId=request["requestId"], accepted=True, data=data)), flush=True)
+    print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
 event("EOF")

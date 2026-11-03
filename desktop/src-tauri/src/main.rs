@@ -583,7 +583,15 @@ fn main() {
                         .unwrap_or("")
                         .to_owned();
                     let active = !value["state"]["deployment"]["grant"].is_null()
-                        || value["state"]["desktopCallerTrust"]["enabled"] == true;
+                        || value["state"]["desktopCallerTrust"]["enabled"] == true
+                        || value["state"]["accessPolicy"]["surfaces"]
+                            .as_object()
+                            .is_some_and(|surfaces| {
+                                surfaces.values().any(|surface| {
+                                    surface["mode"].as_str().is_some_and(|mode| mode != "off")
+                                        && surface["expired"] != true
+                                })
+                            });
                     let standing =
                         value["state"]["deployment"]["policy"]["grantMode"] == "standing";
                     let show = !pending.is_empty() && pending != previous_pending;

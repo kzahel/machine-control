@@ -133,18 +133,28 @@ internal static class DesktopHost
                                 broker.ConfigureBrowserWhileLocked(browserEnabled);
                             }
                             reply = new { ok = true }; break;
-                        case "arm":
-                            broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900,
-                                command["lifetime"]?.GetValue<string>() ?? "timed", command["browserProfileIds"]?.Deserialize<string[]>());
+                        case "surface.configure":
+                            broker.ConfigureSurface(command["surface"]!.GetValue<string>(), command["mode"]!.GetValue<string>(),
+                                command["duration"]?.GetValue<int>() ?? 900, command["lifetime"]?.GetValue<string>() ?? "timed",
+                                command["browserProfileIds"]?.Deserialize<string[]>());
                             reply = new { ok = true }; break;
-                        case "decision":
-                            broker.Decide(command["id"]?.GetValue<string>() ?? "", command["allow"]?.GetValue<bool>() == true,
-                                command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 0, command["browserProfileIds"]?.Deserialize<string[]>());
-                            reply = new { ok = true }; break;
+                        case "control_notice":
+                            var noticeSeconds = command["noticeSeconds"]!.GetValue<int>();
+                            if (noticeSeconds is < 1 or > 60) throw new ArgumentException("Choose a notice countdown between 1 and 60 seconds");
+                            broker.Admission.Notice(noticeSeconds); reply = new { ok = true }; break;
+                        case "approve_control": broker.Admission.Approve(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
+                        case "pause_request": broker.PauseRequest(command["intentId"]!.GetValue<string>(), command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
+                        case "pause_surface":
+                            var surface = command["surface"]!.GetValue<string>();
+                            if (surface is not ("desktop" or "browser")) throw new ArgumentException("Choose a surface");
+                            broker.Admission.Pause(surface, "manual", command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
+                        case "resume_surface": broker.ResumeSurface(command["surface"]!.GetValue<string>()); reply = new { ok = true }; break;
                         case "stop": broker.Stop("stopped_by_person"); reply = new { ok = true }; break;
                         case "pause": broker.Pause(command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
                         case "resume": broker.Resume(); reply = new { ok = true }; break;
-                        case "start_control": broker.Admission.StartNow(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
+                        case "start_control":
+                            broker.Activity.AcknowledgeOperatorInput();
+                            broker.Admission.StartNow(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
                         case "defer_control": broker.Admission.Pause("desktop", "operator_deferral", 60); reply = new { ok = true }; break;
                         case "cancel_control": broker.Admission.CancelFromOperator(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
                         case "prepare_exit": broker.Stop("operator_quit"); reply = new { ok = true }; break;

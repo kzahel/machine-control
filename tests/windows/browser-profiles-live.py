@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--chrome', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--settings', action='store_true', help='Also qualify the staged Tauri Settings lifecycle with UI Automation')
+    parser.add_argument('--desktop-fixture', type=Path, help='Also prove v2 Desktop ownership with an independent native counter window')
     parser.add_argument('--chromium', action='store_true', help='Use the Chromium snapshot native-host registry key')
     parser.add_argument('--profile-data', type=Path, help='Reuse this actor-owned scratch profile directory under output')
     parser.add_argument('--configure-profiles', action='store_true', help='Repeat extension setup when reusing scratch profiles')
@@ -158,16 +159,17 @@ def main():
         grant = direct('grant.status')['data']
         browser_state = direct('capabilities')['data']['browser']
         check(not refusal['accepted'] and refusal['delivery'] == 'refused'
-              and refusal['errorCode'] in ('approval_required', 'access_paused')
+              and refusal['errorCode'] in ('surface_disabled', 'access_paused')
               and grant.get('grant') is None and not grant['effectiveScopes']
               and browser_state['available'] and not browser_state['approvedProfiles'], label)
     def profiles(): return operator('state')['state']['browser']['profiles']
-    def arm(ids, seconds=900): operator('arm', scopes=['browser', 'devtools'], duration=seconds, browserProfileIds=ids)
+    def arm(ids, seconds=900): operator('surface.configure', surface='browser', mode='automatic', duration=seconds, lifetime='timed', browserProfileIds=ids)
     def new_owner():
         nonlocal owner
         owner = ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
                                             '--session-id', str(session.value)]},
-                               reason='Named-profile appliance acceptance', scopes=['browser', 'devtools'], wait=90, duration=900, trace=owner_trace)
+                               reason='Named-profile appliance acceptance', surfaces=['browser'],
+                               profile_ids=operator('state')['state']['browser']['approvedProfiles'], wait=90, duration=900, trace=owner_trace)
         owner.wait()
     def call(operation, profile=None, **fields):
         if profile is not None: fields['browserProfileId'] = profile
@@ -350,7 +352,72 @@ throw 'Staged operator UI element unavailable'
         with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE | winreg.KEY_WOW64_32KEY) as key:
             winreg.SetValueEx(key, '', 0, winreg.REG_SZ, str(manifest))
         start_runtime()
-        check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Fresh packaged runtime starts without browser authority')
+        check(direct('browser.tabs')['errorCode'] == 'surface_disabled', 'Fresh packaged runtime starts without browser authority')
+        if args.desktop_fixture:
+            marker = args.output / 'native-counter.json'
+            fixture = subprocess.Popen([str(args.desktop_fixture), '--counter-output', str(marker)], stdout=logs, stderr=logs)
+            processes.append(fixture)
+            def counter_value():
+                try: return json.loads(marker.read_text())
+                except (OSError, ValueError): return {}
+            poll(lambda: counter_value().get('processId') == fixture.pid)
+            callback_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+            user32 = ctypes.WinDLL('user32', use_last_error=True)
+            user32.EnumWindows.argtypes = [callback_type, ctypes.c_void_p]
+            user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+            user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+            def fixture_window():
+                found = []
+                @callback_type
+                def visit(handle, _):
+                    pid = ctypes.c_ulong()
+                    user32.GetWindowThreadProcessId(handle, ctypes.byref(pid))
+                    if pid.value == fixture.pid and user32.IsWindowVisible(handle): found.append(int(handle))
+                    return True
+                user32.EnumWindows(visit, None)
+                return found[0] if found else None
+            hwnd = poll(fixture_window)
+            operator('surface.configure', surface='desktop', mode='ask', duration=900, lifetime='timed')
+            def desktop_owner():
+                return ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
+                                                   '--session-id', str(session.value)]},
+                                     reason='Native counter acceptance', surfaces=['desktop'], wait=120, duration=300, trace=owner_trace)
+            def start_task(value):
+                state = value.status()
+                operator('approve_control', intentId=state['intentId'])
+                poll(lambda: value.status()['state'] == 'announcing')
+                operator('start_control', intentId=state['intentId'])
+                value.wait()
+            def native_reference(value):
+                snapshot = value.call({'operation': 'snapshot', 'hwnd': hwnd, 'maxDepth': 8, 'maxElements': 100})
+                assert snapshot['accepted'], snapshot
+                return next(element['reference'] for element in snapshot['data']['elements'] if element.get('name') == 'Increment counter')
+            first = second = None
+            try:
+                first = desktop_owner()
+                check(first.status()['state'] == 'waiting_for_approval', 'Desktop Ask waits without borrowing Browser or target-wide consent')
+                start_task(first)
+                reference = native_reference(first)
+                action = first.call({'operation': 'invoke', 'hwnd': hwnd, 'reference': reference})
+                assert action['accepted'], action
+                poll(lambda: counter_value().get('counter') == 1)
+                report['desktopRoute'] = action.get('actualRoute')
+                check(True, 'Owned native semantic action has an independently observed application effect')
+                second = desktop_owner()
+                check(second.status()['state'] == 'waiting_for_resource', 'Another native channel cannot borrow the active task')
+                first.close(); first = None
+                poll(lambda: second.status()['state'] == 'waiting_for_approval')
+                start_task(second)
+                stale = second.call({'operation': 'invoke', 'hwnd': hwnd, 'reference': reference})
+                check(not stale['accepted'] and counter_value().get('counter') == 1, 'Fresh native ownership rejects the previous owner reference before effect')
+                fresh = native_reference(second)
+                assert second.call({'operation': 'invoke', 'hwnd': hwnd, 'reference': fresh})['accepted']
+                poll(lambda: counter_value().get('counter') == 2)
+                check(True, 'Fresh observation permits exactly one new native application effect')
+            finally:
+                if first: first.close()
+                if second: second.close()
+                operator('surface.configure', surface='desktop', mode='off', duration=900, lifetime='timed')
         # Set only extension-local availability, through a test-browser worker.
         # The production native operator remains the sole approval authority.
         for directory, name in ([] if reused and not args.configure_profiles else [('Default', 'Work'), ('Profile 1', 'Personal')]):
@@ -390,7 +457,7 @@ throw 'Staged operator UI element unavailable'
                 print('Waiting for resident metadata: '+name, flush=True)
                 poll(lambda: any(p['name'] == name and p['enabled'] for p in profiles()))
                 print('Checking absence of browser consent: '+name, flush=True)
-                check(direct('browser.tabs')['errorCode'] == 'approval_required', name+' extension availability alone cannot grant browser control')
+                check(direct('browser.tabs')['errorCode'] == 'surface_disabled', name+' extension availability alone cannot grant browser control')
             finally:
                 panel.close()
             stop_browser()
@@ -485,7 +552,7 @@ throw 'Staged operator UI element unavailable'
             root.close()
         owner.close(); owner = None
         operator('stop')
-        check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Stop revokes all profile authority')
+        check(direct('browser.tabs')['errorCode'] == 'surface_disabled', 'Stop revokes all profile authority')
         arm([ids['Work']]); new_owner()
         check(accepted('browser.tabs')['browserProfileId'] == ids['Work'], 'Single exact approval permits omitted selector')
         check(not call('browser.click', 'Work', reference=reference)['accepted'], 'Fresh consent cannot revive an old reference')
@@ -523,12 +590,10 @@ throw 'Staged operator UI element unavailable'
             start_app()
             off('Staged Tauri operator starts with browser access off')
             ui('press', '^Access$')
-            for label, enabled in [('View desktop', False), ('Control apps and input', False), ('Browser tabs', True), ('Browser scripts and DevTools', True)]:
-                ui('check', '^'+label+'$', enabled)
             ui('clear_unavailable')
-            ui('check', '^Work ·')
-            ui('check', '^Personal ·')
-            ui('press', '^Enable access$')
+            ui('check', '^Allow profile Work$')
+            ui('check', '^Allow profile Personal$')
+            ui('press', '^Enable Automatic for browser$')
             new_owner()
             tab = accepted('browser.navigate', 'Work', url=base+'/work', newTab=True)['tab']['tabId']
             ui('close')
@@ -541,19 +606,19 @@ throw 'Staged operator UI element unavailable'
             subprocess.run([str(args.install/'machine-control.exe'), '--settings'], stdout=logs, stderr=logs,
                            timeout=30, env=app_environment())
             ui('press', '^Access$')
-            ui('press', '^Stop access$')
+            ui('press', '^Stop all access$')
             poll(lambda: owner.status()['state'] == 'ended')
             off('Recreated Settings stops the existing resident authority')
             owner.close(); owner = None
             stop_app(); start_app()
             off('Tauri restart retains choices without restoring browser consent')
             ui('press', '^Access$')
-            ui('press', '^Enable access$')
+            ui('press', '^Enable Automatic for browser$')
             new_owner()
             check(accepted('browser.tabs', 'Personal')['browserProfileId'] == ids['Personal'], 'Recreated Settings retains exact profile choices for fresh approval')
             check(call('browser.tabs')['errorCode'] == 'browser_profile_required', 'Fresh Settings approval retains both exact profile choices')
             owner.close(); owner = None
-            ui('press', '^Stop access$')
+            ui('press', '^Stop all access$')
             stop_app()
         report['passed'] = True
     except BaseException as error:

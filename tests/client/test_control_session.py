@@ -68,7 +68,7 @@ class ControlSessionTests(unittest.TestCase):
         return dict(schema="machine-control/v0", requestId="fixture", operation="type", accepted=False,
             actualRoute="fixture", generation="fixture-generation", hostInterference="none", elapsedMs=0,
             errorCode="control_session_required", delivery="refused", effect="refused", uncertainty="none",
-            retrySafety="safe_not_dispatched", data={"controlSession":{"schema":SCHEMA, "scope":"control"}})
+            retrySafety="safe_not_dispatched", data={"controlSession":{"schema":SCHEMA, "surface":"desktop"}})
 
     def test_handoff_dispatches_once_and_closes(self):
         target = dict(self.target, platform="windows")
@@ -83,7 +83,7 @@ class ControlSessionTests(unittest.TestCase):
 
     def test_endpoint_requires_retained_owner_before_handoff(self):
         refusal = self.refusal()
-        refusal["data"]["controlSession"]["scope"] = "devtools"
+        refusal["data"]["controlSession"]["surface"] = "browser"
         with patch("control_session.ControlSession") as session:
             with self.assertRaises(mc.ClientError) as error:
                 complete_session_handoff(self.target, {"operation": "browser.endpoint"}, refusal)
@@ -211,7 +211,7 @@ sys.exit(handle_control('fixture',json.loads(sys.argv[2]),['stream','--reason','
         self.assertIn("EOF",events)
         with patch.object(subprocess,"Popen") as spawn:
             with self.assertRaises(mc.ClientError):self.session(prepared_console="true")
-            with self.assertRaises(mc.ClientError):self.session(prepared_console=True, scopes=("browser",))
+            with self.assertRaises(mc.ClientError):self.session(prepared_console=True, surfaces=("browser",))
             spawn.assert_not_called()
 
     def test_effect_once_live_keepalive_and_prompt_cancel_cleanup(self):
@@ -282,7 +282,7 @@ sys.exit(handle_control('fixture',json.loads(sys.argv[2]),['stream','--reason','
             view = dict(session.view, resourceGenerations={"desktop":True})
             with self.assertRaises(mc.ClientError):
                 validate_view(view)
-        for options in [dict(wait=True), dict(duration=901), dict(scopes=["control", "control"])]:
+        for options in [dict(wait=True), dict(duration=901), dict(surfaces=["desktop", "desktop"])]:
             with self.assertRaises(mc.ClientError):
                 self.session(**options)
 

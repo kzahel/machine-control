@@ -120,7 +120,7 @@ Inspect status/capabilities; request only the scopes needed for this task:
   machine-control --target host --claim CLAIM_ID desktop status
   machine-control --target host --claim CLAIM_ID desktop capabilities
   machine-control --target host --claim CLAIM_ID grant request \\
-    --scope observe --scope control --reason 'describe the task' --duration 10m
+    --surface desktop --reason 'describe the task' --duration 10m
   machine-control --target host --claim CLAIM_ID grant status
 
 Check grant status first: the person may already have turned access on,
@@ -167,7 +167,7 @@ replace this task-owned lifecycle with ordinary appliance session.unlock.
 
 Browser workflow (requires the installed extension and a browser scope):
   machine-control --target host --claim CLAIM_ID grant request \\
-    --scope browser --reason 'describe the browser task' --duration 10m
+    --surface browser --reason 'describe the browser task' --duration 10m
   machine-control --target host --claim CLAIM_ID browser tabs
   machine-control --target host --claim CLAIM_ID browser snapshot --tab TAB_ID
   machine-control --target host --claim CLAIM_ID browser click \\

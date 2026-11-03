@@ -1,5 +1,33 @@
 # Windows conformance
 
+## Unified permissions v2 qualification
+
+[Tactical 153](../../docs/tactical/153-unified-permissions-and-handoff.md) owns
+the new Windows surface model and acceptance status. The current policy gates
+are the portable TypeScript admission suite and `WindowsDesktop.Contracts`,
+which uses the real shared child and live native channels. The old C# arbiter
+project was removed.
+
+`WindowsUnlock.Contracts --activity-live` runs the real nonactivating native
+notices, countdown, Start now, Ask, pause/defer/deny controls and native input
+hooks. Deliberate physical signals are supplied explicitly by the fixture;
+real injected keyboard/mouse flags are independently observed. It does not
+claim physical-HID or full protected-guardian acceptance.
+
+[`browser-profiles-live.py`](browser-profiles-live.py) now uses the v2 Python
+owner and explicit surface configuration. `--settings` tests the actual staged
+Tauri UI. `--desktop-fixture` adds native semantic counter effects, per-task Ask
+and stale-reference fencing. Both the native marker and HTTP browser oracle
+observe effects independently of resident delivery results. The controller
+still owns claims, source/digest checks, task/process/registration cleanup,
+credential verification and original-power restoration.
+
+The v1 grant/checkbox actors below describe earlier bounded implementation
+slices. They are historical fixtures for those source pins, not acceptance
+of the new model; do not add a legacy Windows policy to keep them passing.
+Current v2 qualification must use the gates above and record remaining route
+limits honestly. macOS and Linux migration follows accepted Windows behavior.
+
 ## Runtime and presentation acceptance
 
 [`runtime-presentation-live.py`](runtime-presentation-live.py) runs in a

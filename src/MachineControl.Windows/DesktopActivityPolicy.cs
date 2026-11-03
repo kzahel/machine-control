@@ -6,6 +6,7 @@ internal sealed class DesktopActivityPolicy(DesktopGrants grants, TimeProvider? 
     internal const double QuietSeconds = 30;
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private double? _physicalAt;
+    private double _acknowledgedThrough = double.NegativeInfinity;
     private double? _takeoverAt;
     private bool _relocked;
     private bool _localUse;
@@ -13,10 +14,25 @@ internal sealed class DesktopActivityPolicy(DesktopGrants grants, TimeProvider? 
     private double Now => (double)_time.GetTimestamp() / _time.TimestampFrequency;
 
     internal static bool Physical(bool keyboard, int flags) => (flags & (keyboard ? 0x12 : 0x03)) == 0;
+    internal static bool Deliberate(bool keyboard, long message) => keyboard
+        ? message is 0x100 or 0x104
+        : message is 0x201 or 0x204 or 0x207 or 0x20B or 0x20A or 0x20E;
 
-    internal void ObservePhysical(double at)
+    internal void ObservePhysical(double at, string kind = "key")
     {
-        lock (grants.Gate) _physicalAt = _physicalAt is { } previous ? Math.Max(previous, at) : at;
+        lock (grants.Gate)
+        {
+            if (kind == "movement") return;
+            if (_physicalAt is { } previous && at <= previous) return;
+            _physicalAt = at;
+            if (at <= _acknowledgedThrough) return;
+            grants.Admission.Input("desktop", kind);
+            grants.Admission.Input("browser", kind);
+        }
+    }
+    internal void AcknowledgeOperatorInput()
+    {
+        lock (grants.Gate) _acknowledgedThrough = Now;
     }
 
     internal void CoveredTakeover()
@@ -53,7 +69,9 @@ internal sealed class DesktopActivityPolicy(DesktopGrants grants, TimeProvider? 
             // still locked; those must not interrupt an already accepted task.
             var checkLockedIdle = locked == true && !active;
             Publish("activity_unknown", !known || checkLockedIdle && !knownIdle);
-            Publish("physical_activity", known && (now - _physicalAt!.Value < QuietSeconds || checkLockedIdle && idleSeconds < QuietSeconds));
+            // Ordinary unlocked activity does not precede or reset a warning.
+            // Retain the conservative secure-desktop preparation guard.
+            Publish("physical_activity", known && checkLockedIdle && idleSeconds < QuietSeconds);
             if (_takeoverAt is { } takeover)
             {
                 if (locked == true) _relocked = true;

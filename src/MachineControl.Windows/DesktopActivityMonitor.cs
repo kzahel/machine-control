@@ -47,7 +47,9 @@ internal sealed class DesktopActivityMonitor : IDisposable
     {
         supported = true,
         healthy = Healthy,
-        quietSeconds = DesktopActivityPolicy.QuietSeconds,
+        protectedQuietSeconds = DesktopActivityPolicy.QuietSeconds,
+        movementInterrupts = false,
+        deliberateInput = "key_down_button_down_scroll",
         physicalClassification = "win32_low_level_injection_flags",
         lockedQuiet = "conservative_session_last_input",
         unknownBlocksAdmission = true
@@ -61,7 +63,13 @@ internal sealed class DesktopActivityMonitor : IDisposable
             if (code >= 0)
             {
                 if (DesktopActivityPolicy.Physical(keys, Marshal.ReadInt32(data, keys ? 8 : 12)))
-                    Interlocked.Exchange(ref _physical, Stopwatch.GetTimestamp());
+                {
+                    // Ignore motion and releases, including the release after
+                    // Start now. Keep the hook callback free of policy locks.
+                    var kind = message.ToInt64();
+                    if (DesktopActivityPolicy.Deliberate(keys, kind))
+                        Interlocked.Exchange(ref _physical, Stopwatch.GetTimestamp());
+                }
                 else if (keys) Interlocked.Increment(ref _injectedKeyboard);
                 else Interlocked.Increment(ref _injectedMouse);
             }

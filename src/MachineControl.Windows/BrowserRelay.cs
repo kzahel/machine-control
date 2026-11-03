@@ -44,6 +44,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         _grants = grants;
         _host = new SharedBrowserHost(SharedBrowserHost.Packaged(), Receive, NativeCheck, Failed);
         grants.BrowserPolicy = this;
+        grants.Admission.Bind(frame => _host.Call(frame));
     }
     public bool Allows(string scope) => _stopped == 0 && _host.Alive &&
         (_host.State["effectiveScopes"] as JsonArray)?.Any(value => value?.GetValue<string>() == scope) == true;
@@ -81,16 +82,6 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         _authorities.Clear();
         Volatile.Write(ref _stopped, 0);
     }
-    public string? Checkpoint() => _host.Alive ? _host.Call(new JsonObject { ["method"] = "operator.checkpoint" })["checkpointId"]?.GetValue<string>() : null;
-    public void Restore(string checkpointId)
-    {
-        Volatile.Write(ref _stopped, 1);
-        EndAudits();
-        _authorities.Clear();
-        SynchronizeSafety();
-        _host.Call(new JsonObject { ["method"] = "operator.restore", ["checkpointId"] = checkpointId });
-        Volatile.Write(ref _stopped, 0);
-    }
     public void Stop()
     {
         Volatile.Write(ref _stopped, 1);
@@ -106,7 +97,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         {
             var readable = _grants.AuthorizeNative("browser.tabs", controlled: true) is null;
             var writable = _grants.AuthorizeNative("browser.cdp", controlled: true) is null;
-            var safety = (_grants.Generation, readable, writable);
+            var safety = (_grants.BrowserGeneration, readable, writable);
             if (_nativeState == safety) return;
             try
             {
@@ -293,14 +284,14 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         foreach (var item in _authorities)
         {
             if (_grants.AuthorizeNative(item.Value.Request, item.Value.Generation) is not null) _authorities.TryRemove(item.Key, out _);
-            else if (retained && item.Value.Request.Operation == "browser.endpoint" && item.Value.Generation == _grants.Generation &&
+            else if (retained && item.Value.Request.Operation == "browser.endpoint" && item.Value.Generation == _grants.BrowserGeneration &&
                 item.Value.Request.ControlOwnership?.Owner == request.ControlOwnership?.Owner &&
                 item.Value.Request.ControlOwnership?.Intent == request.ControlOwnership?.Intent &&
                 item.Value.Request.ControlOwnership?.Session == request.ControlOwnership?.Session) return item.Key;
         }
         if (_authorities.Count >= 128) throw new InvalidOperationException("browser_stream_capacity");
         var id = Guid.NewGuid().ToString("n");
-        _authorities[id] = new Authority(request, _grants.Generation); return id;
+        _authorities[id] = new Authority(request, _grants.BrowserGeneration); return id;
     }
     internal async Task<Result> ExecuteAsync(Request request, Result result, CancellationToken cancellation, bool controlled = false)
     {
@@ -319,12 +310,15 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
                 request = request with { Files = upload.Files };
             }
             authorityId = request.Operation == "browser.profiles" ? "metadata" : AuthorityFor(request, request.Operation == "browser.endpoint");
-            var generation = _grants.Generation;
+            var generation = _grants.BrowserGeneration;
             var reply = await _host.CallAsync(new JsonObject
             {
                 ["method"] = "browser.call",
                 ["requestId"] = id,
                 ["authorityId"] = authorityId,
+                ["ownerSession"] = request.ControlOwnership is { } owner ? owner.Owner + ":" + owner.Session : null,
+                ["ownerProfileIds"] = JsonSerializer.SerializeToNode(request.ControlOwnership?.Generations.Keys
+                    .Where(resource => resource.StartsWith("browser:", StringComparison.Ordinal)).Select(resource => resource[8..]).ToArray() ?? []),
                 ["request"] = JsonSerializer.SerializeToNode(request, Contract.Json)
             }, cancellation, 50000);
             var data = reply["data"]?.DeepClone();
@@ -375,7 +369,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         foreach (var peer in _peers.Values) peer.Pipe.Dispose();
         EndAudits();
         _authorities.Clear();
-        if (_disposed == 0) _ = Task.Run(() => _grants.Stop("browser_runtime_disconnected"));
+        if (_disposed == 0) _ = Task.Run(() => { _grants.Admission.Invalidate(); _grants.Stop("resident_policy_disconnected"); });
     }
     private void EndAudits()
     {

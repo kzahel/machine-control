@@ -57,7 +57,7 @@ export class ProcessClient {
       child.once("exit", finish);
       child.once("error", finish);
     });
-    await this.call("hello", { protocolVersion: 1 });
+    await this.call("hello", { protocolVersion: 2 });
   }
 
   call(method: string, fields: NativeFrame = {}): Promise<unknown> {

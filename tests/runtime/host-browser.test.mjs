@@ -55,7 +55,7 @@ test(
       });
     }
     try {
-      await call("hello", { protocolVersion: 1 });
+      await call("hello", { protocolVersion: 2 });
       const attach = async (name, suffix) => {
         const metadata = {
           protocolVersion: 1,
@@ -84,10 +84,14 @@ test(
       const work = await attach("Work profile", 1),
         personal = await attach("Personal profile", 2);
       await assert.rejects(attach("Copied", 1), /profile_conflict/);
+      let ownerSession = "fixture-owner-1";
+      let ownerProfiles;
       const request = (operation, fields = {}) =>
         call("browser.call", {
           requestId: `action-${++sequence}`,
           authorityId: "fixture-native-owner",
+          ownerSession,
+          ownerProfileIds: ownerProfiles ?? host.core.inspect().selectedProfiles,
           request: { operation, ...fields },
         });
       await call("operator.configure", {
@@ -107,6 +111,10 @@ test(
       );
       assert.equal(providers.get(work.connectionId).observe().clicks, 1);
       assert.equal(providers.get(personal.connectionId).observe().clicks, 0);
+      ownerSession = "fixture-owner-2";
+      assert.equal((await request("browser.click", { reference })).errorCode, "stale_reference", "a new owner cannot reuse the previous owner's observation");
+      assert.equal(providers.get(work.connectionId).observe().clicks, 1);
+      ownerSession = "fixture-owner-1";
       assert.equal(
         (await request("browser.eval")).errorCode,
         "scope_not_approved",
@@ -116,6 +124,9 @@ test(
         profileIds: [work.profileId, personal.profileId],
         durationMs: 60_000,
       });
+      ownerProfiles = [work.profileId];
+      await assert.rejects(request("browser.tabs", { browserProfileId: personal.profileId }), /profile_not_permitted_by_control_channel/);
+      ownerProfiles = undefined;
       await assert.rejects(request("browser.tabs"), /browser_profile_required/);
       assert.equal(
         (
@@ -162,7 +173,7 @@ test(
       await call("provider.frame", { connectionId: personal.connectionId, frame: { type: "profile.update", profile: personal.metadata } });
       await call("operator.restore", checkpoint);
       assert.equal((await request("browser.tabs")).profileId, work.profileId);
-      assert.equal((await request("browser.tabs", { browserProfileId: personal.profileId })).accepted, false, "restoration cannot undo withdrawal");
+      await assert.rejects(request("browser.tabs", { browserProfileId: personal.profileId }), /profile_not_permitted_by_control_channel/, "restoration cannot undo withdrawal");
       const stoppedCheckpoint = await call("operator.checkpoint");
       await call("operator.stop");
       await assert.rejects(call("operator.restore", stoppedCheckpoint), /invalid_checkpoint/);

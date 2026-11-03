@@ -502,6 +502,21 @@ fieldset:disabled .scope {
 }
 .request-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
 }
+.surface-access,
+.surface-lifetime,
+.surface-warnings {
+  padding: 12px;
+}
+.surface-access .note,
+.surface-lifetime .note,
+.surface-warnings .note {
+  margin-top: 8px;
+}
+.surface-access .group-title { padding: 0 0 8px; }
+.surface-access .setting-row,
+.surface-lifetime .setting-row,
+.surface-warnings .setting-row { padding: 0; }

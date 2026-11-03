@@ -37,7 +37,7 @@ class OuterSessionTests(unittest.TestCase):
 
     def test_legacy_provider_cannot_silently_run_outer_recovery(self):
         with self.assertRaises(mc.ClientError) as error:
-            self.owner('ready')
+            self.owner('legacy-ready')
         self.assertEqual(error.exception.code, 'outer_admission_unsupported')
         self.assertNotIn('effect', self.record.read_text())
         self.assertIn('EOF', self.record.read_text())

@@ -39,9 +39,14 @@ internal static class BrowserDevToolsFixtures
             if (frame["type"]?.GetValue<string>() == "session.command")
             {
                 Interlocked.Increment(ref commands);
-                if (!suppress) Post(new JsonObject { ["type"] = "session.result", ["id"] = id,
-                    ["cmdId"] = frame["cmdId"]!.DeepClone(), ["sessionId"] = frame["sessionId"]?.DeepClone(),
-                    ["result"] = new JsonObject { ["nativeFixture"] = true } });
+                if (!suppress) Post(new JsonObject
+                {
+                    ["type"] = "session.result",
+                    ["id"] = id,
+                    ["cmdId"] = frame["cmdId"]!.DeepClone(),
+                    ["sessionId"] = frame["sessionId"]?.DeepClone(),
+                    ["result"] = new JsonObject { ["nativeFixture"] = true }
+                });
             }
         }, frame =>
         {
@@ -60,15 +65,36 @@ internal static class BrowserDevToolsFixtures
             host.Call(new JsonObject { ["method"] = "state" });
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)
             .WaitAsync(TimeSpan.FromSeconds(3));
-        var attachment = host.Call(new JsonObject { ["method"] = "browser.attach", ["extensionId"] = new string('a', 32),
-            ["hello"] = new JsonObject { ["protocolVersion"] = 1, ["extensionVersion"] = "fixture", ["profile"] = new JsonObject
-            { ["protocolVersion"] = 1, ["installationId"] = "00000000-0000-4000-8000-000000000001", ["name"] = "Fixture", ["enabled"] = true } } });
+        var attachment = host.Call(new JsonObject
+        {
+            ["method"] = "browser.attach",
+            ["extensionId"] = new string('a', 32),
+            ["hello"] = new JsonObject
+            {
+                ["protocolVersion"] = 1,
+                ["extensionVersion"] = "fixture",
+                ["profile"] = new JsonObject
+                { ["protocolVersion"] = 1, ["installationId"] = "00000000-0000-4000-8000-000000000001", ["name"] = "Fixture", ["enabled"] = true }
+            }
+        });
         connectionId = attachment["connectionId"]!.GetValue<string>();
         var profileId = attachment["profileId"]!.GetValue<string>();
-        host.Call(new JsonObject { ["method"] = "operator.configure", ["scopes"] = new JsonArray("devtools"),
-            ["profileIds"] = new JsonArray(profileId), ["durationMs"] = 60000 });
-        JsonObject Endpoint() => host.Call(new JsonObject { ["method"] = "browser.call", ["requestId"] = Guid.NewGuid().ToString("n"),
-            ["authorityId"] = "fixture-native-owner", ["request"] = new JsonObject { ["operation"] = "browser.endpoint", ["browserProfileId"] = profileId } });
+        host.Call(new JsonObject
+        {
+            ["method"] = "operator.configure",
+            ["scopes"] = new JsonArray("devtools"),
+            ["profileIds"] = new JsonArray(profileId),
+            ["durationMs"] = 60000
+        });
+        JsonObject Endpoint() => host.Call(new JsonObject
+        {
+            ["method"] = "browser.call",
+            ["ownerSession"] = "fixture-owner",
+            ["ownerProfileIds"] = new JsonArray(profileId),
+            ["requestId"] = Guid.NewGuid().ToString("n"),
+            ["authorityId"] = "fixture-native-owner",
+            ["request"] = new JsonObject { ["operation"] = "browser.endpoint", ["browserProfileId"] = profileId }
+        });
         var checkpoint = host.Call(new JsonObject { ["method"] = "operator.checkpoint" });
         host.Call(new JsonObject { ["method"] = "operator.configure", ["scopes"] = new JsonArray(), ["profileIds"] = new JsonArray(), ["durationMs"] = 1000 });
         Require(host.State["effectiveScopes"]!.AsArray().Count == 0, "temporary non-browser selection has no browser authority");
@@ -111,12 +137,24 @@ internal static class BrowserDevToolsFixtures
         lock (calls) Task.WaitAll(calls.ToArray(), timeout.Token);
         // An unsettled ordinary provider call gives a deterministic private
         // IPC timeout. Preserve its method in payload-free fault diagnostics.
-        host.Call(new JsonObject { ["method"] = "operator.configure", ["scopes"] = new JsonArray("browser"),
-            ["profileIds"] = new JsonArray(profileId), ["durationMs"] = 60000 });
+        host.Call(new JsonObject
+        {
+            ["method"] = "operator.configure",
+            ["scopes"] = new JsonArray("browser"),
+            ["profileIds"] = new JsonArray(profileId),
+            ["durationMs"] = 60000
+        });
         try
         {
-            host.Call(new JsonObject { ["method"] = "browser.call", ["requestId"] = "fixture-stalled-provider",
-                ["authorityId"] = "fixture-native-owner", ["request"] = new JsonObject { ["operation"] = "browser.tabs", ["browserProfileId"] = profileId } }, 100);
+            host.Call(new JsonObject
+            {
+                ["method"] = "browser.call",
+                ["ownerSession"] = "fixture-owner",
+                ["ownerProfileIds"] = new JsonArray(profileId),
+                ["requestId"] = "fixture-stalled-provider",
+                ["authorityId"] = "fixture-native-owner",
+                ["request"] = new JsonObject { ["operation"] = "browser.tabs", ["browserProfileId"] = profileId }
+            }, 100);
             throw new Exception("Stalled private IPC unexpectedly completed");
         }
         catch (TimeoutException error)
