@@ -25,6 +25,19 @@ internal static class BrowserWire
     internal static bool Observes(string operation) => operation is
         "browser.tabs" or "browser.wait" or "browser.snapshot" or "browser.capture";
 
+    // Provider messages may contain page data. Only closed diagnostic codes
+    // from our stream lifecycle can enter operator metadata.
+    internal static string? StreamEnd(JsonObject frame)
+    {
+        var type = frame["type"] is JsonValue kind && kind.TryGetValue<string>(out var text) ? text : null;
+        if (type == "session.failed") return "provider_session_failed";
+        if (type != "session.closed") return null;
+        var reason = frame["reason"] is JsonValue value && value.TryGetValue<string>(out var code) ? code : null;
+        return reason is "closed" or "tab_closed" or "detached" or "access_ended" or "devtools_grant_ended" or
+            "browser_management_timeout_effect_unknown" or "target_discovery_failed" or "attached_session_capacity" or "native_debugger_detached"
+            ? reason : "provider_closed";
+    }
+
     internal static async Task<JsonObject?> ReadAsync(Stream stream, CancellationToken cancellation, int maximum = MaximumInput)
     {
         var header = new byte[4];

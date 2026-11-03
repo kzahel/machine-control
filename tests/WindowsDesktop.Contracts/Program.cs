@@ -224,6 +224,10 @@ Assert(BrowserWire.Operations.Contains("browser.upload") && !BrowserWire.Observe
 Assert(DesktopGrants.ScopeFor("browser.dialog") == "browser" && broker.Authorize("browser.dialog") is null,
     "Typed dialog handling uses the browser grant");
 foreach (var operation in BrowserWire.Operations) Assert(DesktopJournal.Known(operation), "Browser audit operation is typed: " + operation);
+Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.closed", ["reason"] = "native_debugger_detached" }) == "native_debugger_detached", "Known stream lifecycle code is observable");
+Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.closed", ["reason"] = "private page content" }) == "provider_closed", "Untrusted provider reason is never reflected");
+Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.failed", ["message"] = "private page content" }) == "provider_session_failed", "Provider error message is never reflected");
+Assert(BrowserWire.StreamEnd(new() { ["type"] = "session.event" }) is null, "Nonterminal frames do not alter stream end observation");
 Assert(DesktopGrants.ScopeFor("browser.profiles") is null, "Profile metadata requires no page-control grant");
 foreach (var operation in BrowserWire.Operations.Where(value => value != "browser.profiles"))
     Assert(DesktopGrants.ScopeFor(operation) is not null, "Every advertised browser operation has a control-session scope: " + operation);

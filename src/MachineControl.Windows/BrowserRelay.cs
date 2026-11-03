@@ -26,12 +26,16 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     private int _disposed;
     private (string Generation, bool Readable, bool Writable)? _nativeState;
     private sealed record Authority(Request Request, string Generation);
+    private sealed record NativeCheckTiming(string Phase, double ElapsedMs, bool Accepted);
+    private NativeCheckTiming _slowestNativeCheck = new("none", 0, false);
     private sealed class Peer(NamedPipeServerStream pipe)
     {
         internal readonly NamedPipeServerStream Pipe = pipe;
         internal readonly SemaphoreSlim Writes = new(1, 1);
         internal readonly string Tag = Guid.NewGuid().ToString("n");
         internal string? ConnectionId;
+        internal string? ProfileId;
+        internal volatile string? StreamEnd;
         internal volatile string? Problem;
     }
 
@@ -53,6 +57,8 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         profiles = Profiles,
         problems = _peers.Values.Where(peer => peer.Problem is not null).Select(peer => new { reason = peer.Problem }).ToArray(),
         approvedProfiles = _host.State["selectedProfiles"]?.DeepClone() ?? new JsonArray(),
+        slowestNativeCheck = Volatile.Read(ref _slowestNativeCheck),
+        lastStreamEnds = _peers.Values.Where(peer => peer.StreamEnd is not null).Select(peer => new { profileId = peer.ProfileId, reason = peer.StreamEnd }).ToArray(),
         sharedRuntime = "typescript_node",
         runtimeProblem = _host.Failure,
         runtimeProblemMethod = _host.FailureMethod,
@@ -162,6 +168,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
                     ["transportTag"] = peer.Tag
                 }, handshake.Token);
                 peer.ConnectionId = reply["connectionId"]!.GetValue<string>();
+                peer.ProfileId = reply["profileId"]!.GetValue<string>();
             }
             catch (InvalidOperationException ex)
             {
@@ -172,7 +179,10 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
                 return;
             }
             while (await BrowserWire.ReadAsync(pipe, cancellation) is { } frame)
+            {
+                if (BrowserWire.StreamEnd(frame) is { } ended) peer.StreamEnd = ended;
                 await _host.CallAsync(new JsonObject { ["method"] = "provider.frame", ["connectionId"] = peer.ConnectionId, ["frame"] = frame }, cancellation);
+            }
         }
         catch (Exception ex) when (ex is IOException or OperationCanceledException or InvalidOperationException or JsonException or ObjectDisposedException or TimeoutException) { }
         finally
@@ -220,6 +230,24 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         finally { peer.Writes.Release(); }
     }
     private bool NativeCheck(JsonObject frame)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var accepted = false;
+        try { return accepted = NativeCheckCore(frame); }
+        finally
+        {
+            var phase = frame["phase"]?.GetValue<string>();
+            var observed = new NativeCheckTiming(phase is "check" or "begin" or "result" ? phase : "unknown",
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds, accepted);
+            while (true)
+            {
+                var previous = Volatile.Read(ref _slowestNativeCheck);
+                if (previous.ElapsedMs >= observed.ElapsedMs ||
+                    ReferenceEquals(Interlocked.CompareExchange(ref _slowestNativeCheck, observed, previous), previous)) break;
+            }
+        }
+    }
+    private bool NativeCheckCore(JsonObject frame)
     {
         var authorityId = frame["authorityId"]?.GetValue<string>() ?? "";
         if (!_authorities.TryGetValue(authorityId, out var authority)) return false;
