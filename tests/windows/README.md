@@ -56,6 +56,11 @@ unchanged and a separate check exercises actual 60-second consent expiry.
 Dialog-opening clicks may report unknown delivery: the actor observes the
 modal and handles its exact ID without replaying the click.
 
+The bundled Windows ARM64 Python has reproduced an access violation during
+`faulthandler.dump_traceback_later` in an isolated threaded workload. This actor
+uses progress and bounded RPC timing without that optional C-level stack walk.
+The normal Python client path is unchanged.
+
 Use normal interactive scheduling priority. For a Limited interactive
 scheduled task, set `New-ScheduledTaskSettingsSet -Priority 4`; the
 [default priority 7 is below normal](https://learn.microsoft.com/en-us/windows/win32/taskschd/tasksettings-priority).

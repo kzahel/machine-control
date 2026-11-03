@@ -10,7 +10,6 @@ import argparse
 import base64
 import ctypes
 from collections import deque
-import faulthandler
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -85,7 +84,6 @@ def main():
     replies = queue.Queue()
     started = time.monotonic()
     logs = (args.output / 'actor.log').open('w', encoding='utf-8')
-    faulthandler.dump_traceback_later(90, repeat=True, file=logs)
     registry_browser = 'Chromium' if args.chromium else r'Google\Chrome'
     key_path = rf'Software\{registry_browser}\NativeMessagingHosts\org.machine_control.browser'
     access = winreg.KEY_READ | winreg.KEY_WOW64_32KEY
@@ -580,7 +578,6 @@ throw 'Staged operator UI element unavailable'
             try: winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, key_path, winreg.KEY_WOW64_32KEY)
             except FileNotFoundError: pass
         backup.unlink()
-        faulthandler.cancel_dump_traceback_later()
         server.shutdown(); server.server_close(); logs.close()
         try:
             deadline = time.monotonic() + 30
