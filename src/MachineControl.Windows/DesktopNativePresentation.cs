@@ -37,6 +37,10 @@ internal sealed class DesktopNativePresentation : IDisposable
                         var current = requests.EnumerateArray().OrderBy(item => item.GetProperty("state").GetString() == "announcing" ? 0 : 1)
                             .FirstOrDefault(item => item.GetProperty("state").GetString() is "announcing" or "waiting_for_approval");
                         var next = current.ValueKind == JsonValueKind.Object ? current.GetProperty("intentId").GetString() + ":" + current.GetProperty("state").GetString() : null;
+                        // An operator can resume before the next timer tick
+                        // observes the pause. A closed notice must not suppress
+                        // the next warning for that same live request/state.
+                        if (notice?.IsDisposed == true) { notice = null; noticeId = null; }
                         if (next != noticeId)
                         {
                             notice?.Dispose(); notice = null; noticeId = next;
@@ -84,6 +88,7 @@ internal sealed class DesktopNativePresentation : IDisposable
         MinimizeBox = false,
         StartPosition = FormStartPosition.CenterScreen,
         TopMost = true,
+        ShowInTaskbar = false,
         Font = new Font("Segoe UI", 10),
         AutoScaleMode = AutoScaleMode.Dpi,
     };
@@ -136,5 +141,18 @@ internal sealed class DesktopNativePresentation : IDisposable
         _thread.Join(TimeSpan.FromSeconds(3));
     }
     private sealed class SafetyForm(bool withoutActivation) : Form
-    { protected override bool ShowWithoutActivation => withoutActivation; }
+    {
+        protected override bool ShowWithoutActivation => withoutActivation;
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var parameters = base.CreateParams;
+                // ShowWithoutActivation alone still allowed first-window
+                // activation in the real interactive Windows qualification.
+                if (withoutActivation) parameters.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+                return parameters;
+            }
+        }
+    }
 }

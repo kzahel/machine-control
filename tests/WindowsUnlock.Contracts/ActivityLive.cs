@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Windows.Automation;
 using MachineControl.Windows;
 
 /// Native interactive-session qualification. Real hooks, notice windows and
@@ -11,7 +12,11 @@ internal static class ActivityLive
     internal static async Task RunAsync()
     {
         var checks = new List<string>();
-        void Check(bool value, string name) { if (!value) throw new Exception(name); checks.Add(name); }
+        void Check(bool value, string name)
+        {
+            if (!value) throw new Exception(name);
+            checks.Add(name); Console.WriteLine(name);
+        }
         RuntimeProfile.ConfigureUser("activity-conformance");
         var grants = new DesktopGrants();
         using var relay = new BrowserRelay(grants);
@@ -22,16 +27,30 @@ internal static class ActivityLive
         grants.ConfigureSurface("desktop", "automatic", 0, "until_stopped");
         JsonElement View(object value) => JsonSerializer.SerializeToElement(value, Contract.Json);
         JsonElement Status(string id, bool heartbeat = false) => View(grants.Admission.Inspect("fixture", id, heartbeat));
+        string? liveIntent = null;
         async Task Wait(Func<bool> predicate, int seconds = 15)
         {
             var deadline = Stopwatch.StartNew();
-            while (!predicate()) { if (deadline.Elapsed.TotalSeconds > seconds) throw new TimeoutException("Native handoff condition did not settle"); await Task.Delay(100); }
+            while (!predicate())
+            {
+                if (deadline.Elapsed.TotalSeconds > seconds)
+                    throw new TimeoutException("Native handoff condition did not settle: " + View(grants.Admission.Status()).GetRawText());
+                if (liveIntent is not null) Status(liveIntent, true);
+                await Task.Delay(100);
+            }
         }
         void Human(string kind = "key") => grants.Activity.ObservePhysical((double)Stopwatch.GetTimestamp() / Stopwatch.Frequency, kind);
-        JsonElement Submit(string name) => View(grants.Admission.Submit("fixture", name, ["desktop"], 300, 120, "Native handoff acceptance"));
+        JsonElement Submit(string name)
+        {
+            var result = View(grants.Admission.Submit("fixture", name, ["desktop"], 300, 120, "Native handoff acceptance"));
+            liveIntent = result.GetProperty("intentId").GetString();
+            return result;
+        }
         JsonElement Activate(string id)
         {
             var offer = Status(id);
+            if (offer.GetProperty("state").GetString() != "offered")
+                throw new Exception("Expected activation offer: " + offer.GetRawText());
             return View(grants.Admission.Accept("fixture", id, offer.GetProperty("offerGeneration").GetInt64()));
         }
         string? Authorize(JsonElement active) => grants.Admission.Authorize("fixture", active.GetProperty("intentId").GetString()!,
@@ -46,7 +65,12 @@ internal static class ActivityLive
                 EnumChildWindows(window, (handle, _) => { if (Text(handle) == label) button = handle; return true; }, IntPtr.Zero);
                 return button != IntPtr.Zero;
             });
-            SendMessage(button, 0xF5, IntPtr.Zero, IntPtr.Zero); // BM_CLICK, exact owned native button.
+            // BM_CLICK silently ignores some inactive dialogs. Exercise the
+            // actual native accessibility action without activating the notice.
+            var element = AutomationElement.FromHandle(button);
+            ((InvokePattern)element.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+            await Wait(() => !IsWindow(button));
+            Console.WriteLine("Native action completed: " + label);
         }
         const string warning = "Machine Control will use desktop", approval = "Machine Control requests access";
         var foreground = GetForegroundWindow();
@@ -103,6 +127,10 @@ internal static class ActivityLive
         var pause = View(grants.Admission.Status()).GetProperty("deferrals").EnumerateArray().Single(value => value.GetProperty("resource").GetString() == "desktop");
         Check(pause.GetProperty("remainingSeconds").GetDouble() is > 28 and <= 30, "Native thirty-second pause reports its real deadline");
         grants.ResumeSurface("desktop");
+        await Press(warning, "Pause 1 minute");
+        pause = View(grants.Admission.Status()).GetProperty("deferrals").EnumerateArray().Single(value => value.GetProperty("resource").GetString() == "desktop");
+        Check(pause.GetProperty("remainingSeconds").GetDouble() is > 58 and <= 60, "Native one-minute pause reports its real deadline");
+        grants.ResumeSurface("desktop");
         await Press(warning, "Until Resume");
         pause = View(grants.Admission.Status()).GetProperty("deferrals").EnumerateArray().Single(value => value.GetProperty("resource").GetString() == "desktop");
         Check(pause.GetProperty("remainingSeconds").ValueKind == JsonValueKind.Null, "Native indefinite pause has no automatic deadline");
@@ -117,6 +145,11 @@ internal static class ActivityLive
         Check(Status(id).GetProperty("state").GetString() == "announcing", "Native task approval is followed by the warning");
         await Press(warning, "Start now"); Activate(id);
         grants.Admission.Cancel("fixture", id);
+        first = Submit("stop"); id = first.GetProperty("intentId").GetString()!;
+        await Press(approval, "Stop access");
+        Check(!grants.Admission.Enabled("desktop") && !grants.Admission.Enabled("browser") &&
+            Status(id).GetProperty("terminalReason").ValueKind == JsonValueKind.String,
+            "Native Stop turns both surfaces off and ends waiting work");
         grants.ConfigureSurface("desktop", "off", 300, "timed");
         first = Submit("off");
         await Task.Delay(400);
@@ -148,5 +181,5 @@ internal static class ActivityLive
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out int process);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, StringBuilder text, int maximum);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
 }

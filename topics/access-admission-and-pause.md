@@ -144,18 +144,21 @@ independent cover, lock, credential and relock guards remain authoritative.
 
 ## Current foundation
 
-**Current, source-reviewed gaps (2026-11-03):** Windows can return
-`access_paused` before declaring that a call needs a control session, while the
-[Python handoff](../client/control_session.py) queues only an explicit
-`control_session_required` refusal. Its [activity policy](../src/MachineControl.Windows/DesktopActivityPolicy.cs)
-requires 30 seconds of quiet before the normal 10-second announcement, and
-[Start now](../src/MachineControl.Windows/AccessAdmission.cs) does not acknowledge
-recent physical input. [Native notices](../src/MachineControl.Windows/DesktopNativePresentation.cs)
-lack the visible countdown/short-pause choices. A missing grant can still trigger
-[approval](../src/MachineControl.Windows/DesktopGrants.cs), so current unarmed
-and quiet Off are not distinct. These findings explain possible failure paths;
-they do not identify or reproduce the user's historical installed build. The
-existing tests and bounded browser cutover do not qualify the new handoff model.
+**Current, Windows source (2026-11-03):** the resident delegates consent,
+queueing, task approval and handoff to the shared TypeScript policy host. The
+v2 Python channel negotiates one waiting intent before temporary availability
+refusals. Native input hooks publish deliberate input, while a separate native
+STA presents countdown, short pauses and task decisions independently of
+Settings. The shared operator UI exposes two surface modes and exact browser
+profiles. Restart remembers form choices without restoring authority.
+[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) records
+validation and remaining platform gates.
+
+The earlier source had a quiet-before-warning prerequisite, activity refusals
+before session negotiation and missing short-pause/countdown controls. Those
+findings motivated the replacement; they did not reproduce the user's unknown
+historical installed build. Earlier Windows tactical evidence below qualifies
+its named historical implementation, rather than the full v2 experience.
 
 
 **Current, unreleased Mac source:** operational grant retirement retains saved
