@@ -1,6 +1,12 @@
 using System.Text.Json;
 using MachineControl.Windows;
 
+if (args.Contains("--sync-ipc-without-pool"))
+{
+    BrowserDevToolsFixtures.SyncWithoutPool();
+    return;
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new Exception(message);

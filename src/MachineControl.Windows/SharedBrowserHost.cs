@@ -72,30 +72,59 @@ internal sealed class SharedBrowserHost : IDisposable
         return start;
     }
 
-    // Allow/Stop also originate on a native presentation STA. Every await in
-    // this synchronous-call path must stay independent of its message pump.
-    internal JsonObject Call(JsonObject frame, int timeoutMs = 5000) => CallAsync(frame, CancellationToken.None, timeoutMs).GetAwaiter().GetResult();
+    // Safety/metadata calls also run on STAs and occupied pool workers. Wait
+    // directly for the owned I/O threads; async continuations need pool capacity
+    // even with ConfigureAwait(false), and cannot implement this sync boundary.
+    internal JsonObject Call(JsonObject frame, int timeoutMs = 5000)
+    {
+        var completion = Begin(frame);
+        try
+        {
+            WriteSync(frame);
+            return Reply(WaitSync(completion.Task, timeoutMs, _stop.Token));
+        }
+        catch (TimeoutException ex) { throw ReplyTimeout(frame, ex); }
+    }
     internal async Task<JsonObject> CallAsync(JsonObject frame, CancellationToken cancellation, int timeoutMs = 5000)
     {
-        if (!Alive || _pending.Count >= 128) throw new IOException("Shared browser runtime unavailable");
+        var completion = Begin(frame);
+        try
+        {
+            await WriteAsync(frame).ConfigureAwait(false);
+            return Reply(await completion.Task.WaitAsync(TimeSpan.FromMilliseconds(timeoutMs), cancellation).ConfigureAwait(false));
+        }
+        catch (TimeoutException ex) { throw ReplyTimeout(frame, ex); }
+    }
+    private TaskCompletionSource<JsonObject> Begin(JsonObject frame)
+    {
+        if (!Alive) throw new IOException("Shared browser runtime unavailable");
+        if (_pending.Count >= 128) throw new InvalidOperationException("browser_runtime_busy");
         var id = Interlocked.Increment(ref _sequence).ToString(System.Globalization.CultureInfo.InvariantCulture);
         var completion = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_pending.TryAdd(id, completion)) throw new IOException("Duplicate runtime correlation");
         frame["id"] = id;
+        return completion;
+    }
+    private static JsonObject Reply(JsonObject reply)
+    {
+        if (reply["ok"]?.GetValue<bool>() != true)
+            throw new InvalidOperationException(reply["errorCode"]?.GetValue<string>() ?? "browser_runtime_refused");
+        return reply["data"] as JsonObject ?? new JsonObject();
+    }
+    private TimeoutException ReplyTimeout(JsonObject frame, TimeoutException error)
+    {
+        var method = frame["method"]?.GetValue<string>();
+        Fault("ipc_reply_timeout", method);
+        return new TimeoutException($"Shared browser runtime reply timed out ({method})", error);
+    }
+    private static T WaitSync<T>(Task<T> task, int milliseconds, CancellationToken cancellation)
+    {
         try
         {
-            await WriteAsync(frame).ConfigureAwait(false);
-            var reply = await completion.Task.WaitAsync(TimeSpan.FromMilliseconds(timeoutMs), cancellation).ConfigureAwait(false);
-            if (reply["ok"]?.GetValue<bool>() != true)
-                throw new InvalidOperationException(reply["errorCode"]?.GetValue<string>() ?? "browser_runtime_refused");
-            return reply["data"] as JsonObject ?? new JsonObject();
+            if (!task.Wait(milliseconds, cancellation)) throw new TimeoutException();
         }
-        catch (TimeoutException ex)
-        {
-            var method = frame["method"]?.GetValue<string>();
-            Fault("ipc_reply_timeout", method);
-            throw new TimeoutException($"Shared browser runtime reply timed out ({method})", ex);
-        }
+        catch (AggregateException) when (task.IsCompleted) { return task.GetAwaiter().GetResult(); }
+        return task.GetAwaiter().GetResult();
     }
 
     private static void StartIo(ThreadStart action, string name) =>
@@ -124,9 +153,7 @@ internal sealed class SharedBrowserHost : IDisposable
         await _writes.WaitAsync(_stop.Token).ConfigureAwait(false);
         try
         {
-            var written = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (!_outbound.TryAdd((frame, written))) throw new IOException("Shared browser writer unavailable");
-            await written.Task.WaitAsync(TimeSpan.FromSeconds(3), _stop.Token).ConfigureAwait(false);
+            await QueueWrite(frame).WaitAsync(TimeSpan.FromSeconds(3), _stop.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -135,6 +162,29 @@ internal sealed class SharedBrowserHost : IDisposable
             throw new IOException("Shared browser runtime write failed; delivery unknown", ex);
         }
         finally { _writes.Release(); }
+    }
+    private Task<bool> QueueWrite(JsonObject frame)
+    {
+        var written = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_outbound.TryAdd((frame, written))) throw new IOException("Shared browser writer unavailable");
+        return written.Task;
+    }
+    private void WriteSync(JsonObject frame)
+    {
+        var entered = false;
+        try
+        {
+            entered = _writes.Wait(3000, _stop.Token);
+            if (!entered) throw new TimeoutException();
+            WaitSync(QueueWrite(frame), 3000, _stop.Token);
+        }
+        catch (Exception ex)
+        {
+            Fault(ex is TimeoutException or OperationCanceledException ? "ipc_write_timeout" :
+                ex is IOException ? "ipc_write_failed" : "ipc_write_invalid", frame["method"]?.GetValue<string>());
+            throw new IOException("Shared browser runtime write failed; delivery unknown", ex);
+        }
+        finally { if (entered) _writes.Release(); }
     }
 
     private void Read()

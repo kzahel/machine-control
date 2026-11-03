@@ -12,6 +12,7 @@ internal static class BrowserDevToolsFixtures
     { if (!condition) throw new Exception("Shared browser native IPC: " + message); }
     internal static async Task RunAsync()
     {
+        await SyncWithoutPoolProcess();
         BlockedWriter();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
         start.ArgumentList.Add(Path.GetFullPath("runtime/node/main.ts"));
@@ -163,6 +164,58 @@ internal static class BrowserDevToolsFixtures
                 host.Failure == "ipc_reply_timeout" && failure, "private timeout identifies its method and fails closed");
         }
         Console.WriteLine("Shared browser/native IPC contracts passed");
+    }
+
+    private static async Task SyncWithoutPoolProcess()
+    {
+        var start = new ProcessStartInfo(Environment.ProcessPath!) { RedirectStandardOutput = true, RedirectStandardError = true };
+        if (Path.GetFileNameWithoutExtension(Environment.ProcessPath) == "dotnet")
+            start.ArgumentList.Add(typeof(BrowserDevToolsFixtures).Assembly.Location);
+        start.ArgumentList.Add("--sync-ipc-without-pool");
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15)); }
+        catch { process.Kill(entireProcessTree: true); throw; }
+        Require(process.ExitCode == 0, "synchronous IPC under pool pressure: " + await error + await output);
+    }
+
+    internal static void SyncWithoutPool()
+    {
+        Require(ThreadPool.SetMinThreads(1, 1) && ThreadPool.SetMaxThreads(1, 1), "isolated worker-pool limit");
+        using var occupied = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var blocker = Task.Run(() => { occupied.Set(); release.Wait(); });
+        occupied.Wait();
+        // An OS thread releases the worker even if the old implementation
+        // deadlocks. The private child and all three I/O directions are owned.
+        var watchdog = new Thread(() => { if (!release.Wait(TimeSpan.FromSeconds(6))) release.Set(); });
+        watchdog.Start();
+        var timer = Stopwatch.StartNew();
+        try
+        {
+            var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
+            start.ArgumentList.Add(Path.GetFullPath("runtime/node/main.ts"));
+            using var host = new SharedBrowserHost(start, _ => { }, _ => false, () => { });
+            host.Call(new JsonObject { ["method"] = "state" });
+            Require(timer.Elapsed < TimeSpan.FromSeconds(4), "sync reply must not require a free pool worker");
+            var admission = new AccessAdmission();
+            admission.Register("desktop", true);
+            admission.Bind(frame => host.Call(frame));
+            admission.Configure("desktop", "automatic", 60, []);
+            admission.Notice(0);
+            var offer = (JsonObject)admission.Submit("fixture", "loss", ["desktop"], 60, 60, "Policy-loss fixture");
+            var id = offer["intentId"]!.GetValue<string>();
+            var active = (JsonObject)admission.Accept("fixture", id, offer["offerGeneration"]!.GetValue<long>());
+            var generations = active["resourceGenerations"]!.AsObject().ToDictionary(pair => pair.Key, pair => pair.Value!.GetValue<long>());
+            host.Dispose();
+            Require(admission.Authorize("fixture", id, active["sessionId"]!.GetValue<string>(), generations) == "control_policy_unavailable",
+                "first authorization after policy loss fences the owner");
+            Require(((JsonObject)admission.Status())["available"]!.GetValue<bool>() == false && !admission.Enabled("desktop") &&
+                !admission.HasActiveSession && !admission.Reserved && admission.Blocks("desktop").Contains("control_policy_unavailable"),
+                "policy loss retains native status without authority");
+        }
+        finally { release.Set(); watchdog.Join(); blocker.GetAwaiter().GetResult(); }
     }
 
     private static void BlockedWriter()

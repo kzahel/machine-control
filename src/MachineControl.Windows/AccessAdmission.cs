@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.IO;
 
 namespace MachineControl.Windows;
 
@@ -86,12 +87,12 @@ internal sealed class AccessAdmission(object? gate = null)
         {
             Refresh();
             if (_invoke is null) return ["control_policy_unavailable"];
-            var state = Call("state")["surfaces"]?[surface];
+            var state = ((JsonObject)Status())["surfaces"]?[surface];
             var pauses = (state?["pauses"] as JsonArray)?.Select(value => value!["reason"]!.GetValue<string>()) ?? [];
             return pauses.Concat(state?["ready"]?.GetValue<bool>() == true ? [] : new[] { "resource_unavailable" }).Order().ToArray();
         }
     }
-    internal JsonObject Surface(string surface) => (JsonObject)Call("state")["surfaces"]![surface]!.DeepClone();
+    internal JsonObject Surface(string surface) => (JsonObject)((JsonObject)Status())["surfaces"]![surface]!.DeepClone();
     internal bool Enabled(string surface)
     {
         lock (Gate)
@@ -144,12 +145,16 @@ internal sealed class AccessAdmission(object? gate = null)
             Refresh();
             if (_invoke is null) return "control_policy_unavailable";
             if (!_owners.Contains(owner)) return "stale_control_session";
-            return Call("authorize", new()
+            try
             {
-                ["owner"] = owner,
-                ["fence"] = new JsonObject
-                { ["intentId"] = id, ["sessionId"] = sessionId, ["resourceGenerations"] = JsonSerializer.SerializeToNode(generations) }
-            })["refusal"]?.GetValue<string>();
+                return Call("authorize", new()
+                {
+                    ["owner"] = owner,
+                    ["fence"] = new JsonObject
+                    { ["intentId"] = id, ["sessionId"] = sessionId, ["resourceGenerations"] = JsonSerializer.SerializeToNode(generations) }
+                })["refusal"]?.GetValue<string>();
+            }
+            catch (Exception ex) when (PolicyLoss(ex)) { return "control_policy_unavailable"; }
         }
     }
     internal void Cancel(string owner, string id) => Call("cancel", new() { ["owner"] = owner, ["intentId"] = id });
@@ -175,7 +180,17 @@ internal sealed class AccessAdmission(object? gate = null)
             finally { _refreshing = false; }
         }
     }
-    internal object Status() => _invoke is null ? JsonSerializer.SerializeToNode(new
+    internal object Status()
+    {
+        lock (Gate)
+        {
+            if (_invoke is not null)
+                try { return Call("state"); }
+                catch (Exception ex) when (PolicyLoss(ex)) { }
+            return Unavailable();
+        }
+    }
+    private static JsonObject Unavailable() => (JsonObject)JsonSerializer.SerializeToNode(new
     {
         schema = Schema,
         available = false,
@@ -186,15 +201,18 @@ internal sealed class AccessAdmission(object? gate = null)
         requests = Array.Empty<object>(),
         surfaces = new[] { "desktop", "browser" }.ToDictionary(surface => surface, _ => new
         { mode = "off", expired = false, consentRemainingSeconds = (int?)0, profileIds = Array.Empty<string>(), ready = false, pauses = Array.Empty<object>() })
-    })! : Call("state");
-    internal bool HasActiveSession => _invoke is not null && Call("state")["active"]?.GetValue<int>() > 0;
-    internal bool Reserved => _invoke is not null && (Call("state")["requests"] as JsonArray)?.Any(value => value?["state"]?.GetValue<string>() is "active" or "offered" or "announcing") == true;
+    })!;
+    internal bool HasActiveSession => ((JsonObject)Status())["active"]?.GetValue<int>() > 0;
+    internal bool Reserved => (((JsonObject)Status())["requests"] as JsonArray)?.Any(value => value?["state"]?.GetValue<string>() is "active" or "offered" or "announcing") == true;
+    private static bool PolicyLoss(Exception error) => error is IOException or TimeoutException or OperationCanceledException;
     private JsonObject Call(string method, JsonObject? fields = null)
     {
         lock (Gate)
         {
             fields ??= new(); fields["method"] = "access." + method;
-            var result = (_invoke ?? throw new InvalidOperationException("control_policy_unavailable"))(fields);
+            JsonObject result;
+            try { result = (_invoke ?? throw new InvalidOperationException("control_policy_unavailable"))(fields); }
+            catch (Exception ex) when (PolicyLoss(ex)) { Invalidate(); throw; }
             void Observe(JsonNode? request)
             {
                 var id = request?["intentId"]?.GetValue<string>();

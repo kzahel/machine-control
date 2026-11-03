@@ -49,6 +49,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     public bool Allows(string scope) => _stopped == 0 && _host.Alive &&
         (_host.State["effectiveScopes"] as JsonArray)?.Any(value => value?.GetValue<string>() == scope) == true;
     public object Profiles => _host.State["profiles"]?.DeepClone() ?? new JsonArray();
+    internal bool PolicyAvailable => _host.Alive;
     internal object State => new
     {
         connected = (_host.State["profiles"] as JsonArray)?.Any(value => value?["connected"]?.GetValue<bool>() == true) == true,
@@ -365,6 +366,10 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     }
     private void Failed()
     {
+        // Persist closed diagnostic codes before a fatal transport race can
+        // end the supervisor. Never retain provider/page payloads or stderr.
+        _grants.Journal?.Diagnostic("browser.runtime." + (_host?.FailureMethod ?? "startup"),
+            _host?.Failure ?? "startup_failed");
         Volatile.Write(ref _stopped, 1);
         foreach (var peer in _peers.Values) peer.Pipe.Dispose();
         EndAudits();

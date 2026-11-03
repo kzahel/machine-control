@@ -49,10 +49,20 @@ internal static class DesktopHost
         {
             while (!stop.IsCancellationRequested)
             {
-                DesktopSafety.RefreshAvailability(broker);
-                lockedUse.Tick();
-                broker.Refresh();
-                browser.SynchronizeSafety();
+                try
+                {
+                    DesktopSafety.RefreshAvailability(broker);
+                    lockedUse.Tick();
+                    broker.Refresh();
+                    browser.SynchronizeSafety();
+                }
+                catch (Exception ex) when (!browser.PolicyAvailable && (ex is IOException or TimeoutException or OperationCanceledException))
+                {
+                    // Keep native status/Stop available after private policy
+                    // loss. Invalidation retires ownership before any retry.
+                    broker.Admission.Invalidate();
+                    broker.Stop("resident_policy_disconnected");
+                }
                 await Task.Delay(200, stop.Token);
             }
         });
