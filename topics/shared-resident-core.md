@@ -3,7 +3,7 @@
 Topic: `shared-resident-core`
 
 Status: **Windows browser cutover accepted in an unsigned ARM64 candidate;
-Mac/Linux adoption pending**.
+unified permissions/handoff next on Windows and reference clients, then Mac/Linux**.
 
 ## Motivation
 
@@ -54,9 +54,10 @@ both targets execute the same policy implementation.
 
 Keep the existing Python CLI and client implementation. A client rewrite,
 TypeScript session SDK and client-language cutover are outside this workstream.
-Preserve the public client experience, making only compatible interface changes
-required for browser profiles. Client consolidation remains a separate possible
-future concern, not a prerequisite for resident adoption.
+Keep that language boundary while permitting the API/protocol changes needed
+for the unified model. Backward compatibility must not force a second policy
+engine or constrain the new experience. Client-language consolidation remains
+a separate concern, not a prerequisite for resident adoption.
 
 ## Direction and ownership
 
@@ -274,16 +275,27 @@ Its effects are independent of the policy's reported delivery. It does not
 simulate an entire desktop or qualify native authentication, OS permissions,
 foreground behavior or protected control.
 
-**Decision:** migrate macOS next with this exact private inlet. Retain Swift
-peer authentication, AX/capture/input and protected/session facilities. Replace
+**Decision (2026-11-03):** before macOS adoption, expand the shared core with the
+[unified Desktop/Browser permissions and handoff contract](access-admission-and-pause.md#unified-permissions-and-handoff-contract).
+[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) develops
+that policy with the Windows adapter, reference target and synthetic clients.
+The user accepts temporarily broken/disabled Mac integration and Linux migration
+gaps in development. Preserving every old client, flag, protocol or platform
+behavior is not a gate. An explicit isolated legacy route is optional, with
+per-platform deletion at cutover and final shim removal after convergence;
+never fall back silently or keep two long-term authorities.
+
+**Decision:** migrate macOS after that Windows milestone using the shared inlet.
+Retain Swift peer authentication, AX/capture/input and protected/session facilities. Replace
 its singleton browser relay and CDP policy with per-connection transport into
 one shared host. Translate trusted operator decisions and console/owner facts;
 do not port the registry or expiry engine into Swift. Preserve exact-profile
 consent and remaining lifetime across its existing same-console restoration,
 requiring fresh consent for old records lacking IDs. Qualify two regular
 profiles, independent ordinary/root/page CDP effects, owner/Stop/session loss,
-Settings recreation and exact packaged ARM64/x64 identity on Mac before deleting
-its replaced path or advertising support there.
+Settings recreation and declared packaged ARM64/x64 identity on Mac. Delete
+its replaced path at cutover and advertise only qualified support; the legacy
+path may be disabled earlier to keep the new model clean.
 
 **Decision:** adopt Linux after the Mac boundary is proven. Retain Python for
 AT-SPI, compositor/capture/input, native peer credentials and target lifecycle;

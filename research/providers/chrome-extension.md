@@ -17,6 +17,14 @@ the browser's native-host manifest directory.
 
 ## Architecture and reach
 
+**Decision, pending adoption:** the [unified permission model](../../topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+treats Browser as one surface including supported CDP and page JavaScript,
+independent of Desktop's mode. Existing browser/DevTools scope flags and the
+acceptance matrix below describe current implementations. [Tactical 153](../../docs/tactical/153-unified-permissions-and-handoff.md)
+owns Windows-first migration and removal of temporary legacy paths; no new
+provider reach or live qualification is implied by this decision.
+
+
 **Current:** Public desktop 0.6.4 packages the 0.8.0 read-only side panel and
 native hosts accepting both the unpacked and Chrome Web Store origins on
 Mac, Windows and Linux. All six packages are authenticated in

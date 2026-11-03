@@ -1,5 +1,10 @@
 # Implementation Tacticals
 
+- [153 — Unified permissions and handoff](153-unified-permissions-and-handoff.md)
+  (design recorded; implementation not started): independent Desktop/Browser
+  modes, unified Browser/CDP, deliberate takeover and queued handoff; Windows
+  and synthetic clients first, with temporary legacy paths removed at cutover.
+
 - [152 — Shared runtime and Windows adoption](152-shared-runtime-windows-adoption.md)
   (bounded Windows cutover complete): TypeScript/bundled Node decision, one
   browser authority and 39-check real-browser/Settings candidate acceptance;

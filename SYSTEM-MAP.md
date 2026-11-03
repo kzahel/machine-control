@@ -51,6 +51,15 @@ This introduces no YA coordinator, private inventory owner, public approval
 endpoint or protected provider. The Python CLI/client remains the common
 agent-facing facade.
 
+**Decision, next adoption:** the [unified permission/handoff model](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+adds shared surface policy and admission to the same TypeScript core, proved
+first with Windows, the reference target and synthetic clients. Native adapters
+retain peer authentication, input observation/effects, presentation and protected
+guards; the Python client remains the facade. Mac/Linux integration may be
+temporarily unsupported while converging. Optional legacy adapters are isolated
+migration tools with deletion gates, not permanent authorities or silent fallback.
+This is a planned ownership change, not additional accepted runtime behavior.
+
 **Decision:** [Runtime and presentation](topics/runtime-and-presentation.md)
 keeps Machine Control's runtime authority independent of its settings, native
 notice and tray presentation. Personal, minimal and appliance presentation are

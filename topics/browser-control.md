@@ -20,6 +20,23 @@ existing profiles and sign-ins, through the same target selection, grants,
 and result vocabulary as desktop control. This applies to physical hosts
 ([`host-control`](host-control.md)) and to browsers inside VM guests.
 
+## Unified permission direction
+
+**Decision (2026-11-03):** Browser is one user-facing control surface with its
+own Off / Ask first / Automatic mode, independent of Desktop. It includes all
+supported CDP, page JavaScript, ordinary operations and streams for the selected
+profiles. Separate scripts/DevTools permission controls are retired by the new
+model. Existing scope flags below describe the current implementation, not an
+additional permission tier required by the destination.
+
+The [access-admission topic](access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+owns modes, handoff, pause and compound-operation policy. Background browser
+work does not acquire the entire desktop. Native desktop effects still require
+Desktop's mode; provider limits and protected guards are unchanged. Windows and
+the shared reference/synthetic-client corpus lead adoption before Mac/Linux.
+[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) owns the
+migration; temporary isolated legacy support must have a removal gate.
+
 ## Current
 
 **Current (2026-11-02), unreleased source repair:** virtual focus is prepared
@@ -191,8 +208,8 @@ tabs, plus `chrome.tabs` for tab lifecycle. Chrome's own “being debugged” ba
 is an intended visible indicator. A fixed manifest `key` keeps the unpacked
 extension ID stable across checkouts.
 
-**Decision:** Browser operations require the `browser` grant scope in the
-resident's grant broker. The extension badge mirrors grant state but does not
+**Current, legacy permission vocabulary:** ordinary Browser operations require
+the `browser` grant scope in the resident's grant broker. The extension badge mirrors grant state but does not
 enforce it.
 
 **Decision:** For a live, efficient session an agent connects a raw CDP
@@ -218,7 +235,8 @@ refuse explicitly. A separate agent Chrome profile started with
 `--remote-debugging-port` remains the alternative for full native access
 without the extension in the path.
 
-**Decision:** Single-shot raw DevTools access is also available, because it is
+**Current, legacy permission vocabulary:** single-shot raw DevTools access is
+also available, because it is
 the most capable and efficient browser route. `browser.cdp` passes any method and
 parameters through `chrome.debugger`, and `browser.eval` evaluates JavaScript
 and returns the value. Both require a separate `devtools` scope, because that

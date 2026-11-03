@@ -36,7 +36,8 @@ its `Topic:` trailers.
 
 - [`shared-resident-core.md`](shared-resident-core.md): shared policy and typed
   provider boundaries, TypeScript/bundled Node deployment, fast verification
-  and the accepted Windows browser cutover with remaining native migration.
+  and the accepted Windows browser cutover; unified handoff on Windows/reference
+  clients precedes Mac/Linux migration.
 
 - [`computer-use-positioning.md`](computer-use-positioning.md): complete-package
   positioning, existing locked/system/device capabilities, evidence-led gaps
@@ -49,9 +50,9 @@ its `Topic:` trailers.
 - [`target-operation-audit.md`](target-operation-audit.md): durable controller
   claim and command history, exact-resource correlation and coverage limits.
 
-- [`access-admission-and-pause.md`](access-admission-and-pause.md): proposed
-  resumable pauses, polite activation, live waiting queues, cancellation and
-  physical/VM resource arbitration without revoking standing authorization.
+- [`access-admission-and-pause.md`](access-admission-and-pause.md): agreed independent
+  Desktop/Browser Off/Ask first/Automatic modes, predictable handoff and deliberate
+  takeover/cooldown; Windows/shared-core/reference implementation next.
 - **High-priority validation in progress:**
   [`caller-authorization.md`](caller-authorization.md): authenticated local
   callers, automatic grants for trusted YA Desktop and session revocation,

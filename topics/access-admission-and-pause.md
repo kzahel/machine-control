@@ -2,21 +2,20 @@
 
 Topic: `access-admission-and-pause`
 
-Status: implementation active. Common arbiters and live owner-bound channels
-pass deterministic checks. Mac physical notice focus, independent AX effect,
-composed operator pause, consent/pause restart and persistent Stop have bounded
-live evidence. Protected takeover/local-use resumption, shared outer reservations,
-authenticated integration and complete Windows release acceptance remain open.
-Capabilities are qualified separately before release.
+Status: **unified Desktop/Browser permissions and handoff design agreed;
+Windows implementation next, before Mac/Linux adoption**. Existing admission
+implementations and their bounded acceptance remain current evidence below;
+they do not implement or qualify the complete new experience.
 
 ## Scope and motivation
 
 **Decision:** standing authorization, temporary availability and exclusive
 control have separate lifetimes. An operator choosing **Until I turn it off**
-should be able to leave a locked computer useful to authorized agents. Moving
-the mouse should interrupt current control and protect the local screen without
-requiring the operator to approve access again. The operator also needs a
-deliberate way to pause agents while using the computer.
+should be able to leave a computer useful to authorized agents. The operator
+needs a predictable warning before takeover, a deliberate way to defer it,
+and reliable return of control. An accidental mouse movement must not interrupt
+an agent. The original Windows busy/refusal loop and inconsistent platform
+behavior motivate settling this experience before further platform migration.
 
 The same admission vocabulary should apply to physical desktops, resident VM
 control and explicitly authorized outer recovery. Their resource requirements
@@ -27,7 +26,137 @@ waiting, interruption, resume and their composition. It does not replace
 [inner-first routing](inner-first-routing.md) or platform protected-control
 policy.
 
+## Unified permissions and handoff contract
+
+**Decision (2026-11-03):** configure **Desktop** and **Browser** independently
+with the same three modes. This supersedes the earlier idle-first default,
+movement-as-takeover rule and requirement to preserve legacy desktop behavior
+throughout migration. It is an agreed destination, not current product support.
+[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) owns the
+Windows/shared-core/reference-target implementation and acceptance gates.
+
+| Mode, per surface | Agent request | Operator interaction |
+| --- | --- | --- |
+| Off | Refuse with an explicit disabled result; no approval or takeover notifications | Only an operator can re-enable the surface |
+| Ask first | Keep one live request awaiting approval for its task/session | Allow that task, defer, or deny; approval is not requested for every click |
+| Automatic | Authorize within the operator's selected surface, profiles and lifetime | Announce before disruptive use, then start unless deferred; no approval click required |
+
+**Decision:** Automatic is the normal operating choice when the operator enables
+access, matching the always-armed workflow. Initial setup does not itself grant
+access. Ask first is an explicit alternative, and Off is genuinely quiet.
+Remember an explicit operator mode choice without silently replacing Ask first
+with Automatic when access is re-enabled. For example,
+**Desktop: Ask first; Browser: Automatic** is a supported combination.
+Neither surface inherits the other's approval, pause or automatic permission.
+Global Pause and Stop override both; surface-specific controls affect only their
+surface. Off need not disconnect an extension: bounded setup/status discovery
+can remain available, without querying page contents or executing browser work.
+Unknown activity/readiness or another owner's reservation remains a separate
+eligibility condition, never permission supplied by a countdown.
+
+**Decision:** Browser includes the complete **supported** browser automation
+surface: tabs, page interaction, capture, raw CDP, page JavaScript evaluation
+and streamed sessions. There is no additional user-facing scripts/DevTools
+permission tier. Existing `browser`/`devtools` flags are current implementation
+and migration details, not two product permissions to preserve indefinitely.
+Provider omissions, restricted CDP commands, OS permissions and native protected
+control retain their real boundaries. Browser approval names exact enabled
+installation IDs under the [profile contract](browser-profiles.md); a new profile
+never silently joins existing consent.
+
+**Decision:** capabilities, selected profiles, access mode, consent lifetime,
+temporary availability and active ownership are distinct. Checking capabilities
+is not arming, and remembering form choices is not restoring authority. Offer
+an explicit finite lifetime or Until turned off, with visible current armed/
+paused/expired status. A timed pause, heartbeat or retry never extends consent.
+Ask first approval applies to the admitted task/owner, rather than making an
+unrelated waiting task automatically eligible under a target-wide grant.
+A still-authorized task can resume through a fresh handoff without another
+approval click; it receives a new active session under the original consent
+ceiling. A different task cannot inherit that approval.
+
+**Decision:** a request can be submitted while its surface is temporarily busy
+or paused and remains connection-owned under bounded liveness/usefulness limits.
+The CLI/SDK maintains the wait; an LLM should not repeatedly submit actions or
+ask for approval. Off and denial are explicit refusals. Busy, deferred and
+paused are waiting states, not misleading permission failures. Deduplicate
+requests and coalesce notices for conflicting work; changing clients or request
+IDs cannot bypass an operator deferral.
+
+### Automatic handoff and taking control back
+
+**Decision:** for ordinary unlocked desktop use, the default is a visible,
+non-focus-stealing **10-second announcement**, configurable by the operator.
+Show the task reason, truthful caller assurance and remaining countdown.
+Ordinary typing and pointer activity during the countdown let the person finish
+their work; they do not reset it or reinstate a hidden 30-second quiet prerequisite.
+At the deadline, recheck permission, reservation, session readiness and safety,
+then activate automatically. The notice must not steal the input it warns about.
+
+Provide **Start now**, **Pause 30 seconds**, **Pause 1 minute**,
+**Pause until Resume**, and a distinct way to deny/cancel the request. Stop
+access remains separately available. Start now acknowledges the current operator
+interaction, including the click used to choose it; that interaction must not
+immediately interrupt the new owner. A later deliberate input still can.
+Ask first combines approval and starting into one coherent interaction instead
+of requiring a second approval for the same task.
+
+**Decision:** mouse movement alone never counts as taking control back.
+Non-agent keyboard input, mouse clicks and scrolling are deliberate takeover
+signals for ordinary desktop control. After activation, yield promptly on such
+input, retire the old session/references and give the operator control. Preserve
+valid consent and the live waiting intent. Do not undo or replay uncertain
+application effects; obtain fresh ownership and observe again before acting.
+The emergency Stop shortcut remains immediate.
+
+After deliberate takeover, wait a fixed **60-second cooldown**, then issue a
+fresh announcement. Normal activity during that cooldown does not continually
+restart it. Multiple agents cannot generate multiple competing countdowns.
+Timed Pause instead uses its chosen deadline, and Pause until Resume has no
+automatic retry. Returning from a pause uses a fresh handoff, not silent reuse
+of an old active session. Denial/cancellation is terminal for that request;
+Stop turns affected surfaces Off and cancels their work.
+
+### Browser independence and compound operations
+
+**Decision:** background browser work that preserves the person's desktop and
+does not contend with their browser task must not reserve the entire desktop
+or wait for unrelated desktop quiet. Work affecting a browser context the
+person is using needs an appropriate browser handoff under Browser's mode.
+Per-profile/tab contention and debugger reservations remain explicit.
+
+An operation requiring native desktop input or an OS dialog must also satisfy
+Desktop's mode before that part dispatches. Browser Automatic cannot authorize
+a desktop fallback when Desktop is Ask first or Off. Classify actual route and
+interference, not whether a call happens to use CDP. Acquire the required
+resources together without holding a partial reservation during approval or
+pause. If the needed route is unavailable, report it without replaying through
+another surface.
+
+**Open:** finalize the operation/impact table for foreground changes, browser
+versus OS dialogs, and other compound effects. Specify touch/pen/remote-human
+intent classification, persistence of automatic authorization across restart,
+and task-lifetime details. Persisted preferences must never resurrect an old
+owner, stream or queued action. Until an explicit migration policy is tested,
+legacy consent must not be reinterpreted as broader unified Browser authority.
+Protected/covered input changes require their own native safety evidence;
+independent cover, lock, credential and relock guards remain authoritative.
+
 ## Current foundation
+
+**Current, source-reviewed gaps (2026-11-03):** Windows can return
+`access_paused` before declaring that a call needs a control session, while the
+[Python handoff](../client/control_session.py) queues only an explicit
+`control_session_required` refusal. Its [activity policy](../src/MachineControl.Windows/DesktopActivityPolicy.cs)
+requires 30 seconds of quiet before the normal 10-second announcement, and
+[Start now](../src/MachineControl.Windows/AccessAdmission.cs) does not acknowledge
+recent physical input. [Native notices](../src/MachineControl.Windows/DesktopNativePresentation.cs)
+lack the visible countdown/short-pause choices. A missing grant can still trigger
+[approval](../src/MachineControl.Windows/DesktopGrants.cs), so current unarmed
+and quiet Off are not distinct. These findings explain possible failure paths;
+they do not identify or reproduce the user's historical installed build. The
+existing tests and bounded browser cutover do not qualify the new handoff model.
+
 
 **Current, unreleased Mac source:** operational grant retirement retains saved
 operator consent by default; Stop and verified console replacement invalidate
@@ -149,28 +278,29 @@ identifiers remain selectors, never bearer credentials.
   automatic grants remain suspended until the operator re-enables them.
 
 **Proposal:** availability is the intersection of independent conditions:
-manual pause, recent physical activity, operator deferral, resource contention,
-authorization validity, session readiness and safety faults. Clearing one
+manual pause, deliberate takeover/cooldown, optional idle-first policy,
+operator deferral, resource contention, authorization validity, session readiness
+and safety faults. Apply reasons to their actual surface/resource. Clearing one
 condition must not clear another. Agent-facing clients may cancel their own
 work, but cannot clear operator pauses, re-enable access or acknowledge a
 safety fault on the operator's behalf.
 
 | Situation | Proposed behavior |
 | --- | --- |
-| Physical input during covered Mac control | Fence dispatch immediately, end the finite session, request relock and retain covers until lock is independently observed; preserve valid ordinary authorization |
+| Deliberate input during covered control, after native qualification | Fence dispatch immediately, end the finite session, request relock and retain covers until lock is independently observed; preserve valid ordinary authorization |
 | Screen remains locked after takeover | Wait for verified physical quiet, then allow a fresh unattended session under remaining authorization |
 | Owner unlocks after takeover to work | Stay paused while that local-use episode continues; become eligible after re-lock plus quiet, or explicit operator Resume |
-| Initial authorized use of an unlocked desktop | Apply ordinary idle/notice policy; post-takeover protection does not forbid every unlocked session |
+| Initial authorized use of an unlocked desktop | Apply the selected surface mode and predictable announcement; ordinary activity does not indefinitely postpone Automatic |
 | Manual pause until Resume | Stay paused across activity changes and clean task completion; no idle timer clears it |
 | Manual timed pause | Clear only that reason at its deadline; do not extend timed authorization |
 | Broken cover, uncertain lock state, helper failure or changed console identity | Relock/cleanup through the existing watchdog and refuse further control; retain a safety block or revoke affected session authority as appropriate |
 
-**Proposal:** the first physical adapter keeps the existing awake, open-lid
-Mac boundary. It needs a verified activity monitor while idle as well as while
+**Proposal, later Mac covered qualification:** retain the existing awake,
+open-lid Mac boundary. It needs a verified activity monitor while idle as well as while
 covered. Unknown activity/lock readiness blocks automatic activation. Agent
 synthetic input must not count as a human takeover or restart the quiet timer.
-The exact treatment of scrolling, touch, remote human input and noisy devices
-requires platform evidence. The root guardian's relock responsibility must not
+The new ordinary-control intent rules above require native fidelity evidence;
+touch, remote human input and noisy devices need explicit classification. The root guardian's relock responsibility must not
 depend on the queue or the desktop UI remaining alive.
 
 Resumption creates a fresh control session and generations. The agent observes
@@ -185,27 +315,19 @@ an owner lease alone does not prove that the desktop is ready for another agent.
 
 ## Polite activation
 
-**Decision:** authorization may be automatic while activation is considerate.
-No extra approval dialog is required merely because authorized work waited or
-was paused. New scopes and protected/outer authority retain their approval
-requirements.
+**Decision:** the [unified handoff contract](#automatic-handoff-and-taking-control-back)
+owns ordinary unlocked activation, countdown and cooldown defaults. Automatic
+permission and considerate activation are separate; Ask first is an explicit
+approval mode. Operator deferral affects the shared conflicting resource, so
+another agent cannot issue an immediate replacement notice. Presentation belongs
+to the native operator UI and remains independent of Settings and the agent.
 
-**Proposal:** default to waiting during local activity and a non-focus-stealing
-notice before taking an unlocked shared screen. Show who wants control, why,
-and the expected duration when known, with **Start now**, **Wait 1 minute** and
-**Pause until Resume**. Preferences may select immediate eligible activation
-or always announce. Start now clears the applicable notice/deferral; it cannot
-override missing authority, another holder or a safety fault.
-
-A locked, physically quiet, prepared Mac can activate unattended, covering the
-displays before temporary unlock. It must not wait for someone to acknowledge
-a notification on the locked screen. Activity during a countdown invalidates
-that activation attempt. The arbiter rechecks eligibility at countdown end.
-
-Deferral applies to the shared desktop resource, so another agent cannot
-immediately issue the same takeover notice. Multiple waiters share one relevant
-notice; unrelated resident VM work continues. Presentation belongs to the
-controller/native operator UI and must not require every provider to host a GUI.
+An explicitly authorized, locked and prepared target can activate unattended
+under Automatic or an already-approved task and its separate protected policy,
+without demanding a locked-screen acknowledgement. Missing Ask first approval
+still blocks activation.
+Preserve covers, verified unlock/relock, task-origin fences and independent
+watchdogs. The ordinary unlocked announcement rule does not relax these guards.
 
 ## Common admission and resource arbitration
 
@@ -269,15 +391,17 @@ owns source/contract validation and bounded packaged sustained VM acceptance;
 older providers and legacy finite control keep their existing bounds.
 
 **Proposal:** use separate clocks with separately observable expiry reasons.
-The examples below are starting values for evaluation, not accepted defaults.
+The handoff defaults below are decided; other candidate timings still need
+measurement. Each clock must report its own expiry reason.
 
 | Clock | Candidate | Required semantics |
 | --- | --- | --- |
 | Waiting-request keepalive / lease | Heartbeat about every 10 seconds; expire after about 60 seconds | Remove dead waiters; retain authorization; expired entries cannot be resurrected |
 | Caller usefulness deadline | Caller supplied, bounded by policy | Stop waiting even if heartbeats continue; do not perform a task after its deadline |
 | Activation offer | About 15 seconds | Require a live, ready owner to accept; otherwise offer to the next eligible waiter |
-| Physical quiet interval | About 30 seconds | Reset on verified human input; uncertainty blocks activation |
-| Unlocked-screen notice | About 10 seconds | Recheck all admission conditions before activation |
+| Optional idle-first / protected quiet interval | Existing platform policy; presently about 30 seconds | Does not gate the default unlocked Automatic handoff; uncertainty and protected readiness remain separate |
+| Unlocked-screen notice | Default 10 seconds, operator configurable | Finishing input does not reset it; recheck authority, resources and safety at activation |
+| Deliberate-takeover cooldown | Default 60 seconds | Fixed delay before a fresh announcement; unrelated normal input does not continually extend it |
 | Approval timeout | Existing platform-specific bound | Lack of approval is separate from queue liveness |
 | Active claim/session | Existing finite platform bounds initially | Continue heartbeat and hard expiry; standing consent cannot remove watchdog limits |
 | Timed authorization and manual pause | Their own operator/caller deadlines | Pause never extends authority; clearing a pause is not a grant renewal |
@@ -324,10 +448,11 @@ shell access under the same OS user.
 provider dispatch, not just at queue entry. Cover semantic observation/action,
 capture, keyboard/pointer, application/window operations, clipboard where
 scoped, browser relay/CDP and already-open streaming connections. Invalidate
-old subscriptions/handles or bind each message to the live generation so a
-browser route cannot continue through a desktop pause. Report operations with
-independent non-interfering scope explicitly; no implicit alternate-route
-bypass is allowed.
+old subscriptions/handles or bind each message to the live generation so
+relevant surface and global pauses fence existing streams as well as new calls.
+A Desktop-only pause does not block independent Browser work, and Browser-only
+pause does not block independent Desktop work. Compound routes satisfy all
+required surfaces; no implicit alternate-route bypass is allowed.
 
 Agents receive structured wait/paused status, remaining authorization,
 retry/resume conditions and a cancellable bounded wait/event surface. They
@@ -343,26 +468,42 @@ infrastructure, grant material, screenshots or user activity contents.
 
 ## Delivery direction and open decisions
 
-**Decision:** deliver independently reviewable slices behind explicit
-capabilities. Preserve legacy fail-fast claim acquisition and v0 clients; new
-waiting/admission support is negotiated through an additive versioned surface.
-Do not advertise queueing or activity detection before the authoritative
-provider enforces and tests it. Unsupported platforms report omissions and
-typed refusals rather than pretending to offer the Mac covered-use profile.
+**Decision (2026-11-03):** implement the new permission/handoff policy once in
+the TypeScript [shared resident core](shared-resident-core.md), alongside the
+reference target and synthetic clients, and adopt it on Windows first. Stabilize
+that experience before macOS, then Linux. Retain Python for the CLI/client and
+native languages for authentication, input observation/effects, presentation
+and protected watchdogs; moving client implementation languages is unnecessary.
 
-The [implementation plan](../docs/tactical/074-access-admission-and-pause.md)
-orders contract fixtures, enforcement, queues, physical activity, UX, outer
-recovery and integration acceptance. Windows remains the common resident
-contract proving ground; the Mac adapter is the first physical covered-use
-regression target. This is neither an all-platform rewrite nor a release plan.
+The user explicitly accepts breaking or temporarily disabling Mac integration
+while this model is developed. The same migration allowance applies to bringing
+Linux forward. Older clients, permission flags, grants and platform behavior
+are not permanent compatibility requirements. Version negotiation must reject
+unsupported semantics clearly rather than discard fields or widen authority.
+Do not implement the new engine independently in Swift, C# or Python to keep
+old integrations superficially working.
 
-**Open:** settle timer defaults and accessibility of notices; initial/manual
-pause persistence and logout policy; authenticated waiting-client admission;
-hardware versus remote/synthetic activity fidelity; fairness and interrupted
-queue position; provider cancellation of in-flight work; exact route impact
-classification; distributed multi-resource authority; and which background
-operations warrant an explicitly independent scope. Record measured answers in
-the owning topic/platform report without promoting this proposal to evidence.
+A legacy mode is optional when inexpensive and useful. Isolate it behind an
+explicit route/build or capability boundary, label it legacy, and keep it out
+of new-model acceptance. Never silently downgrade a failed new-model request.
+Remove each platform's replaced policy as that platform cuts over; remove the
+remaining shim/flags/legacy-only tests after migrated Windows, macOS and Linux
+pass the common corpus and their declared native/package gates. The migration
+plan must identify the owner and exit condition of every temporary bridge.
+Compatibility is a temporary delivery tool, not a second long-term product.
+
+[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) is the next
+bounded implementation plan. Older tacticals remain execution history. The
+new rules do not broaden outer-control permission or replace target-native
+providers, target-use claims, caller authentication or protected safety guards.
+Repository/candidate integration may temporarily be unsupported; this decision
+does not replace a personal installation or authorize publication by itself.
+
+**Open:** authenticated waiting-client admission, hardware/remote activity
+fidelity, fairness, in-flight cancellation, precise foreground/compound-route
+impact, persisted automatic consent and distributed multi-resource authority.
+Native evidence must qualify each advertised route; synthetic success alone
+cannot establish focus, HID classification, protected control or package identity.
 
 **Current:** standalone CLI/SDK and Mac/Windows desktop transports expose
 connection-owned intents with pause/ownership fencing. Mac inner native effects

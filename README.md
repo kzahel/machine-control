@@ -136,6 +136,15 @@ from observed effects. See [architecture](topics/architecture.md),
 [inner-first routing](topics/inner-first-routing.md), and
 [capabilities and results](topics/capabilities-and-results.md).
 
+**Decision, next development milestone:** settle and implement independent
+Desktop/Browser Off, Ask first and Automatic modes with predictable takeover
+warnings, deliberate-input interruption and queued retry. Browser includes
+supported CDP and page JavaScript. Windows and the shared reference/synthetic
+clients lead; temporary Mac/Linux integration gaps are acceptable during this
+migration. The [permissions and handoff contract](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+and [Windows implementation plan](docs/tactical/153-unified-permissions-and-handoff.md)
+own this direction. These new modes are not yet implemented or released.
+
 ## Documentation and development
 
 - [Desktop guide](desktop/README.md): setup, permissions, platform boundaries,

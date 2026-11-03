@@ -3,7 +3,7 @@
 Topic: `browser-profiles`
 
 Status: **Windows named-profile browser cutover accepted in an unsigned ARM64
-candidate; Mac/Linux adoption and publication pending**.
+candidate; unified permissions/handoff precedes Mac/Linux adoption**.
 
 ## Scope and current evidence
 
@@ -103,10 +103,17 @@ never retargets a grant, reference or endpoint.
 
 ## Authority and lifecycle rules
 
-**Decision, implemented on Windows:** Browser and DevTools grants carry exact approved profile IDs.
-For the initial version, one profile set applies to both scopes; the existing
-separate scope approvals still distinguish ordinary control from scripts/CDP.
-Operator arming and native approval can select several profiles. An agent
+**Current Windows implementation:** Browser and DevTools grants carry exact
+approved profile IDs. The accepted first slice uses one set for both legacy
+scopes and separate scope approvals for ordinary control versus scripts/CDP.
+
+**Decision for the next model:** one Browser permission includes supported CDP
+and page JavaScript. Its independent Off / Ask first / Automatic mode and exact
+profile set follow the [unified permission contract](access-admission-and-pause.md#unified-permissions-and-handoff-contract).
+Retire the separate user-facing scripts/DevTools tier during that migration;
+legacy scope translation is temporary and cannot widen old consent silently.
+
+**Decision, retained profile invariants:** operator arming and native approval can select several profiles. An agent
 request cannot alter that exact set; its operation selects within existing
 consent. Approval revalidates the selected IDs and availability before issuing
 shared authority, which is rechecked at dispatch. Newly discovered or newly enabled profiles never join a live
@@ -133,9 +140,10 @@ to a profile as well as the platform's existing owner/grant fences. Browser-root
 CDP describes only that selected profile, including created tabs and popups;
 do not merge profiles into a synthetic browser or isolated browser contexts.
 
-Pause, Stop, expiry, lock policy, console replacement and resident restart
-retain their current meaning. Fan out authority changes to the appropriate
-providers. A profile disconnect affects its own requests and streams. Preserve
+Preserve expiry, lock/session safety and generation fences. The unified
+permission contract owns the next surface/global Pause, Stop and quiet Off
+semantics. Fan out authority changes to the appropriate providers. A profile
+disconnect affects its own requests and streams. Preserve
 refused-before-dispatch versus unknown-after-dispatch outcomes; never replay
 uncertain work through another profile. Keep profile labels out of public
 evidence and ordinary payload-free audit; local diagnostics can use opaque IDs
@@ -162,9 +170,11 @@ pipe peers, exact operator/native approval selection and shared CDP routing.
 its complete bounded 39-check real-browser/Settings candidate acceptance,
 source identity and cleanup. No Mac/Linux adoption or publication is implied.
 
-**Decision:** adopt the shared core for native integration.
-The remaining Mac/Linux adoption follows the same boundary; it must remove
-their replaced policy and pass their own native/package qualification.
+**Decision:** qualify unified permissions/handoff on Windows with the shared
+core and reference/synthetic clients before Mac/Linux adoption. Temporary
+integration breakage/disablement is acceptable; optional legacy behavior must
+be isolated and removed after cutover. Each platform adopts the same policy,
+removes its replaced engine and passes its declared native/package gates.
 
 **Current Windows requirement:** a versioned profile-aware handshake precedes
 grants and browser work. Native transport registration is not admission
@@ -180,8 +190,10 @@ multi-profile behavior from an extension update alone. Desktop packaging and
 Chrome Web Store delivery remain separate acceptance/release steps.
 
 Do not broaden Chromium browser support, add incognito support, discover Chrome
-account names, merge store/development identities, or redesign desktop admission
-as part of this work. Explicitly exclude incognito tabs from the initial route
+account names or merge store/development identities as part of named profiles.
+The original profile slice excluded desktop admission redesign; that is now
+explicitly the next slice in [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md).
+Explicitly exclude incognito tabs from the initial route
 even if Chrome's extension setting permits incognito execution.
 
 [Tactical 149](../docs/tactical/149-browser-profiles.md) owns ordered work,

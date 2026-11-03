@@ -177,6 +177,15 @@ physical/GPU or native x64 execution. The [extension dossier](../providers/chrom
 owns capability evidence; [Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md)
 owns exact source, verified appliance cleanup and remaining limits.
 
+**Decision, next investigation and adoption:** the [unified permission/handoff
+contract](../../topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+supersedes legacy quiet-first activation and separate user-facing scripts/CDP
+permissions. Source-reviewed admission/client/notice gaps are recorded there;
+new behavior is not yet implemented or live-tested. [Tactical 153](../../docs/tactical/153-unified-permissions-and-handoff.md)
+proves the shared policy/reference/synthetic-client model on Windows before
+Mac/Linux migration. Existing browser acceptance is not evidence of this new
+active-user experience.
+
 ## Candidate matrix
 
 | Candidate | Evidence | Demonstrated value | Material gaps or unknowns | Current disposition |
