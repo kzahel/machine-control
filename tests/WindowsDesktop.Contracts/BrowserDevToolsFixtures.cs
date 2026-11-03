@@ -108,6 +108,21 @@ internal static class BrowserDevToolsFixtures
         }
         Require(!failure, "native IPC remained healthy");
         lock (calls) Task.WaitAll(calls.ToArray(), timeout.Token);
+        // An unsettled ordinary provider call gives a deterministic private
+        // IPC timeout. Preserve its method in payload-free fault diagnostics.
+        host.Call(new JsonObject { ["method"] = "operator.configure", ["scopes"] = new JsonArray("browser"),
+            ["profileIds"] = new JsonArray(profileId), ["durationMs"] = 60000 });
+        try
+        {
+            host.Call(new JsonObject { ["method"] = "browser.call", ["requestId"] = "fixture-stalled-provider",
+                ["authorityId"] = "fixture-native-owner", ["request"] = new JsonObject { ["operation"] = "browser.tabs", ["browserProfileId"] = profileId } }, 100);
+            throw new Exception("Stalled private IPC unexpectedly completed");
+        }
+        catch (TimeoutException error)
+        {
+            Require(error.Message.Contains("browser.call") && host.FailureMethod == "browser.call" &&
+                host.Failure == "ipc_reply_timeout" && failure, "private timeout identifies its method and fails closed");
+        }
         Console.WriteLine("Shared browser/native IPC contracts passed");
     }
 

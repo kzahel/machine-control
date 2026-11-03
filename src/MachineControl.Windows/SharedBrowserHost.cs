@@ -81,7 +81,12 @@ internal sealed class SharedBrowserHost : IDisposable
                 throw new InvalidOperationException(reply["errorCode"]?.GetValue<string>() ?? "browser_runtime_refused");
             return reply["data"] as JsonObject ?? new JsonObject();
         }
-        catch (TimeoutException) { Fault("ipc_reply_timeout"); throw; }
+        catch (TimeoutException ex)
+        {
+            var method = frame["method"]?.GetValue<string>();
+            Fault("ipc_reply_timeout", method);
+            throw new TimeoutException($"Shared browser runtime reply timed out ({method})", ex);
+        }
     }
 
     private async Task WriteAsync(JsonObject frame)
