@@ -68,6 +68,28 @@ impl Drop for Job {
         unsafe { CloseHandle(self.0) };
     }
 }
+fn create_job() -> Result<Arc<Job>, String> {
+    unsafe {
+        let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if handle.is_null() {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        let job = Job(handle);
+        let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+        limits.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+        if SetInformationJobObject(
+            handle,
+            JobObjectExtendedLimitInformation,
+            &limits as *const _ as *const _,
+            std::mem::size_of_val(&limits) as u32,
+        ) == 0
+        {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        Ok(Arc::new(job))
+    }
+}
 struct Runtime {
     child: Child,
     input: ChildStdin,
@@ -86,11 +108,19 @@ impl Runtime {
         }
         // Covers blocked writes as well as reads. Terminating our private job
         // closes the pipe; a late reply can never be reused for another call.
+        // Native startup includes bounded session/STA initialization and the
+        // policy child's own 15-second handshake. Ordinary operator calls
+        // retain their shorter deadline after the resident is ready.
+        let timeout = if command["method"] == "hello" {
+            Duration::from_secs(30)
+        } else {
+            Duration::from_secs(5)
+        };
         let (finished, deadline) = mpsc::channel::<()>();
         let job = self._job.clone();
         std::thread::spawn(move || {
             if matches!(
-                deadline.recv_timeout(Duration::from_secs(6)),
+                deadline.recv_timeout(timeout + Duration::from_secs(1)),
                 Err(mpsc::RecvTimeoutError::Timeout)
             ) {
                 unsafe {
@@ -102,13 +132,14 @@ impl Runtime {
         self.input.write_all(&line).map_err(|e| e.to_string())?;
         self.input.write_all(b"\n").map_err(|e| e.to_string())?;
         self.input.flush().map_err(|e| e.to_string())?;
-        let reply = self
-            .replies
-            .recv_timeout(Duration::from_secs(5))
-            .map_err(|_| {
-                crate::diagnostics::record("companion.timeout");
-                "Resident did not respond; restart Machine Control".to_string()
-            })??;
+        let reply = self.replies.recv_timeout(timeout).map_err(|_| {
+            crate::diagnostics::record(match command["method"].as_str() {
+                Some("hello") => "companion.startup_timeout",
+                Some("state") => "companion.state_timeout",
+                _ => "companion.timeout",
+            });
+            "Resident did not respond; restart Machine Control".to_string()
+        })??;
         Ok(reply)
     }
 }
@@ -182,26 +213,7 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?
             .trim(),
     );
-    let job = unsafe {
-        let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-        if handle.is_null() {
-            return Err(std::io::Error::last_os_error().to_string());
-        }
-        let job = Job(handle);
-        let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-        limits.BasicLimitInformation.LimitFlags =
-            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
-        if SetInformationJobObject(
-            handle,
-            JobObjectExtendedLimitInformation,
-            &limits as *const _ as *const _,
-            std::mem::size_of_val(&limits) as u32,
-        ) == 0
-        {
-            return Err(std::io::Error::last_os_error().to_string());
-        }
-        Arc::new(job)
-    };
+    let job = create_job()?;
     // Publish before creating a child; exit can cancel an incomplete startup.
     {
         let mut owner = JOB.lock().map_err(|e| e.to_string())?;
@@ -486,6 +498,54 @@ mod tests {
         assert!(started.elapsed() < Duration::from_millis(250));
         assert!(command_permit("pause").is_err());
         assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    fn delayed_reply() -> Runtime {
+        let job = create_job().unwrap();
+        let mut child = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                r#"$null=[Console]::ReadLine(); Start-Sleep -Seconds 6; [Console]::WriteLine('{"ok":true}')"#,
+            ])
+            .creation_flags(0x08000000)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        assert_ne!(
+            unsafe { AssignProcessToJobObject(job.0, child.as_raw_handle() as HANDLE) },
+            0
+        );
+        let input = child.stdin.take().unwrap();
+        let output = child.stdout.take().unwrap();
+        let (send, replies) = mpsc::sync_channel(1);
+        std::thread::spawn(move || {
+            let _ = send.send(read_reply(&mut BufReader::new(output)));
+        });
+        Runtime {
+            child,
+            input,
+            replies,
+            _job: job,
+        }
+    }
+
+    #[test]
+    fn delayed_startup_has_its_own_budget_and_normal_calls_stay_bounded() {
+        let mut startup = delayed_reply();
+        assert_eq!(
+            startup.call(&json!({"method":"hello"})).unwrap()["ok"],
+            true
+        );
+        drop(startup);
+        let mut ready = delayed_reply();
+        let started = std::time::Instant::now();
+        assert!(ready.call(&json!({"method":"state"})).is_err());
+        assert!(started.elapsed() < Duration::from_secs(9));
+        drop(ready);
     }
 
     #[test]

@@ -317,6 +317,18 @@ throw 'Staged operator UI element unavailable'
         app = subprocess.Popen([str(args.install/'machine-control.exe'), '--settings', '--presentation', 'minimal'],
                                stdout=logs, stderr=logs, env=app_environment())
         processes.append(app)
+        def ready():
+            if app.poll() is not None:
+                raise RuntimeError('Staged operator exited during startup')
+            try:
+                state = direct('capabilities')
+            except RuntimeError:
+                # Pure metadata may meet the old pipe closing while the app
+                # starts its fresh resident. Never repeat an action here.
+                return False
+            browser_state = state.get('data', {}).get('browser', {})
+            return browser_state.get('available') and len([p for p in browser_state.get('profiles', []) if p['connected']]) == 2
+        poll(ready, seconds=args.browser_startup_seconds)
 
     def app_environment():
         return {**os.environ, 'WEBVIEW2_USER_DATA_FOLDER': str(scratch/'operator-webview'),
@@ -503,7 +515,6 @@ throw 'Staged operator UI element unavailable'
         if args.settings:
             operator('quit'); runtime.wait(timeout=15); runtime = None
             start_app()
-            poll(lambda: len([p for p in direct('capabilities')['data']['browser']['profiles'] if p['connected']]) == 2)
             off('Staged Tauri operator starts with browser access off')
             ui('press', '^Access$')
             for label, enabled in [('View desktop', False), ('Control apps and input', False), ('Browser tabs', True), ('Browser scripts and DevTools', True)]:
@@ -525,7 +536,8 @@ throw 'Staged operator UI element unavailable'
                            timeout=30, env=app_environment())
             ui('press', '^Access$')
             ui('press', '^Stop access$')
-            check(not call('browser.tabs', 'Work')['accepted'], 'Recreated Settings stops the existing resident authority')
+            poll(lambda: owner.status()['state'] == 'ended')
+            off('Recreated Settings stops the existing resident authority')
             owner.close(); owner = None
             stop_app(); start_app()
             off('Tauri restart retains choices without restoring browser consent')
@@ -533,6 +545,7 @@ throw 'Staged operator UI element unavailable'
             ui('press', '^Enable access$')
             new_owner()
             check(accepted('browser.tabs', 'Personal')['browserProfileId'] == ids['Personal'], 'Recreated Settings retains exact profile choices for fresh approval')
+            check(call('browser.tabs')['errorCode'] == 'browser_profile_required', 'Fresh Settings approval retains both exact profile choices')
             owner.close(); owner = None
             ui('press', '^Stop access$')
             stop_app()

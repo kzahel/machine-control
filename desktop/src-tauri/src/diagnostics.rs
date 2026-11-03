@@ -59,6 +59,8 @@ pub fn record(code: &str) {
             | "companion.exited"
             | "companion.protocol_error"
             | "companion.timeout"
+            | "companion.startup_timeout"
+            | "companion.state_timeout"
             | "resident.unavailable"
             | "update.check.ok"
             | "update.check.failed"

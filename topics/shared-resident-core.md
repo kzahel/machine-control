@@ -241,6 +241,14 @@ and pending responses retain bounded capacity and disconnect cleanup. Both
 boundaries have deterministic failing-before/passing-after native regressions;
 the real Windows composition actor exercises the complete handoff with fake peers.
 
+The Windows app supervisor gives native startup its own finite 30-second
+handshake budget, covering native session/STA setup and the policy child's
+15-second handshake. Ready-state operator calls retain five seconds and the
+independent owned-job cutoff; Stop remains independent of IPC. Real delayed-child
+regressions distinguish startup from ordinary-call timeout and verify cleanup.
+Closed supervisor event codes distinguish startup/state timeouts without
+recording command payloads. Full operator qualification remains in Tactical 152.
+
 The reference target models the ordinary browser vocabulary, stateful tabs,
 input, upload, capture and raw-operation observations behind this same policy.
 Its effects are independent of the policy's reported delivery. It does not
