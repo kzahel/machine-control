@@ -169,7 +169,7 @@ def main():
         owner = ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
                                             '--session-id', str(session.value)]},
                                reason='Named-profile appliance acceptance', surfaces=['browser'],
-                               profile_ids=operator('state')['state']['browser']['approvedProfiles'], wait=90, duration=900, trace=owner_trace)
+                               profile_ids=direct('capabilities')['data']['browser']['approvedProfiles'], wait=90, duration=900, trace=owner_trace)
         owner.wait()
     def call(operation, profile=None, **fields):
         if profile is not None: fields['browserProfileId'] = profile
