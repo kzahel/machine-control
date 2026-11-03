@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: '3.12'
       - name: Require versioned changelog before release signing
@@ -125,7 +125,7 @@ jobs:
           }
           python release/windows-package.py archive artifacts/payload --output artifacts/packages
           if ($LASTEXITCODE -ne 0) { throw 'Package validation failed' }
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: workstation-${{ matrix.runtime }}
           path: artifacts/packages/*
@@ -140,12 +140,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: '3.12'
       - run: sudo apt-get update -qq && sudo apt-get install -y minisign
       - run: python -m unittest discover -s tests/release -v
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: workstation-win-*
           merge-multiple: true
@@ -164,7 +164,7 @@ jobs:
           printf '%s' "$RELEASE_SIGNING_KEY" > "$key_file"
           minisign -S -s "$key_file" -m artifacts/packages/manifest.json
           python release/workstation-manifest.py verify artifacts/packages --revision "$GITHUB_SHA" --run "$BUILD_RUN"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: verified-windows-workstation
           path: artifacts/packages/*
@@ -186,7 +186,7 @@ jobs:
           printf '%s' "$RELEASE_SIGNING_KEY" > "$key_file"
           minisign -S -s "$key_file" -m artifacts/packages/release.json
           python release/workstation-release.py verify artifacts/packages --revision "$GITHUB_SHA" --run "$BUILD_RUN" --version "$RELEASE_VERSION" --publisher "$WINDOWS_SIGNER_NAME"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: inputs.version != ''
         with:
           name: workstation-release
@@ -204,14 +204,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: '3.12'
       - name: Extract required release changelog
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: python3 release/changelog.py release/WORKSTATION_CHANGELOG.md "$RELEASE_VERSION" > notes.md
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: workstation-release
           path: packages

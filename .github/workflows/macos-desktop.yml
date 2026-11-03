@@ -32,10 +32,10 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: pnpm/action-setup@v6
@@ -82,10 +82,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: pnpm/action-setup@v6
@@ -136,7 +136,7 @@ jobs:
         run: python3 desktop/scripts/verify-package.py 'artifacts/macos-desktop/${{ matrix.target }}' --revision "$GITHUB_SHA" --team-id "$APPLE_TEAM_ID" --test-tampering
       - name: Verify symbols still match the final signed application
         run: python3 desktop/scripts/macos-symbols.py verify 'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app' 'artifacts/macos-symbols/${{ matrix.target }}'
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: macos-symbols-${{ matrix.target }}
           path: artifacts/macos-symbols/${{ matrix.target }}/symbols.tar.gz
@@ -144,7 +144,7 @@ jobs:
           retention-days: 90
       - name: Execute the relocated installed CLI
         run: python3 tests/desktop/cli-installed.py --client 'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app/Contents/Resources/mc-cli/commands/machine-control'
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: macos-desktop-${{ matrix.target }}
           path: artifacts/macos-desktop/${{ matrix.target }}/*

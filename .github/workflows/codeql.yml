@@ -24,7 +24,7 @@ jobs:
       matrix:
         language: [actions, javascript-typescript, python, csharp, c-cpp, rust]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
