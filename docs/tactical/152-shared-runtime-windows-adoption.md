@@ -148,11 +148,19 @@ is distinct from signed installer/publication qualification.
   packaging and nine extension indicator/worker tests. Desktop strict build
   and both real-built-frontend saved-choice tests pass.
 - Portable .NET contract tests, format verification and Windows ARM64/x64
-  self-contained publishes pass. The complete contract runner also passes on the real Windows ARM64
-  appliance; this is distinct from cross-publishing and browser effects.
+  self-contained publishes pass. The complete contract runner also passes on
+  the real Windows ARM64 appliance; this is distinct from cross-publishing
+  and browser effects. The suite includes the native fixes and deterministic
+  regressions for unpumped UI contexts and response bytes visible before
+  task completion.
+- The real Windows native composition actor passes with two fake browser
+  peers, including five-minute retained-owner continuity. This exercises
+  actual peer authentication, private child IPC and native admission without
+  substituting another policy engine or requiring a browser.
 - All six final Node payloads build. The packaged Mac ARM64 child passes five
   process checks and ten real-browser checks. Earlier Node/Bun Windows ARM64
-  native and x64-emulated comparison suites pass; the final ARM64 Node payload also passes all five process checks natively.
+  native and x64-emulated comparison suites pass; the final ARM64 Node payload
+  also passes all five process checks natively.
   The final x64-emulated process run timed out and its exact scratch children
   were reaped; x64 publication is a build result, not current live acceptance.
 
@@ -174,6 +182,12 @@ they change, preserving the child policy's idle Off state. Portable tests use
 the same shared child rather than retaining the deleted C# bridge as a test
 surrogate.
 
+Native synchronous IPC is independent of the presentation thread's message
+pump. Admission releases its exact provider-occupancy token before response
+bytes become visible, while tracking bounded pending response tasks. The new
+composition actor exposed that boundary race; both fixes have regressions
+that fail on their old implementations and pass after correction.
+
 The initial headless browser singleton did not open a second regular-profile
 window; the simultaneous-profile actor therefore runs headed. A marked
 ordinary fixture tab identifies the requested Chrome profile before navigating
@@ -181,10 +195,20 @@ to its extension setup UI. The runner's browser-startup budget is separate
 from the product's action deadlines. Private usage notes and reports retain
 concrete friction and target locators.
 
+The diagnostic Windows route has observed two stable regular-profile
+identities in one browser process and independent ordinary input, upload,
+capture and evaluation effects. Real modal opening can interrupt CDP click
+completion: acceptance observes and handles the exact dialog without replay.
+The long run subsequently lost native owner liveness while both profile
+connections stayed healthy. Native-only sustained ownership passes. The remaining browser, stream and
+Settings sequence is being qualified with bounded RPC timing and an
+exact-source candidate using bundled Python. Interactive task scheduling
+uses normal priority; product action deadlines are unchanged.
+
 **Unfulfilled:** passing the final real two-profile ordinary/CDP and Tauri
-Settings lifecycle run and verified appliance cleanup. No signed installer, publication, physical/native x64 or
-Mac/Linux adoption is inferred. The source implementation is committed while
-these execution gates remain active.
+Settings lifecycle run and verified appliance cleanup. No signed installer,
+publication, physical/native x64 or Mac/Linux adoption is inferred. The source
+implementation is committed while these execution gates remain active.
 
 The [owning topic's adoption plan](../../topics/shared-resident-core.md#windows-cutover-and-next-adoption)
 retains native Swift/Python platform effects and authentication, adapts this

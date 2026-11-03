@@ -165,6 +165,15 @@ installed browser tasks, production 0.4.7 to 0.4.8 replacement with Chrome open,
 and ordinary uninstall; [Tactical 055](../../docs/tactical/055-unified-desktop-publication.md)
 owns that publication evidence. ARM64 product browser execution remains open.
 
+**Current — shared browser adoption:** unreleased Windows source now uses the
+private TypeScript coordinator for exact named profile approval and concurrent
+native transports. ARM64 same-process profile identity and diagnostic ordinary
+browser effects are `live-tested`; this does not qualify the full packaged
+operator or signed installation. The [extension dossier](../providers/chrome-extension.md#multiple-profile-limit)
+owns the capability evidence and
+[Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md)
+owns the remaining clean-candidate and lifecycle gates.
+
 ## Candidate matrix
 
 | Candidate | Evidence | Demonstrated value | Material gaps or unknowns | Current disposition |
