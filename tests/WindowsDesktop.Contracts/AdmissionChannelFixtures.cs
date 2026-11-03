@@ -29,6 +29,10 @@ internal static class AdmissionChannelFixtures
         Require(browserGrants.AdmissionAuthority(["browser"]) is null, "Devtools grant covers browser admission");
         Require(browserGrants.Authorize(new Request { Operation = "browser.tabs" }) == "control_session_required", "Browser grant still needs owner");
         var effects = 0;
+        var boundaryDispatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var providerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var heldProvider = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var replyBoundaries = new List<ReplyBoundaryStream>();
         ControlOwnership? lastFence = null;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
@@ -39,6 +43,8 @@ internal static class AdmissionChannelFixtures
             var client = new TcpClient(); clients.Add(client);
             await client.ConnectAsync((IPEndPoint)listener.LocalEndpoint, stop.Token);
             var resident = await listener.AcceptTcpClientAsync(stop.Token);
+            var boundary = new ReplyBoundaryStream(resident.GetStream());
+            replyBoundaries.Add(boundary);
             var opening = new JsonObject
             {
                 ["operation"] = "control.open",
@@ -54,8 +60,10 @@ internal static class AdmissionChannelFixtures
             {
                 using (resident)
                 using (var reader = new StreamReader(resident.GetStream(), Encoding.UTF8, false, 4096, leaveOpen: true))
-                    await AdmissionChannel.RunAsync(resident.GetStream(), reader, opening, grants, (request, fence, cancellation) =>
+                    await AdmissionChannel.RunAsync(boundary, reader, opening, grants, (request, fence, cancellation) =>
                     {
+                        if (request.RequestId == "after-visible-result") boundaryDispatch.TrySetResult();
+                        if (request.RequestId == "held-provider") { providerStarted.TrySetResult(); return heldProvider.Task; }
                         if (request.Operation is "capabilities" or "browser.profiles")
                             return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "not_applicable" });
                         var denied = grants.Authorize(request with { ControlOwnership = fence });
@@ -90,6 +98,26 @@ internal static class AdmissionChannelFixtures
                 ["resourceGenerations"] = active["resourceGenerations"]!.DeepClone(),
                 ["request"] = new JsonObject { ["operation"] = "type", ["text"] = "fixture" }
             };
+            replyBoundaries[0].HoldNextFlush = true;
+            var completed = Action(); completed["request"] = new JsonObject { ["operation"] = "capabilities" };
+            Require((await Call(a, "control.dispatch", completed))["accepted"]!.GetValue<bool>(), "First result is visible before reply task unwinds");
+            var following = Action(); following["request"] = new JsonObject { ["operation"] = "capabilities" };
+            following["operation"] = "control.dispatch"; following["requestId"] = "after-visible-result";
+            await a.Writer.WriteLineAsync(following.ToJsonString());
+            try { await boundaryDispatch.Task.WaitAsync(TimeSpan.FromSeconds(2)); }
+            finally { replyBoundaries[0].Release.TrySetResult(); }
+            Require(JsonNode.Parse(await a.Reader.ReadLineAsync(stop.Token) ?? "")!["accepted"]!.GetValue<bool>(), "Visible result permits the next dispatch without replay");
+            var held = Action(); held["request"] = new JsonObject { ["operation"] = "capabilities" };
+            held["operation"] = "control.dispatch"; held["requestId"] = "held-provider";
+            await a.Writer.WriteLineAsync(held.ToJsonString());
+            await providerStarted.Task.WaitAsync(stop.Token);
+            try
+            {
+                var overlapping = Action(); overlapping["request"] = new JsonObject { ["operation"] = "capabilities" };
+                Require((await Call(a, "control.dispatch", overlapping))["errorCode"]!.GetValue<string>() == "control_action_in_progress", "Unsettled provider work still excludes another dispatch");
+            }
+            finally { heldProvider.TrySetResult(new Result { RequestId = "held-provider", Operation = "capabilities", Accepted = true }); }
+            Require(JsonNode.Parse(await a.Reader.ReadLineAsync(stop.Token) ?? "")!["accepted"]!.GetValue<bool>(), "Original provider completes once");
             foreach (var metadata in new[] { "capabilities", "browser.profiles" })
             {
                 var request = Action(); request["request"] = new JsonObject { ["operation"] = metadata };
@@ -149,4 +177,29 @@ internal static class AdmissionChannelFixtures
         Console.WriteLine("Admission live transport fixtures passed");
     }
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
+
+    // A transport can expose response bytes before its asynchronous flush
+    // continuation finishes. Hold precisely that boundary, without sleeps.
+    private sealed class ReplyBoundaryStream(Stream inner) : Stream
+    {
+        internal volatile bool HoldNextFlush;
+        internal readonly TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override async Task FlushAsync(CancellationToken cancellation)
+        {
+            await inner.FlushAsync(cancellation);
+            if (HoldNextFlush) { HoldNextFlush = false; await Release.Task.WaitAsync(cancellation); }
+        }
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellation = default) => inner.ReadAsync(buffer, cancellation);
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellation = default) => inner.WriteAsync(buffer, cancellation);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+    }
 }

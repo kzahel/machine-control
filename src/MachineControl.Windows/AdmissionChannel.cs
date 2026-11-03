@@ -22,9 +22,10 @@ internal static class AdmissionChannel
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stop);
         using var writes = new SemaphoreSlim(1, 1);
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, leaveOpen: true);
-        Task? action = null;
+        object? activeAction = null;
+        var actions = new List<Task>();
         var order = new AdmissionRequestOrder();
-        async Task Reply(string id, object? data = null, string? error = null)
+        async Task Reply(string id, object? data = null, string? error = null, object? completedAction = null)
         {
             await writes.WaitAsync(lifetime.Token);
             try
@@ -40,6 +41,10 @@ internal static class AdmissionChannel
                         data = projection;
                     }
                 }
+                // A client may see these bytes before FlushAsync's continuation
+                // (and its containing Task) finishes. Provider work has ended;
+                // release occupancy before making its result visible.
+                if (completedAction is not null) Interlocked.CompareExchange(ref activeAction, null, completedAction);
                 await writer.WriteLineAsync(Contract.Serialize(new { schema = Schema, requestId = id, accepted = error is null, errorCode = error, data }).AsMemory(), timeout.Token);
                 await writer.FlushAsync(timeout.Token);
             }
@@ -67,6 +72,8 @@ internal static class AdmissionChannel
                 timeout.CancelAfter(TimeSpan.FromSeconds(65));
                 var line = await ReadLine(reader, timeout.Token);
                 if (line is null) break;
+                if (actions.Any(task => task.IsFaulted)) throw new IOException("Admission response failed");
+                actions.RemoveAll(task => task.IsCompletedSuccessfully);
                 var request = JsonNode.Parse(line)?.AsObject() ?? throw new ArgumentException("invalid_admission_request");
                 var id = request["requestId"]?.GetValue<string>() ?? "";
                 if (!order.Accept(request)) throw new ArgumentException("invalid_admission_request_id");
@@ -94,7 +101,8 @@ internal static class AdmissionChannel
                         case "control.cancel":
                             admission.Cancel(owner, intentId); await Reply(id, admission.Inspect(owner, intentId)); break;
                         case "control.dispatch":
-                            if (action is { IsCompleted: false }) throw new InvalidOperationException("control_action_in_progress");
+                            if (Volatile.Read(ref activeAction) is not null) throw new InvalidOperationException("control_action_in_progress");
+                            if (actions.Count >= 128) throw new InvalidOperationException("control_response_capacity");
                             var fence = new ControlOwnership(owner, intentId, Required(request, "sessionId").GetValue<string>(),
                                 Required(request, "resourceGenerations").Deserialize<Dictionary<string, long>>()!, startedLocked);
                             var denied = admission.Authorize(owner, intentId, fence.Session, fence.Generations);
@@ -104,7 +112,9 @@ internal static class AdmissionChannel
                             if (effect.Operation is not ("capabilities" or "browser.profiles") && (scope is null || !scopes.Contains(scope))) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && !prepared) throw new InvalidOperationException("prepared_console_required");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && fence.StartedLocked != true) throw new InvalidOperationException("task_did_not_start_locked");
-                            action = Task.Run(async () =>
+                            var actionToken = new object();
+                            if (Interlocked.CompareExchange(ref activeAction, actionToken, null) is not null) throw new InvalidOperationException("control_action_in_progress");
+                            actions.Add(Task.Run(async () =>
                             {
                                 try
                                 {
@@ -112,10 +122,11 @@ internal static class AdmissionChannel
                                     var stale = admission.Authorize(owner, intentId, fence.Session, fence.Generations);
                                     if (stale is not null) result = result with { Accepted = false, ErrorCode = stale, Uncertainty = "interrupted_after_possible_dispatch", RetrySafety = "unsafe" };
                                     if (grants.Journal?.Record(result) == false) result = result with { Accepted = false, ErrorCode = "audit_storage_unavailable", Uncertainty = "audit_result_not_persisted" };
-                                    await Reply(id, result);
+                                    await Reply(id, result, completedAction: actionToken);
                                 }
-                                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { await Reply(id, error: ex.Message); }
-                            }, lifetime.Token);
+                                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { await Reply(id, error: ex.Message, completedAction: actionToken); }
+                                finally { Interlocked.CompareExchange(ref activeAction, null, actionToken); }
+                            }, lifetime.Token));
                             break;
                         default: throw new ArgumentException("unsupported_admission_operation");
                     }
@@ -128,7 +139,7 @@ internal static class AdmissionChannel
         finally
         {
             admission.Disconnect(owner); lifetime.Cancel();
-            if (action is not null) try { await action; } catch (OperationCanceledException) { } catch (IOException) { }
+            try { await Task.WhenAll(actions); } catch (OperationCanceledException) { } catch (IOException) { }
         }
     }
     private static JsonNode Required(JsonObject value, string key) => value[key] ?? throw new ArgumentException("invalid_admission_request");
