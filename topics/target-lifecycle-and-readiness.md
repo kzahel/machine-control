@@ -291,6 +291,12 @@ helper, guard, effective preferences, or boot evidence is missing. Restoring
 stock sleep behavior is an exceptional, explicitly acknowledged opt-out rather
 than routine cleanup.
 
+**Current:** Healthy ChromeOS power policy and resident prerequisites do not
+alone prove closed-lid desktop effects. A transient closed-lid tray failure
+cleared after opening and reclosing the lid; all desktop smoke checks then
+passed in both positions. See the
+[platform qualification](../research/platforms/chromeos.md#closed-lid-control-qualification).
+
 iOS additionally has an explicit common `ios` operation family beside target
 lifecycle. This does not add application or semantic verbs to the portable
 lifecycle set and does not make Android or Quest inherit XCTest semantics.

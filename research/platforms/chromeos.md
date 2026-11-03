@@ -105,6 +105,33 @@ script returned the short success message with closed stdin, unchanged boot
 identity, and the same SSH listener process. ChromeOS itself still emits its
 stateful-mount `noexec` warning before Bash starts the script.
 
+## Closed-lid control qualification
+
+**Current — live-tested:** A later same-boot comparison found closed-lid
+control failing despite healthy SSH, DevTools, capture, and the required power
+policy. The kernel reported tablet mode and held physical touchscreen contacts.
+Fresh EGL captures agreed with accessibility reads; application accessibility
+focus/default actions and native synthetic Escape worked. However, Quick
+Settings did not open through keyboard, isolated virtual touch, semantic tray
+activation, or native synthetic pointer input.
+
+Opening the lid into the normal laptop position cleared tablet mode and the
+physical contacts. The same keyboard, semantic, and isolated touch routes then
+opened Quick Settings, and all eleven restoring smoke checks passed, without
+repairing or rebooting the target. Reclosing the lid left tablet mode off and
+two physical contacts held; all eleven checks passed again. The planned
+physical-touchscreen inhibition probe refused its failing-state precondition,
+so no inhibition was applied. Opening and reclosing the lid is a live-tested
+recovery for this observed episode, and held contacts alone do not imply broken
+control.
+
+**Open:** Explain the original unexpected tablet state and separate tablet-mode
+input filtering from contact-count or other closed-lid session effects. The
+failing state did not reproduce after reclosing, and this comparison does not
+establish that an OS update introduced it. Healthy suspend inhibition and
+capture prerequisites alone do not prove closed-lid application control;
+verify actual effects in the current lid/session state.
+
 ## Closed-lid backlight behavior
 
 **Current — live-tested:** Always-awake policy forces the reported lid open;
