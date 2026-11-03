@@ -55,6 +55,39 @@ test("trusted host fences references across profiles, consent and process epochs
   fresh.close();
 });
 
+test("wire request and grant identities cannot repeat after policy restart", () => {
+  function boot() {
+    const frames = [], host = new PolicyHost(frame => frames.push(frame));
+    let sequence = 0, generation;
+    function call(method, fields = {}) {
+      const id = `rpc-${++sequence}`;
+      host.receive({ id, method, authorizationGeneration: generation, ...fields });
+      const reply = frames.findLast(frame => frame.type === "reply" && frame.id === id);
+      assert.equal(reply.ok, true);
+      if (method === "operator.approve") generation = reply.data.generation;
+      return reply.data;
+    }
+    call("hello", { protocolVersion: 1 });
+    const { connectionId } = call("provider.connect", { profileId: "work" });
+    call("operator.approve", { connectionIds: [connectionId], durationMs: 60_000 });
+    const grant = frames.findLast(frame => frame.type === "provider.send" && frame.frame.type === "grant").frame;
+    call("request", { connectionId, requestId: "same-label", operation: "browser.tabs", timeoutMs: 1000 });
+    const request = frames.findLast(frame => frame.type === "provider.send" && frame.frame.type === "request").frame;
+    return { host, frames, call, connectionId, grant, request };
+  }
+  const old = boot(); old.host.close();
+  const fresh = boot();
+  try {
+    assert.notEqual(old.request.id, fresh.request.id);
+    assert.notEqual(old.grant.grantGeneration, fresh.grant.grantGeneration);
+    assert.equal(fresh.call("provider.frame", { connectionId: fresh.connectionId,
+      frame: { type: "response", id: old.request.id, ok: true, data: { tabs: [] } } }).applied, false);
+    assert.equal(fresh.frames.some(frame => frame.type === "request.finished"), false);
+    assert.equal(fresh.call("provider.frame", { connectionId: fresh.connectionId,
+      frame: { type: "response", id: fresh.request.id, ok: true, data: { tabs: [], providerInfo: { protocolVersion: 1, extensionId: "fixture", extensionVersion: "fixture", operationsSha256: "a".repeat(64) } } } }).applied, true);
+  } finally { fresh.host.close(); }
+});
+
 // The same smoke runs against the bundled Node directory or Bun executable.
 // Never interpret this as provider authentication or installed acceptance.
 const command = process.env.MC_POLICY_COMMAND ? JSON.parse(process.env.MC_POLICY_COMMAND) :

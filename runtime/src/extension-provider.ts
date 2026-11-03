@@ -92,6 +92,7 @@ export class ExtensionProvider implements ProviderAdapter {
   readonly #send: (frame: NativeFrame, command?: DispatchCommand) => void;
   readonly #effects: (effects: readonly Effect[]) => void;
   readonly #fault: () => void;
+  readonly #namespace: string;
   readonly #pending = new Map<string, DispatchCommand>();
   #sequence = 0;
   #active = true;
@@ -108,6 +109,7 @@ export class ExtensionProvider implements ProviderAdapter {
       send(frame: NativeFrame, command?: DispatchCommand): void;
       effects(effects: readonly Effect[]): void;
       fault(): void;
+      namespace?: string;
     },
   ) {
     this.#core = core;
@@ -115,6 +117,8 @@ export class ExtensionProvider implements ProviderAdapter {
     this.#send = transport.send;
     this.#effects = transport.effects;
     this.#fault = transport.fault;
+    this.#namespace = transport.namespace ?? String(connection.generation);
+    if (!/^[A-Za-z0-9._:-]{1,100}$/.test(this.#namespace)) throw new Error("invalid_provider_namespace");
   }
 
   /** Project the core's exact-profile state; this adapter cannot approve it. */
@@ -122,7 +126,7 @@ export class ExtensionProvider implements ProviderAdapter {
     if (!this.#active) return;
     const state = this.#core.inspect();
     const browser = state.approvedProfiles.includes(this.connection.profileId);
-    const grantGeneration = `shared:${state.authorizationGeneration}:${this.connection.generation}`;
+    const grantGeneration = `shared:${state.authorizationGeneration}:${this.#namespace}`;
     const devtools = browser && state.devtools;
     const key = `${browser}:${devtools}:${grantGeneration}`;
     if (key === this.#published) return;
@@ -140,7 +144,7 @@ export class ExtensionProvider implements ProviderAdapter {
           : command.operation === "browser.snapshot"
             ? { tabId: command.tabId, maxElements: 64, interactiveOnly: true }
             : {};
-    const id = `${this.connection.generation}:${++this.#sequence}`;
+    const id = `${this.#namespace}:${++this.#sequence}`;
     if (timeoutMs < 100) {
       // The worker's minimum budget is 100 ms. Refuse rather than dispatch
       // with authority lasting longer than the remaining core deadline.

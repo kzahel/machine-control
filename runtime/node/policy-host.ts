@@ -157,6 +157,7 @@ export class PolicyHost {
         const connectionId = `${this.bootId}:${++this.#sequence}`;
         if (typeof frame.transportTag === "string") this.#transportTags.set(connectionId, string(frame.transportTag));
         const provider = new ExtensionProvider(this.core, connection, {
+          namespace: connectionId,
           send: (payload, command) =>
             this.#send({
               type: "provider.send",

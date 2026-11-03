@@ -54,6 +54,6 @@ console.log(JSON.stringify({
   schema: "machine-control-policy-qualification/v1", passed: true,
   engine: manifest.engine, version: manifest.engineVersion, target: manifest.target,
   executionPlatform: process.platform, executionArchitecture: process.arch,
-  processChecks: 4, browserChecks: process.argv.includes("--browser") ? 10 : 0,
+  processChecks: 5, browserChecks: process.argv.includes("--browser") ? 10 : 0,
   observations,
 }, null, 2));

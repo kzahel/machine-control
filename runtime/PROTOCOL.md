@@ -78,10 +78,9 @@ replacement child using cached approval.
 Report outstanding dispatched work as unknown after child death; process exit
 does not prove that an already-submitted application action had no effect.
 
-The production integration still needs native caller/owner admission,
-profile-aware handshake, full ordinary operations, DevTools streams,
-indefinite operator lifetimes and installed identity/signature qualification.
-This protocol subset must not be advertised as a complete Windows migration.
+The original fixture inlet alone does not establish native caller/owner
+admission or installed identity. The production Windows inlet below supplies
+that boundary; native packaged acceptance remains a separate qualification gate.
 
 ## Profile-aware Windows adoption inlet
 
@@ -103,3 +102,9 @@ The private child channel accepts up to 16 MiB for bounded capture/results.
 Chrome-directed messages and public request parameters remain at 1 MiB. The
 Node WebSocket adapter uses pinned MIT-licensed `ws`; its runtime and LICENSE
 are included in Node payloads.
+
+Wire request IDs and extension grant generations include the fresh policy
+process namespace as well as connection/approval generations. A worker may
+outlive a native transport or child process; an old callback must not match a
+new request merely because numeric counters restart. Native parents still
+close the old transports and require fresh consent after child death.
