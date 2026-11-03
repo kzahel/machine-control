@@ -435,6 +435,18 @@ throw 'Staged operator UI element unavailable'
             response = stream.call('Runtime.evaluate', {'expression': "fetch('/effect/"+slug+"/stream',{method:'POST',body:'stream-'+document.title})", 'awaitPromise':True})
             check('result' in response and 'error' not in response, name+' per-page stream dispatch completes')
             effect(slug, 'stream', b'stream-Profile fixture')
+        owner.close(); owner = None
+        for stream in streams.values():
+            try: stream.read(); raise AssertionError('Owner loss left stream alive')
+            except (ConnectionError, OSError): pass
+            stream.close()
+        check(True, 'Native owner disconnect closes both shared CDP streams')
+        # The extension deliberately makes root and per-page attachments
+        # exclusive within each profile. Finish the two-profile page/owner-loss
+        # proof before creating independent root sessions under a fresh owner.
+        new_owner()
+        for name, slug in [('Work','work'), ('Personal','personal')]:
+            endpoints[name] = accepted('browser.endpoint', name)
             root = CdpSocket(endpoints[name]['browserEndpoint']); sockets.append(root)
             targets = root.call('Target.getTargets')['result']['targetInfos']
             check(any(t['url'] == base+'/'+slug for t in targets) and not any(t['url'] == base+'/'+('personal' if slug=='work' else 'work') for t in targets), name+' root discovery stays within selected profile')
@@ -447,11 +459,6 @@ throw 'Staged operator UI element unavailable'
             root.call('Target.closeTarget', {'targetId': created})
             root.close()
         owner.close(); owner = None
-        for stream in streams.values():
-            try: stream.read(); raise AssertionError('Owner loss left stream alive')
-            except (ConnectionError, OSError): pass
-            stream.close()
-        check(True, 'Native owner disconnect closes both shared CDP streams')
         operator('stop')
         check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Stop revokes all profile authority')
         arm([ids['Work']]); new_owner()
