@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--chrome', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--settings', action='store_true', help='Also qualify the staged Tauri Settings lifecycle with UI Automation')
+    parser.add_argument('--chromium', action='store_true', help='Use the Chromium snapshot native-host registry key')
     parser.add_argument('--profile-data', type=Path, help='Reuse this actor-owned scratch profile directory under output')
     parser.add_argument('--configure-profiles', action='store_true', help='Repeat extension setup when reusing scratch profiles')
     parser.add_argument('--keep-profile-data-on-failure', action='store_true', help='Controller must remove retained scratch profiles after diagnosis')
@@ -76,7 +77,8 @@ def main():
     started = time.monotonic()
     logs = (args.output / 'actor.log').open('w', encoding='utf-8')
     faulthandler.dump_traceback_later(90, repeat=True, file=logs)
-    key_path = r'Software\Google\Chrome\NativeMessagingHosts\org.machine_control.browser'
+    registry_browser = 'Chromium' if args.chromium else r'Google\Chrome'
+    key_path = rf'Software\{registry_browser}\NativeMessagingHosts\org.machine_control.browser'
     access = winreg.KEY_READ | winreg.KEY_WOW64_32KEY
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, access) as key:
@@ -87,7 +89,7 @@ def main():
     backup = args.output / 'registration-backup.json'
     if backup.exists():
         raise RuntimeError('Restore the previous actor registration backup before starting another run')
-    backup.write_text(json.dumps({'previous': old_registry}), encoding='utf-8')
+    backup.write_text(json.dumps({'registryKey': key_path, 'previous': old_registry}), encoding='utf-8')
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_): pass
@@ -504,9 +506,14 @@ throw 'Staged operator UI element unavailable'
         report['passed'] = True
     except BaseException as error:
         report['error'] = type(error).__name__ + ': ' + str(error)
+        report['errorCode'] = getattr(error, 'code', None)
         if runtime:
             report['nativeExited'] = runtime.poll()
-            try: report['nativeAtFailure'] = operator('state')['state']['browser']
+            try:
+                state = operator('state')['state']
+                report['nativeAtFailure'] = state['browser']
+                report['nativeAdmissionAtFailure'] = state['admission']
+                report['nativeActivityAtFailure'] = state['physicalAvailability']
             except Exception as diagnostic_error: report['nativeDiagnosticError'] = type(diagnostic_error).__name__
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, access) as key:
