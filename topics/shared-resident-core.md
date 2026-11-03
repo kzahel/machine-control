@@ -29,6 +29,32 @@ question compared iteration-friendly TS/Python with Rust's native deployment.
 The first deliverable makes that architecture concrete without claiming
 an all-platform migration or production browser-profile support.
 
+## Terms and current scope
+
+**Decision:** use these names for this workstream:
+
+- **Shared resident core:** the reusable target-side policy implementation for
+  approval, profile selection, routing, deadlines, revocation and request/session
+  lifetime. Native authentication, OS observations and platform effects remain
+  behind its adapter boundary.
+- **Reference target:** the test-only composition of that same core with
+  stateful **reference providers**, controlled time and independent effect
+  checks. Its current implementation is a small deterministic fixture, expanded
+  capability by capability alongside Windows adoption.
+- **Windows adapter:** the native integration supplying authenticated ingress,
+  OS safety observations and real provider effects to the shared core.
+
+**Decision:** focus implementation on the shared resident core, Windows adapter
+and reference target together, beginning with the complete browser-control
+vertical slice. The reference providers simulate effects and observations;
+both targets execute the same policy implementation.
+
+Keep the existing Python CLI and client implementation. A client rewrite,
+TypeScript session SDK and client-language cutover are outside this workstream.
+Preserve the public client experience, making only compatible interface changes
+required for browser profiles. Client consolidation remains a separate possible
+future concern, not a prerequisite for resident adoption.
+
 ## Direction and ownership
 
 **Decision:** build one reusable resident policy implementation with typed

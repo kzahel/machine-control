@@ -37,6 +37,12 @@ alone does not complete this milestone.
 
 ## Boundaries
 
+Use the owning topic's [shared resident core, reference target and Windows
+adapter terminology](../../topics/shared-resident-core.md#terms-and-current-scope).
+Develop those together. Keep the Python CLI/client implementation; a client
+rewrite, new TypeScript session SDK and client-language cutover are outside
+this tactical. Compatible profile-selection interface changes remain in scope.
+
 No publication, personal installation replacement, all-platform migration,
 arbitrary privileged execution, or replacement of protected native services.
 Preserve unrelated worktree changes. Use existing dedicated appliances with
