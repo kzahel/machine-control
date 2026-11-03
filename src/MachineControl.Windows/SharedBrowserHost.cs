@@ -31,6 +31,11 @@ internal sealed class SharedBrowserHost : IDisposable
         start.UseShellExecute = false; start.CreateNoWindow = true;
         start.RedirectStandardInput = true; start.RedirectStandardOutput = true; start.RedirectStandardError = true;
         start.Environment.Clear();
+        // Windows OpenSSL entropy acquisition loads system providers through
+        // SystemRoot. Retain only this OS-owned location, never Node options,
+        // module search paths, caller credentials or arbitrary inherited env.
+        if (OperatingSystem.IsWindows())
+            start.Environment["SystemRoot"] = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         _process = Process.Start(start) ?? throw new IOException("Shared browser runtime did not start");
         _ = Task.Run(ReadAsync);
         _ = Task.Run(EventsAsync);

@@ -27,6 +27,9 @@ internal static class BrowserDevToolsFixtures
             lock (calls) calls.Add(Task.Run(() => host!.Call(new JsonObject
             { ["method"] = "provider.frame", ["connectionId"] = connectionId, ["frame"] = frame })));
         }
+        // The native parent must ignore inherited Node execution options.
+        var originalOptions = Environment.GetEnvironmentVariable("NODE_OPTIONS");
+        Environment.SetEnvironmentVariable("NODE_OPTIONS", "--invalid-inherited-option");
         using var process = new SharedBrowserHost(start, message =>
         {
             var frame = message["frame"]!.AsObject();
@@ -45,6 +48,7 @@ internal static class BrowserDevToolsFixtures
             if (frame["phase"]?.GetValue<string>() == "result" && frame["delivery"]?.GetValue<string>() == "unknown") Interlocked.Increment(ref unknown);
             return nativeAllowed;
         }, () => failure = true);
+        Environment.SetEnvironmentVariable("NODE_OPTIONS", originalOptions);
         host = process;
         var attachment = host.Call(new JsonObject { ["method"] = "browser.attach", ["extensionId"] = new string('a', 32),
             ["hello"] = new JsonObject { ["protocolVersion"] = 1, ["extensionVersion"] = "fixture", ["profile"] = new JsonObject
