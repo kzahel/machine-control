@@ -63,6 +63,9 @@ The bundled Windows ARM64 Python has reproduced an access violation during
 `faulthandler.dump_traceback_later` in an isolated threaded workload. This actor
 uses progress and bounded RPC timing without that optional C-level stack walk.
 The normal Python client path is unchanged.
+CDP result waits cover the advertised command deadline. Revocation checks
+separately require actual socket closure within five seconds, draining buffered
+events; a read timeout is a failure, not evidence of closure.
 
 Use normal interactive scheduling priority. For a Limited interactive
 scheduled task, set `New-ScheduledTaskSettingsSet -Priority 4`; the

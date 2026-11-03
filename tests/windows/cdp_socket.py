@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import struct
+import time
 from urllib.parse import urlsplit
 
 
@@ -104,6 +105,24 @@ class CdpSocket:
                 if message.get('method') == method:
                     return self.events.pop(i)
             self.events.append(self.read())
+
+    def wait_closed(self, timeout=5):
+        """Drain already-buffered events, requiring actual closure by a deadline."""
+        previous = self.socket.gettimeout()
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError('CDP stream remained open')
+                self.socket.settimeout(remaining)
+                self.read()
+        except TimeoutError as error:
+            raise AssertionError('CDP stream did not close before its deadline') from error
+        except (ConnectionError, OSError):
+            return
+        finally:
+            self.socket.settimeout(previous)
 
     def close(self):
         self.socket.close()

@@ -439,14 +439,13 @@ throw 'Staged operator UI element unavailable'
         endpoints, streams = {}, {}
         for name, slug in [('Work','work'), ('Personal','personal')]:
             endpoints[name] = accepted('browser.endpoint', name)
-            stream = CdpSocket(endpoints[name]['devtoolsEndpoint'].replace('<tabId>', str(tabs[name]))); sockets.append(stream); streams[name] = stream
+            stream = CdpSocket(endpoints[name]['devtoolsEndpoint'].replace('<tabId>', str(tabs[name])), timeout=endpoints[name]['commandTimeoutMs']/1000+5); sockets.append(stream); streams[name] = stream
             response = stream.call('Runtime.evaluate', {'expression': "fetch('/effect/"+slug+"/stream',{method:'POST',body:'stream-'+document.title})", 'awaitPromise':True})
             check('result' in response and 'error' not in response, name+' per-page stream dispatch completes')
             effect(slug, 'stream', b'stream-Profile fixture')
         owner.close(); owner = None
         for stream in streams.values():
-            try: stream.read(); raise AssertionError('Owner loss left stream alive')
-            except (ConnectionError, OSError): pass
+            stream.wait_closed()
             stream.close()
         check(True, 'Native owner disconnect closes both shared CDP streams')
         # The extension deliberately makes root and per-page attachments
@@ -455,7 +454,7 @@ throw 'Staged operator UI element unavailable'
         new_owner()
         for name, slug in [('Work','work'), ('Personal','personal')]:
             endpoints[name] = accepted('browser.endpoint', name)
-            root = CdpSocket(endpoints[name]['browserEndpoint']); sockets.append(root)
+            root = CdpSocket(endpoints[name]['browserEndpoint'], timeout=endpoints[name]['commandTimeoutMs']/1000+5); sockets.append(root)
             targets = root.call('Target.getTargets')['result']['targetInfos']
             check(any(t['url'] == base+'/'+slug for t in targets) and not any(t['url'] == base+'/'+('personal' if slug=='work' else 'work') for t in targets), name+' root discovery stays within selected profile')
             created = root.call('Target.createTarget', {'url': base+'/'+slug})['result']['targetId']
@@ -488,14 +487,13 @@ throw 'Staged operator UI element unavailable'
         # Kill the exact owned policy child while a native owner exists.
         new_owner()
         endpoint = accepted('browser.endpoint', 'Work')
-        stream = CdpSocket(endpoint['browserEndpoint']); sockets.append(stream)
+        stream = CdpSocket(endpoint['browserEndpoint'], timeout=endpoint['commandTimeoutMs']/1000+5); sockets.append(stream)
         stream.call('Browser.getVersion')
         command = "Get-CimInstance Win32_Process -Filter 'ParentProcessId="+str(runtime.pid)+"' | Where-Object Name -eq 'node.exe' | Select-Object -ExpandProperty ProcessId"
         node_ids = subprocess.check_output(['pwsh.exe', '-NoProfile', '-Command', command], text=True).split()
         check(len(node_ids) == 1, 'Packaged native resident owns exactly one private policy child')
         subprocess.run(['taskkill.exe', '/PID', node_ids[0], '/T', '/F'], stdout=logs, stderr=logs, check=True)
-        try: stream.read(); raise AssertionError('Policy death retained stream')
-        except (ConnectionError, OSError): pass
+        stream.wait_closed()
         owner.close(); owner = None
         poll(lambda: not operator('state')['state']['browser']['available'])
         check(not direct('browser.tabs')['accepted'], 'Policy death revokes native browser access and closes streams')
