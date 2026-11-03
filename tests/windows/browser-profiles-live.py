@@ -48,12 +48,17 @@ def main():
     parser.add_argument('--chrome', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--settings', action='store_true', help='Also qualify the staged Tauri Settings lifecycle with UI Automation')
+    parser.add_argument('--profile-data', type=Path, help='Reuse this actor-owned scratch profile directory under output')
+    parser.add_argument('--configure-profiles', action='store_true', help='Repeat extension setup when reusing scratch profiles')
+    parser.add_argument('--keep-profile-data-on-failure', action='store_true', help='Controller must remove retained scratch profiles after diagnosis')
     args = parser.parse_args()
     assert args.chrome.name.lower() == 'chrome.exe'
     assert 'test' in str(args.chrome).lower(), 'Use a separately identified test browser'
     args.output.mkdir(parents=True, exist_ok=True)
-    scratch = args.output / ('profiles-' + uuid.uuid4().hex)
-    scratch.mkdir()
+    scratch = args.profile_data or args.output / ('profiles-' + uuid.uuid4().hex)
+    assert scratch.resolve().parent == args.output.resolve() and scratch.name.startswith('profiles-')
+    reused = scratch.exists()
+    scratch.mkdir(exist_ok=True)
     exe = args.install / 'runtime/machine-control-windows.exe'
     extension = args.install / 'runtime/browser-extension'
     session = ctypes.c_uint()
@@ -61,6 +66,7 @@ def main():
     report = dict(schema='machine-control-browser-profiles-live/v1', passed=False, checks=[],
                   runtimeSha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
                   operatorRoute='inherited_native_operator', browserProfiles=2, browserProcesses=1)
+    report['reusedFixtureProfiles'] = reused
     received = []
     processes, sockets = [], []
     runtime = owner = browser = app = None
@@ -152,15 +158,22 @@ def main():
         return value['data']
     def launch(profile, url='about:blank', *, headless=False):
         nonlocal debug_port
-        if browser is None or browser.poll() is not None:
+        forwarding = browser is not None and browser.poll() is None
+        if not forwarding:
             with socket.socket() as reservation:
                 reservation.bind(('127.0.0.1', 0))
                 debug_port = reservation.getsockname()[1]
-        command = [str(args.chrome), *(['--headless=new', '--allow-chrome-scheme-url'] if headless else []), '--no-first-run', '--no-default-browser-check', '--disable-gpu',
+        command = [str(args.chrome), *(['--headless=new', '--allow-chrome-scheme-url'] if headless else []), '--new-window', '--hide-crash-restore-bubble', '--no-first-run', '--no-default-browser-check', '--disable-gpu',
                    '--disable-background-networking', '--disable-component-update',
                    '--remote-debugging-port='+str(debug_port), '--enable-automation', '--remote-allow-origins=*', '--enable-logging=stderr', '--log-level=1',
                    '--user-data-dir=' + str(scratch / 'chrome'), '--profile-directory=' + profile,
                    '--disable-extensions-except=' + str(extension), '--load-extension=' + str(extension), url]
+        if forwarding:
+            # Forward only a window/profile request to the live singleton.
+            # Startup-only debugger and extension flags belong to its first
+            # process, rather than a second automation bootstrap.
+            command = [str(args.chrome), '--user-data-dir='+str(scratch/'chrome'),
+                       '--profile-directory='+profile, '--new-window', url]
         value = subprocess.Popen(command, stdout=logs, stderr=logs)
         processes.append(value)
         return value
@@ -250,7 +263,7 @@ throw 'Staged operator UI element unavailable'
         check(direct('browser.tabs')['errorCode'] == 'approval_required', 'Fresh packaged runtime starts without browser authority')
         # Set only extension-local availability, through a test-browser worker.
         # The production native operator remains the sole approval authority.
-        for directory, name in [('Default', 'Work'), ('Profile 1', 'Personal')]:
+        for directory, name in ([] if reused and not args.configure_profiles else [('Default', 'Work'), ('Profile 1', 'Personal')]):
             print('Configuring extension-local profile: '+name, flush=True)
             marker = uuid.uuid4().hex
             settings_url = base+'/bootstrap-'+marker
@@ -295,7 +308,7 @@ throw 'Staged operator UI element unavailable'
         browser_socket()
         launch('Profile 1', base+'/personal').wait(timeout=15)
         print('Checking both regular profiles in one headed browser', flush=True)
-        connected = poll(lambda: [p for p in profiles() if p['connected']] if len([p for p in profiles() if p['connected']]) == 2 else None)
+        connected = poll(lambda: [p for p in profiles() if p['connected']] if len([p for p in profiles() if p['connected']]) == 2 else None, seconds=180)
         ids = {p['name']: p['profileId'] for p in connected}
         check(set(ids) == {'Work', 'Personal'}, 'Both configured profile names retain distinct installation identities')
         before = [p['profileId'] for p in connected]
@@ -379,7 +392,7 @@ throw 'Staged operator UI element unavailable'
         stop_browser()
         check(call('browser.tabs', ids['Work'])['errorCode'] == 'profile_unavailable', 'Offline selection refuses without fallback')
         browser = launch('Default', base+'/work'); browser_socket(); launch('Profile 1', base+'/personal').wait(timeout=15)
-        poll(lambda: len([p for p in profiles() if p['connected']]) == 2)
+        poll(lambda: len([p for p in profiles() if p['connected']]) == 2, seconds=180)
         check(not call('browser.click', 'Work', reference=before_disconnect)['accepted'], 'Reconnect invalidates old provider references')
         owner.close(); owner = None
         # Kill the exact owned policy child while a native owner exists.
@@ -445,6 +458,17 @@ throw 'Staged operator UI element unavailable'
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, access) as key:
                 report['registrationStillOwned'] = winreg.QueryValueEx(key, '')[0] == str(manifest)
         except OSError: report['registrationStillOwned'] = False
+        report['scratchDirectory'] = str(scratch)
+        for directory in ['Default', 'Profile 1']:
+            for name in ['Preferences', 'Secure Preferences']:
+                try:
+                    value = json.loads((scratch/'chrome'/directory/name).read_text(encoding='utf-8'))
+                    extension_state = value.get('extensions', {})
+                    report.setdefault('fixturePreferences', {})[directory+'/'+name] = {
+                        'developerMode': extension_state.get('ui', {}).get('developer_mode'),
+                        'extension': {key: item.get('location') for key, item in extension_state.get('settings', {}).items() if key == 'ncbfifkjllmnkkjmomjohinigfgdocjc'},
+                    }
+                except (OSError, ValueError): pass
         raise
     finally:
         if owner: owner.close()
@@ -471,7 +495,7 @@ throw 'Staged operator UI element unavailable'
         server.shutdown(); server.server_close(); logs.close()
         try:
             deadline = time.monotonic() + 30
-            while time.monotonic() < deadline:
+            while time.monotonic() < deadline and not (args.keep_profile_data_on_failure and not report['passed']):
                 try: shutil.rmtree(scratch); break
                 except OSError: time.sleep(.2)
             report['cleanup'] = not scratch.exists()

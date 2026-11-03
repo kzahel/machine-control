@@ -152,8 +152,9 @@ is distinct from signed installer/publication qualification.
   appliance; this is distinct from cross-publishing and browser effects.
 - All six final Node payloads build. The packaged Mac ARM64 child passes five
   process checks and ten real-browser checks. Earlier Node/Bun Windows ARM64
-  native and x64-emulated comparison suites pass; final Windows candidate
-  execution remains its own gate.
+  native and x64-emulated comparison suites pass; the final ARM64 Node payload also passes all five process checks natively.
+  The final x64-emulated process run timed out and its exact scratch children
+  were reaped; x64 publication is a build result, not current live acceptance.
 
 ### Appliance qualification
 
