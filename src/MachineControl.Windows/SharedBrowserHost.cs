@@ -22,6 +22,10 @@ internal sealed class SharedBrowserHost : IDisposable
     private int _faulted;
     private long _sequence;
     private long _queuedBytes;
+    private string? _failure;
+    private string? _failureMethod;
+    internal string? FailureMethod => Volatile.Read(ref _failureMethod);
+    internal string? Failure => Volatile.Read(ref _failure);
     internal bool Alive => _faulted == 0 && _disposed == 0 && !_process.HasExited;
     internal JsonObject State => (JsonObject)Volatile.Read(ref _state).DeepClone();
 
@@ -59,6 +63,8 @@ internal sealed class SharedBrowserHost : IDisposable
         return start;
     }
 
+    // Allow/Stop also originate on a native presentation STA. Every await in
+    // this synchronous-call path must stay independent of its message pump.
     internal JsonObject Call(JsonObject frame, int timeoutMs = 5000) => CallAsync(frame, CancellationToken.None, timeoutMs).GetAwaiter().GetResult();
     internal async Task<JsonObject> CallAsync(JsonObject frame, CancellationToken cancellation, int timeoutMs = 5000)
     {
@@ -69,25 +75,25 @@ internal sealed class SharedBrowserHost : IDisposable
         frame["id"] = id;
         try
         {
-            await WriteAsync(frame);
-            var reply = await completion.Task.WaitAsync(TimeSpan.FromMilliseconds(timeoutMs), cancellation);
+            await WriteAsync(frame).ConfigureAwait(false);
+            var reply = await completion.Task.WaitAsync(TimeSpan.FromMilliseconds(timeoutMs), cancellation).ConfigureAwait(false);
             if (reply["ok"]?.GetValue<bool>() != true)
                 throw new InvalidOperationException(reply["errorCode"]?.GetValue<string>() ?? "browser_runtime_refused");
             return reply["data"] as JsonObject ?? new JsonObject();
         }
-        catch (TimeoutException) { Fault(); throw; }
+        catch (TimeoutException) { Fault("ipc_reply_timeout"); throw; }
     }
 
     private async Task WriteAsync(JsonObject frame)
     {
-        await _writes.WaitAsync(_stop.Token);
+        await _writes.WaitAsync(_stop.Token).ConfigureAwait(false);
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
             timeout.CancelAfter(TimeSpan.FromSeconds(3));
-            await BrowserWire.WriteAsync(_process.StandardInput.BaseStream, frame, timeout.Token, BrowserWire.MaximumInput);
+            await BrowserWire.WriteAsync(_process.StandardInput.BaseStream, frame, timeout.Token, BrowserWire.MaximumInput).ConfigureAwait(false);
         }
-        catch { Fault(); throw; }
+        catch (Exception ex) { Fault(ex is OperationCanceledException ? "ipc_write_timeout" : ex is IOException ? "ipc_write_failed" : "ipc_write_invalid", frame["method"]?.GetValue<string>()); throw; }
         finally { _writes.Release(); }
     }
 
@@ -134,8 +140,9 @@ internal sealed class SharedBrowserHost : IDisposable
                 else if (type != "request.finished") throw new IOException("Unknown shared runtime event");
             }
         }
-        catch (Exception ex) when (ex is IOException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException or ObjectDisposedException) { }
-        finally { Fault(); }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException or ObjectDisposedException)
+        { Fault(ex is System.Text.Json.JsonException ? "ipc_invalid_json" : ex is IOException ? "ipc_read_failed" : "ipc_invalid_frame"); }
+        finally { Fault("ipc_closed"); }
     }
 
     private async Task EventsAsync()
@@ -148,11 +155,13 @@ internal sealed class SharedBrowserHost : IDisposable
                 finally { Interlocked.Add(ref _queuedBytes, -frame["queueBytes"]!.GetValue<long>()); }
             }
         }
-        catch (Exception ex) when (ex is IOException or OperationCanceledException or InvalidOperationException or ObjectDisposedException) { Fault(); }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or InvalidOperationException or ObjectDisposedException) { Fault("provider_output_failed"); }
     }
-    private void Fault()
+    private void Fault(string reason, string? method = null)
     {
         if (Interlocked.Exchange(ref _faulted, 1) != 0) return;
+        Volatile.Write(ref _failure, reason);
+        Volatile.Write(ref _failureMethod, method);
         foreach (var pending in _pending.Values) pending.TrySetException(new IOException("Shared browser runtime disconnected; delivery unknown"));
         _pending.Clear();
         Volatile.Write(ref _state, new JsonObject());
@@ -165,6 +174,6 @@ internal sealed class SharedBrowserHost : IDisposable
         try { _process.StandardInput.Close(); if (!_process.WaitForExit(3000)) _process.Kill(entireProcessTree: true); }
         catch (InvalidOperationException) { }
         _stop.Cancel(); _events.Writer.TryComplete();
-        Fault(); _process.Dispose();
+        Fault("host_disposed"); _process.Dispose();
     }
 }

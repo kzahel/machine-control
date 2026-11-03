@@ -28,12 +28,12 @@ internal static class BrowserWire
     internal static async Task<JsonObject?> ReadAsync(Stream stream, CancellationToken cancellation, int maximum = MaximumInput)
     {
         var header = new byte[4];
-        if (await stream.ReadAsync(header.AsMemory(0, 1), cancellation) == 0) return null;
-        await stream.ReadExactlyAsync(header.AsMemory(1), cancellation);
+        if (await stream.ReadAsync(header.AsMemory(0, 1), cancellation).ConfigureAwait(false) == 0) return null;
+        await stream.ReadExactlyAsync(header.AsMemory(1), cancellation).ConfigureAwait(false);
         var size = BinaryPrimitives.ReadUInt32LittleEndian(header);
         if (size == 0 || size > maximum) throw new InvalidDataException("Invalid browser frame length");
         var body = new byte[(int)size];
-        await stream.ReadExactlyAsync(body, cancellation);
+        await stream.ReadExactlyAsync(body, cancellation).ConfigureAwait(false);
         return JsonNode.Parse(body)?.AsObject() ?? throw new InvalidDataException("Browser object required");
     }
 
@@ -43,8 +43,8 @@ internal static class BrowserWire
         if (body.Length > maximum) throw new InvalidDataException("Browser response exceeds native messaging limit");
         var header = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(header, (uint)body.Length);
-        await stream.WriteAsync(header, cancellation);
-        await stream.WriteAsync(body, cancellation);
-        await stream.FlushAsync(cancellation);
+        await stream.WriteAsync(header, cancellation).ConfigureAwait(false);
+        await stream.WriteAsync(body, cancellation).ConfigureAwait(false);
+        await stream.FlushAsync(cancellation).ConfigureAwait(false);
     }
 }

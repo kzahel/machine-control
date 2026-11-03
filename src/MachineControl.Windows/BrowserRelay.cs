@@ -54,6 +54,8 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         problems = _peers.Values.Where(peer => peer.Problem is not null).Select(peer => new { reason = peer.Problem }).ToArray(),
         approvedProfiles = _host.State["selectedProfiles"]?.DeepClone() ?? new JsonArray(),
         sharedRuntime = "typescript_node",
+        runtimeProblem = _host.Failure,
+        runtimeProblemMethod = _host.FailureMethod,
         knownOmissions = new[] { "incognito tabs", "browser chrome UI", "other user sessions", "OS file dialogs" },
         streamingCdp = new { available = _host.Alive, browserLevel = true, binding = "live_devtools_owner", transport = "target_loopback_websocket" },
         fileUpload = new { maximumFiles = BrowserUpload.MaximumFiles, paths = "target_local_drive", osDialog = false },

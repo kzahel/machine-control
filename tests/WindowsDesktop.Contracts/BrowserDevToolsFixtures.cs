@@ -50,6 +50,15 @@ internal static class BrowserDevToolsFixtures
         }, () => failure = true);
         Environment.SetEnvironmentVariable("NODE_OPTIONS", originalOptions);
         host = process;
+        // Native Allow/Stop and expiry can call the private client from a
+        // WinForms STA. A synchronous call cannot depend on that UI thread
+        // pumping its captured continuations while it waits for the reply.
+        await Task.Factory.StartNew(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new UnpumpedContext());
+            host.Call(new JsonObject { ["method"] = "state" });
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)
+            .WaitAsync(TimeSpan.FromSeconds(3));
         var attachment = host.Call(new JsonObject { ["method"] = "browser.attach", ["extensionId"] = new string('a', 32),
             ["hello"] = new JsonObject { ["protocolVersion"] = 1, ["extensionVersion"] = "fixture", ["profile"] = new JsonObject
             { ["protocolVersion"] = 1, ["installationId"] = "00000000-0000-4000-8000-000000000001", ["name"] = "Fixture", ["enabled"] = true } } });
@@ -100,5 +109,10 @@ internal static class BrowserDevToolsFixtures
         Require(!failure, "native IPC remained healthy");
         lock (calls) Task.WaitAll(calls.ToArray(), timeout.Token);
         Console.WriteLine("Shared browser/native IPC contracts passed");
+    }
+
+    private sealed class UnpumpedContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state) { }
     }
 }
