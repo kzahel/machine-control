@@ -45,7 +45,7 @@ extension peers and operator decisions, retains native session/owner safety,
 audit storage and artifact writes, and projects those facts into the child.
 The deterministic reference target executes the same policy with modeled
 browser effects. Mac and Linux residents retain their existing implementations.
-Packaged Windows qualification is tracked in
+Bounded unsigned Windows ARM64 candidate acceptance is recorded in
 [Tactical 152](docs/tactical/152-shared-runtime-windows-adoption.md).
 This introduces no YA coordinator, private inventory owner, public approval
 endpoint or protected provider. The Python CLI/client remains the common

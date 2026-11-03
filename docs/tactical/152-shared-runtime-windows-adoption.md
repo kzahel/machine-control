@@ -3,7 +3,8 @@
 Owning topics: [shared-resident-core](../../topics/shared-resident-core.md),
 [browser-profiles](../../topics/browser-profiles.md).
 
-Status: **Windows migration implemented; packaged candidate acceptance active**.
+Status: **complete for the bounded Windows browser cutover; Mac/Linux adoption
+and signed publication remain separate**.
 
 ## Motivation and objective
 
@@ -152,84 +153,102 @@ is distinct from signed installer/publication qualification.
   the real Windows ARM64 appliance; this is distinct from cross-publishing
   and browser effects. The suite includes the native fixes and deterministic
   regressions for unpumped UI contexts and response bytes visible before
-  task completion, private journal ACL preservation, and closed stream diagnostics.
-- The real Windows native composition actor passes with two fake browser
+  task completion, private journal ACL preservation and closed stream
+  diagnostics.
+  A stalled-reader regression fails against the old private transport and
+  passes with dedicated I/O, finite child termination and bounded disposal.
+- Earlier Windows native composition acceptance passed with two fake browser
   peers, including five-minute retained-owner continuity. This exercises
   actual peer authentication, private child IPC and native admission without
   substituting another policy engine or requiring a browser.
-- All six final Node payloads build. The packaged Mac ARM64 child passes five
+- Node payloads built for all six targets during qualification; their policy
+  source is unchanged in the final candidate. The packaged Mac ARM64 child passes five
   process checks and ten real-browser checks. Earlier Node/Bun Windows ARM64
   native and x64-emulated comparison suites pass; the final ARM64 Node payload
   also passes all five process checks natively.
   The final x64-emulated process run timed out and its exact scratch children
   were reaped; x64 publication is a build result, not current live acceptance.
+- Actual Windows supervisor tests pass, including delayed startup versus the
+  ordinary-call deadline and owned-job cleanup after a blocked write. Startup
+  has a finite 30-second budget; ordinary operator calls retain five seconds.
 
-### Appliance qualification
+### Appliance qualification and final result
 
-**Current:** acceptance is active on an existing exclusively claimed Windows
-ARM64 appliance. It uses a separately identified test Chromium, temporary
-native-host registration and finally-style claim/process/power cleanup. The
-actor exercises the production native peer authentication, inherited operator,
-retained Python owner, two regular Chrome profiles in one process, independent
-ordinary/page/root-CDP effects, Stop/expiry/reconnect/death and disposable real
-Tauri Settings. No personal browser or installed product is replaced.
+**Current (2026-11-03), bounded `conformance-tested`:** a clean-source unsigned
+Windows ARM64 candidate at `b80aa7cbf4c3282e16148323ff3aa5f2b50811d1`
+passes all 39 real-browser and Tauri Settings checks in one run. Native runtime,
+shared policy, extension, bundled Python client, actor and app identities are
+bound to that source and verified bytes. The actual Windows native contract
+runner also passes from that frozen source. The app embeds production assets;
+a private generated version input does not constitute a version bump or release.
 
-Integration work fixed the child environment: Windows cryptographic startup
-requires the OS-owned `SystemRoot`, while arbitrary inherited Node options and
-module paths remain cleared. Windows retained console channels now start both
-pipe directions independently. Native safety facts are published only when
-they change, preserving the child policy's idle Off state. Portable tests use
-the same shared child rather than retaining the deleted C# bridge as a test
-surrogate.
+The dedicated appliance runs a separately identified native ARM64 Chromium
+snapshot, with its sandbox enabled and software rendering. Two regular profiles
+belong to one browser process and use one temporary native-host registration.
+Independent HTTP/file effects verify trusted input, upload, capture and raw
+operations. Page streams and profile-isolated browser-root creation, flattened
+sessions, detach and close complete through the resident. Root and page
+attachments are tested in separate phases because each profile reserves its
+active attachment route.
 
-Native synchronous IPC is independent of the presentation thread's message
-pump. Admission releases its exact provider-occupancy token before response
-bytes become visible, while tracking bounded pending response tasks. The new
-composition actor exposed that boundary race; both fixes have regressions
-that fail on their old implementations and pass after correction.
+The same run proves no implicit selector with two approvals, no cross-profile
+references or offline failover, owner-disconnect closure, global Stop, real
+60-second expiry without Settings, reconnect fencing, policy-child death and
+fresh Off restart. Through real UI Automation, Settings grants exact profiles,
+can be destroyed while browser effects continue, reopens to Stop the existing
+authority, and restarts with remembered choices but no restored consent. Fresh
+approval retains both exact profile choices.
 
-Qualification also exposed two distinct timing defects. Private journal
-writes repeatedly reapplied an inheritable DACL across an existing state tree;
-the native adapter now verifies an already-correct protected ACL and repairs
-only a mismatch. An actual NTFS change-time regression proves both preservation
-and repair. Separately, Chrome can complete tab creation before its debugger
-target becomes observable. The extension creates once, waits for observation
-within the existing management deadline and fences connection replacement.
-Delayed/missing-target and replacement regressions exercise the repaired path;
-a focused real-browser diagnostic passed 20 root lifecycle cycles across both
-profiles. That patched diagnostic is separate from clean-candidate acceptance.
+The actor's finally cleanup passes. The outside controller separately verifies
+restored native-host registration, reaped owned processes, removed tasks,
+private scratch and sandbox-compatible test-browser staging, original Off
+power state and released target claim. Canonical credential files remain ready,
+nonempty and mode `0600`; their contents were not exposed or changed. Private
+reports and usage notes retain exact target/evidence locators outside Git.
 
-The Windows supervisor has a finite 30-second initial handshake budget;
-ordinary calls retain five seconds. Real delayed-child and job-cleanup tests
-pass on Windows. Native diagnostics retain only closed classifications and
-bounded timing, never provider messages or browser payloads. The fixture's CDP
-command wait follows the advertised 45-second deadline; its separate five-second
-revocation check fails on a silent open socket. Socket-pair tests prove EOF,
-buffered EOF and timeout are distinguished.
+### Integration repairs and verification limits
 
-The initial headless browser singleton did not open a second regular-profile
-window; the simultaneous-profile actor therefore runs headed. A marked
-ordinary fixture tab identifies the requested Chrome profile before navigating
-to its extension setup UI. The runner's browser-startup budget is separate
-from the product's action deadlines. Private usage notes and reports retain
-concrete friction and target locators.
+Windows child startup retains the OS-owned `SystemRoot` needed by crypto while
+clearing arbitrary inherited Node options. Native operator continuations do
+not depend on an STA message pump. Admission releases provider occupancy before
+response bytes are visible, while response tasks retain bounded tracking.
+Native contract regressions cover those handoff boundaries.
 
-The diagnostic Windows route has observed two stable regular-profile
-identities in one browser process and independent ordinary input, upload,
-capture and evaluation effects. Real modal opening can interrupt CDP click
-completion: acceptance observes and handles the exact dialog without replay.
-The long run subsequently lost native owner liveness while both profile
-connections stayed healthy. Native-only sustained ownership passes. The remaining browser, stream and
-Settings sequence is being qualified with bounded RPC timing and an
-exact-source candidate using bundled Python. Interactive task scheduling
-uses normal priority; product action deadlines are unchanged.
+Journal writes verify an already-correct protected DACL instead of repeatedly
+propagating it across the state tree; an actual NTFS change-time regression
+proves preservation and repair. Private pipe qualification then identified
+async-over-sync write cancellation escaping the safety monitor. Dedicated
+blocking read/write/stderr workers, one serialized outbound frame, the existing
+three-second watchdog and exact-child termination repair that boundary.
+Terminal policy-host loss leaves native monitoring available. The final
+candidate
+uses the original .NET 8.0.25 build baseline; a newer-runtime diagnostic was not
+used as a substitute for the transport repair.
 
-**Unfulfilled:** passing the final real two-profile ordinary/CDP and Tauri
-Settings lifecycle run and verified appliance cleanup. No signed installer,
-publication, physical/native x64 or Mac/Linux adoption is inferred. The source
-implementation is committed while these execution gates remain active.
+Chrome can finish creating a tab before its debugger target appears. The
+extension creates once and waits for observation within the existing management
+deadline, fencing connection replacement. Deterministic delayed/missing-target
+and replacement cases pass; an earlier patched diagnostic also passed 20 root
+lifecycle cycles. That diagnostic is distinct from the clean 39-check result.
+
+Fixture corrections preserve the real oracle: modal opening is observed
+without replaying an uncertain click; command waits follow the advertised
+45-second deadline, while revocation separately requires actual closure within
+five seconds. Silent open sockets fail that check. Headed profile selection is
+needed for two regular profiles in one process. Browser binaries have sandbox
+read/execute access while profiles and evidence remain private. The operator
+uses isolated WebView storage and the production Tauri protocol feature.
+Optional timed C-level Python stack walking reproduced a separate access
+violation and is excluded from this actor; the normal Python client is unchanged.
+See the [Windows harness guide](../../tests/windows/README.md).
+
+This establishes the browser coordination cutover, not every Windows desktop
+policy or every load/OS transition. Earlier owner-timeout observations did not
+establish one universal cause. No signed installer, store delivery, publication,
+physical/native x64, GPU or Mac/Linux adoption is inferred. The final x64-emulated
+Node process timeout remains a limitation; x64 publication is a build result.
 
 The [owning topic's adoption plan](../../topics/shared-resident-core.md#windows-cutover-and-next-adoption)
 retains native Swift/Python platform effects and authentication, adapts this
-same inlet, then deletes each platform's replaced browser policy only after
-its own native and packaged acceptance. A client rewrite is not required.
+same inlet, then deletes each platform's replaced browser policy after its own
+native and packaged acceptance. macOS is next; a client rewrite is not required.

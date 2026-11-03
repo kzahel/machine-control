@@ -1,6 +1,6 @@
 # Private native host inlet
 
-Status: **Windows production inlet implemented; packaged qualification active**.
+Status: **Windows production inlet accepted in a bounded unsigned ARM64 candidate**.
 This private inlet is not an agent API or an independently installed service.
 The language/deployment decision and migration gates live in
 [the shared-core topic](../topics/shared-resident-core.md) and

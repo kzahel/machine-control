@@ -2,7 +2,8 @@
 
 Topic: `browser-profiles`
 
-Status: **shared policy/profile protocol implemented; Windows integration and live qualification active**.
+Status: **Windows named-profile browser cutover accepted in an unsigned ARM64
+candidate; Mac/Linux adoption and publication pending**.
 
 ## Scope and current evidence
 
@@ -158,8 +159,8 @@ and a bounded two-process, headless real-browser fixture in
 [Tactical 151](../docs/tactical/151-shared-core-real-browser.md). Windows now integrates durable extension identity, concurrent authenticated
 pipe peers, exact operator/native approval selection and shared CDP routing.
 [Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) owns
-its packaged candidate qualification; no Mac/Linux adoption or publication
-is implied.
+its complete bounded 39-check real-browser/Settings candidate acceptance,
+source identity and cleanup. No Mac/Linux adoption or publication is implied.
 
 **Decision:** adopt the shared core for native integration.
 The remaining Mac/Linux adoption follows the same boundary; it must remove

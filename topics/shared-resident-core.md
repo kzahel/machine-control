@@ -2,25 +2,27 @@
 
 Topic: `shared-resident-core`
 
-Status: **Windows adapter implemented; packaged candidate qualification active**.
+Status: **Windows browser cutover accepted in an unsigned ARM64 candidate;
+Mac/Linux adoption pending**.
 
 ## Motivation
 
-**Current on the legacy path:** two Chrome profiles with the extension can contend for the
-resident's singleton browser connection. The [provider dossier](../research/providers/chrome-extension.md#multiple-profile-limit)
+**Current:** this workstream began with reported contention between two
+Chrome profiles using a resident's singleton browser connection. The [provider dossier](../research/providers/chrome-extension.md#multiple-profile-limit)
 owns the source findings and their live-evidence limits. Multi-profile work
 exposes a wider maintenance problem: grants, provider routing, deadlines,
-revocation and generation fencing are separately implemented in the Swift Mac,
-C# Windows and Python Linux residents. Mac/Windows owner admission and CDP
-bridges also have separate implementations; Linux does not have identical
-feature coverage. These are overlapping policy implementations, not three
-equivalent translations of one enforced model.
+revocation and generation fencing were separately implemented in the Swift Mac,
+C# Windows and Python Linux residents at the start of this work. Mac/Windows owner admission and CDP
+bridges also had separate implementations; Linux does not have identical
+feature coverage. These were overlapping policy implementations, not three
+equivalent translations of one enforced model. The Windows browser cutover below
+removes its duplicated policy; Mac/Linux adoption remains pending.
 
 The product already shares its Python client, TypeScript settings UI,
 JavaScript Chrome extension, common result vocabulary and some conformance
 runners. Native peer authentication, accessibility, capture, input, console
-observation and protected operations need platform implementations. Portable
-policy is currently intertwined with those native responsibilities.
+observation and protected operations need platform implementations. On the remaining legacy paths, portable
+policy remains intertwined with those native responsibilities.
 
 The user requested using browser profiles to refactor this middle layer,
 with lightweight, fast verification rather than repeatedly assembling a
@@ -81,8 +83,8 @@ owns the child independently of Settings. Keep the policy free of Node/Bun
 APIs; the inherited process host is a replaceable adapter around that source.
 The current runtime pin is Node 24.22.2, with exact upstream archive hashes
 and upstream notices retained in the payload. This settles the implementation
-direction; installed identity and full Windows adoption remain acceptance
-gates, not facts implied by the choice.
+direction. Bounded Windows candidate acceptance is recorded below; signed
+installation and other platforms are separate gates.
 
 **Current:** both pinned Node and Bun 1.4.4 payloads build for all six desktop
 targets. Header inspection verifies OS/architecture, not executable correctness.
@@ -220,6 +222,14 @@ Any future simulated screen is a narrow provider fixture, not a fourth policy
 implementation or a replacement OS.
 
 ## Windows cutover and next adoption
+
+**Current, bounded acceptance:** a clean-source unsigned Windows ARM64
+candidate passes the full 39-check two-profile browser and real Settings
+lifecycle, including independent effects, Stop/expiry, disconnect, child death,
+Off restart and fresh exact-profile consent. Appliance cleanup and claim/power
+restoration are verified. [Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md)
+owns exact source, execution and limits. This qualifies browser coordination;
+generic desktop admission and protected/native OS effects remain native.
 
 **Current implementation:** `BrowserRelay` is an authenticated concurrent
 pipe and native-effect adapter. The old singleton routing, native wire request

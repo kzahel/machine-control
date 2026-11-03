@@ -36,7 +36,7 @@ its `Topic:` trailers.
 
 - [`shared-resident-core.md`](shared-resident-core.md): shared policy and typed
   provider boundaries, TypeScript/bundled Node deployment, fast verification
-  and native migration.
+  and the accepted Windows browser cutover with remaining native migration.
 
 - [`computer-use-positioning.md`](computer-use-positioning.md): complete-package
   positioning, existing locked/system/device capabilities, evidence-led gaps
@@ -64,7 +64,7 @@ its `Topic:` trailers.
   unlock, evidence, and remaining semantic/profile work.
 - [`browser-control.md`](browser-control.md): user-browser control through a
   Machine Control extension, native messaging, and grant-scoped CDP.
-- [`browser-profiles.md`](browser-profiles.md): scoped named-profile discovery,
+- [`browser-profiles.md`](browser-profiles.md): Windows named-profile discovery,
   availability, exact-profile approval and ordinary/CDP routing.
 - [`capabilities-and-results.md`](capabilities-and-results.md): common
   capability, observation, action, uncertainty, and conformance vocabulary.

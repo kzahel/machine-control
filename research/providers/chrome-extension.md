@@ -44,7 +44,7 @@ tab lifecycle APIs. It is not the approval authority.
 | macOS unreleased signed ARM64 runtime/presentation candidate | `conformance-tested` | Chrome for Testing 154, workstation native approval and no Settings WebView: 21 page/indicator/capture/worker checks through the packaged CLI; no YA agent probe or browser-root streaming qualification |
 | macOS signed Tauri, installed Python CLI and YA local Codex | `conformance-tested` | Chrome for Testing 145 in a claimed appliance: independent HTTP counter effect, tab PNG consumed by the built-in agent image tool, plus 21 existing indicator/worker checks; standing policy, not workstation approval |
 | Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
-| Windows ARM64 shared coordinator and named profiles | `live-tested` | Two regular profiles in one owned test-browser process through one registration; independent trusted input, upload, capture and evaluation effects in a patched diagnostic candidate. Full streamed CDP, Settings and clean-candidate acceptance remain active in Tactical 152 |
+| Windows ARM64 shared coordinator and named profiles | `conformance-tested` | Clean-source unsigned candidate: 39 checks with two regular profiles in one native ARM64 Chromium process, one registration, independent ordinary/page/root-CDP effects, Stop/expiry/reconnect/death and real Settings lifecycle; sandbox enabled, software rendering; signed/store/physical/x64 and Mac/Linux acceptance separate |
 | Windows ARM64 source-native locked-console extension | `live-tested` | 18 checks under real native approval with x64-emulated CfT 155 and software rendering: independent locked HTTP effects, capture, browser-owner admission, per-tab streamed DevTools, Pause/Resume and disable; signed installed Settings and native ARM browser acceptance separate |
 | Windows signed Tauri extension/native messaging | `conformance-tested` | Public 0.4.8 x64 VM package: setup/approval, independent effects/capture, restart, production browser-open replacement and ordinary uninstall; local/outside parity and lock revocation recorded on 0.4.7 |
 | Windows staged x64 file upload | `conformance-tested` | Unreleased real desktop UI, browser-only live SDK owner and CLI request parser; Chrome for Testing 154: direct/multiple inputs, intercepted chooser, independent HTTP byte/hash effects and 23 scope/path/reference/Pause/Stop checks |
@@ -88,23 +88,20 @@ work. The shared-core scratch route below is bounded live evidence, not
 qualification of installed multi-profile control or the existing singleton
 residents.
 
-**Current (2026-11-03), Windows source and native contract evidence:** the
+**Current (2026-11-03), bounded Windows ARM64 `conformance-tested`:** the
 extension has persistent origin-namespaced installation UUIDs, local names and
-availability preferences. The profile protocol negotiates separately from
-native frame protocol v1. Windows requires it before authority, rejects copied
-live identities without replacement, and routes exact approved IDs through one
-shared host. Native .NET contracts exercise that actual child; ARM64/x64
-companions build. Real same-process multi-profile and Settings candidate
-acceptance is active in [Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md).
-The patched diagnostic route has now observed two regular profiles in one
-browser process and independent ordinary input/upload/capture/evaluation
-effects. A native-only fake-peer actor also passes five-minute owner continuity.
-The complete real-browser run encountered native owner-lease loss while both
-profile connections remained healthy; clean-candidate and Settings gates remain
-open while bounded RPC timing distinguishes that failure.
-Those builds and contracts do not establish signed installed or Mac/Linux
-multi-profile execution. Existing Mac/Linux residents ignore the negotiated
-extension metadata and retain their legacy behavior until adoption.
+availability preferences. Windows requires profile protocol v1 before authority,
+rejects copied live identities without replacement, and routes exact approved
+IDs through one shared host. Native contracts and ARM64/x64 builds pass. A
+clean-source unsigned ARM64 candidate passes 39 checks with two regular profiles
+in one native Chromium process, independent ordinary/page/root-CDP effects,
+owner/Stop/expiry/reconnect/child-death fencing and the real Settings lifecycle.
+Sandboxed software-rendered fixture execution, exact source and verified cleanup
+are recorded in [Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md).
+An earlier fake-peer composition also passes five-minute owner continuity.
+This does not establish signed installation, store delivery, physical/GPU/native
+x64 or Mac/Linux multi-profile execution. Existing Mac/Linux residents retain
+their legacy behavior until adoption.
 
 **Current (2026-11-02), bounded Mac ARM64 `live-tested`:** a Node-hosted adapter
 consumes the unchanged worker protocol through real Chrome native messaging,
@@ -136,7 +133,7 @@ Windows root-CDP run observed successful tab creation before `getTargets`
 published its page target. `Target.createTarget` now waits for observation
 inside the existing management deadline, creates exactly once, and fences late
 observations on connection replacement. Delayed/missing-target and replacement
-fixtures cover those cases. Repeated Windows qualification remains in
+fixtures cover those cases. Bounded Windows qualification is recorded in
 [Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md).
 
 **Current (2026-11-02), bounded physical-macOS `live-tested` recovery:** the
