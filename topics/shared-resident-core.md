@@ -209,6 +209,8 @@ separates delivery and independently observed effect.
    does not require the GNOME-specific production desktop provider.
 3. Native Windows, Mac and Linux acceptance for their real transport identity,
    OS permissions, accessibility, focus, session transitions and packages.
+   Start with real native transports/admission and fake browser peers to expose
+   composition failures quickly, then qualify independent real browser effects.
 
 Survey existing implementations to extract intended invariants and explicitly
 different capabilities. Do not turn every historical behavior into a common
@@ -230,6 +232,14 @@ It retains generic desktop grants, caller admission and OS safety observations.
 `SharedBrowserHost` owns one pinned Node child and fails closed on child loss.
 Native code retains payload-free audit persistence and validated artifact/file
 operations. Settings is a disposable operator projection.
+
+Native synchronous operator calls must not depend on a UI message loop pumping
+their asynchronous continuations. Admission occupancy ends before a completed
+result becomes visible to its client; response-task bookkeeping must not refuse
+the client's next explicit operation. Unsettled provider work remains exclusive,
+and pending responses retain bounded capacity and disconnect cleanup. Both
+boundaries have deterministic failing-before/passing-after native regressions;
+the real Windows composition actor exercises the complete handoff with fake peers.
 
 The reference target models the ordinary browser vocabulary, stateful tabs,
 input, upload, capture and raw-operation observations behind this same policy.

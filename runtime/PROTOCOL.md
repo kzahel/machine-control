@@ -1,6 +1,7 @@
 # Private native host inlet
 
-Status: **implemented for qualification; not an installed or agent API**.
+Status: **Windows production inlet implemented; packaged qualification active**.
+This private inlet is not an agent API or an independently installed service.
 The language/deployment decision and migration gates live in
 [the shared-core topic](../topics/shared-resident-core.md) and
 [Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md).
@@ -11,8 +12,10 @@ The native resident launches `node/main.ts` as a private child using the
 packaged executable and inherited anonymous stdin/stdout. It clears interpreter
 environment overrides. There is no TCP listener, approval URL or reusable
 approval bearer. Each direction uses the bounded framing in `node/framing.ts`:
-four-byte little-endian UTF-8 JSON length, maximum 1 MiB per object and 2 MiB
-write backlog. Diagnostics must never share stdout.
+four-byte little-endian UTF-8 JSON length and a bounded write backlog of twice
+the selected frame limit. The original fixture defaults to 1 MiB; the Windows
+private channel uses the 16 MiB limit described below. Diagnostics must never
+share stdout.
 
 The parent authenticates operator decisions and provider peers before invoking
 this inlet. It must not forward arbitrary agent method names or frame objects.
@@ -20,7 +23,7 @@ The methods below convey trusted decisions: they are deliberately unavailable
 on the public agent transport. This adds no containment against a same-user
 agent with unrestricted shell access.
 
-## Messages and correlation
+## Original fixture inlet and correlation
 
 Every parent call has a bounded string `id` and one `method`. The first call is
 `hello` with `protocolVersion: 1`. The reply is
@@ -30,7 +33,7 @@ selectors, never public authority. The host never deserializes a core handle.
 
 | Method | Fields and result |
 | --- | --- |
-| `provider.connect` | Authenticated `profileId`; returns `connectionId` and generation. Identity remains fixture-assigned until the production profile handshake is adopted. |
+| `provider.connect` | Fixture-assigned logical `profileId`; returns `connectionId` and generation. Production installation identity uses `browser.attach` below. |
 | `provider.frame` | `connectionId` and worker `frame`; returns whether an exact pending completion applied. |
 | `provider.disconnect` | `connectionId`; fences that route. Retains bounded correlation only while already-dispatched work is unsettled. |
 | `operator.approve` | Exact `connectionIds` and finite `durationMs`; returns authorization generation. No future profile wildcard. |
@@ -38,7 +41,7 @@ selectors, never public authority. The host never deserializes a core handle.
 | `request` | `connectionId`, expected `authorizationGeneration`, public `requestId`, `timeoutMs`, typed `operation`; returns submission acknowledgement separately from terminal result. |
 | `state` | Returns bounded policy state, process epoch and self-reported runtime/RSS diagnostics. No page data. |
 
-The current request subset is `browser.tabs`, `browser.snapshot` with `tabId`,
+The original fixture request subset is `browser.tabs`, `browser.snapshot` with `tabId`,
 and `browser.click` with an issued `reference`. Snapshot references bind the
 process epoch, connection and approval generation before the worker's opaque
 reference. They cannot cross profiles, reapproval, reconnects or restarts.
