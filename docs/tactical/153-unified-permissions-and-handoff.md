@@ -4,7 +4,8 @@ Owning topics: [access admission and pause](../../topics/access-admission-and-pa
 [shared resident core](../../topics/shared-resident-core.md),
 [browser profiles](../../topics/browser-profiles.md).
 
-Status: **design recorded; implementation not started**.
+Status: **implementation in progress; shared surface-policy checkpoint
+implemented, Windows adoption and native acceptance pending**.
 
 ## Motivation and objective
 
@@ -153,7 +154,17 @@ its declared migration gates pass.
 
 ## Result and next step
 
-**Current:** documentation-only decision and implementation plan. No runtime,
-client, installed integration or platform capability is changed by this record.
-Begin with the versioned contract and reference/synthetic-client scenarios;
-macOS migration is deferred until the new Windows experience is qualified.
+**Current:** the pure TypeScript surface-policy engine and its private Node
+host inlet implement independent modes, task approval, original consent
+ceilings, atomic resources, handoff, pauses, cooldown and ownership fencing.
+Nineteen deterministic and real-process tests cover all nine mode combinations
+and interrupted effects. This checkpoint does not change installed behavior:
+Windows still needs to adopt the engine, operator UI and client contract, then
+pass new native/package acceptance before the requested broad review.
+
+The approved autonomous sequence is Windows/shared/reference implementation and
+acceptance, one broad Opus 5.5 High review through the work-account router pool
+with weekly-pace routing and bypass permissions, findings correction, then
+macOS and Linux adoption with their own acceptance. Reviewer routing evidence
+and appliance details remain private. Do not substitute a different model or
+account when the requested route is unavailable.

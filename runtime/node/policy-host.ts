@@ -12,6 +12,8 @@ import type { Approval, ApprovalCheckpoint, BrowserRequest, Effect } from "../sr
 import { ExtensionProvider } from "../src/extension-provider.ts";
 import type { NativeFrame } from "../src/extension-provider.ts";
 import { dispatchToProvider } from "../src/provider-dispatch.ts";
+import { AccessAdmission } from "../src/admission.ts";
+import type { AdmissionOwner, AdmissionRequest, Surface, SurfaceConfiguration, SessionFence, HumanInput } from "../src/admission.ts";
 
 function string(value: unknown): string {
   if (typeof value !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(value))
@@ -42,6 +44,8 @@ export class PolicyHost {
   readonly core = new ResidentCore({
     now: () => Math.floor(performance.now()),
   });
+  readonly access = new AccessAdmission({ now: () => Math.floor(performance.now()) });
+  readonly #accessOwners = new Map<string, AdmissionOwner>();
   readonly #send: (frame: NativeFrame) => void;
   readonly #providers = new Map<string, ExtensionProvider>();
   readonly #retired = new Set<string>();
@@ -100,12 +104,14 @@ export class PolicyHost {
   tick(): void {
     if (this.#closed || !this.#hello) return;
     this.#consume(this.core.tick());
+    this.access.tick();
     this.#synchronize();
     this.#publish();
   }
 
   wakeInMs(): number | null {
-    const deadline = this.core.nextDeadline();
+    const deadlines = [this.core.nextDeadline(), this.access.nextDeadline()].filter((value): value is number => value !== null);
+    const deadline = deadlines.length ? Math.min(...deadlines) : null;
     return deadline === null
       ? null
       : Math.max(1, deadline - Math.floor(performance.now()));
@@ -115,6 +121,8 @@ export class PolicyHost {
     if (this.#closed) return;
     // Revoke before native cleanup. EOF never restores or serializes consent.
     this.#consume(this.core.stop());
+    this.access.stop();
+    this.#accessOwners.clear();
     this.#approval = undefined;
     this.#synchronize();
     this.#cdp?.close();
@@ -131,6 +139,7 @@ export class PolicyHost {
   }
 
   #invoke(frame: NativeFrame): unknown {
+    if (typeof frame.method === "string" && frame.method.startsWith("access.")) return this.#access(frame);
     switch (frame.method) {
       case "hello":
         if (this.#hello || frame.protocolVersion !== 1)
@@ -439,6 +448,43 @@ export class PolicyHost {
       default:
         throw new Error("unknown_host_method");
     }
+  }
+
+  /** Only the authenticated native parent can reach this private inlet. */
+  #access(frame: NativeFrame): unknown {
+    const method = frame.method;
+    if (method === "access.state") return this.access.status();
+    if (method === "access.configure") {
+      this.access.configure(string(frame.surface) as Surface, object(frame.configuration) as unknown as SurfaceConfiguration);
+    } else if (method === "access.notice") this.access.notice(integer(frame.milliseconds));
+    else if (method === "access.ready") {
+      if (typeof frame.ready !== "boolean") throw new Error("invalid_host_request");
+      this.access.ready(string(frame.surface) as Surface, frame.ready);
+    } else if (method === "access.pause") this.access.pause(string(frame.surface) as Surface | "all", string(frame.reason), frame.milliseconds === null ? null : integer(frame.milliseconds));
+    else if (method === "access.resume") this.access.resume(string(frame.surface) as Surface | "all", string(frame.reason));
+    else if (method === "access.input") this.access.input(string(frame.surface) as Surface, string(frame.kind) as HumanInput);
+    else if (method === "access.approve") this.access.approve(string(frame.intentId));
+    else if (method === "access.start") this.access.startNow(string(frame.intentId));
+    else if (method === "access.deny") this.access.deny(string(frame.intentId));
+    else if (method === "access.stop") this.access.stop();
+    else {
+      const label = string(frame.owner);
+      if (method === "access.open") {
+        if (this.#accessOwners.has(label)) throw new Error("admission_owner_exists");
+        this.#accessOwners.set(label, this.access.open());
+      } else {
+        const owner = this.#accessOwners.get(label);
+        if (!owner) throw new Error("admission_owner_mismatch");
+        if (method === "access.close") { this.access.close(owner); this.#accessOwners.delete(label); }
+        else if (method === "access.submit") return this.access.submit(owner, object(frame.request) as unknown as AdmissionRequest);
+        else if (method === "access.inspect") return this.access.inspect(owner, string(frame.intentId), frame.heartbeat === true);
+        else if (method === "access.accept") return this.access.accept(owner, string(frame.intentId), integer(frame.offerGeneration));
+        else if (method === "access.authorize") return { refusal: this.access.authorize(owner, object(frame.fence) as unknown as SessionFence) };
+        else if (method === "access.cancel") this.access.cancel(owner, string(frame.intentId));
+        else throw new Error("unknown_host_method");
+      }
+    }
+    return this.access.status();
   }
 
   #consume(effects: readonly Effect[]): void {

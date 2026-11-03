@@ -72,6 +72,20 @@ the real extension against the packaged child. To evaluate Bun, use
 `--engine bun --bun /path/to/pinned/bun`; compiled evaluation artifacts are not
 authorized for redistribution by this script. No system installation changes.
 
+## Surface admission under development
+
+`src/admission.ts` owns the new Desktop/Browser Off, Ask first and Automatic
+policy, task-specific approvals, original consent ceilings, atomic reservations,
+countdown, pauses and deliberate-takeover cooldown. It uses a supplied monotonic
+clock and runtime-local owner objects. The private `access.*` host inlet maps
+authenticated native channels to those objects; public identifiers cannot open
+that inlet. Its v2 state is separate from the existing browser wire protocol.
+
+The deterministic and real-process admission tests run in the portable suite.
+Windows adoption and native acceptance are pending; this module alone does not
+qualify the new operator experience. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md)
+tracks that work and subsequent platform cutovers.
+
 ## Boundary
 
 The shared host now owns ordinary browser policy and CDP endpoint/session

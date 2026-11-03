@@ -1,0 +1,408 @@
+import type { Clock } from "./core.ts";
+
+export const admissionSchema = "machine-control-admission/v2";
+export type Surface = "desktop" | "browser";
+export type AccessMode = "off" | "ask" | "automatic";
+export type HumanInput = "movement" | "key" | "button" | "scroll";
+export interface SurfaceConfiguration {
+  readonly mode: AccessMode;
+  /** Null means until turned off. Restart never restores live authority. */
+  readonly durationMs: number | null;
+  readonly profileIds?: readonly string[];
+}
+export interface AdmissionRequest {
+  readonly requestId: string;
+  readonly surfaces: readonly Surface[];
+  readonly profileIds?: readonly string[];
+  /** Supplied by the trusted operation router, never by an agent assertion. */
+  readonly disruptive: boolean;
+  readonly reason: string;
+  readonly waitMs: number;
+  readonly durationMs: number;
+}
+export interface AdmissionOwner { readonly channel: number }
+export interface SessionFence {
+  readonly intentId: string;
+  readonly sessionId: string;
+  readonly resourceGenerations: Readonly<Record<string, number>>;
+}
+interface Configuration {
+  mode: AccessMode;
+  expiresAt: number;
+  profiles: Set<string>;
+  generation: number;
+}
+interface Availability {
+  ready: boolean;
+  pauses: Map<string, number>;
+}
+interface Intent {
+  readonly id: string;
+  readonly owner: AdmissionOwner;
+  readonly request: AdmissionRequest;
+  readonly identity: string;
+  readonly resources: readonly string[];
+  readonly deadline: number;
+  readonly taskDeadline: number;
+  readonly approvals: Map<Surface, number>;
+  heartbeat: number;
+  state: string;
+  terminal: string | null;
+  offer: number;
+  offerDeadline: number;
+  noticeDeadline: number;
+  session: string | null;
+  activeDeadline: number;
+  generations: Record<string, number>;
+}
+const surfaces: readonly Surface[] = ["desktop", "browser"];
+function duration(value: number, min: number, max: number): void {
+  if (!Number.isSafeInteger(value) || value < min || value > max)
+    throw new Error("invalid_admission_request");
+}
+function identifier(value: string): void {
+  if (typeof value !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(value))
+    throw new Error("invalid_admission_request");
+}
+
+/**
+ * Shared, synchronous policy. Adapters authenticate owners and operator input,
+ * classify effects, and supply safety facts. Nothing here observes or drives an
+ * OS. Public IDs are correlation only; owner objects are runtime-local authority.
+ */
+export class AccessAdmission {
+  readonly #clock: Clock;
+  readonly #owners = new Set<AdmissionOwner>();
+  readonly #intents: Intent[] = [];
+  readonly #configuration = new Map<Surface, Configuration>();
+  readonly #availability = new Map<Surface, Availability>();
+  readonly #resourceGenerations = new Map<string, number>();
+  readonly #ended: { owner: AdmissionOwner; sessionId: string; reason: string }[] = [];
+  #sequence = 0;
+  #revision = 0;
+  #noticeMs = 10_000;
+
+  constructor(clock: Clock) {
+    this.#clock = clock;
+    for (const surface of surfaces) {
+      this.#configuration.set(surface, { mode: "off", expiresAt: 0, profiles: new Set(), generation: 0 });
+      this.#availability.set(surface, { ready: false, pauses: new Map() });
+    }
+  }
+  open(): AdmissionOwner {
+    if (this.#owners.size >= 256) throw new Error("admission_capacity");
+    const owner = Object.freeze({ channel: ++this.#sequence });
+    this.#owners.add(owner);
+    return owner;
+  }
+  close(owner: AdmissionOwner): void {
+    this.#owner(owner);
+    for (const intent of this.#intents)
+      if (intent.owner === owner && !intent.terminal) this.#finish(intent, "owner_disconnected");
+    this.#owners.delete(owner);
+    this.tick();
+  }
+  configure(surface: Surface, configuration: SurfaceConfiguration): void {
+    const current = this.#config(surface);
+    if (!["off", "ask", "automatic"].includes(configuration.mode)) throw new Error("invalid_access_mode");
+    if (configuration.durationMs !== null) duration(configuration.durationMs, 1000, 86_400_000);
+    const profiles = configuration.profileIds ?? [];
+    if (profiles.length > 64 || new Set(profiles).size !== profiles.length ||
+        (surface === "desktop" && profiles.length > 0)) throw new Error("invalid_profile_selection");
+    for (const profile of profiles) identifier(profile);
+    // Configuration is a new consent ceiling, never an extension of an old task.
+    for (const intent of this.#intents)
+      if (!intent.terminal && intent.request.surfaces.includes(surface)) this.#finish(intent, "consent_replaced");
+    current.mode = configuration.mode;
+    current.expiresAt = configuration.mode === "off" ? 0 :
+      configuration.durationMs === null ? Infinity : this.#now + configuration.durationMs;
+    current.profiles = new Set(profiles);
+    ++current.generation;
+    ++this.#revision;
+    this.tick();
+  }
+  notice(milliseconds: number): void {
+    duration(milliseconds, 0, 60_000);
+    this.#noticeMs = milliseconds;
+  }
+  ready(surface: Surface, ready: boolean): void {
+    this.#available(surface).ready = ready;
+    this.tick();
+  }
+  pause(surface: Surface | "all", reason: string, milliseconds: number | null): void {
+    identifier(reason);
+    if (milliseconds !== null) duration(milliseconds, 1, 28_800_000);
+    for (const name of surface === "all" ? surfaces : [surface])
+      this.#available(name).pauses.set(reason, milliseconds === null ? Infinity : this.#now + milliseconds);
+    this.tick();
+  }
+  resume(surface: Surface | "all", reason: string): void {
+    for (const name of surface === "all" ? surfaces : [surface]) this.#available(name).pauses.delete(reason);
+    this.tick();
+  }
+  input(surface: Surface, kind: HumanInput): void {
+    if (!["movement", "key", "button", "scroll"].includes(kind)) throw new Error("invalid_input_kind");
+    this.tick();
+    if (kind === "movement") return;
+    // Input during a warning acknowledges no takeover and changes no deadline.
+    // A cooldown is attached to the surface, so a new caller cannot bypass it.
+    if (!this.#intents.some(i => i.session && i.request.disruptive && i.request.surfaces.includes(surface))) return;
+    const availability = this.#available(surface);
+    if (!availability.pauses.has("physical_takeover")) availability.pauses.set("physical_takeover", this.#now + 60_000);
+    this.tick();
+  }
+  submit(owner: AdmissionOwner, request: AdmissionRequest) {
+    this.#owner(owner);
+    this.tick();
+    identifier(request.requestId);
+    duration(request.waitMs, 1000, 14_400_000);
+    duration(request.durationMs, 1000, 900_000);
+    if (typeof request.disruptive !== "boolean" || typeof request.reason !== "string" ||
+        !request.reason.trim() || request.reason.length > 240 ||
+        request.surfaces.length < 1 || request.surfaces.length > 2 ||
+        new Set(request.surfaces).size !== request.surfaces.length ||
+        request.surfaces.some(surface => !surfaces.includes(surface))) throw new Error("invalid_admission_request");
+    const profiles = [...(request.profileIds ?? [])].sort();
+    if (new Set(profiles).size !== profiles.length || profiles.length > 64 ||
+        (request.surfaces.includes("browser") ? profiles.length === 0 : profiles.length > 0))
+      throw new Error("invalid_profile_selection");
+    for (const profile of profiles) identifier(profile);
+    const copy = Object.freeze({ ...request, surfaces: Object.freeze([...request.surfaces].sort()), profileIds: Object.freeze(profiles) });
+    const identity = JSON.stringify(copy);
+    const duplicate = this.#intents.find(i => i.owner === owner && i.request.requestId === request.requestId);
+    if (duplicate) {
+      if (duplicate.identity !== identity) throw new Error("admission_idempotency_conflict");
+      return this.#view(duplicate);
+    }
+    if (this.#intents.filter(i => !i.terminal).length >= 256 ||
+        this.#intents.filter(i => i.owner === owner && !i.terminal).length >= 4) throw new Error("admission_queue_full");
+    const resources = [...(copy.surfaces.includes("desktop") ? ["desktop"] : []), ...profiles.map(id => `browser:${id}`)];
+    const intent: Intent = {
+      id: `intent:${++this.#sequence}`, owner, request: copy, identity, resources,
+      deadline: this.#now + copy.waitMs, taskDeadline: this.#now + copy.waitMs + copy.durationMs,
+      approvals: new Map(), heartbeat: this.#now + 60_000, state: "waiting_for_resource",
+      terminal: null, offer: 0, offerDeadline: 0, noticeDeadline: 0, session: null,
+      activeDeadline: 0, generations: {},
+    };
+    this.#intents.push(intent);
+    this.tick();
+    return this.#view(intent);
+  }
+  inspect(owner: AdmissionOwner, id: string, heartbeat = false) {
+    this.tick();
+    const intent = this.#owned(owner, id);
+    if (heartbeat && !intent.terminal) intent.heartbeat = this.#now + (intent.session ? 5000 : 60_000);
+    return this.#view(intent);
+  }
+  accept(owner: AdmissionOwner, id: string, offer: number) {
+    this.tick();
+    const intent = this.#owned(owner, id);
+    if (intent.state !== "offered" || intent.offer !== offer) throw new Error("stale_activation_offer");
+    intent.session = `session:${++this.#sequence}`;
+    intent.state = "active";
+    intent.activeDeadline = Math.min(this.#now + intent.request.durationMs, intent.taskDeadline);
+    intent.heartbeat = this.#now + 5000;
+    for (const resource of intent.resources) {
+      const generation = (this.#resourceGenerations.get(resource) ?? 0) + 1;
+      this.#resourceGenerations.set(resource, generation);
+      intent.generations[resource] = generation;
+    }
+    ++this.#revision;
+    return this.#view(intent);
+  }
+  authorize(owner: AdmissionOwner, fence: SessionFence): string | null {
+    this.tick();
+    const intent = this.#owned(owner, fence.intentId);
+    if (!intent.session || intent.session !== fence.sessionId || intent.state !== "active") return "stale_control_session";
+    if (Object.keys(fence.resourceGenerations).length !== intent.resources.length ||
+        intent.resources.some(resource => fence.resourceGenerations[resource] !== intent.generations[resource])) return "stale_generation";
+    return null;
+  }
+  /** Operator approval is task-specific and stays within the original ceiling. */
+  approve(id: string): void {
+    this.tick();
+    const intent = this.#live(id);
+    for (const surface of intent.request.surfaces) {
+      const config = this.#config(surface);
+      if (config.mode === "ask") intent.approvals.set(surface, config.generation);
+    }
+    this.tick();
+  }
+  startNow(id: string): void {
+    this.tick();
+    const intent = this.#live(id);
+    if (intent.state !== "announcing") throw new Error("stale_activation_notice");
+    intent.noticeDeadline = this.#now;
+    // Adapter drains/acknowledges the operator input before calling this method.
+    this.tick();
+  }
+  cancel(owner: AdmissionOwner, id: string): void {
+    this.tick();
+    const intent = this.#owned(owner, id);
+    if (!intent.terminal) this.#finish(intent, "cancelled");
+    this.tick();
+  }
+  deny(id: string): void {
+    this.tick();
+    this.#finish(this.#live(id), "denied_by_person");
+    this.tick();
+  }
+  stop(reason = "stopped"): void {
+    for (const intent of this.#intents) if (!intent.terminal) this.#finish(intent, reason);
+    for (const config of this.#configuration.values()) { config.mode = "off"; config.expiresAt = 0; ++config.generation; }
+    ++this.#revision;
+  }
+  tick(): void {
+    const now = this.#now;
+    for (const availability of this.#availability.values())
+      for (const [reason, deadline] of availability.pauses)
+        if (now >= deadline) availability.pauses.delete(reason);
+    for (const intent of this.#intents) {
+      if (intent.terminal) continue;
+      const denied = this.#denied(intent);
+      if (denied) { this.#finish(intent, denied); continue; }
+      if (now >= intent.heartbeat) { this.#finish(intent, intent.session ? "owner_disconnected" : "queue_lease_expired"); continue; }
+      if (now >= intent.taskDeadline || (intent.session && now >= intent.activeDeadline)) { this.#finish(intent, "duration_expired"); continue; }
+      if (intent.session && this.#blocks(intent).length > 0) {
+        this.#release(intent, "paused");
+        intent.heartbeat = now + 60_000;
+        intent.state = "paused";
+      }
+      if (!intent.session && now >= intent.deadline) { this.#finish(intent, "wait_deadline_exceeded"); continue; }
+      if (intent.state === "offered" && now >= intent.offerDeadline) this.#finish(intent, "activation_offer_expired");
+    }
+    const reserved = new Set(this.#intents.filter(i => i.session).flatMap(i => i.resources));
+    for (const intent of this.#intents) {
+      if (intent.terminal || intent.session) continue;
+      const blocks = this.#blocks(intent);
+      const approval = intent.request.surfaces.some(surface => this.#config(surface).mode === "ask" && intent.approvals.get(surface) !== this.#config(surface).generation);
+      const state = blocks.length ? "paused" :
+        intent.resources.some(resource => reserved.has(resource)) ? "waiting_for_resource" :
+        approval ? "waiting_for_approval" : null;
+      if (state) {
+        if (intent.state !== state) { intent.state = state; intent.offer = 0; ++this.#revision; }
+        // First eligible task owns the approval notice for the complete set.
+        if (state === "waiting_for_approval") for (const resource of intent.resources) reserved.add(resource);
+        continue;
+      }
+      for (const resource of intent.resources) reserved.add(resource);
+      if (!["announcing", "offered"].includes(intent.state)) {
+        intent.noticeDeadline = now + (intent.request.disruptive ? this.#noticeMs : 0);
+        intent.state = "announcing";
+        ++this.#revision;
+      }
+      if (intent.state === "announcing" && now >= intent.noticeDeadline) {
+        intent.state = "offered";
+        intent.offerDeadline = now + 15_000;
+        intent.offer = ++this.#revision;
+      }
+    }
+    const terminal = this.#intents.filter(i => i.terminal);
+    for (const intent of terminal.slice(0, Math.max(0, terminal.length - 256)))
+      this.#intents.splice(this.#intents.indexOf(intent), 1);
+  }
+  nextDeadline(): number | null {
+    this.tick();
+    const deadlines: number[] = [];
+    for (const config of this.#configuration.values()) if (config.expiresAt > this.#now) deadlines.push(config.expiresAt);
+    for (const availability of this.#availability.values()) deadlines.push(...availability.pauses.values());
+    for (const intent of this.#intents) {
+      if (intent.terminal) continue;
+      deadlines.push(intent.heartbeat, intent.taskDeadline, intent.session ? intent.activeDeadline : intent.deadline);
+      if (intent.state === "announcing") deadlines.push(intent.noticeDeadline);
+      if (intent.state === "offered") deadlines.push(intent.offerDeadline);
+    }
+    const finite = deadlines.filter(Number.isFinite);
+    return finite.length ? Math.min(...finite) : null;
+  }
+  drainEnded() { return this.#ended.splice(0); }
+  status() {
+    this.tick();
+    return {
+      schema: admissionSchema, revision: this.#revision, ownerBinding: "admitted_channel", noticeSeconds: this.#noticeMs / 1000,
+      surfaces: Object.fromEntries(surfaces.map(surface => {
+        const config = this.#config(surface), available = this.#available(surface);
+        return [surface, {
+          mode: config.mode, expired: config.mode !== "off" && this.#now >= config.expiresAt,
+          consentRemainingSeconds: Number.isFinite(config.expiresAt) ? Math.max(0, config.expiresAt - this.#now) / 1000 : null,
+          profileIds: [...config.profiles].sort(), ready: available.ready,
+          pauses: [...available.pauses].map(([reason, until]) => ({ reason, remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
+        }];
+      })),
+      waiting: this.#intents.filter(i => !i.terminal && !i.session).length,
+      active: this.#intents.filter(i => i.session).length,
+      requests: this.#intents.filter(i => !i.terminal).map(i => this.#view(i)),
+    };
+  }
+  get #now(): number { return this.#clock.now(); }
+  #config(surface: Surface): Configuration {
+    const config = this.#configuration.get(surface);
+    if (!config) throw new Error("unknown_surface");
+    return config;
+  }
+  #available(surface: Surface): Availability {
+    const available = this.#availability.get(surface);
+    if (!available) throw new Error("unknown_surface");
+    return available;
+  }
+  #owner(owner: AdmissionOwner): void {
+    if (!this.#owners.has(owner)) throw new Error("admission_owner_mismatch");
+  }
+  #owned(owner: AdmissionOwner, id: string): Intent {
+    this.#owner(owner);
+    const intent = this.#intents.find(i => i.id === id && i.owner === owner);
+    if (!intent) throw new Error("admission_owner_mismatch");
+    return intent;
+  }
+  #live(id: string): Intent {
+    const intent = this.#intents.find(i => i.id === id && !i.terminal);
+    if (!intent) throw new Error("stale_activation_notice");
+    return intent;
+  }
+  #denied(intent: Intent): string | null {
+    for (const surface of intent.request.surfaces) {
+      const config = this.#config(surface);
+      if (config.mode === "off") return "surface_disabled";
+      if (this.#now >= config.expiresAt) return "consent_expired";
+      if (surface === "browser" && intent.request.profileIds?.some(id => !config.profiles.has(id))) return "profile_not_approved";
+    }
+    return null;
+  }
+  #blocks(intent: Intent): string[] {
+    return [...new Set(intent.request.surfaces.flatMap(surface => {
+      const available = this.#available(surface);
+      return [...available.pauses.keys(), ...(available.ready ? [] : ["resource_unavailable"])];
+    }))].sort();
+  }
+  #release(intent: Intent, reason: string): void {
+    if (!intent.session) return;
+    this.#ended.push({ owner: intent.owner, sessionId: intent.session, reason });
+    // Revocations are a bounded mailbox; native adapters must drain each turn.
+    if (this.#ended.length > 1024) this.#ended.shift();
+    for (const resource of intent.resources) this.#resourceGenerations.set(resource, (this.#resourceGenerations.get(resource) ?? 0) + 1);
+    intent.session = null;
+    intent.generations = {};
+    intent.offer = 0;
+    ++this.#revision;
+  }
+  #finish(intent: Intent, reason: string): void {
+    this.#release(intent, reason);
+    intent.terminal = reason;
+    intent.state = "ended";
+    ++this.#revision;
+  }
+  #view(intent: Intent) {
+    return {
+      schema: admissionSchema, revision: this.#revision, intentId: intent.id, state: intent.state,
+      terminalReason: intent.terminal, offerGeneration: intent.offer, sessionId: intent.session,
+      resourceGenerations: { ...intent.generations }, blockingReasons: this.#blocks(intent),
+      surfaces: [...intent.request.surfaces], profileIds: [...(intent.request.profileIds ?? [])],
+      waitRemainingSeconds: Math.max(0, intent.deadline - this.#now) / 1000,
+      leaseRemainingSeconds: Math.max(0, intent.heartbeat - this.#now) / 1000,
+      offerRemainingSeconds: intent.state === "offered" ? Math.max(0, intent.offerDeadline - this.#now) / 1000 : null,
+      noticeRemainingSeconds: intent.state === "announcing" ? Math.max(0, intent.noticeDeadline - this.#now) / 1000 : null,
+      activeRemainingSeconds: intent.session ? Math.max(0, intent.activeDeadline - this.#now) / 1000 : null,
+      reason: intent.request.reason, maximumDurationSeconds: intent.request.durationMs / 1000,
+    };
+  }
+}
