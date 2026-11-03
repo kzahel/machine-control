@@ -32,6 +32,15 @@
     </ol>
   </section>
 
+  <section id="profile-card" class="card" hidden>
+    <h2>Browser profile</h2>
+    <p id="profile-problem" class="muted" hidden></p>
+    <label>Name <input id="profile-name" maxlength="64" autocomplete="off"></label>
+    <label><input id="profile-enabled" type="checkbox"> Enable this profile</label>
+    <p class="muted">Enable this profile here, then choose it when granting access in Machine Control.</p>
+    <button id="profile-reset" type="button">Reset profile identity</button>
+  </section>
+
   <section id="access" class="card" hidden>
     <h2>Access</h2>
     <p id="access-summary" class="access"></p>

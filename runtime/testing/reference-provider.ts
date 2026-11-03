@@ -58,7 +58,7 @@ export class ReferenceProvider implements ProviderAdapter {
     this.received.push(command);
     if (
       command.operation !== "browser.click" ||
-      command.target !== "increment-button"
+      ("params" in command ? command.params.reference : command.target) !== "increment-button"
     ) {
       this.#replies.set(command, { ok: false, delivery: "refused" });
       return;

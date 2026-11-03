@@ -78,6 +78,7 @@ def node_payload(target, output, cache):
     (output / executable).chmod(0o755)
     for directory in ("src", "node"):
         shutil.copytree(ROOT / directory, output / "policy" / directory)
+    shutil.copytree(ROOT / "node_modules/ws", output / "policy/node_modules/ws")
     (output / "policy/package.json").write_text('{"type":"module"}\n')
     return executable, ["policy/node/main.ts"]
 

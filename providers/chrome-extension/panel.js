@@ -106,6 +106,13 @@ async function renderActivity(entries) {
 
 async function render() {
   if (!state) return;
+  $("profile-card").hidden = !state.profileAware;
+  $("profile-problem").hidden = !state.lastDisconnect;
+  $("profile-problem").textContent = state.lastDisconnect || "";
+  if (state.profileAware && state.profile) {
+    if (document.activeElement !== $("profile-name")) $("profile-name").value = state.profile.name;
+    $("profile-enabled").checked = state.profile.enabled;
+  }
   const live = state.granted || state.devtools;
   const status = $("status");
   status.textContent = !state.connected ? "Not connected" : state.devtools ? "DevTools access"
@@ -134,6 +141,10 @@ function connect() {
   });
   // The worker can restart; reconnect so the panel stays live.
   port.onDisconnect.addListener(() => setTimeout(connect, 500));
+  const configure = () => port.postMessage({ type: "profile.configure", name: $("profile-name").value.trim(), enabled: $("profile-enabled").checked });
+  $("profile-name").onchange = configure;
+  $("profile-enabled").onchange = configure;
+  $("profile-reset").onclick = () => port.postMessage({ type: "profile.reset" });
   $("clear").onclick = () => port.postMessage({ type: "clearActivity" });
 }
 

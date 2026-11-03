@@ -2,7 +2,7 @@
 
 Topic: `browser-profiles`
 
-Status: **scoped; implementation and multi-profile live qualification pending**.
+Status: **shared policy/profile protocol implemented; Windows integration and live qualification active**.
 
 ## Scope and current evidence
 
@@ -137,6 +137,16 @@ evidence and ordinary payload-free audit; local diagnostics can use opaque IDs
 and generations under the existing private retention policy.
 
 ## Delivery and next work
+
+**Decision for incremental adoption:** retain native-messaging frame protocol
+v1 and negotiate the additional profile protocol v1 through `hello.profile`
+and `profile.accepted`. The migrated Windows resident requires persistent
+profile metadata and keeps incompatible or colliding copies connected but
+unarmed with a typed refusal, avoiding a reconnect fight. Extension-local
+identity/name/availability are persistent; profile-aware enable/name/reset UI
+appears when the resident negotiates support. Pre-cutover Mac/Linux residents
+retain their existing single-profile behavior; this does not qualify them for
+named profiles or provide a legacy fallback on the migrated Windows resident.
 
 **Current:** the [shared resident core](shared-resident-core.md) passes the
 deterministic reference slice in [Tactical 150](../docs/tactical/150-shared-resident-core.md)

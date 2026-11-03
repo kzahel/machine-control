@@ -1,3 +1,9 @@
+import { CdpBridge } from "./cdp.ts";
+import { Profiles } from "../src/profiles.ts";
+import type { Profile } from "../src/profiles.ts";
+import { Streams } from "../src/streams.ts";
+import { parameters } from "../src/browser-contract.ts";
+import type { BrowserOperation } from "../src/browser-contract.ts";
 /** Inherited, trusted-native-host channel. Never expose this inlet to agents. */
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
@@ -33,10 +39,23 @@ function object(value: unknown): NativeFrame {
  */
 export class PolicyHost {
   readonly bootId = randomUUID();
-  readonly core = new ResidentCore({ now: () => Math.floor(performance.now()) });
+  readonly core = new ResidentCore({
+    now: () => Math.floor(performance.now()),
+  });
   readonly #send: (frame: NativeFrame) => void;
   readonly #providers = new Map<string, ExtensionProvider>();
   readonly #retired = new Set<string>();
+  readonly #profiles = new Profiles();
+  readonly #profileConnections = new Map<string, Profile>();
+  readonly #transportTags = new Map<string, string>();
+  readonly #waiters = new Map<string, (value: unknown) => void>();
+  readonly #requestAuthorities = new Map<string, string>();
+  readonly #nativeWaiters = new Map<string, (accepted: boolean) => void>();
+  readonly #streams = new Streams(this.core, {
+    now: () => Math.floor(performance.now()),
+  });
+  #cdp: CdpBridge | undefined;
+  #published = "";
   #approval: Approval | undefined;
   #hello = false;
   #sequence = 0;
@@ -53,10 +72,26 @@ export class PolicyHost {
       if (!this.#hello && frame.method !== "hello")
         throw new Error("host_handshake_required");
       const data = this.#invoke(frame);
-      this.#send({ type: "reply", id, ok: true, data });
+      this.#publish();
+      if (data instanceof Promise) {
+        void data
+          .then((result: unknown) => {
+            if (!this.#closed)
+              this.#send({ type: "reply", id, ok: true, data: result });
+          })
+          .catch((error: unknown) => {
+            if (!this.#closed)
+              this.#send({
+                type: "reply",
+                id,
+                ok: false,
+                errorCode: this.#error(error),
+              });
+          });
+      } else this.#send({ type: "reply", id, ok: true, data });
     } catch (error) {
       // Never reflect input or stack/page data into diagnostics.
-      const code = error instanceof CoreError ? error.code : "invalid_host_request";
+      const code = this.#error(error);
       this.#send({ type: "reply", id, ok: false, errorCode: code });
     }
   }
@@ -65,11 +100,14 @@ export class PolicyHost {
     if (this.#closed || !this.#hello) return;
     this.#consume(this.core.tick());
     this.#synchronize();
+    this.#publish();
   }
 
   wakeInMs(): number | null {
     const deadline = this.core.nextDeadline();
-    return deadline === null ? null : Math.max(1, deadline - Math.floor(performance.now()));
+    return deadline === null
+      ? null
+      : Math.max(1, deadline - Math.floor(performance.now()));
   }
 
   close(): void {
@@ -78,7 +116,10 @@ export class PolicyHost {
     this.#consume(this.core.stop());
     this.#approval = undefined;
     this.#synchronize();
+    this.#cdp?.close();
     this.#closed = true;
+    for (const resolve of this.#nativeWaiters.values()) resolve(false);
+    this.#nativeWaiters.clear();
     this.#providers.clear();
   }
 
@@ -97,47 +138,190 @@ export class PolicyHost {
         return { protocolVersion: 1, bootId: this.bootId };
       case "state":
         this.tick();
-        return { bootId: this.bootId, ...this.core.inspect(), host: {
-          engine: process.versions.bun ? "bun" : "node",
-          version: process.versions.bun ?? process.versions.node,
-          rssBytes: process.memoryUsage().rss,
-        } };
+        return {
+          bootId: this.bootId,
+          ...this.core.inspect(),
+          host: {
+            engine: process.versions.bun ? "bun" : "node",
+            version: process.versions.bun ?? process.versions.node,
+            rssBytes: process.memoryUsage().rss,
+          },
+        };
       case "provider.connect": {
         this.#prune();
         if (this.#providers.size >= 80) throw new Error("host_capacity");
-        const connection = this.core.connect(string(frame.profileId), "chrome.extension/cdp");
+        const connection = this.core.connect(
+          string(frame.profileId),
+          "chrome.extension/cdp",
+        );
         const connectionId = `${this.bootId}:${++this.#sequence}`;
+        if (typeof frame.transportTag === "string") this.#transportTags.set(connectionId, string(frame.transportTag));
         const provider = new ExtensionProvider(this.core, connection, {
-          send: (payload) => this.#send({ type: "provider.send", connectionId, frame: payload }),
+          send: (payload, command) =>
+            this.#send({
+              type: "provider.send",
+              connectionId,
+              transportTag: this.#transportTags.get(connectionId),
+              frame: payload,
+              ...(command
+                ? {
+                    authorityId: this.#requestAuthorities.get(
+                      command.requestId,
+                    ),
+                  }
+                : {}),
+            }),
           effects: (effects) => this.#consume(effects),
           fault: () => this.#send({ type: "provider.close", connectionId }),
         });
         this.#providers.set(connectionId, provider);
-        provider.synchronize();
+        if (frame.defer !== true) provider.synchronize();
         return { connectionId, generation: connection.generation };
       }
       case "provider.disconnect": {
         const provider = this.#provider(frame.connectionId);
         provider.disconnected();
+        const profile = this.#profileConnections.get(
+          string(frame.connectionId),
+        );
+        if (profile) this.#profiles.disconnected(profile, provider.connection);
+        this.#cdp?.sweep();
         this.#retired.add(string(frame.connectionId));
         this.#prune();
         return {};
       }
       case "provider.frame": {
         const provider = this.#provider(frame.connectionId);
-        const applied = provider.receive(object(frame.frame));
+        const payload = object(frame.frame);
+        const profile = this.#profileConnections.get(
+          string(frame.connectionId),
+        );
+        if (profile && payload.type === "profile.update") {
+          this.#profiles.update(profile, payload.profile);
+          if (!profile.enabled)
+            this.#consume(this.core.withdraw(provider.connection));
+          this.#synchronize();
+          return {};
+        }
+        const applied =
+          typeof payload.type === "string" &&
+          payload.type.startsWith("session.")
+            ? (this.#cdp?.receive(provider.connection, payload) ?? false)
+            : provider.receive(payload);
         this.#prune();
         return { applied };
       }
       case "operator.approve": {
-        if (!Array.isArray(frame.connectionIds)) throw new Error("invalid_host_request");
-        const providers = frame.connectionIds.map((value) => this.#provider(value));
-        const granted = this.core.approve(providers.map((provider) => provider.connection), integer(frame.durationMs));
+        if (!Array.isArray(frame.connectionIds))
+          throw new Error("invalid_host_request");
+        const providers = frame.connectionIds.map((value) =>
+          this.#provider(value),
+        );
+        const granted = this.core.approve(
+          providers.map((provider) => provider.connection),
+          integer(frame.durationMs),
+        );
         this.#approval = granted.approval;
         this.#consume(granted.effects);
         this.#synchronize();
         return { generation: granted.approval.generation };
       }
+      case "browser.attach": {
+        const hello = object(frame.hello);
+        if (
+          hello.protocolVersion !== 1 ||
+          typeof hello.extensionVersion !== "string" ||
+          hello.extensionVersion.length > 32
+        )
+          throw new Error("browser_profile_protocol_required");
+        const profile = this.#profiles.announce(
+          string(frame.extensionId),
+          hello.profile,
+        );
+        const data = this.#invoke({
+          method: "provider.connect",
+          profileId: profile.profileId,
+          defer: true,
+          transportTag: frame.transportTag,
+        }) as { connectionId: string };
+        const provider = this.#provider(data.connectionId);
+        profile.connection = provider.connection;
+        this.#profileConnections.set(data.connectionId, profile);
+        if (!profile.enabled)
+          this.#consume(this.core.withdraw(provider.connection));
+        this.#send({
+          type: "provider.send",
+          connectionId: data.connectionId,
+          transportTag: this.#transportTags.get(data.connectionId),
+          frame: {
+            type: "profile.accepted",
+            protocolVersion: 1,
+            profileId: profile.profileId,
+          },
+        });
+        this.#synchronize();
+        return { ...data, profileId: profile.profileId };
+      }
+      case "provider.retire": {
+        const id = string(frame.connectionId),
+          provider = this.#providers.get(id);
+        if (!provider) return {};
+        this.core.retire(provider.connection);
+        this.#providers.delete(id);
+        this.#retired.delete(id);
+        this.#profileConnections.delete(id);
+        return {};
+      }
+      case "native.state":
+        this.#consume(
+          this.core.availability(
+            frame.readable === true,
+            frame.writable === true,
+            string(frame.generation),
+          ),
+        );
+        this.#synchronize();
+        return {};
+      case "native.reply": {
+        const id = string(frame.nativeId),
+          resolve = this.#nativeWaiters.get(id);
+        if (resolve) {
+          this.#nativeWaiters.delete(id);
+          resolve(frame.accepted === true);
+        }
+        return {};
+      }
+      case "operator.configure": {
+        if (!Array.isArray(frame.scopes) || !Array.isArray(frame.profileIds))
+          throw new Error("invalid_host_request");
+        if (
+          !frame.scopes.includes("browser") &&
+          !frame.scopes.includes("devtools")
+        )
+          return this.#invoke({ method: "operator.stop" });
+        if (!frame.profileIds.length)
+          throw new Error("browser_profiles_required");
+        const connections = frame.profileIds.map((id) => {
+          const profile = this.#profiles.get(string(id));
+          if (!profile?.enabled)
+            throw new Error("profile_unavailable");
+          return profile.profileId;
+        });
+        const granted = this.core.approveKnownProfiles(
+          connections,
+          frame.durationMs === null ? null : integer(frame.durationMs),
+          { devtools: frame.scopes.includes("devtools") },
+        );
+        this.#approval = granted.approval;
+        this.#consume(granted.effects);
+        this.#synchronize();
+        return this.core.inspect();
+      }
+      case "browser.call":
+        return this.#browserCall(frame);
+      case "browser.cancel":
+        this.#consume(this.core.cancel(string(frame.requestId)));
+        return {};
       case "operator.stop":
         this.#consume(this.core.stop());
         this.#approval = undefined;
@@ -153,38 +337,75 @@ export class PolicyHost {
           timeoutMs: integer(frame.timeoutMs),
         };
         if (frame.authorizationGeneration !== this.#approval?.generation) {
-          this.#send({ type: "request.finished", result: {
-            ...common, operation: frame.operation, accepted: false,
-            actualRoute: provider.connection.route, providerGeneration: provider.connection.generation,
-            errorCode: "approval_required", delivery: "refused", effect: "refused",
-            uncertainty: "none", retrySafety: "safe_not_dispatched",
-          } });
+          this.#send({
+            type: "request.finished",
+            result: {
+              ...common,
+              operation: frame.operation,
+              accepted: false,
+              actualRoute: provider.connection.route,
+              providerGeneration: provider.connection.generation,
+              errorCode: "approval_required",
+              delivery: "refused",
+              effect: "refused",
+              uncertainty: "none",
+              retrySafety: "safe_not_dispatched",
+            },
+          });
           return {};
         }
         let request: BrowserRequest;
         if (frame.operation === "browser.tabs") {
-          request = { ...common, operation: frame.operation, connection: provider.connection };
+          request = {
+            ...common,
+            operation: frame.operation,
+            connection: provider.connection,
+          };
         } else if (frame.operation === "browser.snapshot") {
-          request = { ...common, operation: frame.operation, connection: provider.connection, tabId: integer(frame.tabId) };
+          request = {
+            ...common,
+            operation: frame.operation,
+            connection: provider.connection,
+            tabId: integer(frame.tabId),
+          };
         } else if (frame.operation === "browser.click") {
           const prefix = this.#referencePrefix(provider.connection.generation);
-          if (typeof frame.reference !== "string" || frame.reference.length > 768)
+          if (
+            typeof frame.reference !== "string" ||
+            frame.reference.length > 768
+          )
             throw new Error("invalid_host_request");
           if (!frame.reference.startsWith(prefix)) {
-            this.#send({ type: "request.finished", result: {
-              ...common, operation: frame.operation, accepted: false,
-              actualRoute: provider.connection.route, providerGeneration: provider.connection.generation,
-              errorCode: "stale_reference", delivery: "refused", effect: "refused",
-              uncertainty: "none", retrySafety: "safe_not_dispatched",
-            } });
+            this.#send({
+              type: "request.finished",
+              result: {
+                ...common,
+                operation: frame.operation,
+                accepted: false,
+                actualRoute: provider.connection.route,
+                providerGeneration: provider.connection.generation,
+                errorCode: "stale_reference",
+                delivery: "refused",
+                effect: "refused",
+                uncertainty: "none",
+                retrySafety: "safe_not_dispatched",
+              },
+            });
             return {};
           }
-          request = { ...common, operation: frame.operation, reference: {
-            connection: provider.connection, target: frame.reference.slice(prefix.length),
-          } };
+          request = {
+            ...common,
+            operation: frame.operation,
+            reference: {
+              connection: provider.connection,
+              target: frame.reference.slice(prefix.length),
+            },
+          };
         } else throw new Error("invalid_host_request");
         // The core refuses an absent approval through the normal typed path.
-        const approval = this.#approval ?? Object.freeze({ generation: 0, profiles: [], expiresAt: 0 });
+        const approval =
+          this.#approval ??
+          Object.freeze({ generation: 0, profiles: [], expiresAt: 0 });
         this.#consume(this.core.request(approval, request));
         return {};
       }
@@ -196,23 +417,39 @@ export class PolicyHost {
   #consume(effects: readonly Effect[]): void {
     for (const effect of effects) {
       if (effect.type === "request.finished") {
-        const result = effect.result;
+        let result = effect.result;
         if (result.accepted && result.operation === "browser.snapshot") {
           const data = object(result.data);
-          if (!Array.isArray(data.elements)) throw new Error("invalid_provider_data");
+          if (!Array.isArray(data.elements))
+            throw new Error("invalid_provider_data");
           const prefix = this.#referencePrefix(result.providerGeneration!);
-          this.#send({ type: "request.finished", result: { ...result, data: {
-            ...data, elements: data.elements.map((element) => {
-              const value = object(element);
-              return { ...value, reference: prefix + value.reference };
-            }),
-          } } });
-        } else this.#send({ type: "request.finished", result });
+          result = {
+            ...result,
+            data: {
+              ...data,
+              elements: data.elements.map((element) => {
+                const value = object(element);
+                return { ...value, reference: prefix + value.reference };
+              }),
+            },
+          };
+        }
+        this.#send({ type: "request.finished", result });
+        const resolve = this.#waiters.get(result.requestId);
+        if (resolve) {
+          this.#waiters.delete(result.requestId);
+          this.#requestAuthorities.delete(result.requestId);
+          resolve(result);
+        }
       } else {
-        const provider = [...this.#providers.values()].find((item) => item.connection === effect.command.connection);
+        const provider = [...this.#providers.values()].find(
+          (item) => item.connection === effect.command.connection,
+        );
         if (!provider) continue;
         if (effect.type === "provider.dispatch")
-          dispatchToProvider(this.core, provider, effect.command, (effects) => this.#consume(effects));
+          dispatchToProvider(this.core, provider, effect.command, (effects) =>
+            this.#consume(effects),
+          );
         else provider.cancel(effect.command);
       }
     }
@@ -220,16 +457,199 @@ export class PolicyHost {
 
   #synchronize(): void {
     for (const provider of this.#providers.values()) provider.synchronize();
+    this.#cdp?.sweep();
   }
 
   #referencePrefix(connectionGeneration: number): string {
-    return `${this.bootId}:${connectionGeneration}:${this.#approval?.generation ?? 0}:`;
+    return `${this.bootId}:${connectionGeneration}:${this.core.inspect().authorizationGeneration}:`;
+  }
+
+  #error(error: unknown): string {
+    const message =
+      error instanceof Error ? error.message : "invalid_host_request";
+    return /^[a-z][a-z0-9_]{0,100}$/.test(message)
+      ? message
+      : "invalid_host_request";
+  }
+
+  #publish(): void {
+    const state = this.core.inspect();
+    const projection = {
+      ...state,
+      profiles: this.#profiles.state(),
+      effectiveScopes: state.approvedProfiles.length
+        ? state.devtools
+          ? ["browser", "devtools"]
+          : ["browser"]
+        : [],
+    };
+    const serialized = JSON.stringify(projection);
+    if (serialized === this.#published) return;
+    this.#published = serialized;
+    this.#send({ type: "browser.state", state: projection });
+  }
+
+  #native(
+    phase: "check" | "begin" | "result",
+    authorityId: string,
+    auditId: string,
+    delivery?: "confirmed" | "unknown",
+  ): Promise<boolean> {
+    if (this.#closed || this.#nativeWaiters.size >= 256)
+      return Promise.resolve(false);
+    const nativeId = `native:${++this.#sequence}`;
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.#nativeWaiters.delete(nativeId);
+        resolve(false);
+      }, 3000);
+      this.#nativeWaiters.set(nativeId, (accepted) => {
+        clearTimeout(timer);
+        resolve(accepted);
+      });
+      this.#send({
+        type: "native.check",
+        nativeId,
+        phase,
+        authorityId,
+        auditId,
+        ...(delivery ? { delivery } : {}),
+      });
+    });
+  }
+
+  #browserCall(frame: NativeFrame): unknown {
+    this.tick();
+    const request = object(frame.request),
+      requestId = string(frame.requestId),
+      authorityId = string(frame.authorityId);
+    const operation = string(request.operation);
+    if (operation === "browser.profiles")
+      return {
+        accepted: true,
+        delivery: "confirmed",
+        effect: "not_applicable",
+        data: { profiles: this.#profiles.state() },
+      };
+    const selector =
+      request.browserProfileId === undefined
+        ? undefined
+        : request.browserProfileId;
+    if (
+      selector !== undefined &&
+      (typeof selector !== "string" ||
+        selector.length < 1 ||
+        selector.length > 128 ||
+        /[\u0000-\u001f\u007f]/.test(selector))
+    )
+      throw new Error("invalid_request");
+    const profile = this.#profiles.select(
+      selector,
+      this.core.inspect().selectedProfiles,
+    );
+    const connection = profile.connection!;
+    const common = {
+      requestId,
+      profileId: profile.profileId,
+      operation,
+      actualRoute: connection.route,
+      providerGeneration: connection.generation,
+    };
+    const refuse = (errorCode: string) => ({
+      ...common,
+      accepted: false,
+      delivery: "refused",
+      effect: "refused",
+      uncertainty: "none",
+      retrySafety: "safe_not_dispatched",
+      errorCode,
+    });
+    if (operation === "browser.endpoint") {
+      const fence =
+        this.#approval &&
+        this.core.fence(this.#approval, connection, "browser.cdp");
+      if (!fence) return refuse("approval_required");
+      this.#cdp ??= new CdpBridge(
+        this.#streams,
+        (phase, owner, audit, delivery) =>
+          this.#native(phase, owner, audit, delivery),
+        (target, payload, owner) => {
+          const id = [...this.#providers].find(
+            ([, adapter]) => adapter.connection === target,
+          )?.[0];
+          if (id)
+            this.#send({
+              type: "provider.send",
+              connectionId: id,
+              transportTag: this.#transportTags.get(id),
+              frame: payload,
+              ...(owner ? { authorityId: owner } : {}),
+            });
+        },
+      );
+      return this.#cdp
+        .endpoint(fence, authorityId)
+        .then((data) => ({
+          ...common,
+          accepted: true,
+          delivery: "confirmed",
+          effect: "not_applicable",
+          uncertainty: "none",
+          retrySafety: "safe_observation",
+          data,
+        }));
+    }
+    if (this.#waiters.size >= 64 || this.#waiters.has(requestId))
+      return refuse("capacity_exceeded");
+    const payload = { ...request };
+    for (const key of [
+      "operation",
+      "requestId",
+      "expectedGeneration",
+      "browserProfileId",
+      "scopes",
+      "reason",
+    ])
+      delete payload[key];
+    if (payload.reference !== undefined) {
+      const prefix = this.#referencePrefix(connection.generation);
+      if (
+        typeof payload.reference !== "string" ||
+        !payload.reference.startsWith(prefix)
+      )
+        return refuse("stale_reference");
+      payload.reference = payload.reference.slice(prefix.length);
+    }
+    const params = parameters(payload);
+    const timeoutMs =
+      request.timeoutMs === undefined ? 45000 : integer(request.timeoutMs);
+    return new Promise((resolve, reject) => {
+      this.#waiters.set(requestId, resolve);
+      this.#requestAuthorities.set(requestId, authorityId);
+      try {
+        this.#consume(
+          this.core.request(this.#approval!, {
+            requestId,
+            profileId: profile.profileId,
+            connection,
+            operation: operation as BrowserOperation,
+            params,
+            timeoutMs,
+          }),
+        );
+      } catch (error) {
+        this.#waiters.delete(requestId);
+        this.#requestAuthorities.delete(requestId);
+        reject(error);
+      }
+    });
   }
 
   #prune(): void {
     for (const id of this.#retired) {
       if (this.#providers.get(id)?.pendingCount === 0) {
         this.#providers.delete(id);
+        this.#profileConnections.delete(id);
         this.#retired.delete(id);
       }
     }

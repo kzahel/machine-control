@@ -1,4 +1,5 @@
 /** Typed adapter for the existing extension protocol; the core owns authority. */
+import { parameters } from "./browser-contract.ts";
 import { ResidentCore } from "./core.ts";
 import type {
   DispatchCommand,
@@ -30,6 +31,7 @@ function tabId(value: unknown): number {
 /** Strip undeclared fields and bound observations before returning them. */
 function observation(command: DispatchCommand, value: unknown): unknown {
   const data = record(value);
+  if ("params" in command) return parameters(data, 48 * 1024 * 1024);
   if (command.operation === "browser.tabs") {
     if (!Array.isArray(data.tabs) || data.tabs.length > 256)
       throw new Error("invalid_provider_data");
@@ -87,7 +89,7 @@ function observation(command: DispatchCommand, value: unknown): unknown {
 export class ExtensionProvider implements ProviderAdapter {
   readonly connection: ProviderConnection;
   readonly #core: ResidentCore;
-  readonly #send: (frame: NativeFrame) => void;
+  readonly #send: (frame: NativeFrame, command?: DispatchCommand) => void;
   readonly #effects: (effects: readonly Effect[]) => void;
   readonly #fault: () => void;
   readonly #pending = new Map<string, DispatchCommand>();
@@ -95,13 +97,15 @@ export class ExtensionProvider implements ProviderAdapter {
   #active = true;
   #published = "";
 
-  get pendingCount(): number { return this.#pending.size; }
+  get pendingCount(): number {
+    return this.#pending.size;
+  }
 
   constructor(
     core: ResidentCore,
     connection: ProviderConnection,
     transport: {
-      send(frame: NativeFrame): void;
+      send(frame: NativeFrame, command?: DispatchCommand): void;
       effects(effects: readonly Effect[]): void;
       fault(): void;
     },
@@ -119,20 +123,23 @@ export class ExtensionProvider implements ProviderAdapter {
     const state = this.#core.inspect();
     const browser = state.approvedProfiles.includes(this.connection.profileId);
     const grantGeneration = `shared:${state.authorizationGeneration}:${this.connection.generation}`;
-    const key = `${browser}:${grantGeneration}`;
+    const devtools = browser && state.devtools;
+    const key = `${browser}:${devtools}:${grantGeneration}`;
     if (key === this.#published) return;
     this.#published = key;
-    this.#write({ type: "grant", browser, devtools: false, grantGeneration });
+    this.#write({ type: "grant", browser, devtools, grantGeneration });
   }
 
   execute(command: DispatchCommand, timeoutMs: number): void {
     if (!this.#active || command.connection !== this.connection) return;
     const params =
-      command.operation === "browser.click"
-        ? { reference: command.target }
-        : command.operation === "browser.snapshot"
-          ? { tabId: command.tabId, maxElements: 64, interactiveOnly: true }
-          : {};
+      "params" in command
+        ? command.params
+        : command.operation === "browser.click"
+          ? { reference: command.target }
+          : command.operation === "browser.snapshot"
+            ? { tabId: command.tabId, maxElements: 64, interactiveOnly: true }
+            : {};
     const id = `${this.connection.generation}:${++this.#sequence}`;
     if (timeoutMs < 100) {
       // The worker's minimum budget is 100 ms. Refuse rather than dispatch
@@ -145,13 +152,16 @@ export class ExtensionProvider implements ProviderAdapter {
       );
     } else {
       this.#pending.set(id, command);
-      this.#write({
-        type: "request",
-        id,
-        operation: command.operation,
-        params,
-        timeoutMs: Math.min(30_000, timeoutMs),
-      });
+      this.#write(
+        {
+          type: "request",
+          id,
+          operation: command.operation,
+          params,
+          timeoutMs: Math.min(30_000, timeoutMs),
+        },
+        command,
+      );
     }
   }
 
@@ -178,6 +188,8 @@ export class ExtensionProvider implements ProviderAdapter {
         ? { ok: true as const, data: observation(command, frame.data) }
         : {
             ok: false as const,
+            ...(typeof frame.errorCode === "string" && /^[a-z][a-z0-9_]{0,100}$/.test(frame.errorCode) ? { errorCode: frame.errorCode } : {}),
+            ...(typeof frame.message === "string" ? { message: frame.message.slice(0, 512) } : {}),
             delivery:
               frame.delivery === "refused"
                 ? ("refused" as const)
@@ -199,9 +211,9 @@ export class ExtensionProvider implements ProviderAdapter {
     this.#effects(this.#core.disconnect(this.connection));
   }
 
-  #write(frame: NativeFrame): void {
+  #write(frame: NativeFrame, command?: DispatchCommand): void {
     try {
-      this.#send(frame);
+      this.#send(frame, command);
     } catch {
       this.#fail();
     }

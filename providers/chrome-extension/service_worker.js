@@ -45,6 +45,33 @@ let lastDisconnect = "";
 let retryDelayMs = 1000;
 let retryTimer = null;
 let operationsHash;
+let profileAware = false;
+let profile;
+const profileLoaded = chrome.storage.local.get("machineControlProfile").then(async (stored) => {
+  const saved = stored.machineControlProfile;
+  profile = saved && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(saved.installationId) && typeof saved.name === "string"
+    && saved.name.trim() === saved.name && saved.name.length > 0 && saved.name.length <= 64
+    && !/[\u0000-\u001f\u007f]/.test(saved.name) && typeof saved.enabled === "boolean"
+    ? { protocolVersion: 1, installationId: saved.installationId, name: saved.name, enabled: saved.enabled }
+    : { protocolVersion: 1, installationId: crypto.randomUUID(), name: "Browser profile", enabled: false };
+  await chrome.storage.local.set({ machineControlProfile: profile });
+});
+async function updateProfile(next) {
+  await profileLoaded;
+  if (!next || typeof next.name !== "string" || next.name.trim() !== next.name || next.name.length < 1 || next.name.length > 64
+      || /[\u0000-\u001f\u007f]/.test(next.name) || typeof next.enabled !== "boolean"
+      || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(next.installationId)) return;
+  if (JSON.stringify(profile) === JSON.stringify(next)) return;
+  const changedIdentity = profile.installationId !== next.installationId;
+  profile = { protocolVersion: 1, installationId: next.installationId, name: next.name, enabled: next.enabled };
+  if (profileAware && !profile.enabled) { granted = false; devtools = false; disconnectCleanup = detachAll(); }
+  if (changedIdentity) port?.disconnect();
+  else if (profileAware) port?.postMessage({ type: "profile.update", profile });
+  updateBadge();
+}
+chrome.storage.onChanged?.addListener((changes, area) => {
+  if (area === "local" && changes.machineControlProfile) void updateProfile(changes.machineControlProfile.newValue);
+});
 
 async function providerInfo() {
   // Hash the executing operations, not a fetch of files that may have changed
@@ -127,6 +154,7 @@ function scheduleReconnect() {
 
 async function connect() {
   await initialized;
+  await profileLoaded;
   await disconnectCleanup;
   if (port) return;
   clearTimeout(retryTimer);
@@ -142,18 +170,29 @@ async function connect() {
   const connection = port;
   port.onMessage.addListener((message) => {
     if (port !== connection) return;
-    // Any message means the resident accepted this connection.
-    retryDelayMs = 1000;
-    lastDisconnect = "";
+    if (message?.type === "profile.accepted" && message.protocolVersion === 1) {
+      profileAware = true;
+      retryDelayMs = 1000; lastDisconnect = "";
+      if (!profile.enabled) { granted = false; devtools = false; disconnectCleanup = detachAll(); }
+      updateBadge(); return;
+    }
+    if (message?.type === "profile.refused") {
+      profileAware = message.protocolVersion === 1;
+      retryDelayMs = 60000; lastDisconnect = String(message.reason || "Update the extension and app");
+      granted = false; devtools = false; disconnectCleanup = detachAll(); updateBadge(); return;
+    }
     // Authority changes and recovery never queue behind page work.
     if (message?.type === "grant") {
+      retryDelayMs = 1000; lastDisconnect = "";
+      const browserAllowed = message.browser === true && (!profileAware || profile.enabled);
+      const devtoolsAllowed = message.devtools === true && (!profileAware || profile.enabled);
       const changed = (grantGeneration !== null && typeof message.grantGeneration === "string"
         && grantGeneration !== message.grantGeneration)
-        || granted !== (message.browser === true) || devtools !== (message.devtools === true);
+        || granted !== browserAllowed || devtools !== devtoolsAllowed;
       if (typeof message.grantGeneration === "string") grantGeneration = message.grantGeneration;
       if (changed) disconnectCleanup = detachAll();
-      granted = message.browser === true;
-      devtools = message.devtools === true;
+      granted = browserAllowed;
+      devtools = devtoolsAllowed;
       if (!devtools) streaming.closeAll("devtools_grant_ended").catch(() => {});
       updateBadge();
       return;
@@ -171,6 +210,7 @@ async function connect() {
     // Reading lastError marks it handled, so Chrome does not report it.
     lastDisconnect = chrome.runtime.lastError?.message || "disconnected";
     port = null;
+    profileAware = false;
     granted = false;
     devtools = false;
     authorityGeneration += 1;
@@ -184,6 +224,7 @@ async function connect() {
     protocolVersion: PROTOCOL_VERSION,
     extensionVersion: chrome.runtime.getManifest().version,
     userAgent: navigator.userAgent,
+    profile,
   });
   updateBadge();
 }
@@ -199,7 +240,7 @@ let panelTimer = null;
 
 function panelState() {
   return {
-    type: "state", connected: port !== null, lastDisconnect, granted, devtools,
+    type: "state", profileAware, profile, connected: port !== null, lastDisconnect, granted, devtools,
     controlledTabs: [...attached], streams: streaming.sessions.size, activity,
   };
 }
@@ -250,6 +291,17 @@ chrome.runtime.onConnect.addListener((panel) => {
   panels.add(panel);
   panel.onDisconnect.addListener(() => panels.delete(panel));
   panel.onMessage.addListener((message) => {
+    if (message?.type === "profile.configure" && profileAware) {
+      const next = { ...profile, name: message.name, enabled: message.enabled };
+      if (typeof next.name === "string" && next.name.length > 0 && next.name.length <= 64 && next.name.trim() === next.name
+          && !/[\u0000-\u001f\u007f]/.test(next.name) && typeof next.enabled === "boolean") {
+        void chrome.storage.local.set({ machineControlProfile: next }).then(() => updateProfile(next));
+      }
+    }
+    if (message?.type === "profile.reset" && profileAware) {
+      const next = { ...profile, installationId: crypto.randomUUID(), enabled: false };
+      void chrome.storage.local.set({ machineControlProfile: next }).then(() => updateProfile(next));
+    }
     if (message?.type === "clearActivity") {
       activity.length = 0;
       notifyPanels();

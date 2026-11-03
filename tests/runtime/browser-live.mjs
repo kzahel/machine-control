@@ -462,7 +462,7 @@ export async function runBrowserAcceptance() {
     assert.equal(host.wireRequests, restartRequests);
     approval = await host.approve(["work", "personal"]);
     assert.equal((await call(approval, "work", "browser.click", { reference: killedReference })).errorCode, "stale_reference");
-    await assert.rejects(killedGate.release(), /invalid_host_request/);
+    await assert.rejects(killedGate.release(), /unknown_connection/);
     const afterRestart = await button(approval, "personal");
     await accepted(approval, "personal", "browser.click", { reference: afterRestart });
     await poll(() => counters.personal === 4, "fresh independent effect after policy restart");

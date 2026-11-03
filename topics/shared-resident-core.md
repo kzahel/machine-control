@@ -149,12 +149,13 @@ desktop grants and protected watchdogs remain native until their own migration.
 Mixed desktop/browser approval needs explicit composition and rollback; do
 not silently interpret an old consent record as an exact profile set.
 
-The [private host inlet](../runtime/PROTOCOL.md) is implemented for three typed
-operations and finite fixture approvals. Production adoption still needs
-profile-aware identity, all ordinary operations and DevTools streams,
-indefinite operator lifetimes, native admission fences and a bounded
-quiescence/reclamation policy for lost dispatched work. The installed Windows
-grant/relay code has not yet been replaced. Mac and Linux adopt this proven
+The [private host inlet](../runtime/PROTOCOL.md) now includes profile-aware
+identity, the complete ordinary operation vocabulary, DevTools endpoints and
+streams, indefinite operator consent and native safety/owner checks. Reference
+providers exercise those policies with independent stateful effects. Dead
+transport retirement releases correlation capacity without changing unknown
+application effects. Windows native integration and packaged acceptance remain
+in progress; installed consumers have not yet completed their cutover. Mac and Linux adopt this proven
 boundary after the complete Windows candidate, without porting another policy
 engine into Swift or Python.
 

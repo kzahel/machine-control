@@ -67,6 +67,13 @@ authorized for redistribution by this script. No system installation changes.
 
 ## Boundary
 
+The shared host now owns ordinary browser policy and CDP endpoint/session
+lifetime, with `profiles.ts` and `streams.ts` providing portable selection,
+identity and reservation policy. `node/cdp.ts` supplies bounded WebSocket I/O
+using pinned `ws` 8.22.1 (MIT); Node payloads retain its upstream LICENSE.
+Every stream is bound to native owner checks and payload-free native audit
+acknowledgements. The native parent supplies safety and caller authority facts.
+
 `src/core.ts` owns bounded provider registration, exact-profile finite approval,
 typed browser tabs/snapshots/clicks, queue/dispatch lifetime, deadlines and revocation.
 `testing/reference-provider.ts` owns a manual clock and an independent counter

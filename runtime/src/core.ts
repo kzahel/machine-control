@@ -1,3 +1,12 @@
+import {
+  browserOperations,
+  parameters,
+  observes,
+  needsDevtools,
+} from "./browser-contract.ts";
+import type { BrowserOperation, Parameters } from "./browser-contract.ts";
+export type { BrowserOperation } from "./browser-contract.ts";
+
 /** Resident policy only: no OS, transport, interpreter, UI, or provider I/O. */
 export interface Clock {
   /** Monotonic integer milliseconds, supplied independently of wall time. */
@@ -16,6 +25,7 @@ export interface Approval {
   readonly generation: number;
   readonly profiles: readonly string[];
   readonly expiresAt: number;
+  readonly devtools?: boolean;
 }
 
 interface RequestIdentity {
@@ -32,7 +42,19 @@ export interface ClickRequest extends RequestIdentity {
   };
 }
 
+export interface OperationRequest extends RequestIdentity {
+  readonly operation: BrowserOperation;
+  readonly connection: ProviderConnection;
+  readonly params: Parameters;
+}
+
+export interface AuthorityFence {
+  readonly connection: ProviderConnection;
+  readonly authorizationGeneration: number;
+}
+
 export type BrowserRequest =
+  | OperationRequest
   | ClickRequest
   | (RequestIdentity &
       (
@@ -47,11 +69,6 @@ export type BrowserRequest =
           }
       ));
 
-export type BrowserOperation =
-  | "browser.click"
-  | "browser.tabs"
-  | "browser.snapshot";
-
 /** Immutable correlation handle, translated by a future authenticated adapter. */
 interface DispatchIdentity {
   readonly requestId: string;
@@ -61,6 +78,7 @@ interface DispatchIdentity {
 
 export type DispatchCommand = DispatchIdentity &
   (
+    | { readonly operation: BrowserOperation; readonly params: Parameters }
     | { readonly operation: "browser.click"; readonly target: string }
     | { readonly operation: "browser.tabs" }
     | { readonly operation: "browser.snapshot"; readonly tabId: number }
@@ -75,7 +93,7 @@ export interface ProviderAdapter {
 
 export type ProviderReply =
   | { readonly ok: true; readonly data?: unknown }
-  | { readonly ok: false; readonly delivery: "refused" | "unknown" };
+  | { readonly ok: false; readonly delivery: "refused" | "unknown"; readonly errorCode?: string; readonly message?: string };
 
 export type RefusalCode =
   | "approval_required"
@@ -89,7 +107,10 @@ export type RefusalCode =
   | "approval_expired"
   | "provider_disconnected"
   | "request_timeout"
-  | "provider_failed";
+  | "provider_failed"
+  | "access_paused"
+  | "stale_generation"
+  | "scope_not_approved";
 
 interface ResultIdentity {
   readonly requestId: string;
@@ -117,7 +138,8 @@ export type ActionResult = ResultIdentity &
         readonly effect: "refused";
         readonly uncertainty: "none";
         readonly retrySafety: "safe_not_dispatched";
-        readonly errorCode: RefusalCode;
+        readonly errorCode: string;
+        readonly message?: string;
       }
     | {
         readonly accepted: false;
@@ -125,7 +147,8 @@ export type ActionResult = ResultIdentity &
         readonly effect: "unknown";
         readonly uncertainty: "action_may_have_executed";
         readonly retrySafety: "observe_before_retry";
-        readonly errorCode: RefusalCode;
+        readonly errorCode: string;
+        readonly message?: string;
       }
   );
 
@@ -188,11 +211,15 @@ export class ResidentCore {
   readonly #maxProviders: number;
   readonly #maxRequests: number;
   readonly #providers = new Map<string, ProviderConnection>();
+  readonly #knownProfiles = new Set<string>();
   readonly #pending = new Map<DispatchCommand, Pending>();
   // Stop ends authority, not the physical provider call. Retain its slot until
   // that exact connection returns, even if a new approval has been issued.
   readonly #unsettled = new Set<DispatchCommand>();
   #approval: Approval | undefined;
+  readonly #withdrawn = new Set<string>();
+  readonly #fences = new WeakSet<AuthorityFence>();
+  #availability = { readable: true, writable: true, generation: "initial" };
   #providerGeneration = 0;
   #authorizationGeneration = 0;
   #lastTime = 0;
@@ -220,18 +247,21 @@ export class ResidentCore {
       route,
       generation: ++this.#providerGeneration,
     });
+    if (!this.#knownProfiles.has(profileId) && this.#knownProfiles.size >= 256) throw new CoreError("capacity_exceeded");
+    this.#knownProfiles.add(profileId);
     this.#providers.set(profileId, connection);
     return connection;
   }
 
   approve(
     connections: readonly ProviderConnection[],
-    durationMs: number,
+    durationMs: number | null,
+    options: { devtools?: boolean } = {},
   ): {
     readonly approval: Approval;
     readonly effects: readonly Effect[];
   } {
-    duration(durationMs, 28_800_000);
+    if (durationMs !== null) duration(durationMs, 28_800_000);
     if (
       connections.length === 0 ||
       new Set(connections).size !== connections.length ||
@@ -242,19 +272,29 @@ export class ResidentCore {
     ) {
       throw new CoreError("invalid_request");
     }
+    return this.approveKnownProfiles(connections.map((connection) => connection.profileId), durationMs, options);
+  }
+
+  /** Trusted operator selection of previously authenticated installation IDs. */
+  approveKnownProfiles(profileIds: readonly string[], durationMs: number | null, options: { devtools?: boolean } = {}): { readonly approval: Approval; readonly effects: readonly Effect[] } {
+    if (durationMs !== null) duration(durationMs, 28_800_000);
+    if (!profileIds.length || profileIds.length > this.#maxProviders || new Set(profileIds).size !== profileIds.length ||
+        profileIds.some((id) => !this.#knownProfiles.has(id))) throw new CoreError("invalid_request");
     const now = this.#now();
-    if (!Number.isSafeInteger(now + durationMs))
+    if (durationMs !== null && !Number.isSafeInteger(now + durationMs))
       throw new CoreError("clock_invalid");
     const effects = this.#expire(now);
     this.#approval = undefined;
+    this.#withdrawn.clear();
     for (const pending of this.#pending.values())
       this.#end(pending, "approval_replaced", effects);
     const approval = Object.freeze({
       generation: ++this.#authorizationGeneration,
       profiles: Object.freeze(
-        connections.map((connection) => connection.profileId),
+        [...profileIds],
       ),
-      expiresAt: now + durationMs,
+      expiresAt: durationMs === null ? Infinity : now + durationMs,
+      devtools: options.devtools === true,
     });
     this.#approval = approval;
     return { approval, effects };
@@ -264,7 +304,10 @@ export class ResidentCore {
     identifier(request.requestId);
     identifier(request.profileId);
     duration(request.timeoutMs, 45_000);
-    if (
+    if ("params" in request) {
+      if (!browserOperations.includes(request.operation))
+        throw new CoreError("invalid_request");
+    } else if (
       request.operation === undefined ||
       request.operation === "browser.click"
     ) {
@@ -287,9 +330,14 @@ export class ResidentCore {
     };
     if (!this.#approval || this.#approval !== approval)
       return reject("approval_required");
-    if (!approval.profiles.includes(request.profileId))
+    if (
+      !approval.profiles.includes(request.profileId) ||
+      this.#withdrawn.has(request.profileId)
+    )
       return reject("profile_not_approved");
     if (!connection) return reject("profile_unavailable");
+    const permission = this.#permission(request.operation ?? "browser.click");
+    if (permission) return reject(permission);
     const requestedConnection =
       "reference" in request
         ? request.reference.connection
@@ -309,22 +357,28 @@ export class ResidentCore {
     const identity: DispatchIdentity = {
       requestId: request.requestId,
       connection,
-      authorizationGeneration: approval.generation,
+      authorizationGeneration: this.#authorizationGeneration,
     };
     const command: DispatchCommand =
-      request.operation === "browser.tabs"
-        ? Object.freeze({ ...identity, operation: "browser.tabs" })
-        : request.operation === "browser.snapshot"
-          ? Object.freeze({
-              ...identity,
-              operation: "browser.snapshot",
-              tabId: request.tabId,
-            })
-          : Object.freeze({
-              ...identity,
-              operation: "browser.click",
-              target: request.reference.target,
-            });
+      "params" in request
+        ? Object.freeze({
+            ...identity,
+            operation: request.operation,
+            params: parameters(request.params),
+          })
+        : request.operation === "browser.tabs"
+          ? Object.freeze({ ...identity, operation: "browser.tabs" })
+          : request.operation === "browser.snapshot"
+            ? Object.freeze({
+                ...identity,
+                operation: "browser.snapshot",
+                tabId: request.tabId,
+              })
+            : Object.freeze({
+                ...identity,
+                operation: "browser.click",
+                target: request.reference.target,
+              });
     this.#pending.set(command, {
       command,
       approval,
@@ -354,6 +408,9 @@ export class ResidentCore {
       return { started: false, effects };
     if (
       this.#approval !== pending.approval ||
+      command.authorizationGeneration !== this.#authorizationGeneration ||
+      this.#withdrawn.has(command.connection.profileId) ||
+      this.#permission(command.operation) !== null ||
       this.#providers.get(command.connection.profileId) !== command.connection
     ) {
       this.#end(pending, "approval_required", effects);
@@ -405,7 +462,7 @@ export class ResidentCore {
           retrySafety: "observe_before_retry",
           ...(reply.data === undefined ? {} : { data: reply.data }),
         })
-      : this.#failure(command, "provider_failed", reply.delivery === "unknown");
+      : Object.freeze({ ...this.#failure(command, reply.errorCode ?? "provider_failed", reply.delivery === "unknown"), ...(reply.message ? { message: reply.message } : {}) });
     effects.push({ type: "request.finished", result });
     return { applied: true, effects };
   }
@@ -419,6 +476,13 @@ export class ResidentCore {
       if (pending.command.connection === connection)
         this.#end(pending, "provider_disconnected", effects);
     }
+    return effects;
+  }
+
+  cancel(requestId: string): readonly Effect[] {
+    const effects = this.tick();
+    for (const pending of this.#pending.values())
+      if (pending.command.requestId === requestId) this.#end(pending, "request_timeout", effects);
     return effects;
   }
 
@@ -450,19 +514,122 @@ export class ResidentCore {
     readonly unsettledDispatches: number;
     readonly retainedRequests: number;
     readonly authorizationGeneration: number;
+    readonly devtools: boolean;
+    readonly selectedProfiles: readonly string[];
+    readonly remainingMs: number | null;
   } {
     const now = this.#now();
     return {
       connectedProfiles: [...this.#providers.keys()],
       approvedProfiles:
         this.#approval && this.#approval.expiresAt > now
-          ? [...this.#approval.profiles]
+          ? this.#approval.profiles.filter(
+              (id) => !this.#withdrawn.has(id) && this.#availability.readable,
+            )
           : [],
       pendingRequests: this.#pending.size,
       unsettledDispatches: this.#unsettled.size,
       retainedRequests: this.#retained(),
       authorizationGeneration: this.#authorizationGeneration,
+      devtools:
+        this.#approval?.devtools === true && this.#availability.writable,
+      selectedProfiles:
+        this.#approval?.profiles.filter((id) => !this.#withdrawn.has(id)) ?? [],
+      remainingMs:
+        this.#approval && Number.isFinite(this.#approval.expiresAt)
+          ? Math.max(0, this.#approval.expiresAt - now)
+          : null,
     };
+  }
+
+  /** Native host confirms the disconnected transport is permanently disposed.
+   * Releases correlation capacity, never changes the already-unknown result. */
+  retire(connection: ProviderConnection): void {
+    if (this.#providers.get(connection.profileId) === connection)
+      throw new CoreError("invalid_request");
+    for (const command of this.#unsettled)
+      if (command.connection === connection) this.#unsettled.delete(command);
+  }
+
+  /** Withdraw one profile without invalidating unrelated live profiles. */
+  withdraw(connection: ProviderConnection): readonly Effect[] {
+    const effects = this.tick();
+    if (this.#providers.get(connection.profileId) !== connection)
+      return effects;
+    this.#withdrawn.add(connection.profileId);
+    for (const pending of this.#pending.values())
+      if (pending.command.connection === connection)
+        this.#end(pending, "profile_not_approved", effects);
+    return effects;
+  }
+
+  /** Native safety is an input and a denial ceiling, never an approval. */
+  availability(
+    readable: boolean,
+    writable: boolean,
+    generation: string,
+  ): readonly Effect[] {
+    boundedText(generation, 128);
+    if (typeof readable !== "boolean" || typeof writable !== "boolean")
+      throw new CoreError("invalid_request");
+    const effects = this.tick();
+    if (
+      readable !== this.#availability.readable ||
+      writable !== this.#availability.writable ||
+      generation !== this.#availability.generation
+    ) {
+      this.#availability = { readable, writable, generation };
+      ++this.#authorizationGeneration;
+      for (const pending of this.#pending.values())
+        this.#end(pending, "stale_generation", effects);
+    }
+    return effects;
+  }
+
+  fence(
+    approval: Approval,
+    connection: ProviderConnection,
+    operation: BrowserOperation,
+  ): AuthorityFence | null {
+    if (
+      approval !== this.#approval ||
+      approval.expiresAt <= this.#now() ||
+      !approval.profiles.includes(connection.profileId) ||
+      this.#withdrawn.has(connection.profileId) ||
+      this.#providers.get(connection.profileId) !== connection ||
+      this.#permission(operation)
+    )
+      return null;
+    const fence = Object.freeze({
+      connection,
+      authorizationGeneration: this.#authorizationGeneration,
+    });
+    this.#fences.add(fence);
+    return fence;
+  }
+
+  validFence(fence: AuthorityFence, operation: BrowserOperation): boolean {
+    return (
+      this.#fences.has(fence) &&
+      fence.authorizationGeneration === this.#authorizationGeneration &&
+      !!this.#approval &&
+      this.#approval.expiresAt > this.#now() &&
+      this.#approval.profiles.includes(fence.connection.profileId) &&
+      !this.#withdrawn.has(fence.connection.profileId) &&
+      this.#providers.get(fence.connection.profileId) === fence.connection &&
+      !this.#permission(operation)
+    );
+  }
+
+  #permission(operation: BrowserOperation): RefusalCode | null {
+    if (
+      !this.#availability.readable ||
+      (!observes(operation) && !this.#availability.writable)
+    )
+      return "access_paused";
+    if (needsDevtools(operation) && !this.#approval?.devtools)
+      return "scope_not_approved";
+    return null;
   }
 
   #now(): number {
@@ -508,7 +675,7 @@ export class ResidentCore {
 
   #failure(
     command: DispatchCommand,
-    errorCode: RefusalCode,
+    errorCode: string,
     uncertain: boolean,
   ): ActionResult {
     const identity: ResultIdentity = {

@@ -57,8 +57,9 @@ The parent must consume events while awaiting replies and bound both pending
 calls and transport buffering. The fixture client permits at most 64 calls.
 The core permits 16 current providers and 64 retained requests; the host also
 bounds active plus retired provider adapters to 80. Unknown dispatched effects
-remain retained until exact completion. Long-term quiescence/reclamation is
-an explicit production migration gate, not an invented timeout-based success.
+remain retained until exact completion. A trusted native host can explicitly retire a permanently disposed transport
+and release its correlation slots. Retirement preserves unknown application
+outcomes and rejects late callbacks; it never supplies a successful effect.
 
 ## Scheduling and failure
 
@@ -81,3 +82,24 @@ The production integration still needs native caller/owner admission,
 profile-aware handshake, full ordinary operations, DevTools streams,
 indefinite operator lifetimes and installed identity/signature qualification.
 This protocol subset must not be advertised as a complete Windows migration.
+
+## Profile-aware Windows adoption inlet
+
+The native parent also uses `browser.attach` with its authenticated extension
+origin, bounded worker hello/profile metadata and private transport tag;
+`operator.configure` with exact profile IDs/scopes and the original remaining
+lifetime; `native.state` with native safety/epoch observations; `browser.call`
+with an admitted native owner handle and public request; and `provider.retire`
+after permanent transport disposal. These remain trusted inherited calls.
+
+`browser.call` supports the ordinary operation vocabulary and profile discovery.
+An omitted selector chooses only a single explicitly approved profile, including
+its offline refusal; it never fails over. Endpoint tokens and streams use the
+same core fences and profile-scoped reservations. `native.check` events require
+parent acknowledgements for live owner validation and payload-free CDP audit
+intent/results; the child cannot mint native caller ownership.
+
+The private child channel accepts up to 16 MiB for bounded capture/results.
+Chrome-directed messages and public request parameters remain at 1 MiB. The
+Node WebSocket adapter uses pinned MIT-licensed `ws`; its runtime and LICENSE
+are included in Node payloads.

@@ -3,7 +3,7 @@
 Owning topics: [shared-resident-core](../../topics/shared-resident-core.md),
 [browser-profiles](../../topics/browser-profiles.md).
 
-Status: **language/deployment decision complete; Windows migration pending**.
+Status: **Windows migration active; shared browser policy expansion implemented**.
 
 ## Motivation and objective
 
@@ -94,6 +94,16 @@ Linux migration work. Commit reviewable changes with the owning topic
 trailers. No release or push is implicit.
 
 ## Execution
+
+**Current, adoption work:** the same core now covers the complete ordinary
+browser operation vocabulary, explicit DevTools scope, indefinite operator
+consent, native safety ceilings and profile-local withdrawal. Pure endpoint/
+stream policy binds tokens, reservations and pending command correlation to
+exact profile/connection/approval fences. A stateful reference browser supplies
+navigation, input, upload and observation effects without duplicating policy.
+Transport retirement releases only dead-generation correlation capacity and
+preserves the original unknown result; it does not claim an application effect
+was undone. Windows transport and installed adoption remain in progress.
 
 **Current:** prior slices are committed in `bcef146` and `8fe60b9`. The core
 has no installed consumer. Windows source review confirms native grant,

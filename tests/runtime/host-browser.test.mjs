@@ -1,0 +1,163 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { PolicyHost } from "../../runtime/node/policy-host.ts";
+import { ReferenceBrowser } from "../../runtime/testing/reference-browser.ts";
+
+test(
+  "production host uses profile identity, exact selection and shared reference effects",
+  { timeout: 5000 },
+  async () => {
+    const replies = new Map(),
+      providers = new Map();
+    let sequence = 0;
+    const host = new PolicyHost((message) => {
+      if (message.type === "reply") {
+        const pending = replies.get(message.id);
+        replies.delete(message.id);
+        if (message.ok) pending?.resolve(message.data);
+        else pending?.reject(new Error(message.errorCode));
+      } else if (message.type === "native.check") {
+        queueMicrotask(
+          () =>
+            void call("native.reply", {
+              nativeId: message.nativeId,
+              accepted: true,
+            }),
+        );
+      } else if (
+        message.type === "provider.send" &&
+        message.frame.type === "request"
+      ) {
+        const provider = providers.get(message.connectionId);
+        const command = {
+          connection: provider.connection,
+          operation: message.frame.operation,
+          params: message.frame.params,
+          requestId: message.frame.id,
+          authorizationGeneration: 0,
+        };
+        provider.execute(command);
+        const reply = provider.reply(command);
+        queueMicrotask(
+          () =>
+            void call("provider.frame", {
+              connectionId: message.connectionId,
+              frame: { type: "response", id: message.frame.id, ...reply },
+            }),
+        );
+      }
+    });
+    function call(method, fields = {}) {
+      const id = `rpc-${++sequence}`;
+      return new Promise((resolve, reject) => {
+        replies.set(id, { resolve, reject });
+        host.receive({ id, method, ...fields });
+      });
+    }
+    try {
+      await call("hello", { protocolVersion: 1 });
+      const attach = async (name, suffix) => {
+        const metadata = {
+          protocolVersion: 1,
+          installationId: `00000000-0000-4000-8000-00000000000${suffix}`,
+          name,
+          enabled: true,
+        };
+        const data = await call("browser.attach", {
+          extensionId: "a".repeat(32),
+          hello: {
+            protocolVersion: 1,
+            extensionVersion: "fixture",
+            profile: metadata,
+          },
+        });
+        providers.set(
+          data.connectionId,
+          new ReferenceBrowser({
+            profileId: data.profileId,
+            generation: data.generation,
+            route: "fixture.browser",
+          }),
+        );
+        return { ...data, metadata };
+      };
+      const work = await attach("Work profile", 1),
+        personal = await attach("Personal profile", 2);
+      await assert.rejects(attach("Copied", 1), /profile_conflict/);
+      const request = (operation, fields = {}) =>
+        call("browser.call", {
+          requestId: `action-${++sequence}`,
+          authorityId: "fixture-native-owner",
+          request: { operation, ...fields },
+        });
+      await call("operator.configure", {
+        scopes: ["browser"],
+        profileIds: [work.profileId],
+        durationMs: null,
+      });
+      assert.equal((await request("browser.tabs")).accepted, true);
+      const snap = await request("browser.snapshot", {
+        browserProfileId: "Work profile",
+        tabId: 1,
+      });
+      const reference = snap.data.elements[0].reference;
+      assert.equal(
+        (await request("browser.click", { reference })).accepted,
+        true,
+      );
+      assert.equal(providers.get(work.connectionId).observe().clicks, 1);
+      assert.equal(providers.get(personal.connectionId).observe().clicks, 0);
+      assert.equal(
+        (await request("browser.eval")).errorCode,
+        "scope_not_approved",
+      );
+      await call("operator.configure", {
+        scopes: ["browser", "devtools"],
+        profileIds: [work.profileId, personal.profileId],
+        durationMs: 60_000,
+      });
+      await assert.rejects(request("browser.tabs"), /browser_profile_required/);
+      assert.equal(
+        (
+          await request("browser.click", {
+            browserProfileId: personal.profileId,
+            reference,
+          })
+        ).errorCode,
+        "stale_reference",
+      );
+      assert.equal(
+        (
+          await request("browser.eval", {
+            browserProfileId: personal.profileId,
+          })
+        ).accepted,
+        true,
+      );
+      await call("provider.frame", {
+        connectionId: work.connectionId,
+        frame: {
+          type: "profile.update",
+          profile: { ...work.metadata, enabled: false },
+        },
+      });
+      assert.equal(
+        (await request("browser.tabs")).profileId,
+        personal.profileId,
+      );
+      await call("provider.frame", {
+        connectionId: work.connectionId,
+        frame: { type: "profile.update", profile: work.metadata },
+      });
+      assert.equal(
+        (await request("browser.tabs")).profileId,
+        personal.profileId,
+        "re-enable cannot restore withdrawn approval",
+      );
+      await call("operator.stop");
+      await assert.rejects(request("browser.tabs"), /approval_required/);
+    } finally {
+      host.close();
+    }
+  },
+);
