@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'client'))
 from observed_owner import ObservedOwner
 from cdp_socket import CdpSocket
+from fixture_lifecycle import finish_owned_process
 
 
 def poll(observe, seconds=60):
@@ -87,6 +88,7 @@ def main():
                   originalProcessPriorityClass=original_priority,
                   processPriorityClass=ctypes.windll.kernel32.GetPriorityClass(ctypes.c_void_p(-1)))
     for label, path in [('actorSha256', Path(__file__)), ('ownerObserverSha256', Path(__file__).with_name('observed_owner.py')),
+                        ('fixtureLifecycleSha256', Path(__file__).with_name('fixture_lifecycle.py')),
                         ('policyPayloadSha256', args.install/'runtime/shared-policy/payload.json'),
                         *([('appSha256', args.install/'machine-control.exe')] if args.settings else [])]:
         with path.open('rb') as stream: report[label] = hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -275,9 +277,22 @@ throw 'Named native Browser approval unavailable'
         assert '--user-data-dir='+str(scratch/'chrome') in command, 'Only attach the exact owned test browser'
         return value
     def stop_browser():
-        try: browser_socket().call('Browser.close')
+        control = None
+        try:
+            control = browser_socket()
+            control.call('Browser.close')
         except (ConnectionError, OSError): pass
-        if browser and browser.poll() is None: browser.wait(timeout=15)
+        finally:
+            if control: control.close()
+        if browser:
+            def terminate(owned):
+                subprocess.run(['taskkill.exe', '/PID', str(owned.pid), '/T', '/F'], stdout=logs, stderr=logs)
+            # This phase tests provider loss, not graceful Chromium shutdown.
+            # Preserve the timeout/recovery fact and never replay a page action.
+            outcome = finish_owned_process(browser, terminate)
+            report.setdefault('fixtureBrowserShutdowns', []).append(outcome)
+            if outcome['forcedTerminationRequested']:
+                print('Owned fixture browser required bounded termination after close timeout', flush=True)
         poll(lambda: not any(p['connected'] for p in profiles()))
     def effect(profile, action, body):
         poll(lambda: (f'/effect/{profile}/{action}', body) in received)

@@ -407,3 +407,18 @@ publishes pass. The resolver's fifteen-second bound remains unchanged.
 Fresh ordinary qualification and a matching-installed-helper startup check
 are required; neither the standalone probe nor source checks qualify that
 composed startup. No protected helper or enrollment has been changed yet.
+
+The clean `670d235` product passes the native gates, all seven Rust tests and
+production build. Its first ordinary actor stops after 37 checks when the owned
+test Chromium does not exit within fifteen seconds of its direct fixture
+`Browser.close`; actor cleanup succeeds. This occurs before Settings startup
+and does not qualify or disprove the identity-reader correction.
+
+The fixture now closes its own control socket, requests termination of its
+exact owned browser if graceful shutdown exceeds the bound, and records both
+that request and independently observed process exit. This phase's oracle is
+provider disconnection and stale-reference fencing, not graceful browser exit.
+A failed termination remains a failed run, and no page action is replayed.
+Real-child tests distinguish clean exit, forced recovery and cleanup failure.
+The subsequent run uses the same product bytes with separately pinned actor
+source; this harness correction is not a product acceptance claim.
