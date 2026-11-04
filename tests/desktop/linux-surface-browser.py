@@ -196,6 +196,27 @@ def main():
             check('withdrawing locked opt-in leaves OS locked',locked())
             retained.close();owners.remove(retained);operator('stop')
             check('locked Stop ends both surface permissions',all(s['mode']=='off' for s in state()['accessPolicy']['surfaces'].values()) and locked())
+        # Keep the same preferences and real extension profiles while losing
+        # the armed resident abruptly. Reconnection must restore discovery,
+        # never consent, owners or page effects.
+        operator('browser_while_locked',enabled=True)
+        for surface in ('desktop','browser'):
+            operator('surface.configure',surface=surface,mode='automatic',lifetime='until_stopped',duration=0,
+                browserProfileIds=[ids['Work']] if surface=='browser' else [])
+        retained=owner([ids['Work']],['browser.tabs'])
+        check('pre-crash Browser owner is live',retained.call('browser.tabs',browserProfileId=ids['Work'])['accepted'])
+        child.kill();child.wait(10)
+        try:retained.status();lost=False
+        except (AssertionError,OSError,ConnectionError):lost=True
+        check('abrupt resident loss closes the live owner',lost)
+        retained.close();owners.remove(retained)
+        child=subprocess.Popen(['/usr/bin/python3',str(args.runtime/'desktop.py')],
+            stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=log,text=True,env=env)
+        operator('hello',processId=os.getpid(),executable='/usr/bin/true')
+        poll(lambda:state()['safetyAvailable'],'fresh native safety process')
+        poll(lambda:set(row['profileId'] for row in state()['browser']['profiles'] if row['connected'])==set(ids.values()),'both real profiles reconnect')
+        check('restart restores both connections with both surfaces Off',all(row['mode']=='off' for row in state()['accessPolicy']['surfaces'].values()))
+        check('restart restores no active task or page effect',state()['accessPolicy']['active']==0 and effects['Personal']==0 and effects['Work']==(2 if args.locked else 1))
         operator('quit');child.wait(10);check('shared child exits cleanly',child.returncode==0)
     except BaseException as error:
         failure=type(error).__name__+': '+str(error)
