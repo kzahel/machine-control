@@ -126,6 +126,12 @@ def main():
         subprocess.run(['/usr/bin/systemd-run','--user','--quiet','--collect','--unit',fixture_unit,
             '/usr/bin/python3',str(runner)],stdout=log,stderr=log,check=True)
         poll(lambda:oracle.exists(),'owned fixture')
+        fixture_pid=json.loads(oracle.read_text())['pid']
+        for _ in range(4):
+            if any(row['pid']==fixture_pid for row in foreground()):break
+            assert fixture_operator('input.key',key='alt+tab')['accepted']
+            time.sleep(.4)
+        check('owned fixture has keyboard focus before the request',any(row['pid']==fixture_pid for row in foreground()))
         operator('control_notice',noticeSeconds=10);configure('ask')
         poll(lambda:state()['activityObserver']['healthy'],'actual read-only observer')
         first=owner();waiting(first,'waiting_for_approval')
