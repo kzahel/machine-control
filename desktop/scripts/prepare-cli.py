@@ -23,6 +23,7 @@ SOURCES = [
     "providers/claims/admission.py", "providers/claims/admission_channel.py", "client/claim_session.py", "client/outer_session.py",
     "platforms/macos/bin/machost", "platforms/macos/host/machost.py",
     "platforms/windows/host/winhost.py", "platforms/linux/host/linuxhost.py",
+    "platforms/linux/host/desktop_channel.py",
     "release/unlock-controller.py",
 ]
 

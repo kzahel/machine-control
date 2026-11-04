@@ -91,6 +91,7 @@ type State = {
     pointer: boolean;
     keyboard: boolean;
   };
+  activityObserver?: { installed: boolean; healthy: boolean; setupState: string; setupError: string | null };
   browser: { connected: boolean; available?: boolean; profileSelectionSupported?: boolean; approvedProfiles?: string[]; problems?: {reason: string}[];
     profiles?: { profileId: string; name: string; connected: boolean; enabled: boolean }[] };
   pending?: {
@@ -1129,6 +1130,18 @@ function App() {
                   {state?.portal?.error && (
                     <p className="note">{state.portal.error}</p>
                   )}
+                  {state?.activityObserver && <>
+                    <div className="setting-row">
+                      <span className="row-label">Physical activity observer</span>
+                      <span className="row-status">{state.activityObserver.healthy ? "Ready" : state.activityObserver.installed ? "Waiting for native input coverage" : "Not installed"}</span>
+                      <button disabled={busy || state.activityObserver.setupState === "authorizing"}
+                        onClick={() => void act({ method: "activity.setup" })}>
+                        {state.activityObserver.setupState === "authorizing" ? "Authorizing…" : "Set up activity observer"}
+                      </button>
+                    </div>
+                    <p className="note">Administrator approval installs a read-only observer for clicks, keys and scrolling. It retains no input content and cannot control the computer. Mouse movement does not interrupt agents. Disruptive work waits while observation is unavailable.</p>
+                    {state.activityObserver.setupError && <p role="alert" className="note">{state.activityObserver.setupError}</p>}
+                  </>}
                   <div className="setting-row">
                     <span className="row-label">
                       Lock screen and other users

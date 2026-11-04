@@ -191,8 +191,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
     if records[0].get("files", [])[1:] != records[1].get("files", [])[1:]:
         raise ValueError("Linux container payloads differ")
     required = {"machine-control", "linux-runtime/desktop-runtime.json", "linux-runtime/desktop.py",
-                "linux-runtime/grants.py", "linux-runtime/portal.py", "linux-runtime/provider.py",
-                "linux-runtime/approval.py", "linux-runtime/browser.py", "linux-runtime/browser_host.py",
+                "linux-runtime/access.py", "linux-runtime/channel.py", "linux-runtime/operations.py", "linux-runtime/portal.py", "linux-runtime/provider.py",
+                "linux-runtime/policy.py", "linux-runtime/notice.py", "linux-runtime/browser.py", "linux-runtime/browser_host.py",
                 "linux-runtime/artifacts.py", "linux-runtime/shortcut.py", "linux-runtime/startup.py", "linux-runtime/linuxcontrol.py",
                 "linux-runtime/linuxui.py", "linux-runtime/extension/manifest.json",
                 "linux-runtime/extension/service_worker.js", "linux-runtime/extension/indicators.js"}

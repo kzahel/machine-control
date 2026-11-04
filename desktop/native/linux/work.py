@@ -16,6 +16,7 @@ class Ticket:
         self.deadline = time.monotonic() + timeout
         self.cancelled = threading.Event()
         self.dispatched = False
+        self.authority = None
 
     def check(self):
         now = time.monotonic()
@@ -24,6 +25,8 @@ class Ticket:
             raise Cancelled("Authority changed or operation deadline expired")
 
     def effect(self):
+        self.check()
+        if self.authority:self.authority()
         self.check()
         # Once crossed, cancellation cannot prove that a native call had no effect.
         self.dispatched = True

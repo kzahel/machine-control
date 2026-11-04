@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import subprocess
 import sys
+from desktop_channel import relay
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -129,6 +130,12 @@ def main(arguments):
             "check", "--provider", "linux-host", "--resource-id", resource_id(),
             "--claim-id", identifier], capture=True).returncode:
             raise ValueError("Exclusive target use requires a live claim")
+        if command == 'channel' and not rest:
+            def check():
+                if claim(['check','--provider','linux-host','--resource-id',resource_id(),
+                          '--claim-id',identifier],capture=True).returncode:
+                    raise ValueError('Target claim ended')
+            return relay(check)
         if command in {"control", "control-local"} and len(rest) == 1:
             request = json.loads(rest[0])
             if not isinstance(request, dict):

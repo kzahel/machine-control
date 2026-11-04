@@ -59,7 +59,7 @@ def stage(destination, revision, arch=None):
                           "byteLength":path.stat().st_size})
     identity = {"schema": "machine-control-linux-desktop-runtime/v0", "sourceRevision": revision,
                 "profile": "gnome_wayland", "privilege": "ordinary_user", "files": files,
-                "policyPayloadProtocol":2, "architecture":arch}
+                "policyPayloadProtocol":2, "admissionSchema":"machine-control-admission/v2", "architecture":arch}
     (destination / "desktop-runtime.json").write_text(json.dumps(identity, indent=2) + "\n")
 
 

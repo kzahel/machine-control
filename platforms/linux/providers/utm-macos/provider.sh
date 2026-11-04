@@ -675,6 +675,14 @@ case "$command" in
     exec) guest_exec "$@" ;;
     trust-ssh-host-key) trust_ssh_host_key "$@" ;;
     shell) guest_shell ;;
+    desktop-channel)
+        linuxvm_assert_mutation_target
+        [[ "${LINUXVM_ADMIN_TRANSPORT:-qga}" == ssh ]] || {
+            printf 'A declared SSH transport is required for live desktop channels\n' >&2
+            exit 1
+        }
+        ssh_transport desktop-channel
+        ;;
     push) file_push "$@" ;;
     pull) file_pull "$@" ;;
     screenshot)

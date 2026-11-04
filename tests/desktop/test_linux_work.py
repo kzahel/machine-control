@@ -8,7 +8,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "desktop/native/linux"))
 from work import Work, Ticket, Cancelled
-from grants import Grants
 
 
 class WorkTests(unittest.TestCase):
@@ -63,21 +62,12 @@ class WorkTests(unittest.TestCase):
         self.assertEqual(len(setup), 1)
         self.assertEqual(set(runs), set(setup))
 
-    def test_pause_rotates_authority_and_update_stays_excluded(self):
-        grants = Grants()
-        grants.set_ready(True)
-        grants.arm(["observe", "control"], 60)
-        old = grants.generation
-        grants.pause(True)
-        self.assertEqual(grants.authorize("snapshot", old), "stale_generation")
-        self.assertEqual(grants.authorize("snapshot"), "access_paused")
-        with self.assertRaises(ValueError):
-            grants.prepare_update()
-        grants.pause(False)
-        self.assertIsNone(grants.authorize("snapshot"))
-        grants.stop()
-        grants.prepare_update()
-        self.assertEqual(grants.authorize("snapshot"), "update_in_progress")
+    def test_fresh_authority_refusal_precedes_native_effect(self):
+        ticket=Ticket('generation')
+        def refuse():raise Cancelled('Shared owner ended')
+        ticket.authority=refuse
+        with self.assertRaises(Cancelled):ticket.effect()
+        self.assertFalse(ticket.dispatched)
 
 
 if __name__ == "__main__":

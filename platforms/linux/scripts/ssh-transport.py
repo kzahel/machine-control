@@ -38,6 +38,9 @@ def connection() -> list[str]:
 def run(arguments: list[str]) -> int:
     operation, *args = arguments
     carrier = connection()
+    if operation == 'desktop-channel' and not args:
+        return subprocess.call(carrier + [shlex.join(['/usr/bin/python3','-I','-B',
+            '/usr/share/machine-control/mc-cli/platforms/linux/host/desktop_channel.py'])])
     if operation == "exec" and args:
         return subprocess.call(carrier + [shlex.join(["sudo", "-n", "--", *args])])
     if operation == "shell" and not args:

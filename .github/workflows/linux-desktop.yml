@@ -65,7 +65,8 @@ jobs:
           pnpm --dir runtime install --frozen-lockfile
           python3 -m unittest discover -s tests/desktop -p test_linux_policy.py
           python3 -m unittest discover -s tests/desktop -p test_linux_activity.py
-          python3 tests/desktop/linux-grants.py
+          python3 -m unittest discover -s tests/desktop -p test_linux_access.py
+          python3 -m unittest discover -s tests/desktop -p test_linux_browser_deadline.py
           python3 tests/desktop/linux-startup.py
           platforms/linux/tests/smoke.sh --static
           pnpm --dir desktop install --frozen-lockfile

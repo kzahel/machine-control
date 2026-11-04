@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "desktop/native/linux"))
 from journal import Journal
-from grants import Grants
 
 
 @unittest.skipUnless(hasattr(os, "getuid"), "Linux journal uses POSIX ownership and modes")
@@ -49,16 +48,11 @@ class JournalTests(unittest.TestCase):
 
     def test_disk_full_blocks_access_but_stop_and_recovery_work(self):
         journal = Journal(self.root)
-        broker = Grants(journal=journal)
-        broker.set_ready(True)
-        broker.arm(["control"], 30)
         with patch("journal.os.write", side_effect=OSError("disk full")):
             self.assertFalse(journal.begin("input.click", "r"))
-            self.assertEqual(broker.authorize("input.click"), "audit_storage_unavailable")
-            broker.stop()
-            self.assertIsNone(broker.grant)
+            self.assertFalse(journal.health['available'])
         self.assertTrue(journal.event("storage.recovered"))
-        self.assertEqual(broker.authorize("input.click"), "approval_required")
+        self.assertTrue(journal.health['available'])
 
     def test_rotation_retention_concurrent_requests_and_pages(self):
         journal = Journal(self.root, segment_bytes=1000, audit_bytes=5000)

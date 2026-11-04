@@ -29,7 +29,7 @@ import gi
 
 from gi.repository import Gio, GLib
 
-from grants import Grants, OBSERVE, CONTROL
+from operations import OBSERVE, CONTROL
 from work import Work, Ticket, Cancelled
 from presentation import Presentation, runtime_directory
 from coordinator import Coordinator
@@ -44,44 +44,11 @@ from browser import Browser
 from updates import Updates
 import linuxui
 
-FRAME_LIMIT = 65536
-
-
-def read_frame(stream):
-    line = stream.readline(FRAME_LIMIT + 1)
-    if not line:
-        return None
-    if len(line) > FRAME_LIMIT or not line.endswith(b"\n"):
-        raise ValueError("Frame exceeds 64 KiB")
-    value = json.loads(line)
-    if not isinstance(value, dict):
-        raise ValueError("Object required")
-    return value
-
-
-def encode(value):
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode() + b"\n"
-
-
-class SocketFrames:
-    def __init__(self, client):
-        self.client = client
-        self.buffer = bytearray()
-
-    def readline(self, limit):
-        while b"\n" not in self.buffer:
-            if len(self.buffer) >= limit:
-                raise ValueError("Frame too large")
-            chunk = self.client.recv(min(65536, limit - len(self.buffer)))
-            if not chunk:
-                return b""
-            self.buffer.extend(chunk)
-        line, _, rest = self.buffer.partition(b"\n")
-        self.buffer = rest
-        if len(line) + 1 > limit:
-            raise ValueError("Frame too large")
-        return bytes(line) + b"\n"
-
+from wire import read_frame,encode,SocketFrames
+from policy import Policy,PolicyError
+from access import Access
+from activity import Activity
+from channel import Channel,process_token
 
 class Desktop:
     def __init__(self, operator_pid, executable, instance="desktop", override=None):
@@ -92,6 +59,7 @@ class Desktop:
         self.executable = executable
         self.presentation = Presentation(instance, override)
         self.safety_available = False
+        self.safety_observed=0.0;self.notice_visible=False
         self.safety_condition = threading.Condition()
         self.safety_state = None
         self.journal = Journal()
@@ -103,7 +71,11 @@ class Desktop:
                     break
                 context.iteration(False)
         self.work = Work(self.scheduler.post, linuxui.Atspi.init, pump)
-        self.grants = Grants(self.changed, journal=self.journal)
+        self.stopped=False;self.channels=set();self.inhibit=threading.Event()
+        self.configuration_sessions={'desktop':None,'browser':None}
+        self.notice_pending=False;self.notice_seconds=10
+        self.policy=Policy(self.scheduler.post,self.policy_event,self.policy_failed)
+        self.grants=Access(self.policy,self.policy_changed)
         self.browser_preference = BrowserPreference(self.presentation.root, instance)
         self.grants.browser_while_locked = self.browser_preference.enabled
         self.locked = False
@@ -117,7 +89,10 @@ class Desktop:
         self.shortcut = Shortcut(executable)
         self.startup = Startup(executable)
         self.browser = Browser(self)
-        self.browser.refresh_owned_installation()
+        try:self.browser.refresh_owned_installation()
+        except (OSError,ValueError):self.journal.diagnostic('browser.setup','browser_registration_invalid')
+        self.activity=Activity(self.scheduler.post,self.activity_changed)
+        self.activity_setup=None;self.activity_setup_error=None
         self.dialog = None
         self.dialog_id = None
         self.unlocked = False
@@ -152,113 +127,120 @@ class Desktop:
         self.monitor()
         self.scheduler.timer(1000, self.monitor)
 
+    def policy_changed(self,desktop_changed):
+        if desktop_changed:self.work.cancel()
+        if hasattr(self,'browser'):self.browser.cancel_invalid()
+        self.changed()
+
+    def policy_event(self,event):
+        if event.get('type')=='access.event':
+            if not self.journal.event('access.'+str(event.get('event','unknown'))):
+                self.policy_failed('audit_storage_unavailable');return
+            self.browser.event(event)
+            self.grants.refresh();self.changed()
+        else:self.browser.event(event)
+
+    def policy_failed(self,code):
+        self.inhibit.set();self.work.cancel()
+        if hasattr(self,'browser'):
+            self.browser.invalidate()
+            for client in list(self.browser.peers):self.browser.disconnect(client)
+        if self.policy.alive:self.policy._fail(code)
+        self.journal.diagnostic('resident.policy',code)
+        self.changed()
+
     def changed(self):
-        if hasattr(self, "provider"):
-            self.work.cancel()
-        if hasattr(self, "portal"):
-            previous, self.last_portal_state = self.last_portal_state, self.portal.state
-            if previous == "ready" and self.portal.state != "ready" and not self.grants.browser_only_while_locked:
-                self.grants.stop("sharing_ended")
-            self.refresh_availability()
-        if hasattr(self, "dialog"):
-            self.approval()
-        if hasattr(self, "browser"):
-            self.browser.sync()
-        if hasattr(self, "safety"):
-            self.grants.notice_ready = self.grants.grant is None or self.grants.browser_only_while_locked
-            with self.safety_condition:
-                self.safety_state = {"generation": self.grants.generation, "grant": self.grants.state()["deployment"]["grant"],
-                                     "paused": self.grants.paused}
-                self.safety_condition.notify()
+        if not self.notice_pending:
+            self.notice_pending=True;self.scheduler.post(self.publish)
+
+    def publish(self):
+        self.notice_pending=False
+        if self.stopped:return False
+        if hasattr(self,'browser'):self.browser.sync()
+        value=self.grants.state()
+        callers={channel.intent:'Local process '+str(channel.pid)+' (identity unverified)' for channel in self.channels}
+        value={**value,'requests':[{**row,'caller':callers.get(row.get('intentId'),'Local process (identity unverified)')} for row in value.get('requests',[])]}
+        with self.safety_condition:
+            self.safety_state=value;self.safety_condition.notify()
+        return False
+
+    def activity_changed(self,generation,deliberate):
+        if not self.policy.alive:return
+        if generation:self.grants.fact('input',False)
+        if deliberate:self.grants.input()
+        self.refresh_availability();self.changed()
 
     def refresh_availability(self):
-        self.grants.set_ready(self.unlocked and self.safety_available and self.portal.state != "pending",
-                              locked=self.locked and self.safety_available, session=self.session_identity)
+        if not self.policy.alive:return
+        state=self.grants.view
+        watch=any(row.get('mode','off')!='off' and not row.get('expired') for row in state.get('surfaces',{}).values())
+        self.activity.refresh(watch,self.session_identity)
+        self.grants.ready=self.unlocked and self.safety_available
+        self.grants.locked=self.locked;self.grants.session=self.session_identity
+        self.grants.browser_while_locked=self.browser_preference.enabled
+        known=self.session_identity is not None and time.monotonic()-self.session_observed<=2
+        self.grants.fact('input',known and self.activity.healthy(self.session_identity))
+        notice_health=self.safety_available and time.monotonic()-self.safety_observed<=2
+        healthy=notice_health and self.journal.health['available'] and not self.grants.updating
+        for surface in ('desktop','browser'):
+            bound=known and self.configuration_sessions[surface]==self.session_identity
+            ready=healthy and bound and (self.unlocked or surface=='browser' and self.locked and self.browser_preference.enabled)
+            if surface=='desktop' and self.portal.state=='pending':ready=False
+            self.grants.fact(surface,(bool(ready),bool(self.unlocked and notice_health and self.notice_visible)))
+        self.browser.sync()
+
+    def apply_session(self,unlocked,locked,identity):
+        if identity is not None and any(binding is not None and binding!=identity for binding in self.configuration_sessions.values()):
+            self.stop_access('console_session_changed')
+            self.configuration_sessions={'desktop':None,'browser':None}
+        self.unlocked,self.locked,self.session_identity=unlocked,locked,identity
+        self.session_observed=time.monotonic()
+        if not unlocked and self.portal.state!='off':self.portal.close()
+        self.refresh_availability()
 
     def monitor(self):
-        if time.monotonic() - self.session_observed > 2:
-            self.unlocked = False
-            self.locked, self.session_identity = False, None
-            self.grants.set_ready(False)
+        if self.stopped:return False
+        if time.monotonic()-self.session_observed>2:
+            self.unlocked=False;self.locked=False;self.session_identity=None
         if not self.session_pending:
-            self.session_pending = True
-            def observed(unlocked, locked, identity):
-                self.session_pending = False
-                self.unlocked, self.locked, self.session_identity = unlocked, locked, identity
-                self.session_observed = time.monotonic()
-                self.refresh_availability()
-                if not self.unlocked and self.portal.state != "off":
-                    self.portal.close()
-            try:
-                desktop_session.observe(self.portal.bus, observed)
-            except GLib.Error:
-                observed(False, False, None)
-        self.grants.refresh()
-        self.approval()
-        self.browser.sync()
-        return not self.stopped
+            self.session_pending=True
+            def observed(unlocked,locked,identity):
+                self.session_pending=False;self.apply_session(unlocked,locked,identity)
+            try:desktop_session.observe(self.portal.bus,observed)
+            except GLib.Error:observed(False,False,None)
+        if self.policy.alive:
+            self.refresh_availability();self.grants.refresh()
+        self.changed()
+        return True
 
-    def approval(self):
-        pending = self.grants.pending
-        identifier = pending["id"] if pending else None
-        if identifier == self.dialog_id:
-            return
-        if self.dialog:
-            self.dialog_cancelled.set()
-            self.dialog.terminate()
-            # Keep the one physical UI slot until its reader reaps the child.
-            return
-        self.dialog_id = identifier
-        if not pending:
-            return
-        # GTK approval lives separately from the synchronous AT-SPI provider;
-        # querying an in-process GTK accessible can deadlock its own main loop.
-        environment = dict(os.environ)
-        environment.pop("NO_AT_BRIDGE", None)
-        process = subprocess.Popen(["/usr/bin/python3", str(Path(__file__).with_name("approval.py"))],
-                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                   stderr=sys.stderr, env=environment)
-        self.dialog = process
-        self.dialog_cancelled = threading.Event()
-        cancelled = self.dialog_cancelled
-        value = {k: pending[k] for k in ["id", "reason", "caller", "duration"]}
-        value["parentId"] = os.getpid()
-        value["scopes"] = sorted(pending["scopes"])
-        process.stdin.write(encode(value))
-        process.stdin.close()
+    def native_authority(self,_surfaces):
+        if not self.policy.alive:return 'control_policy_unavailable'
+        if not self.journal.health['available']:return 'audit_storage_unavailable'
+        return None
 
-        def wait():
-            line = read_reply(process, cancelled, pending["expires"])
-            def decision():
-                if self.dialog != process:
-                    return False
-                self.dialog = None
-                self.dialog_id = None
-                if self.grants.pending and self.grants.pending["id"] == identifier:
-                    try:
-                        reply = json.loads(line)
-                        self.grants.decide(identifier, reply.get("allow") is True,
-                                           reply.get("scopes"), reply.get("duration", 0))
-                    except (ValueError, TypeError):
-                        self.grants.finish_pending(False, "approval_unavailable")
-                self.approval()
-                return False
-            self.scheduler.post(decision)
-        threading.Thread(target=wait, daemon=True).start()
+    def emergency_fence(self):
+        self.inhibit.set();self.work.cancel()
+        for authority in list(self.browser.authorities.values()):authority['revoked'].set()
+
+    def stop_access(self,reason='stopped_by_person'):
+        self.emergency_fence();self.grants.stop(reason);self.browser.stop_access()
+        self.changed()
 
     def state(self):
-        return {**self.grants.state(), "nativeApproval": True, "presentation": self.presentation.state(),
-                "providerWork": {"busy": self.work.active is not None},
-                "sessionObservation": {"ageSeconds": time.monotonic() - self.session_observed,
-                                       "refreshing": self.session_pending},
-                "safetyAvailable": self.safety_available, "safetyNoticeReady": self.grants.notice_ready, "platform": "linux", "supportedScopes": ["observe", "control", "browser", "devtools"],
-                "permissions": {"accessibility": self.unlocked, "screenRecording": self.portal.ready},
-                "portal": {"state": self.portal.state, "error": self.portal.error,
-                           "pointer": bool(self.portal.devices & 2), "keyboard": bool(self.portal.devices & 1)},
-                "browser": {"connected": self.browser.provider is not None, "available": True},
-                "socket": str(self.endpoint), "startOnLogin": self.startup.enabled,
-                "stopShortcutAvailable": self.shortcut.available,
-                "stopShortcut": "Ctrl+Alt+Shift+."}
+        admission=self.grants.state()
+        return dict(deployment=self.grants.deployment(),accessPolicy=admission,admission=admission,
+            nativeApproval=True,presentation=self.presentation.state(),platform='linux',
+            manualUntilStoppedSupported=True,pauseSupported=True,
+            providerWork=dict(busy=self.work.active is not None),
+            sessionObservation=dict(ageSeconds=time.monotonic()-self.session_observed,refreshing=self.session_pending),
+            safetyAvailable=self.safety_available,physicalActivity=self.activity.state(self.session_identity),
+            activityObserver={**self.activity.state(self.session_identity),
+                'setupState':'authorizing' if self.activity_setup else 'idle','setupError':self.activity_setup_error},
+            permissions=dict(accessibility=self.unlocked,screenRecording=self.portal.ready),
+            portal=dict(state=self.portal.state,error=self.portal.error,pointer=bool(self.portal.devices&2),keyboard=bool(self.portal.devices&1)),
+            browser=self.browser.state(),browserWhileLocked=dict(supported=True,enabled=self.browser_preference.enabled),
+            socket=str(self.endpoint),startOnLogin=self.startup.enabled,stopShortcutAvailable=self.shortcut.available,
+            stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health)
 
     def operator(self, command):
         method = command.get("method")
@@ -289,24 +271,53 @@ class Desktop:
         if method == "logs.diagnostic":
             self.journal.diagnostic("desktop.supervisor", command.get("code", "unknown"))
             return {"ok": True}
-        if method == "arm":
-            self.grants.arm(command.get("scopes"), command.get("duration", 900),
-                            command.get("lifetime", "timed"))
-        elif method == "browser_while_locked":
-            enabled = command.get("enabled")
-            if type(enabled) is not bool or self.grants.updating or (enabled and not self.grants.ready):
-                raise ValueError("Use the unlocked console before enabling browser access")
-            self.browser_preference.set(enabled)
-            self.grants.configure_browser_while_locked(enabled)
-        elif method == "decision":
-            self.grants.decide(command.get("id"), command.get("allow") is True,
-                               command.get("scopes"), command.get("duration", 0))
-        elif method == "stop":
-            self.grants.stop()
-            if self.portal.state == "pending":
-                self.portal.close()
-        elif method in {"pause", "resume"}:
-            self.grants.pause(method == "pause")
+        if method in {'surface.configure','configure_surface'}:
+            surface=command.get('surface');mode=command.get('mode')
+            if surface not in ('desktop','browser') or mode not in ('off','ask','automatic'):raise ValueError('Choose a surface mode')
+            if mode!='off' and (not self.unlocked or self.session_identity is None or self.grants.updating or not self.journal.health['available']):
+                raise ValueError('Use the unlocked console before enabling access')
+            duration=command.get('duration',900)
+            if type(duration) is not int or duration<0 or duration>28800:raise ValueError('Invalid duration')
+            duration_ms=None if command.get('lifetime')=='until_stopped' else max(60,duration)*1000
+            profiles=command.get('browserProfileIds',[]) if surface=='browser' else []
+            if not isinstance(profiles,list) or any(not isinstance(p,str) for p in profiles):raise ValueError('Choose exact profiles')
+            if surface=='browser':self.browser.configure(profiles,duration_ms,mode!='off')
+            self.grants.configure(surface,mode,duration_ms,profiles)
+            if mode!='off':
+                self.inhibit.clear();self.configuration_sessions[surface]=self.session_identity
+            self.refresh_availability();self.changed()
+        elif method in {'arm','decision'}:raise ValueError('Use surface modes and one live task')
+        elif method=='stop':self.stop_access()
+        elif method in {'surface.pause','pause_surface'}:
+            duration=command.get('duration')
+            if duration is not None and (type(duration) is not int or not 1<=duration<=28800):raise ValueError('Invalid pause')
+            self.grants.pause(command.get('surface'),seconds=duration)
+        elif method in {'surface.resume','resume_surface'}:
+            self.grants.resume(command.get('surface'))
+            self.grants.send('resume',surface=command.get('surface'),reason='physical_takeover')
+        elif method in {'intent.approve','approve_intent','intent.start','start_intent','intent.deny','deny_intent','intent.defer','defer_intent'}:
+            action={'approve_intent':'approve','start_intent':'start','deny_intent':'deny','defer_intent':'defer'}.get(method,method.split('.')[-1])
+            fields=dict(intentId=command.get('intentId'))
+            if action=='defer':
+                duration=command.get('duration')
+                if duration is not None and (type(duration) is not int or not 1<=duration<=28800):raise ValueError('Invalid deferral')
+                fields['milliseconds']=None if duration is None else duration*1000
+            self.grants.send(action,**fields);self.changed()
+        elif method=='control_notice':
+            seconds=command.get('noticeSeconds')
+            if type(seconds) is not int or seconds not in (5,10,30,60):raise ValueError('Invalid warning')
+            self.grants.send('notice',milliseconds=seconds*1000)
+        elif method=='browser_while_locked':
+            enabled=command.get('enabled')
+            if type(enabled) is not bool or enabled and not self.unlocked:raise ValueError('Use the unlocked console')
+            self.browser_preference.set(enabled);self.refresh_availability()
+        elif method=='activity.setup':self.prepare_activity()
+        elif method in {'pause','resume'}:
+            if method=='pause':
+                duration=command.get('duration')
+                if duration is not None and (type(duration) is not int or not 1<=duration<=28800):raise ValueError('Invalid pause')
+                self.grants.pause(seconds=duration)
+            else:self.grants.resume();self.grants.send('resume',surface='all',reason='physical_takeover')
         elif method == "shortcut":
             self.shortcut.set(command.get("enabled"))
         elif method == "startup":
@@ -320,14 +331,16 @@ class Desktop:
                     raise ValueError("Browser registered; could not open the Chrome Web Store")
             return {"ok": True, "extensionPath": extension}
         elif method == "permission":
-            if not self.unlocked or self.grants.grant or self.grants.pending or self.grants.updating:
+            if not self.unlocked or self.grants.updating:
                 raise ValueError("Stop access before changing sharing")
             self.portal.connect()
         elif method == "permission.disconnect":
-            self.grants.stop()
+            self.stop_access()
             self.portal.close()
         elif method == "prepare_update":
-            self.grants.prepare_update()
+            if any(row.get('mode','off')!='off' for row in self.grants.view.get('surfaces',{}).values()):
+                raise ValueError('Turn access Off before updating')
+            self.stop_access();self.grants.updating=True
             self.portal.close()
         elif method == "cancel_update":
             self.grants.updating = False
@@ -335,81 +348,113 @@ class Desktop:
             self.shutdown()
         else:
             raise ValueError("Unknown operator command")
+        self.changed()
         return {"ok": True}
 
-    def handle(self, request, caller, complete, caller_pid=None):
-        started = time.monotonic()
-        request["requestId"] = request.get("requestId") or uuid.uuid4().hex
-        operation = request.get("operation", "")
-        result = self.provider.envelope(request, operation)
+    def prepare_activity(self):
+        if not self.unlocked or self.grants.updating or self.activity_setup:
+            raise ValueError('Use the unlocked console before installing the activity observer')
+        process=subprocess.Popen(['/usr/bin/pkexec','/usr/bin/python3','-I','-B',
+            str(Path(__file__).with_name('activity-install.py')),'install'],stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+        self.activity_setup=process;self.activity_setup_error=None
+        def wait():
+            error=None
+            try:
+                output,_=process.communicate(timeout=180)
+                if process.returncode or len(output)>1024 or json.loads(output).get('installed') is not True:
+                    error='Activity observer installation was not confirmed'
+            except (OSError,ValueError,subprocess.TimeoutExpired):
+                error='Activity observer installation was not confirmed'
+                try:process.terminate()
+                except (OSError,PermissionError):pass
+                try:process.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    try:process.kill()
+                    except (OSError,PermissionError):pass
+                    process.wait()  # Retain the physical slot through privileged exit.
+            def finished():
+                if self.activity_setup is process:
+                    self.activity_setup=None;self.activity_setup_error=error
+                    if not self.stopped:self.refresh_availability();self.changed()
+                return False
+            self.scheduler.post(finished)
+        threading.Thread(target=wait,daemon=True,name='mc-activity-setup').start()
+        self.changed()
 
-        def finish(value):
-            value["generation"] = self.grants.generation
-            value["elapsedMs"] = int((time.monotonic() - started) * 1000)
+    def discovery(self,request):
+        operation=request.get('operation')
+        result=self.provider.envelope(request,operation)
+        result.update(delivery='not_applicable',effect='not_applicable')
+        if operation in ('status','grant.status'):
+            result['data']={**self.grants.deployment(),'admission':self.grants.state(),
+                'desktopProduct':True,'ready':self.grants.ready,'sourceRevision':self.identity.get('sourceRevision'),
+                'semanticState':'ready' if self.unlocked else 'unavailable',
+                'captureState':'ready' if self.portal.ready else 'unavailable',
+                'inputState':'ready' if self.provider.input_ready() else 'unavailable',
+                'browser':self.browser.state(),'physicalActivity':self.activity.state(self.session_identity),
+                'admissionChannel':dict(schema='machine-control-admission-channel/v2',
+                    ownerBinding='live_same_user_transport',callerAssurance='unverified_same_user')}
+        else:
+            result['data']=dict(provider='linux-desktop',profile='gnome_wayland',privilege='ordinary_user',
+                operations=sorted(OBSERVE|CONTROL|{'browser.profiles','browser.tabs','browser.snapshot','browser.click',
+                    'browser.type','browser.key','browser.navigate','browser.wait','browser.capture','browser.release',
+                    'browser.cdp','browser.eval','browser.endpoint','update.check','update.status'}),
+                browser=self.browser.state(),capture=dict(route='user/linux.portal-pipewire',state=self.portal.state,scope='shared_screen'),
+                input=dict(route='user/linux.portal-notify',authorization='portal_consent',coordinateSpace='portal_shared_screen'),
+                physicalActivity=self.activity.state(self.session_identity),protectedDesktop=False,hostInterference='none')
+        return result
+
+    def handle(self,request,caller,complete,caller_pid=None):
+        request['requestId']=request.get('requestId') or uuid.uuid4().hex
+        operation=request.get('operation','')
+        if operation in ('status','capabilities','grant.status'):
+            complete(self.discovery(request));return
+        if operation=='browser.profiles':self.browser.execute(request,complete);return
+        if operation in ('update.check','update.status'):
+            result=self.provider.envelope(request,operation);result['data']=self.updates.request(operation=='update.check');complete(result);return
+        if operation=='grant.revoke':
+            result=self.provider.envelope(request,operation);result['data']={**self.grants.deployment(),'revoked':False,'retained':'person_armed'};complete(result);return
+        if operation=='grant.request':
+            complete(self.provider.fail(request,operation,'legacy_grant_request_unsupported','Configure a surface mode and open one live task'));return
+        result=self.provider.fail(request,operation,'control_session_required','Use one live surface task')
+        surface='browser' if operation.startswith('browser.') else 'desktop'
+        result['retrySafety']='safe_not_dispatched'
+        result['data']=dict(requiredSurface=surface,requestOperation='control.open',
+            controlSession=dict(schema='machine-control-admission/v2',surface=surface,profileSelection='exact'))
+        complete(result)
+
+    def dispatch(self,channel,request,fence,finish):
+        operation=request['operation'];started=time.monotonic()
+        def complete(value):
+            value['generation']=self.grants.generation;value['elapsedMs']=int((time.monotonic()-started)*1000)
+            refusal=self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
+            if refusal:
+                value.update(accepted=False,errorCode=refusal,uncertainty='interrupted_after_possible_dispatch',retrySafety='unsafe')
             if not self.journal.record(value):
-                value.update(accepted=False, errorCode="audit_storage_unavailable", uncertainty="audit_result_not_persisted", retrySafety="unsafe")
-            self.grants.record(value)
-            complete(value)
-
-        def grant_reply(accepted, error):
-            value = self.provider.envelope(request, operation)
-            value["accepted"] = accepted
-            if error:
-                value["errorCode"] = error
-            value["data"] = self.grants.state()["deployment"]
+                value.update(accepted=False,errorCode='audit_storage_unavailable',uncertainty='audit_result_not_persisted',retrySafety='unsafe')
             finish(value)
-
-        try:
-            durable = self.journal.begin(operation, request["requestId"], self.grants.generation, caller_pid)
-            if not durable and operation != "grant.revoke":
-                finish(self.provider.fail(request, operation, "audit_storage_unavailable", "Audit storage unavailable"))
-                return
-            self.monitor()
-            if operation in {"update.check", "update.status"}:
-                result["data"] = self.updates.request(operation == "update.check")
-                finish(result)
-                return
-            if operation == "grant.request":
-                self.grants.request(request, caller, grant_reply)
-                return
-            if operation == "grant.revoke":
-                revoked, retained = self.grants.revoke_from_caller()
-                if revoked and self.portal.state == "pending":
-                    self.portal.close()
-                result["data"] = {**self.grants.state()["deployment"], "revoked": revoked,
-                                  **({"retained": "person_armed"} if retained else {})}
-            elif operation in {"grant.status", "status"}:
-                result["data"] = {**self.grants.state()["deployment"],
-                                  "desktopProduct": True, "ready": self.grants.ready,
-                                  "sourceRevision": self.identity.get("sourceRevision"),
-                                  "semanticState": "ready" if self.unlocked else "unavailable",
-                                  "captureState": "ready" if self.portal.ready else "unavailable",
-                                  "inputState": "ready" if self.provider.input_ready() else "unavailable"}
-            elif operation == "capabilities":
-                result["data"] = {"provider": "linux-desktop", "profile": "gnome_wayland",
-                                  "privilege": "ordinary_user", "operations": sorted(OBSERVE | CONTROL | {"update.check", "update.status"}),
-                                  "capture": {"route": "user/linux.portal-pipewire", "scope": "shared_screen",
-                                              "state": self.portal.state},
-                                  "input": {"route": "user/linux.portal-notify", "authorization": "portal_consent",
-                                            "coordinateSpace": "portal_shared_screen"},
-                                  "protectedDesktop": False, "hostInterference": "none"}
-            else:
-                error = self.grants.authorize(operation, request.get("expectedGeneration") or request.get("generation"))
-                if error:
-                    result = self.provider.fail(request, operation, error, "Access refused")
-                elif operation.startswith("browser."):
-                    if operation == "browser.upload":
-                        result = self.provider.fail(request, operation, "unsupported_operation", "Upload is unavailable")
-                    else:
-                        self.browser.execute(request, finish)
-                        return
-                else:
-                    self.provider_work(request, finish)
-                    return
-            finish(result)
-        except Exception as error:
-            self.journal.diagnostic("provider.request", "operation_failed")
-            finish(self.provider.fail(request, operation, "invalid_request", str(error)))
+        if self.inhibit.is_set() or channel.authority():
+            finish(self.provider.fail(request,operation,'owner_disconnected','Owner ended'));return
+        if not self.journal.begin(operation,request['requestId'],self.grants.generation,channel.pid):
+            finish(self.provider.fail(request,operation,'audit_storage_unavailable','Audit unavailable'));return
+        if operation=='capabilities':complete(self.discovery(request));return
+        if operation.startswith('browser.'):
+            def validate():
+                return channel.authority() or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
+            authority=dict(owner=channel.label,session=fence['sessionId'],profiles=channel.profiles,pid=channel.pid,
+                validate=validate,alive=lambda:not channel.closed.is_set() and process_token(channel.pid)==channel.start)
+            self.browser.execute(request,complete,authority);return
+        # Fresh native session read before occupying the one provider slot.
+        # Observation and Node ownership are revalidated before any effect.
+        def observed(unlocked,locked,identity):
+            self.apply_session(unlocked,locked,identity)
+            refusal=channel.authority() or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
+            if refusal or not unlocked:
+                finish(self.provider.fail(request,operation,refusal or 'desktop_unavailable','Desktop owner unavailable'));return
+            self.provider_work(request,complete,channel,fence)
+        try:desktop_session.observe(self.portal.bus,observed)
+        except GLib.Error:observed(False,False,None)
 
     def start_safety(self):
         environment = dict(os.environ)
@@ -435,16 +480,18 @@ class Desktop:
             try:
                 while True:
                     value = read_frame(self.safety.stdout)
+                    if value and value.get("method")=="stop":self.emergency_fence()
                     if value is None:
                         break
                     def intent(value=value):
                         method = value.get("method")
                         if method == "ready":
-                            self.safety_available = True
+                            self.safety_available = True;self.safety_observed=time.monotonic()
                             self.monitor()
-                        elif method == "presented" and value.get("generation") == self.grants.generation:
-                            self.grants.notice_ready = True
-                        elif method in {"stop", "pause", "resume"}:
+                        elif method=="alive":
+                            self.safety_observed=time.monotonic();self.notice_visible=value.get("visible") is True
+                            self.refresh_availability()
+                        elif method in {"stop", "pause", "resume", "surface.pause", "surface.resume", "intent.approve", "intent.start", "intent.deny", "intent.defer"}:
                             try:
                                 self.operator(value)
                             except ValueError:
@@ -458,8 +505,8 @@ class Desktop:
                 self.safety.wait()
                 def lost():
                     self.safety_available = False
-                    self.grants.set_ready(False)
-                    self.grants.stop("safety_unavailable")
+                    self.stop_access("safety_unavailable")
+                    self.refresh_availability()
                     return False
                 self.scheduler.post(lost)
         threading.Thread(target=write, daemon=True).start()
@@ -508,10 +555,17 @@ class Desktop:
             client.close()
             self.recovery_slots.release()
 
-    def provider_work(self, request, finish):
+    def provider_work(self, request, finish, channel, fence):
         operation = request["operation"]
         grant = self.grants.grant
         ticket = Ticket(self.grants.generation, grant["expires"] if grant else None)
+        channel.ticket=ticket
+        def authority():
+            if channel.closed.is_set() or self.inhibit.is_set() or process_token(channel.pid)!=channel.start:
+                raise Cancelled('Owner ended')
+            value=self.policy.call(dict(method='access.authorize',owner=channel.label,fence=fence,operation=operation))
+            if value.get('refusal'):raise Cancelled('Shared authority ended')
+        ticket.authority=authority
         ticket.request_id = request["requestId"]
         replied = False
         timer = None
@@ -521,6 +575,7 @@ class Desktop:
             if replied:
                 return
             replied = True
+            if channel.ticket is ticket:channel.ticket=None
             if timer:
                 self.scheduler.remove(timer)
             stale = ticket.generation != self.grants.generation
@@ -550,6 +605,7 @@ class Desktop:
                 self.provider.ticket = self.portal.ticket = None
 
         if not self.work.submit(ticket, run, completed):
+            if channel.ticket is ticket:channel.ticket=None
             finish(self.provider.fail(request, operation, "provider_busy", "Provider work is still running"))
             return
 
@@ -571,77 +627,61 @@ class Desktop:
                 continue
             threading.Thread(target=self.client, args=(client,), daemon=True).start()
 
-    def client(self, client):
-        event = threading.Event()
-        browser = False
-        reader = None
+    def client(self,client):
+        channel=None;peer=None;event=threading.Event()
         try:
-            pid, uid, _gid = struct.unpack("3i", client.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
-            if uid != os.getuid():
-                return
-            client.settimeout(5)
-            reader = SocketFrames(client)
-            request = read_frame(reader)
-            if request is None:
-                return
-            request["requestId"] = request.get("requestId") or uuid.uuid4().hex
-            if request.get("operation") == "browser.register":
-                browser = True
+            pid,uid,_gid=struct.unpack('3i',client.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12))
+            if uid!=os.getuid():return
+            start=process_token(pid)
+            if start is None:return
+            client.settimeout(3);reader=SocketFrames(client);request=read_frame(reader)
+            if request is None:return
+            if request.get('operation')=='browser.register':
+                result=[]
                 def register():
-                    self.journal.event("browser.connected")
-                    self.browser.register(client, pid)
-                    event.set()
-                    return False
+                    result.append(self.browser.register(client,pid));event.set();return False
                 self.scheduler.post(register)
-                event.wait(5)
-                # A separate readable descriptor avoids Python buffered socket
-                # timeout poisoning. Writes remain bounded to three seconds.
-                client.settimeout(3)
-                while not self.stopped:
-                    if b"\n" not in reader.buffer and not select.select([client], [], [], 1)[0]:
-                        continue
-                    line = reader.readline(1024 * 1024 + 1)
-                    if not line or len(line) > 1024 * 1024 or not line.endswith(b"\n"):
-                        break
-                    value = json.loads(line)
-                    if not isinstance(value, dict):
-                        break
-                    self.scheduler.post(lambda value=value: self.browser.message(client, value) or False)
+                if not event.wait(5) or not result or result[0] is None:return
+                peer=result[0]
+                while not self.stopped and not peer.closed.is_set():
+                    if not reader.buffer and not select.select([client],[],[],.5)[0]:continue
+                    value=read_frame(reader,16*1024*1024)
+                    if value is None:break
+                    if not peer.inbound.acquire(timeout=1):break
+                    self.scheduler.post(self.browser.message,client,value,peer.inbound.release)
                 return
-
-            replies = []
-
-            def complete(value):
-                replies.append(value)
-                event.set()
-
-            self.scheduler.post(lambda: self.handle(request, f"pid {pid}", complete, caller_pid=pid) or False)
-            end = time.monotonic() + 610
+            if request.get('operation')=='control.open':
+                channel=Channel(self,client,pid,start)
+                self.scheduler.post(lambda:self.channels.add(channel) or False)
+                while not self.stopped and not channel.closed.is_set():
+                    if not channel.incoming.acquire(timeout=1):break
+                    def delivered(value=request):
+                        try:return channel.handle(value)
+                        finally:channel.incoming.release()
+                    self.scheduler.post(delivered)
+                    while not reader.buffer and not select.select([client],[],[],.5)[0]:
+                        if channel.closed.is_set() or self.stopped:return
+                    request=read_frame(reader)
+                    if request is None:break
+                return
+            result=[]
+            def complete(value):result.append(value);event.set()
+            self.scheduler.post(lambda:self.handle(request,'local process',complete,caller_pid=pid) or False)
+            deadline=time.monotonic()+55
             while not event.wait(.1):
-                if time.monotonic() >= end or select.select([client], [], [], 0)[0]:
-                    self.scheduler.post(lambda: self.cancel_caller(request) or False)
-                    return
-            if replies:
-                client.sendall(encode(replies[0]))
-        except (OSError, ValueError):
-            pass
+                if time.monotonic()>=deadline or select.select([client],[],[],0)[0]:return
+            if result:client.sendall(encode(result[0]))
+        except (OSError,ValueError,PolicyError):pass
         finally:
-            if browser:
-                self.scheduler.post(lambda: self.browser.disconnect(client) or False)
-            client.close()
-            self.slots.release()
-
-    def cancel_caller(self, request):
-        if request.get("operation") == "grant.request" and self.grants.pending:
-            if self.grants.pending.get("requestId") == request["requestId"]:
-                self.grants.finish_pending(False, "caller_disconnected")
-        elif self.work.active and self.work.active.request_id == request.get("requestId"):
-            self.work.cancel()
+            if channel:channel.close()
+            if peer:self.scheduler.post(self.browser.disconnect,client)
+            client.close();self.slots.release()
 
     def operator_reader(self):
         while not self.stopped:
             try:
                 command = read_frame(sys.stdin.buffer)
+                if command and command.get("method")=="stop":self.emergency_fence()
                 if command is None:
                     break
                 complete = threading.Event()
@@ -673,7 +713,10 @@ class Desktop:
         self.work.cancel()
         self.grants.stop("operator_disconnected")
         self.portal.close()
-        self.browser.disconnect()
+        self.browser.close()
+        for channel in list(self.channels):channel.close()
+        self.activity.close()
+        self.policy.stop()
         self.socket.close()
         self.endpoint.unlink(missing_ok=True)
         self.recovery.close()

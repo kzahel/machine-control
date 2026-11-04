@@ -124,3 +124,19 @@ as a late takeover. Tests reject a pre-offer in-flight sample and a new receipt
 containing an old boundary. Silence has a finite last-positive ceiling; a
 current negative or endpoint loss invalidates immediately. The updated actual
 ARM64 probe/foreign-UID refusal and original-absence restoration pass again.
+
+
+**Current — companion cutover, awaiting native qualification:** the ordinary
+companion now adapts v2 shared consent and task ownership, with independent
+surface configuration and exact-profile browser peers. Native effects retain
+the single physical worker and recheck shared authority immediately before
+dispatch. The separate GTK window presents exact task approval, warning,
+deferral, Resume and Stop; its live main-loop/visibility acknowledgment is a
+native availability fact. The obsolete Python grant and one-shot approval
+engines are removed. Portable tests run the actual packaged Node child for
+owner/offer/Ask/Stop, availability recovery, independent Browser permissions,
+background operation narrowing and process failure. Settings also exposes the
+explicit read-only observer setup. A bounded local relay and continuously
+claimed SSH desktop channel preserve the unchanged Python client's live
+protocol. This is source implementation evidence, not installed Linux
+acceptance or a claim of physical takeover qualification.

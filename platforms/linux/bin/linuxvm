@@ -39,6 +39,7 @@ Desktop automation:
   ui COMMAND [ARG...]            AT-SPI semantic UI automation
   control JSON | control-local JSON
                                  Call the persistent resident facade
+  channel                        Live desktop admission channel (SSH transport)
   artifact ID [OUTPUT.png]       Fetch a bounded resident capture artifact
   fixture [gtk|qt|browser] ACTION
                                  Manage deterministic effect-oracle fixtures
@@ -253,6 +254,14 @@ case "$command" in
         else
             user_exec /usr/local/bin/machine-control "$@"
         fi
+        ;;
+    channel)
+        [[ $# == 0 && "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]] || {
+            printf 'Live channels require the desktop instance\n' >&2
+            exit 2
+        }
+        claim_guard_channel "$LINUXVM_CLAIM_STATE_DIR" "$LINUXVM_CLAIM_PROVIDER" \
+            "$LINUXVM_EXPECTED_UUID" "$PROVIDER" desktop-channel
         ;;
     artifact) artifact "$@" ;;
     fixture) fixture "$@" ;;

@@ -1,4 +1,4 @@
-"""Grant-scoped Chrome extension relay; references bind both generations."""
+"""Authenticated native transports; shared Node owns profile/CDP policy."""
 
 import hashlib
 import base64
@@ -9,8 +9,11 @@ import shutil
 import uuid
 import queue
 import threading
+import select
+import time
 
 import subprocess
+import socket
 import artifacts
 
 LIMIT = 1024 * 1024
@@ -20,16 +23,22 @@ ORIGINS = ["chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/",
            "chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/"]
 
 
+class Peer:
+    def __init__(self,client,origin):
+        self.client,self.origin=client,origin
+        self.tag=uuid.uuid4().hex;self.connection=None;self.problem=None
+        self.attaching=False;self.waiting=[];self.closed=threading.Event()
+        self.outgoing=queue.Queue(maxsize=32);self.inbound=threading.BoundedSemaphore(8)
+
+
 class Browser:
-    def __init__(self, owner):
-        self.owner = owner
-        self.provider = None
-        self.generation = uuid.uuid4().hex
-        self.published = None
-        self.pending = {}
-        self.directory = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "machine-control"
-        self.host = self.directory / "browser_host.py"
-        self.extension = self.directory / "extension"
+    def __init__(self,owner):
+        self.owner=owner;self.policy=owner.policy
+        self.generation=uuid.uuid4().hex;self.native_state=None;self.stopped=True
+        self.peers={};self.authorities={};self.audits={}
+        self.lock=threading.Lock();self.output_bytes=0
+        self.directory=Path(os.environ.get("XDG_DATA_HOME",Path.home()/".local/share"))/"machine-control"
+        self.host=self.directory/"browser_host.py";self.extension=self.directory/"extension"
 
     def refresh_owned_installation(self):
         """Refresh an existing opt-in after replacement without opting in again."""
@@ -84,163 +93,238 @@ class Browser:
         except (OSError, ValueError):
             return False
 
-    def register(self, client, pid):
-        if not self.trusted(pid):
-            client.close()
-            return
-        self.disconnect()
-        self.provider = client
-        self.outgoing = queue.Queue(maxsize=32)
-        outgoing = self.outgoing
-        def write():
-            while self.provider == client:
-                try:
-                    frame, generation, identifier = outgoing.get(timeout=1)
-                except queue.Empty:
-                    continue
-                if frame is None:
-                    return
-                if identifier and identifier not in self.pending:
-                    continue
-                if identifier and (self.owner.grants.generation != generation or self.owner.grants.paused
-                                   or self.owner.grants.pending):
-                    self.owner.scheduler.post(lambda identifier=identifier: self.complete(
-                        identifier, {"ok": False, "errorCode": "stale_generation"}))
-                    continue
-                try:
-                    if identifier and identifier in self.pending:
-                        self.pending[identifier]["dispatched"] = True
-                    client.sendall(frame)
-                except OSError:
-                    self.owner.scheduler.post(lambda: self.disconnect(client) or False)
-                    return
-        threading.Thread(target=write, daemon=True, name="mc-browser-writer").start()
-        self.generation = uuid.uuid4().hex
-        self.published = None
-        self.send({"type": "registered", "protocolVersion": 1})
-        self.sync()
+    @property
+    def connected(self):return any(row.get('connected') for row in self.profiles())
+    def profiles(self):return self.policy.browser_state().get('profiles',[])
+    def state(self):
+        return dict(connected=self.connected,available=self.policy.alive,route='chrome.extension/cdp',
+            profiles=self.profiles(),approvedProfiles=self.policy.browser_state().get('selectedProfiles',[]),
+            profileSelectionSupported=True,sharedRuntime='typescript_node',
+            callerAssurance='cooperative_same_user',
+            streamingCdp=dict(available=self.policy.alive,browserLevel=True,
+                binding='live_browser_surface_owner',transport='target_loopback_websocket'),
+            knownOmissions=['incognito tabs','browser chrome UI','OS file dialogs','typed file upload'])
 
-    def send(self, value):
-        if not self.provider:
-            raise RuntimeError("Browser is not connected")
-        frame = json.dumps(value, separators=(",", ":")).encode() + b"\n"
-        if len(frame) > LIMIT:
-            raise ValueError("Browser frame exceeds 1 MiB")
-        try:
-            self.outgoing.put_nowait((frame, self.owner.grants.generation,
-                                     value.get("id") if value.get("type") == "request" else None))
-        except queue.Full:
-            self.disconnect()
-            raise RuntimeError("Browser disconnected") from None
+    def configure(self,profiles,duration,enabled):
+        self.invalidate()
+        self.policy.call(dict(method='operator.configure',scopes=['browser','devtools'] if enabled else [],
+            profileIds=profiles,durationMs=duration))
+        self.stopped=not enabled;self.native_state=None
+
+    def invalidate(self):
+        self.generation=uuid.uuid4().hex
+        for value in self.authorities.values():value['revoked'].set()
+        self.authorities.clear()
+        for identifier in list(self.audits):self.end_audit(identifier,False)
+
+    def stop_access(self):
+        self.stopped=True;self.invalidate();self.native_state=None
+        if self.policy.alive:self.policy.call(dict(method='operator.stop'))
 
     def sync(self):
-        if not self.provider:
-            return
-        grant = self.owner.grants
-        state = (grant.generation, grant.authorize("browser.tabs") is None,
-                 grant.authorize("browser.eval") is None)
-        if state != self.published:
-            self.published = state
-            try:
-                self.send({"type": "grant", "browser": False, "devtools": False, "grantGeneration":state[0]})
-                self.send({"type": "grant", "browser": state[1], "devtools": state[2], "grantGeneration":state[0]})
-            except RuntimeError:
-                return
-            # Discard in-flight authority on a generation transition.
-            for identifier, item in list(self.pending.items()):
-                if item["grant"] != state[0]:
-                    self.complete(identifier, {"ok": False, "errorCode": "stale_generation"})
+        if not self.policy.alive:return
+        state=self.owner.grants.view.get('surfaces',{}).get('browser',{})
+        allowed=(not self.stopped and state.get('mode','off')!='off' and state.get('ready') is True
+                 and not state.get('expired') and not state.get('pauses'))
+        signature=(self.generation,allowed)
+        if self.native_state!=signature:
+            self.policy.call(dict(method='native.state',generation=self.generation,readable=allowed,writable=allowed))
+            self.native_state=signature
 
-    def execute(self, request, finish):
-        timeout = request.get("timeoutMs", 30000)
-        if type(timeout) is not int or timeout <= 0:
-            finish(self.owner.provider.fail(request, request["operation"], "invalid_request", "Browser timeout must be positive integer milliseconds"))
-            return
-        timeout = min(45000, max(100, timeout))
-        self.sync()
-        if not self.provider:
-            finish(self.owner.provider.fail(request, request["operation"], "browser_provider_unavailable", "Connect the extension"))
-            return
-        grant = self.owner.grants.generation
-        params = {k: v for k, v in request.items() if k not in {
-            "operation", "requestId", "generation", "expectedGeneration"}}
-        if "reference" in params:
-            prefix = grant + ":" + self.generation + ":"
-            if not isinstance(params["reference"], str) or not params["reference"].startswith(prefix):
-                finish(self.owner.provider.fail(request, request["operation"], "stale_reference", "Observe again"))
-                return
-            params["reference"] = params["reference"][len(prefix):]
-        identifier = uuid.uuid4().hex
-        self.pending[identifier] = {"request": request, "finish": finish, "grant": grant,
-                                    "provider": self.generation, "dispatched": False}
-        try:
-            self.send({"type": "request", "id": identifier, "operation": request["operation"], "params": params, "timeoutMs":min(30000, max(100, timeout - 500))})
-        except (RuntimeError, ValueError):
-            self.complete(identifier, {"ok": False, "errorCode": "browser_provider_unavailable"})
-        self.owner.scheduler.timer(timeout, lambda: self.expire(identifier))
+    def register(self,client,pid):
+        if not self.trusted(pid) or not self.policy.alive or len(self.peers)>=16:
+            return None
+        args=Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
+        peer=Peer(client,os.fsdecode(args[2]).split('://',1)[1].strip('/'))
+        self.peers[client]=peer
+        threading.Thread(target=self.writer,args=(peer,),daemon=True,name='mc-browser-writer').start()
+        self.enqueue(peer,dict(type='registered',protocolVersion=1))
+        return peer
 
-    def expire(self, identifier):
-        if identifier in self.pending:
-            try:
-                self.send({"type":"cancel", "id":identifier})
-            except (RuntimeError, ValueError):
-                pass
-            self.complete(identifier, {"ok":False, "errorCode":"browser_timeout"})
-        return False
-
-    def message(self, client, frame):
-        if client != self.provider:
-            return
-        if frame.get("type") == "response" and isinstance(frame.get("id"), str):
-            self.complete(frame["id"], frame)
-
-    def complete(self, identifier, frame):
-        item = self.pending.pop(identifier, None)
-        if not item:
-            return False
-        request = item["request"]
-        error = self.owner.grants.authorize(request["operation"], item["grant"])
-        if item["provider"] != self.generation:
-            error = "browser_provider_unavailable"
-        if frame.get("ok") is not True:
-            error = error or frame.get("errorCode", "browser_operation_failed")
-        if error:
-            dispatched = item["dispatched"] and frame.get("delivery") != "refused"
-            result = self.owner.provider.fail(request, request["operation"], error, "Browser operation refused")
-            result.update(actualRoute="user/chrome-extension/cdp",
-                          delivery="unknown" if dispatched else "not_dispatched",
-                          effect="unknown" if dispatched else "none",
-                          uncertainty="authority_or_provider_changed_after_dispatch" if dispatched else "none",
-                          retrySafety="unsafe_delivery_unknown" if dispatched else "safe_before_dispatch")
-        else:
-            result = self.owner.provider.envelope(request, request["operation"])
-            result.update(actualRoute="user/chrome-extension/cdp", fidelity="chromium_tab_cdp",
-                          delivery="confirmed", effect="unverifiable", uncertainty="no_independent_state_change")
-            result["data"] = frame.get("data", {})
-            if request["operation"] == "browser.capture":
-                try:
-                    data = base64.b64decode(result["data"].pop("png"), validate=True)
-                    result["data"]["artifact"] = artifacts.write(data)
-                except (KeyError, ValueError):
-                    result = self.owner.provider.fail(request, request["operation"], "invalid_capture", "Invalid browser capture")
-            if request["operation"] == "browser.snapshot":
-                for element in result["data"].get("elements", []):
-                    if "reference" in element:
-                        element["reference"] = item["grant"] + ":" + self.generation + ":" + element["reference"]
-        item["finish"](result)
-        return False
-
-    def disconnect(self, client=None):
-        if client is not None and client != self.provider:
-            return
-        if self.provider:
-            self.provider.close()
-            try:
-                self.outgoing.put_nowait((None, None, None))
+    def enqueue(self,peer,frame,authority=None):
+        if peer.closed.is_set():return
+        data=json.dumps(frame,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()+b'\n'
+        if len(data)>16*LIMIT:self.disconnect(peer.client);return
+        with self.lock:
+            if self.output_bytes+len(data)>32*LIMIT:
+                self.owner.scheduler.post(self.disconnect,peer.client);return
+            try:peer.outgoing.put_nowait((data,authority,self.generation))
             except queue.Full:
-                pass
-        self.provider = None
-        self.generation = uuid.uuid4().hex
-        self.published = None
-        for identifier in list(self.pending):
-            self.complete(identifier, {"ok": False, "errorCode": "browser_provider_unavailable"})
+                self.owner.scheduler.post(self.disconnect,peer.client);return
+            self.output_bytes+=len(data)
+
+    def writer(self,peer):
+        try:
+            while not peer.closed.is_set():
+                try:data,authority,generation=peer.outgoing.get(timeout=.1)
+                except queue.Empty:continue
+                try:
+                    offset=0;deadline=time.monotonic()+3
+                    while offset<len(data):
+                        if (peer.closed.is_set() or not self.policy.alive or generation!=self.generation or
+                            authority is not None and (authority['revoked'].is_set() or self.owner.inhibit.is_set() or not authority['alive']())):
+                            break
+                        if time.monotonic()>=deadline:raise OSError('browser_write_timeout')
+                        if not select.select([], [peer.client], [], .1)[1]:continue
+                        try:count=peer.client.send(data[offset:],socket.MSG_DONTWAIT)
+                        except BlockingIOError:continue
+                        if count<=0:raise OSError('browser_write_closed')
+                        offset+=count
+                    # A partly written frame cannot be followed by another.
+                    if offset and offset!=len(data):raise OSError('browser_frame_interrupted')
+                finally:
+                    with self.lock:self.output_bytes-=len(data)
+        except (OSError,ValueError):self.owner.scheduler.post(self.disconnect,peer.client)
+        finally:
+            while True:
+                try:data,_,_=peer.outgoing.get_nowait()
+                except queue.Empty:break
+                with self.lock:self.output_bytes-=len(data)
+
+    def message(self,client,frame,completed=lambda:None):
+        peer=self.peers.get(client)
+        if peer is None or peer.closed.is_set() or peer.problem:
+            completed();return
+        if peer.connection is None:
+            if peer.attaching:
+                if len(peer.waiting)>=8:self.disconnect(client)
+                else:peer.waiting.append(frame)
+                completed();return
+            if frame.get('type')!='hello':self.disconnect(client);completed();return
+            peer.attaching=True
+            def attached(value,error):
+                peer.attaching=False
+                if not peer.closed.is_set():
+                    if error:
+                        peer.problem=error
+                        self.enqueue(peer,dict(type='profile.refused',protocolVersion=1,reason=error))
+                    else:
+                        peer.connection=value.get('connectionId')
+                        if not peer.connection:self.disconnect(client)
+                        else:
+                            queued,peer.waiting=peer.waiting,[]
+                            for waiting in queued:self.message(client,waiting)
+                completed()
+            self.policy.request(dict(method='browser.attach',extensionId=peer.origin,hello=frame,
+                                     transportTag=peer.tag),attached,timeout=10)
+        else:
+            def received(_value,error):
+                if error:self.disconnect(client)
+                completed()
+            self.policy.request(dict(method='provider.frame',connectionId=peer.connection,frame=frame),received)
+
+    def disconnect(self,client):
+        peer=self.peers.pop(client,None)
+        if peer is None or peer.closed.is_set():return
+        peer.closed.set()
+        try:client.shutdown(socket.SHUT_RDWR)
+        except OSError:pass
+        if peer.connection and self.policy.alive:
+            identifier=peer.connection
+            self.policy.request(dict(method='provider.disconnect',connectionId=identifier),
+                lambda *_:self.policy.request(dict(method='provider.retire',connectionId=identifier),lambda *_:None)
+                if self.policy.alive else None)
+
+    def event(self,message):
+        kind=message.get('type')
+        if kind=='access.event':
+            if message.get('event') in {'yielded','ended'}:
+                session=message.get('sessionId')
+                for identifier,value in list(self.authorities.items()):
+                    if session and value['session']==session:
+                        value['revoked'].set();self.authorities.pop(identifier,None)
+            return
+        if kind=='native.check':
+            allowed=self.check(message)
+            self.policy.request(dict(method='native.reply',nativeId=message['nativeId'],accepted=allowed),lambda *_:None)
+            return
+        peer=next((peer for peer in self.peers.values() if peer.tag==message.get('transportTag') or
+                   peer.connection and peer.connection==message.get('connectionId')),None)
+        if peer is None:return
+        if kind=='provider.close':self.disconnect(peer.client);return
+        frame=message.get('frame')
+        if not isinstance(frame,dict):self.disconnect(peer.client);return
+        authority=None
+        if frame.get('type') in {'request','session.open','session.command'}:
+            authority=self.authorities.get(message.get('authorityId'))
+            if not self.valid(authority):self.disconnect(peer.client);return
+        if frame.get('type')=='grant' and (frame.get('browser') or frame.get('devtools')):
+            expected='shared:'+str(self.policy.browser_state().get('authorizationGeneration'))+':'
+            if self.stopped or not str(frame.get('grantGeneration','')).startswith(expected):return
+        self.enqueue(peer,frame,authority)
+
+    def valid(self,authority):
+        return (authority is not None and not self.stopped and self.policy.alive and
+                not self.owner.inhibit.is_set() and not authority['revoked'].is_set() and
+                authority['generation']==self.generation and authority['validate']() is None)
+
+    def cancel_invalid(self):
+        for identifier,value in list(self.authorities.items()):
+            if not self.valid(value):
+                value['revoked'].set();self.authorities.pop(identifier,None)
+
+    def check(self,frame):
+        authority=self.authorities.get(frame.get('authorityId'));allowed=self.valid(authority)
+        phase=frame.get('phase');identifier=frame.get('auditId')
+        if phase=='check':return allowed
+        if phase=='begin':
+            if not allowed or not isinstance(identifier,str) or len(self.audits)>=256 or identifier in self.audits:return False
+            if not self.owner.journal.begin('browser.cdp',identifier,self.generation,authority['pid']):return False
+            self.audits[identifier]=authority;return True
+        if phase=='result' and identifier in self.audits:
+            return self.end_audit(identifier,allowed and frame.get('delivery')=='confirmed') and allowed
+        return False
+
+    def end_audit(self,identifier,confirmed):
+        self.audits.pop(identifier,None)
+        return self.owner.journal.record(dict(operation='browser.cdp',requestId=identifier,
+            generation=self.generation,actualRoute='chrome.extension/cdp',accepted=confirmed,
+            delivery='confirmed' if confirmed else 'unknown',effect='unverifiable',
+            uncertainty='application_effect_not_independently_observed' if confirmed else 'browser_completion_not_observed'))
+
+    def execute(self,request,finish,authority=None):
+        operation=request.get('operation')
+        if operation=='browser.upload':
+            finish(self.owner.provider.fail(request,operation,'unsupported_operation','Typed upload is unavailable'));return
+        if not self.policy.alive:
+            finish(self.owner.provider.fail(request,operation,'control_policy_unavailable','Shared authority unavailable'));return
+        if operation!='browser.profiles' and (authority is None or authority['validate']() is not None):
+            finish(self.owner.provider.fail(request,operation,'control_session_required','Use one live Browser owner'));return
+        self.sync();identifier=uuid.uuid4().hex;retained=operation=='browser.endpoint'
+        authority_id='metadata'
+        if authority is not None:
+            if len(self.authorities)>=128:
+                finish(self.owner.provider.fail(request,operation,'browser_stream_capacity','Browser owner capacity reached'));return
+            authority_id=uuid.uuid4().hex
+            authority={**authority,'generation':self.generation,'revoked':threading.Event()}
+            self.authorities[authority_id]=authority
+        def completed(reply,error):
+            result=self.owner.provider.envelope(request,operation)
+            result['actualRoute']='chrome.extension/cdp'
+            if error:
+                uncertain=error.startswith('ipc_') or error in ('resident_stopping','control_policy_unavailable')
+                result.update(accepted=False,errorCode=error if not uncertain else 'browser_completion_unavailable',
+                    delivery='unknown' if uncertain else 'refused',effect='unknown' if uncertain else 'refused',
+                    uncertainty='browser_completion_not_observed' if uncertain else 'none',
+                    retrySafety='unsafe_delivery_unknown' if uncertain else 'safe_not_dispatched')
+            else:
+                for key in ('accepted','errorCode','message','delivery','effect','uncertainty','retrySafety'):
+                    if key in reply:result[key]=reply[key]
+                data=dict(reply.get('data',{}))
+                if 'profileId' in reply:data['browserProfileId']=reply['profileId']
+                if 'providerGeneration' in reply:data['providerGeneration']=reply['providerGeneration']
+                if operation=='browser.capture' and result.get('accepted'):
+                    try:data['artifact']=artifacts.write(base64.b64decode(data.pop('png'),validate=True))
+                    except (ValueError,KeyError,OSError):result=self.owner.provider.fail(request,operation,'artifact_failed','Capture artifact unavailable')
+                result['data']=data
+            if authority is not None and not self.valid(authority):
+                result.update(accepted=False,errorCode='stale_control_session',uncertainty='interrupted_after_possible_dispatch',retrySafety='unsafe')
+            if not retained:self.authorities.pop(authority_id,None)
+            finish(result)
+        self.policy.request(dict(method='browser.call',requestId=identifier,authorityId=authority_id,
+            ownerSession=authority['owner']+':'+authority['session'] if authority else None,
+            ownerProfileIds=authority['profiles'] if authority else [],request=request),completed,timeout=50)
+
+    def close(self):
+        self.stop_access()
+        for client in list(self.peers):self.disconnect(client)
