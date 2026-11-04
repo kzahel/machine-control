@@ -22,10 +22,11 @@ print(child.pid,flush=True)
 time.sleep(120)
 """
         parent=subprocess.Popen([sys.executable,'-c',parent_code,str(LAUNCHER)],stdout=subprocess.PIPE,text=True)
-        child=None
+        child=None;started=None
         try:
             self.assertTrue(select.select([parent.stdout],[],[],10)[0])
             child=int(parent.stdout.readline())
+            started=Path(f'/proc/{child}/stat').read_text().rsplit(')',1)[1].split()[19]
             parent.kill();parent.wait(5)
             deadline=time.monotonic()+3
             while time.monotonic()<deadline:
@@ -38,8 +39,10 @@ time.sleep(120)
             if parent.poll() is None:parent.kill();parent.wait(5)
             parent.stdout.close()
             if child:
-                try:os.kill(child,signal.SIGKILL)
-                except ProcessLookupError:pass
+                try:
+                    fields=Path(f'/proc/{child}/stat').read_text().rsplit(')',1)[1].split()
+                    if fields[0]!='Z' and fields[19]==started:os.kill(child,signal.SIGKILL)
+                except (FileNotFoundError,ProcessLookupError):pass
 
 
 if __name__=='__main__':unittest.main()

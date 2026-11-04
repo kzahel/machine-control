@@ -85,7 +85,8 @@ class SharedPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             prefix=Path(temporary)/'usr'
             native=prefix/'lib/machine-control/linux-runtime';native.mkdir(parents=True)
-            shutil.copyfile(ROOT/'desktop/native/linux/policy.py',native/'policy.py')
+            for name in ('policy.py','policy_exec.py'):
+                shutil.copyfile(ROOT/'desktop/native/linux'/name,native/name)
             shared=prefix/'share/machine-control/shared-policy'
             shutil.copytree(self.root,shared)
             spec=importlib.util.spec_from_file_location('installed_policy',native/'policy.py')
