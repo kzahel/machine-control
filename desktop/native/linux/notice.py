@@ -16,6 +16,8 @@ parent=os.getppid()
 if ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)!=0 or os.getppid()!=parent:
     raise SystemExit('Safety owner unavailable')
 GLib.set_prgname('machine-control-safety');Gtk.init([])
+if Gdk.Display.get_default().__gtype__.name!='GdkX11Display':
+    raise SystemExit('Nonactivating Xwayland notification provider unavailable')
 window=Gtk.Window(title='Machine Control — Agent access')
 window.set_default_size(450,120);window.set_border_width(14)
 window.set_accept_focus(False);window.set_focus_on_map(False);window.set_keep_above(True)

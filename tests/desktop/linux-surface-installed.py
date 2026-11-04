@@ -18,6 +18,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('app','runtime','client','output','fixture'):parser.add_argument('--'+name,type=Path,required=True)
     parser.add_argument('--revision',required=True)
+    parser.add_argument('--remote-handoff',action='store_true',help='Coordinate an outside SDK actor through private fixture markers')
     args=parser.parse_args();args.output.mkdir(parents=True,mode=0o700,exist_ok=True)
     signal.signal(signal.SIGTERM,lambda *_:(_ for _ in ()).throw(SystemExit(143)))
     sys.path.insert(0,str(args.runtime))
@@ -131,7 +132,16 @@ def main():
         sdk=ControlSession(target,reason='Verify packaged Automatic warning',surfaces=['desktop'],wait=120,duration=60)
         poll(lambda:sdk.status()['state']=='announcing','automatic notice');sdk.wait()
         check('packaged Automatic warns then starts',sdk.view['state']=='active')
-        press('Stop all access');sdk.close();sdk=None
+        if args.remote_handoff:
+            sdk.close();sdk=None
+            (args.output/'remote-ready.json').write_text(json.dumps({'ready':True}))
+            poll(lambda:(args.output/'remote-finished').exists(),'outside SDK actor',180)
+            poll(lambda:json.loads(oracle.read_text())['count']==2,'independent outside SDK effect')
+            check('outside SDK effect reaches the same packaged provider',True)
+            poll(lambda:policy()['active']==0,'outside owner EOF cleanup')
+            check('outside owner closes without disabling consent',policy()['surfaces']['desktop']['mode']=='automatic')
+        press('Stop all access')
+        if sdk:sdk.close();sdk=None
         # The real permissions UI includes the separate native observer setup.
         press('Permissions')
         check('native read-only observer setup is visible',poll(lambda:widget('Set up activity observer'),'activity observer setup') is not None)

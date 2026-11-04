@@ -199,3 +199,15 @@ The native all-target clippy gate also finds a Windows-only diagnostic method
 included unused in Linux tests. Its implementation now has its proper Windows
 compile guard; Windows behavior is unchanged. Final package construction and
 Settings / shipped-client acceptance remain in progress.
+
+
+**Current — keyboard handoff finding:** the integrated portal-input probe
+refuses before dispatch with `operator_protected`; an independent foreground
+observation identifies the GTK Wayland notice as the active application.
+Mutter does not honor this GTK3 toplevel's nonactivation hints here. Preserve
+the protection and change only the warning provider to an explicitly required
+Xwayland GTK notification, dropping inherited activation tokens. Keep native
+effects on AT-SPI / portal. The native actor now checks that the warning does
+not receive keyboard focus. Debian declares the dependency; unavailable native
+controls keep readiness down and Settings explains that prerequisite. This
+provider change still requires its native acceptance before completion.

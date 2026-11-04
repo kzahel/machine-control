@@ -119,7 +119,9 @@ def main():
         operator('control_notice',noticeSeconds=5);configure('ask')
         poll(lambda:state()['activityObserver']['healthy'],'actual read-only observer')
         first=owner();waiting(first,'waiting_for_approval')
-        press('Allow this task');waiting(first,'announcing');press('Start now');first.wait()
+        press('Allow this task');waiting(first,'announcing')
+        check('native warning does not take keyboard focus',not any('active' in info['states'] for _,info in nodes('machine-control-safety') if info['role']=='frame'))
+        press('Start now');first.wait()
         check('Ask first yields a live owner',first.view['state']=='active')
         reference=effect(first);original=first.view['sessionId']
         operator('pause_surface',surface='browser',duration=30)
@@ -155,7 +157,16 @@ def main():
         assert 0<=x<16384 and 0<=y<16384,'Owned fixture bounds unavailable'
         selected=fixture_operator('input.click',x=x,y=y,target='machine-control-fixture')
         check('independent operator selects the owned foreground fixture',selected['accepted'])
+        active=[]
+        for application in linuxui.application_roots(linuxui.desktop()):
+            application.clear_cache()
+            for _,window in linuxui.children(application):
+                window.clear_cache()
+                if 'active' in linuxui.state_names(window):
+                    active.append(dict(name=linuxui.safe(application.get_name,''),pid=linuxui.safe(application.get_process_id,0)))
+        (args.output/'foreground.private.json').write_text(json.dumps(active))
         typed=automatic.call('input.text',target='machine-control-fixture',text='Unified Linux café 世界')
+        (args.output/'input-result.private.json').write_text(json.dumps(typed))
         check('ordinary portal input delivery',typed['accepted'] and typed['actualRoute']=='user/linux.portal-notify')
         poll(lambda:json.loads(oracle.read_text())['text']=='Unified Linux café 世界','independent portal text effect')
         check('independent portal text effect',True)

@@ -175,13 +175,13 @@ class Desktop:
         state=self.grants.view
         watch=any(row.get('mode','off')!='off' and not row.get('expired') for row in state.get('surfaces',{}).values())
         self.activity.refresh(watch,self.session_identity)
-        self.grants.ready=self.unlocked and self.safety_available
         self.grants.locked=self.locked;self.grants.session=self.session_identity
         self.grants.browser_while_locked=self.browser_preference.enabled
         known=self.session_identity is not None and time.monotonic()-self.session_observed<=2
         self.grants.fact('input',known and self.activity.healthy(self.session_identity))
         notice_health=self.safety_available and time.monotonic()-self.safety_observed<=2
         healthy=notice_health and self.journal.health['available'] and not self.grants.updating
+        self.grants.ready=bool(self.unlocked and healthy)
         # Presentability is true before the first request; a hidden idle window
         # must not make Core skip its warning. Once a task exists, an actually
         # unmapped notice is a readiness floor until GTK acknowledges it.
@@ -238,6 +238,7 @@ class Desktop:
             providerWork=dict(busy=self.work.active is not None),
             sessionObservation=dict(ageSeconds=time.monotonic()-self.session_observed,refreshing=self.session_pending),
             safetyAvailable=self.safety_available,physicalActivity=self.activity.state(self.session_identity),
+            nativeNotice=self.notice_capability(),
             activityObserver={**self.activity.state(self.session_identity),
                 'setupState':'authorizing' if self.activity_setup else 'idle','setupError':self.activity_setup_error},
             permissions=dict(accessibility=self.unlocked,screenRecording=self.portal.ready),
@@ -245,6 +246,10 @@ class Desktop:
             browser=self.browser.state(),browserWhileLocked=dict(supported=True,enabled=self.browser_preference.enabled),
             socket=str(self.endpoint),startOnLogin=self.startup.enabled,stopShortcutAvailable=self.shortcut.available,
             stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health)
+
+    def notice_capability(self):
+        return dict(route='gtk3_xwayland_notification',requiresXwayland=True,
+            available=self.safety_available and time.monotonic()-self.safety_observed<=2)
 
     def operator(self, command):
         method = command.get("method")
@@ -397,6 +402,7 @@ class Desktop:
                 'captureState':'ready' if self.portal.ready else 'unavailable',
                 'inputState':'ready' if self.provider.input_ready() else 'unavailable',
                 'browser':self.browser.state(),'physicalActivity':self.activity.state(self.session_identity),
+                'nativeNotice':self.notice_capability(),
                 'admissionChannel':dict(schema='machine-control-admission-channel/v2',
                     ownerBinding='live_same_user_transport',callerAssurance='unverified_same_user')}
         else:
@@ -406,7 +412,8 @@ class Desktop:
                     'browser.cdp','browser.eval','browser.endpoint','update.check','update.status'}),
                 browser=self.browser.state(),capture=dict(route='user/linux.portal-pipewire',state=self.portal.state,scope='shared_screen'),
                 input=dict(route='user/linux.portal-notify',authorization='portal_consent',coordinateSpace='portal_shared_screen'),
-                physicalActivity=self.activity.state(self.session_identity),protectedDesktop=False,hostInterference='none')
+                physicalActivity=self.activity.state(self.session_identity),nativeNotice=self.notice_capability(),
+                protectedDesktop=False,hostInterference='none')
         return result
 
     def handle(self,request,caller,complete,caller_pid=None):
@@ -463,6 +470,12 @@ class Desktop:
     def start_safety(self):
         environment = dict(os.environ)
         environment.pop("NO_AT_BRIDGE", None)
+        # Mutter ignores GTK3 Wayland focus hints for this independent toplevel.
+        # Xwayland honors the notification/input hints and keeps the warning
+        # from becoming the foreground keyboard recipient at handoff.
+        environment['GDK_BACKEND']='x11'
+        environment.pop('DESKTOP_STARTUP_ID',None)
+        environment.pop('XDG_ACTIVATION_TOKEN',None)
         self.safety = subprocess.Popen(["/usr/bin/python3", str(Path(__file__).with_name("notice.py"))],
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                        stderr=sys.stderr, env=environment)
