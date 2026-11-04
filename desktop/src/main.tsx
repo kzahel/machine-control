@@ -72,7 +72,7 @@ type State = {
   stopShortcut?: string;
   startOnLogin?: boolean;
   deployment: {
-    policy: { preset: string; grantMode: string };
+    policy: { preset: string; grantMode: string; protectedAdministration?: boolean };
     grant: null | {
       remainingSeconds: number | null;
       lifetime?: "timed" | "until_stopped";
@@ -363,7 +363,8 @@ function App() {
   const unifiedOn = Object.values(state?.accessPolicy?.surfaces ?? {}).some(
     (surface) => surface.mode !== "off" && !surface.expired,
   );
-  const standing = state?.deployment.policy.grantMode === "standing";
+  const unifiedPolicy = state?.accessPolicy?.schema === "machine-control-admission/v2";
+  const standing = state?.deployment.policy.grantMode === "standing" || state?.deployment.policy.protectedAdministration === true;
   const updateInstallBlockedReason = update?.installing
     ? "Installing the update. Wait for the app to restart."
     : update?.checking
@@ -418,7 +419,7 @@ function App() {
           ? "Wait for the current agent to finish"
           : "Turn access on";
   const lockedUse =
-    (mac || windows) && state?.deployment.policy.grantMode === "approval"
+    (mac || windows) && !standing && (unifiedPolicy || state?.deployment.policy.grantMode === "approval")
       ? state.lockedUse
       : undefined;
   const accessTitle = !state
@@ -566,7 +567,7 @@ function App() {
         )}
         {page === "access" && (state?.accessPolicy?.schema === "machine-control-admission/v2" ?
           <SurfaceAccess policy={state.accessPolicy} profiles={state.browser.profiles ?? []}
-            requests={state.admission?.requests ?? []} busy={!!busy} act={act} protectedAccess={state.lockedUse} lockedBrowser={state.browserWhileLocked} /> :
+            requests={state.admission?.requests ?? []} busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} /> :
           <>
             {state && <p role="status" className="note">This platform uses the legacy control model while unified surface permissions are being migrated.</p>}
             <div className="access-status">
@@ -1168,7 +1169,7 @@ function App() {
                 })}
               {mac &&
                 state?.lockedUse?.supported &&
-                state.deployment.policy.grantMode === "approval" && (
+                !standing && (
                   <>
                     <div className="setting-row">
                       <span
@@ -1653,7 +1654,7 @@ function App() {
                 )}
               </section>
             )}
-            {state?.browserWhileLocked?.supported && (
+            {!unifiedPolicy && state?.browserWhileLocked?.supported && (
               <section
                 className="group"
                 aria-label="Browser access while locked"
@@ -1679,7 +1680,7 @@ function App() {
                 </p>
               </section>
             )}
-            {state?.controlPolicy?.supported && (
+            {!unifiedPolicy && state?.controlPolicy?.supported && (
               <section className="group" aria-label="Polite computer control">
                 <h2 className="group-title">When an agent wants control</h2>
                 <label className="setting-row">

@@ -115,6 +115,18 @@ try {
   await page.evaluate(() => { window.fixtureState.accessPolicy.available = false; });
   await page.getByRole("alert").filter({ hasText: "control engine is unavailable" }).waitFor();
   assert.equal(await page.getByRole("combobox", { name: "Desktop access mode" }).isDisabled(), true);
+  await page.evaluate(() => {
+    window.fixtureState.platform = "macos";
+    window.fixtureState.lockedUse = { supported: true, enabled: false, permissionReady: false,
+      controlSessionId: null, setupState: "idle", setupError: null, helperApproval: "granted" };
+    window.fixtureState.controlPolicy = { supported: true, mode: "announce", noticeSeconds: 10 };
+  });
+  await page.getByRole("button", { name: "Permissions", exact: true }).click();
+  await page.getByRole("button", { name: "Set up Machine Control helper", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  assert.equal(await page.getByRole("combobox", { name: "Takeover policy" }).count(), 0,
+    "v2 must not present the retired idle-first choice");
+  await page.getByRole("button", { name: "Access", exact: true }).click();
   await page.evaluate(() => { window.failedStatePoll = true; });
   await page.getByText("Resident unavailable", { exact: true }).waitFor();
   assert.equal(await page.getByRole("combobox", { name: "Desktop access mode" }).count(), 0,

@@ -2,8 +2,8 @@
 
 Topics: `shared-resident-core`, `access-admission-and-pause`
 
-Status: **Ordinary packaged slice passed; streamed CDP and protected-helper
-composition remain open.** This follows the bounded Windows acceptance in
+Status: **Ordinary and streamed-CDP packaged slices passed; protected-helper
+composition remains open.** This follows the bounded Windows acceptance in
 [Tactical 153](153-unified-permissions-and-handoff.md).
 
 ## Objective and motivation
@@ -103,3 +103,19 @@ native operator preferences are restored, and owned browser/observer processes a
 The native static smoke suite and the complete portable checks pass. This is
 local ad-hoc ARM64 appliance evidence; streaming, protected-helper composition,
 physical HID and signed publication are not qualified by this trial.
+
+
+**Current — clean packaged stream checkpoint:** the clean 8aff909 build passes
+19 checks, including an actual CDP connection to the selected Chrome profile
+and revocation of that already-open connection on Stop. Browser fixture setup
+explicitly removes stale remembered profile choices and resumes its prior
+manual pause; neither operation is supplied implicitly by re-enabling access.
+Native original app/policy/preferences and owned-process cleanup pass again.
+
+Protected setup then exposes a legacy Permissions-page condition: it requires
+`approval`, hiding helper setup when the new projection reports `surface_modes`.
+The UI now recognizes the new model while excluding the separate managed
+appliance plane. Its regression also verifies that v2 Settings cannot present
+the retired idle-first policy. The protected helper has not been installed in
+these failed preparation trials; its original missing state and screensaver
+rule are verified after cleanup. Actual protected acceptance remains open.
