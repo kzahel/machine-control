@@ -12,6 +12,7 @@ internal static class ActivityLive
     internal static async Task RunAsync()
     {
         var checks = new List<string>();
+        var runClock = Stopwatch.StartNew();
         void Check(bool value, string name)
         {
             if (!value) throw new Exception(name);
@@ -34,7 +35,13 @@ internal static class ActivityLive
             while (!predicate())
             {
                 if (deadline.Elapsed.TotalSeconds > seconds)
-                    throw new TimeoutException("Native handoff condition did not settle: " + View(grants.Admission.Status()).GetRawText());
+                    throw new TimeoutException("Native handoff condition did not settle: " + JsonSerializer.Serialize(new
+                    {
+                        elapsedSeconds = runClock.Elapsed.TotalSeconds,
+                        intent = liveIntent is null ? (JsonElement?)null : Status(liveIntent),
+                        policy = grants.Admission.Status(),
+                        presentationReady = presentation.Ready
+                    }, Contract.Json));
                 if (liveIntent is not null) Status(liveIntent, true);
                 await Task.Delay(100);
             }
@@ -57,6 +64,8 @@ internal static class ActivityLive
             active.GetProperty("sessionId").GetString()!, active.GetProperty("resourceGenerations").Deserialize<Dictionary<string, long>>()!);
         async Task Press(string title, string label)
         {
+            Console.WriteLine("Native action requested: " + label + "; elapsed=" + runClock.Elapsed.TotalSeconds +
+                "; intent=" + (liveIntent is null ? "none" : Status(liveIntent).GetRawText()));
             IntPtr button = IntPtr.Zero;
             await Wait(() =>
             {
