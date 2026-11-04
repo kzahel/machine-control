@@ -308,3 +308,31 @@ at this checkpoint. The subsequent renewal correction requires final clean
 candidate qualification.
 The earlier missing cooldown warning remains unexplained; the diagnostic code
 improves future failure evidence and is not an established fix for that miss.
+
+### Post-review transport and protected-surface corrections
+
+**Current (2026-11-04):** `13447a8` corrects a synchronous writer deadlock:
+a native safety query could time out acquiring a permit that an asynchronous
+write completion would release only after the occupied managed pool ran its
+continuation. A one-worker, delayed-reader process fixture fails against the
+old semaphore path and passes with the bounded owned-writer queue. The clean
+candidate passes actual Windows formatting, native/unlock contracts, 26 native
+handoff checks, four Rust operator tests, the production Tauri build and all
+48 Browser/Settings checks, including intentional policy-child termination.
+Actor cleanup is verified. The earlier candidate's pre-kill child loss matched
+the write-timeout failure class; no crash dump establishes it as the sole cause.
+
+`94db085` separates Desktop consent revision from Browser configuration and
+publishes Browser-while-locked readiness changes without globally stopping both
+surfaces. Native regressions fail against the previous implementation and pass
+with the correction. The closed audit vocabulary now includes relock pending.
+Its final ordinary, locked-Browser and enrolled-Desktop qualification remains
+in progress; source/build success alone does not qualify protected transitions.
+
+The separate test-only `98601dd` enrolled actor requires independent native
+counter effects and real captured PNG pixels after unlock, checks that Browser
+configuration preserves covered Desktop ownership, and verifies relock on both
+owner completion and Stop. Its provenance is separate from product source
+`94db085`; no product files changed between those revisions. Helper staging
+must restore original executable bytes, ACLs, service state and presentation
+preferences without copying or replaying the credential vault.
