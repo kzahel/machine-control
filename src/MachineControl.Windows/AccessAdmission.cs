@@ -149,6 +149,20 @@ internal sealed class AccessAdmission(object? gate = null)
             return Call("accept", new() { ["owner"] = owner, ["intentId"] = id, ["offerGeneration"] = offerGeneration });
         }
     }
+    internal JsonObject Renew(string owner, string id, string sessionId, IReadOnlyDictionary<string, long> generations, int seconds)
+    {
+        lock (Gate)
+        {
+            Refresh();
+            return Call("renew", new()
+            {
+                ["owner"] = owner,
+                ["durationMs"] = seconds * 1000,
+                ["fence"] = new JsonObject
+                { ["intentId"] = id, ["sessionId"] = sessionId, ["resourceGenerations"] = JsonSerializer.SerializeToNode(generations) }
+            });
+        }
+    }
     internal string? Authorize(string owner, string id, string sessionId, IReadOnlyDictionary<string, long> generations, string? operation = null)
     {
         lock (Gate)

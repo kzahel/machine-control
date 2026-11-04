@@ -359,3 +359,28 @@ test("admission emits closed transition metadata without request or page text", 
   assert.ok(!JSON.stringify(events).includes("PRIVATE"));
   assert.ok(!JSON.stringify(events).includes("private-request-id"));
 });
+
+test("explicit same-owner renewal extends only the live lease under its original consent", () => {
+  const f = fixture();
+  f.policy.configure("desktop", { mode: "automatic", durationMs: 90_000 });
+  const first = f.request("desktop", { durationMs: 20_000, waitMs: 10_000 });
+  const active = f.activate(first);
+  for (let i = 0; i < 10; ++i) { f.advance(1000); f.inspect(first, f.owner, true); }
+  const renewed = f.policy.renew(f.owner, active, 120_000);
+  assert.equal(renewed.activeRemainingSeconds, 80);
+  assert.equal(renewed.sessionId, active.sessionId);
+  assert.deepEqual(renewed.resourceGenerations, active.resourceGenerations);
+  assert.throws(() => f.policy.renew(f.policy.open(), active, 120_000), /owner_mismatch/);
+  for (let i = 0; i < 79; ++i) { f.advance(1000); f.inspect(first, f.owner, true); }
+  f.advance(1000);
+  assert.equal(f.inspect(first).terminalReason, "consent_expired");
+  assert.throws(() => f.policy.renew(f.owner, active, 120_000), /stale_control_session/);
+  f.policy.configure("desktop", { mode: "automatic", durationMs: null });
+  const task = f.request("desktop", { durationMs: 20_000, waitMs: 10_000 });
+  const lease = f.activate(task);
+  f.policy.renew(f.owner, lease, 120_000);
+  for (let i = 0; i < 40; ++i) { f.advance(1000); f.inspect(task, f.owner, true); }
+  assert.equal(f.inspect(task).state, "active", "explicit renewal passes the initial finite task ceiling");
+  f.policy.pause("desktop", "manual", null);
+  assert.throws(() => f.policy.renew(f.owner, lease, 120_000), /stale_control_session/);
+});

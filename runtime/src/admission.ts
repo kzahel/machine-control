@@ -28,7 +28,7 @@ export interface AdmissionRequest {
 }
 export interface AdmissionEvent {
   readonly event: "requested" | "approved" | "deferred" | "start_now" | "takeover" |
-    "pause" | "resume" | "configured" | "stopped" | "yielded" | "rejected" |
+    "pause" | "resume" | "configured" | "stopped" | "yielded" | "rejected" | "renewed" |
     "waiting_for_resource" | "waiting_for_approval" | "paused" | "announcing" | "offered" | "active" | "ended";
   readonly surface?: Surface | "all";
   readonly intentId?: string;
@@ -59,7 +59,7 @@ interface Intent {
   readonly identity: string;
   readonly resources: readonly string[];
   deadline: number;
-  readonly taskDeadline: number;
+  taskDeadline: number;
   readonly approvals: Map<Surface, number>;
   heartbeat: number;
   state: string;
@@ -287,6 +287,21 @@ export class AccessAdmission {
         return refuse("operation_not_permitted_by_control_channel");
     }
     return null;
+  }
+  renew(owner: AdmissionOwner, fence: SessionFence, durationMs: number) {
+    duration(durationMs, 1000, 900_000);
+    const refusal = this.authorize(owner, fence);
+    if (refusal) throw new Error(refusal);
+    const intent = this.#owned(owner, fence.intentId);
+    const consent = Math.min(...intent.request.surfaces.map(surface => this.#config(surface).expiresAt));
+    intent.activeDeadline = Math.min(consent, Math.max(intent.activeDeadline, this.#now + durationMs));
+    // Only this explicit live-owner operation can extend the task. Heartbeat,
+    // pause and resumed waits leave its ceiling unchanged.
+    intent.taskDeadline = Math.max(intent.taskDeadline, intent.activeDeadline);
+    intent.heartbeat = this.#now + 5000;
+    ++this.#revision;
+    this.#emit(intent, "renewed");
+    return this.#view(intent);
   }
   /** Operator approval is task-specific and stays within the original ceiling. */
   approve(id: string): void {
@@ -535,6 +550,7 @@ export class AccessAdmission {
   #view(intent: Intent) {
     return {
       schema: admissionSchema, revision: this.#revision, intentId: intent.id, state: intent.state,
+      renewal: "owner_connection/v1",
       terminalReason: intent.terminal, offerGeneration: intent.offer, sessionId: intent.session,
       resourceGenerations: { ...intent.generations }, blockingReasons: this.#blocks(intent),
       surfaces: [...intent.request.surfaces], profileIds: [...(intent.request.profileIds ?? [])],

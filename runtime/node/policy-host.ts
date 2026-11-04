@@ -494,6 +494,7 @@ export class PolicyHost {
         }
         else if (method === "access.inspect") return this.access.inspect(owner, string(frame.intentId), frame.heartbeat === true);
         else if (method === "access.accept") return this.access.accept(owner, string(frame.intentId), integer(frame.offerGeneration));
+        else if (method === "access.renew") return this.access.renew(owner, object(frame.fence) as unknown as SessionFence, integer(frame.durationMs));
         else if (method === "access.authorize") return { refusal: this.access.authorize(owner, object(frame.fence) as unknown as SessionFence, frame.operation == null ? undefined : string(frame.operation)) };
         else if (method === "access.cancel") this.access.cancel(owner, string(frame.intentId));
         else throw new Error("unknown_host_method");

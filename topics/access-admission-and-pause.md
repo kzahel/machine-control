@@ -395,6 +395,12 @@ checks. Never silently escalate an ordinary request to outer control.
 authorization; timed approval never restarts, and Until I turn it off permits
 continued authorized work until Stop or task/authority/safety termination.
 Claim renewal and watchdog heartbeats alone extend no control deadline.
+**Current, Windows v2 source:** ordinary owners can explicitly renew their
+finite lease and task deadline on the same connection, preserving the owner
+and generations under the original consent. Heartbeats and resumed waits do
+not renew. Prepared Windows owners refuse renewal until the separate native
+guardian can acknowledge it.
+
 **Current, unreleased Mac source:** typed same-connection renewal pins the grant
 and its monotonic ceiling and requires protected acknowledgements. Existing
 owners are never reopened. [Tactical 144](../docs/tactical/144-renewable-control-owners.md)

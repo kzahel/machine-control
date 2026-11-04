@@ -19,6 +19,7 @@ internal static class AdmissionChannel
         string? intentId = null;
         string? initialSession = null;
         bool? startedLocked = null;
+        var prepared = false;
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stop);
         using var writes = new SemaphoreSlim(1, 1);
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, leaveOpen: true);
@@ -38,6 +39,9 @@ internal static class AdmissionChannel
                     if (projection?["schema"]?.GetValue<string>() == AccessAdmission.Schema)
                     {
                         projection["requestSequencing"] = "strict";
+                        // The protected guardian has a separate hard deadline.
+                        // Do not advertise renewal without its acknowledgement.
+                        if (prepared) projection.Remove("renewal");
                         data = projection;
                     }
                 }
@@ -63,7 +67,7 @@ internal static class AdmissionChannel
             var operations = open["operations"]?.Deserialize<string[]>();
             if (operations is not null && (operations.Length is < 1 or > 64 || operations.Distinct().Count() != operations.Length ||
                 operations.Any(op => DesktopGrants.ScopeFor(op) is not { } scope || !scopes.Contains(scope)))) throw new ArgumentException("invalid_admission_operations");
-            var prepared = open["preparedConsole"]?.GetValue<bool>() == true;
+            prepared = open["preparedConsole"]?.GetValue<bool>() == true;
             if (prepared && (!grants.PreparedConsole || !scopes.Order().SequenceEqual(new[] { "control", "observe" })))
                 throw new InvalidOperationException("prepared_console_unavailable");
             if (!grants.ReadyForScopes(scopes) && !prepared) throw new InvalidOperationException("prepared_console_required");
@@ -90,6 +94,7 @@ internal static class AdmissionChannel
                 {
                     var operation = request["operation"]?.GetValue<string>() ?? "";
                     Keys(request, operation == "control.accept" ? ["operation", "requestId", "offerGeneration", "requestSequence"] :
+                        operation == "control.renew" ? ["operation", "requestId", "sessionId", "resourceGenerations", "durationSeconds", "requestSequence"] :
                         operation == "control.dispatch" ? ["operation", "requestId", "sessionId", "resourceGenerations", "request", "requestSequence"] : ["operation", "requestId", "requestSequence"]);
                     switch (operation)
                     {
@@ -107,6 +112,14 @@ internal static class AdmissionChannel
                                 if (initialSession != session) { initialSession = session; startedLocked = initialLock; }
                             }
                             await Reply(id, accepted); break;
+                        case "control.renew":
+                            if (prepared) throw new InvalidOperationException("control_renewal_unavailable");
+                            if (Volatile.Read(ref activeAction) is not null) throw new InvalidOperationException("control_action_in_progress");
+                            var seconds = Required(request, "durationSeconds").GetValue<int>();
+                            if (seconds is < 1 or > 900) throw new ArgumentException("invalid_renewal_duration");
+                            await Reply(id, admission.Renew(owner, intentId, Required(request, "sessionId").GetValue<string>(),
+                                Required(request, "resourceGenerations").Deserialize<Dictionary<string, long>>()!, seconds));
+                            break;
                         case "control.cancel":
                             admission.Cancel(owner, intentId); await Reply(id, admission.Inspect(owner, intentId)); break;
                         case "control.dispatch":

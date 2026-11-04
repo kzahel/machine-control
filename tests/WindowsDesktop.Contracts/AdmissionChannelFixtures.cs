@@ -92,6 +92,15 @@ internal static class AdmissionChannelFixtures
             Require(a.View["state"]!.GetValue<string>() == "offered", "First owner offered");
             Require(b.View["state"]!.GetValue<string>() == "waiting_for_resource", "Second owner waits");
             var active = (await Call(a, "control.accept", new() { ["offerGeneration"] = a.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();
+            Require(active["renewal"]!.GetValue<string>() == "owner_connection/v1", "Ordinary owner advertises typed renewal");
+            var renewal = await Call(a, "control.renew", new()
+            {
+                ["sessionId"] = active["sessionId"]!.DeepClone(),
+                ["resourceGenerations"] = active["resourceGenerations"]!.DeepClone(),
+                ["durationSeconds"] = 120
+            });
+            Require(renewal["accepted"]!.GetValue<bool>() && renewal["data"]!["sessionId"]!.GetValue<string>() == active["sessionId"]!.GetValue<string>(),
+                "Same-connection renewal retains the actual owner fence");
             JsonObject Action() => new()
             {
                 ["sessionId"] = active["sessionId"]!.DeepClone(),
@@ -157,7 +166,14 @@ internal static class AdmissionChannelFixtures
             {
                 grants.SetReady(true); grants.ConfigureSurface("desktop", "automatic", 900, "timed"); grants.SetReady(!origin, lockedConsole: origin);
                 var prepared = await Open("prepared-" + origin, prepared: true);
+                Require(!prepared.View.ContainsKey("renewal"), "Prepared owner does not advertise unacknowledged guardian renewal");
                 active = (await Call(prepared, "control.accept", new() { ["offerGeneration"] = prepared.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();
+                Require((await Call(prepared, "control.renew", new()
+                {
+                    ["sessionId"] = active["sessionId"]!.DeepClone(),
+                    ["resourceGenerations"] = active["resourceGenerations"]!.DeepClone(),
+                    ["durationSeconds"] = 120
+                }))["errorCode"]!.GetValue<string>() == "control_renewal_unavailable", "Protected renewal refuses before changing any deadline");
                 grants.SetReady(false, lockedConsole: true);
                 var unlock = Action(); unlock["request"] = new JsonObject { ["operation"] = "session.unlock.prepare" };
                 var response = await Call(prepared, "control.dispatch", unlock);

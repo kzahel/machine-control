@@ -61,9 +61,12 @@ context releases promptly; reconnect restores no owner, stream or queue position
 A caller must close stream stdin when finished; a CLI blocked on stdin may
 remain alive after its owner expires, but cannot dispatch further input.
 
-Renewal requires explicit provider support. The new Windows v2 adapter does
-not advertise it. Earlier Mac v1 renewal evidence is historical until that
-platform adopts and qualifies the common contract; see [Tactical 144](tactical/144-renewable-control-owners.md).
+Ordinary Windows v2 owners support explicit same-connection `renew()` and
+`--renew`, retaining their session/generation fence under the original consent.
+Only renewal can extend the finite task deadline; heartbeat and resumption
+cannot. Prepared Windows owners do not advertise renewal because their native
+guardian has a separate hard deadline. Earlier Mac v1 renewal evidence is
+historical until that platform adopts and qualifies the common contract; see [Tactical 144](tactical/144-renewable-control-owners.md).
 
 ## Ordinary one-shot negotiation
 
@@ -95,6 +98,7 @@ the private host supplies an unforgeable owner handle. Public IDs are labels.
 | `control.heartbeat` | none | Refresh liveness without extending consent/task duration |
 | `control.accept` | offerGeneration | Accept the current offer |
 | `control.cancel` | none | End this connection's task |
+| `control.renew` | sessionId, resourceGenerations, durationSeconds | Extend a live ordinary owner only under remaining consent; requires advertised renewal |
 | `control.dispatch` | sessionId, resourceGenerations, request | Recheck owner, surfaces/profiles, operation whitelist, native safety and generations |
 
 Replies use `machine-control-admission-channel/v2`; state uses the admission v2
