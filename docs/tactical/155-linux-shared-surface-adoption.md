@@ -289,9 +289,10 @@ hundreds of pixel values, and EOF withdraws the exact owned notification.
 GNOME St exposes focus but no AT-SPI action for these buttons on this session.
 An independent human-side fixture uses the configured notification-focus
 shortcut, focuses the exact native control and sends Enter; the presentation
-probe observes the exact approval callback. An earlier appliance pointer
-request was accepted without an observed approval; its delivery is not treated
-as an effect or as ordinary provider qualification.
+probe observes the exact approval callback. An earlier fixture helper accepted an accessibility action return despite
+zero advertised actions; it produced no approval. Require an advertised action
+before invoking it, and use the verified focus/Enter path for GNOME St. Pointer
+delivery was not established by that failed attempt and is not inferred.
 
 Native shutdown also exposes Python's buffered-stdin daemon-thread finalization
 failure when the parent terminates the notice with stdin still open. The notice
@@ -311,3 +312,15 @@ updates retain their ID. A regression proves a late close cannot defer the new
 state. Native failure evidence includes current owner/blocking state. Fixture
 activation uses the previously verified focus/Enter sequence without an
 additional window-switch gesture that could itself dismiss the notification.
+
+**Current — native action focus:** the qualified GNOME 46 implementation
+[clears and adds actions on Notify replacement](https://github.com/GNOME/gnome-shell/blob/46.0/js/ui/notificationDaemon.js#L187),
+including body-only updates. Keep each native caption stable while its task /
+state / button context is unchanged. Show the warning's absolute end time in
+the banner and retain the live Node countdown in explicit GTK controls. This
+preserves native keyboard action focus without creating another policy timer.
+The publisher also supplies exact profile display labels and ID suffixes for
+Browser prompts; labels never become authority. Fixture focus waits for the
+observed focused state before sending Enter, and never calls an unadvertised
+AT-SPI action. All 47 desktop tests pass (one kernel-only skip on macOS).
+Integrated acceptance is being rerun on the clean caption revision.

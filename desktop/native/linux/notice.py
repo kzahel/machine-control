@@ -9,6 +9,7 @@ import signal
 import sys
 import threading
 import select
+import time
 import gi
 
 gi.require_version('Gtk','3.0')
@@ -30,7 +31,7 @@ reason=Gtk.Label(xalign=0);reason.set_line_wrap(True);box.pack_start(reason,Fals
 caller=Gtk.Label(xalign=0);caller.set_line_wrap(True);box.pack_start(caller,False,False,0)
 countdown=Gtk.Label(xalign=0);countdown.set_line_wrap(True);box.pack_start(countdown,False,False,0)
 buttons=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5);box.pack_start(buttons,False,False,0)
-binding=None;current=None;panel_requested=False;choices=[]
+binding=None;current=None;panel_requested=False;choices=[];caption_binding=None;caption_body=''
 
 
 def intent(method,**fields):print(json.dumps(dict(method=method,**fields)),flush=True)
@@ -87,12 +88,12 @@ def alive():
 
 
 def update(value):
-    global binding,current,panel_requested,choices
+    global binding,current,panel_requested,choices,caption_binding,caption_body
     requests=value.get('requests',[])
     row=primary_request(requests)
     current=row
     if row is None:
-        window.hide();panel_requested=False;binding=None;notification.withdraw();alive();return False
+        window.hide();panel_requested=False;binding=None;caption_binding=None;notification.withdraw();alive();return False
     state=row.get('state');identifier=row.get('intentId');surfaces=row.get('surfaces',[])
     title={'waiting_for_approval':'An agent wants to use this computer',
            'announcing':'An agent will start using this computer',
@@ -102,7 +103,9 @@ def update(value):
            'offered':'An agent is starting'}
     heading.set_text(title.get(state,'Agent access'))
     reason.set_text(row.get('reason',''))
-    caller.set_text(row.get('caller','Local process (identity unverified)')+'\nAccess: '+', '.join(surfaces))
+    access=', '.join(surfaces)
+    if row.get('profileNames'):access+=' · '+', '.join(row['profileNames'])
+    caller.set_text(row.get('caller','Local process (identity unverified)')+'\nAccess: '+access)
     remaining=row.get('noticeRemainingSeconds')
     cooldown=value.get('handoffCooldownRemainingSeconds',0)
     text=('Starting in '+str(math.ceil(remaining))+' seconds.' if isinstance(remaining,(int,float)) else '')
@@ -136,8 +139,27 @@ def update(value):
     primary=[choice for choice in choices if choice[1] not in ('stop','settings','panel.hide')][:2]
     primary.extend(choice for choice in choices if choice[1]=='stop')
     if others:primary=[('Pause all 30 seconds','pause',{'duration':30}),('Stop all access','stop',{})]
-    body='\n'.join(html.escape(text) for text in (reason.get_text(),caller.get_text(),countdown.get_text()) if text)
-    try:notification.update(key,'Machine Control — '+heading.get_text(),body,primary,identifier,state)
+    announcing=[task for task in requests if task.get('state')=='announcing']
+    context=(key,tuple(task['intentId'] for task in announcing),json.dumps(primary,sort_keys=True),reason.get_text(),caller.get_text())
+    if context!=caption_binding:
+        caption_binding=context;lines=[]
+        for task in announcing[:3]:
+            remaining=task.get('noticeRemainingSeconds')
+            if isinstance(remaining,(int,float)):
+                deadline=time.strftime('%H:%M:%S',time.localtime(time.time()+remaining))
+                access=', '.join(task.get('surfaces',[]))
+                if task.get('profileNames'):access+=' ('+', '.join(task['profileNames'])+')'
+                lines.append(access+' warning ends at '+deadline+'.')
+        if len(announcing)>3:lines.append(str(len(announcing))+' tasks are starting. Open Settings for details.')
+        lines.extend((reason.get_text(),caller.get_text()))
+        if announcing:lines.append('Open task controls for the live countdown.')
+        elif state=='paused':lines.append('Paused. A fresh warning appears before access resumes.')
+        elif state=='waiting_for_availability':lines.append('Check permissions and provider availability in Settings.')
+        caption_body='\n'.join(html.escape(text) for text in lines if text)
+    # Replacing a GNOME notification rebuilds its action widgets. Keep the
+    # absolute deadline caption stable so keyboard users retain action focus;
+    # the explicit GTK panel continues to show Node's live countdown.
+    try:notification.update(context,'Machine Control — '+heading.get_text(),caption_body,primary,identifier,state)
     except (GLib.Error,ValueError):Gtk.main_quit();return False
     if panel_requested:window.show_all()
     alive();return False

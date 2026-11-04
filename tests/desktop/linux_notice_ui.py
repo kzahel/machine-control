@@ -30,7 +30,7 @@ def find(linuxui,label):
 def press(linuxui,control,operator):
     node,info=control
     with contextlib.suppress(Exception):
-        if node.do_action(0):return True
+        if node.get_n_actions()>0 and node.do_action(0):return True
     # GNOME St controls expose focus/geometry but no AT-SPI action on this
     # session. Use the configured native focus shortcut and the exact focused
     # control through the independent fixture operator, never an app endpoint.
@@ -49,7 +49,16 @@ def press(linuxui,control,operator):
     if info['role']=='push button':
         fresh=find(linuxui,info['name'])
         if fresh is None or not fresh[0].grab_focus():return False
-        fresh[0].clear_cache()
-        if 'focused' not in linuxui.state_names(fresh[0]):return False
+        deadline=time.monotonic()+1
+        from gi.repository import GLib
+        while time.monotonic()<deadline:
+            context=GLib.MainContext.default()
+            for _ in range(32):
+                if not context.pending():break
+                context.iteration(False)
+            fresh[0].clear_cache()
+            if 'focused' in linuxui.state_names(fresh[0]):break
+            time.sleep(.05)
+        else:return False
     delivered=operator('input.key',key='enter').get('accepted') is True
     return delivered

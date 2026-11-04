@@ -160,7 +160,10 @@ class Desktop:
         if hasattr(self,'browser'):self.browser.sync()
         value=self.grants.state()
         callers={channel.intent:'Local process '+str(channel.pid)+' (identity unverified)' for channel in self.channels}
-        value={**value,'requests':[{**row,'caller':callers.get(row.get('intentId'),'Local process (identity unverified)')} for row in value.get('requests',[])]}
+        profiles={row['profileId']:row.get('name','Browser profile')+' · '+row['profileId'][-8:] for row in self.browser.profiles()}
+        value={**value,'requests':[{**row,'caller':callers.get(row.get('intentId'),'Local process (identity unverified)'),
+            'profileNames':[profiles.get(identifier,'Unavailable profile · '+identifier[-8:]) for identifier in row.get('profileIds',[])]}
+            for row in value.get('requests',[])]}
         with self.safety_condition:
             self.safety_state=value;self.safety_condition.notify()
         return False
