@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [155 — Linux shared surface adoption](155-linux-shared-surface-adoption.md)
+  (in progress): one shared authority, native GTK handoff, honest physical-input
+  observation, exact profiles, live channels and packaged cleanup.
+
 - [154 — macOS shared surface adoption](154-macos-shared-surface-adoption.md)
   (complete for bounded ARM64 appliance acceptance): replace Swift ordinary policy with the same v2 child, preserve
   native/protected ceilings, and qualify real Settings, profiles and cleanup.
