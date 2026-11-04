@@ -204,12 +204,11 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
     if records[0].get("files", [])[1:] != records[1].get("files", [])[1:]:
         raise ValueError("Linux container payloads differ")
     required = {"machine-control", "linux-runtime/desktop-runtime.json", "linux-runtime/desktop.py",
-                "linux-runtime/access.py", "linux-runtime/channel.py", "linux-runtime/operations.py", "linux-runtime/portal.py", "linux-runtime/provider.py",
-                "linux-runtime/policy.py", "linux-runtime/notice.py", "linux-runtime/browser.py", "linux-runtime/browser_host.py",
+                "linux-runtime/grants.py", "linux-runtime/portal.py", "linux-runtime/provider.py",
+                "linux-runtime/approval.py", "linux-runtime/browser.py", "linux-runtime/browser_host.py",
                 "linux-runtime/artifacts.py", "linux-runtime/shortcut.py", "linux-runtime/startup.py", "linux-runtime/linuxcontrol.py",
                 "linux-runtime/linuxui.py", "linux-runtime/extension/manifest.json",
                 "linux-runtime/extension/service_worker.js", "linux-runtime/extension/indicators.js"}
-    required.update({'shared-policy/node','shared-policy/payload.json','shared-policy/policy/node/main.ts'})
     if tuple(map(int, version.split("."))) >= (0, 5, 3):
         required.add("linux-runtime/updates.py")
     if tuple(map(int, version.split("."))) >= (0, 5, 4):
@@ -230,6 +229,24 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
     if tuple(map(int, version.split("."))) >= (0, 6, 6):
         required.update("linux-runtime/" + name for name in (
             "browser_preference.py", "session.py"))
+    unified=any(item.get('name')=='linux-runtime/access.py' for item in records[0].get('files',[]))
+    policy_required=set()
+    if unified:
+        # V2 receipts follow the exact checked-out native source, including
+        # helper modules, rather than accumulating version thresholds.
+        required={'machine-control','linux-runtime/desktop-runtime.json'}
+        required.update('linux-runtime/'+file.name for file in (ROOT/'desktop/native/linux').glob('*.py'))
+        required.update({'linux-runtime/linuxui.py','linux-runtime/linuxcontrol.py'})
+        extension=ROOT/'providers/chrome-extension'
+        required.update('linux-runtime/extension/'+file.relative_to(extension).as_posix()
+            for file in extension.rglob('*') if file.is_file() and
+            file.suffix in {'.js','.json','.html','.css','.png'} and
+            file.relative_to(extension).parts[0]!='store')
+        policy_required={'shared-policy/'+name for name in (
+            'node','payload.json','LICENSE.node','verify.py','policy/package.json',
+            'policy/node_modules/ws/LICENSE','policy/node_modules/ws/package.json','policy/node_modules/ws/index.js')}
+        policy_required.update('shared-policy/policy/'+folder+'/'+file.name
+            for folder in ('src','node') for file in (ROOT/'runtime'/folder).glob('*.ts'))
     for record in records:
         found = set()
         for item in record.get("files", []):
@@ -240,14 +257,17 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                 raise ValueError("Invalid Linux payload inventory")
             found.add(name)
         cli_names = {name for name in found if name.startswith("mc-cli/")}
+        policy_names={name for name in found if name.startswith('shared-policy/')}
+        if (unified and not policy_required.issubset(policy_names)) or (not unified and policy_names):
+            raise ValueError('Incomplete or unexpected pinned Linux policy')
         if (cli_names or tuple(map(int, version.split("."))) >= (0, 5, 3)) and not {
                 "mc-cli/client-runtime.json", "mc-cli/files.json", "mc-cli/launch.py",
                               "mc-cli/commands/machine-control", "mc-cli/python/bin/python3"}.issubset(cli_names):
             raise ValueError("Incomplete packaged CLI")
-        if found - cli_names != required or record["files"][0]["name"] != "machine-control":
+        if found - cli_names - policy_names != required or record["files"][0]["name"] != "machine-control":
             raise ValueError("Incomplete or unexpected ordinary-user Linux payload: "
-                             f"missing={sorted(required - (found - cli_names))}, "
-                             f"unexpected={sorted((found - cli_names) - required)}")
+                             f"missing={sorted(required - (found - cli_names - policy_names))}, "
+                             f"unexpected={sorted((found - cli_names - policy_names) - required)}")
     with tempfile.TemporaryDirectory(prefix="mc-linux-auth-") as tmp:
         root = Path(tmp)
         config = json.loads((ROOT / "desktop/src-tauri/tauri.conf.json").read_text())

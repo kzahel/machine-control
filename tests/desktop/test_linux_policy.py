@@ -87,7 +87,7 @@ class SharedPolicyTests(unittest.TestCase):
             native=prefix/'lib/machine-control/linux-runtime';native.mkdir(parents=True)
             shutil.copyfile(ROOT/'desktop/native/linux/policy.py',native/'policy.py')
             shared=prefix/'share/machine-control/shared-policy'
-            shutil.copytree(self.root,shared,copy_function=os.link)
+            shutil.copytree(self.root,shared)
             spec=importlib.util.spec_from_file_location('installed_policy',native/'policy.py')
             installed=importlib.util.module_from_spec(spec);spec.loader.exec_module(installed)
             host=installed.Policy(lambda *_:None,lambda _:None,lambda _:None)

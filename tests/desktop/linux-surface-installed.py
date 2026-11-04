@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--remote-handoff',action='store_true',help='Coordinate an outside SDK actor through private fixture markers')
     args=parser.parse_args();args.output.mkdir(parents=True,mode=0o700,exist_ok=True)
     signal.signal(signal.SIGTERM,lambda *_:(_ for _ in ()).throw(SystemExit(143)))
+    sys.dont_write_bytecode=True;os.environ['PYTHONDONTWRITEBYTECODE']='1'
     sys.path.insert(0,str(args.runtime))
     import linuxui
     from gi.repository import GLib

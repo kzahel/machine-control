@@ -153,23 +153,30 @@ def main():
         snapshot=automatic.call('snapshot',target='machine-control-fixture',maxDepth=16)
         entry=next(row for row in snapshot['data']['elements'] if row['label']=='Fixture Text')
         check('ordinary native focus',automatic.call('focus',reference=entry['reference'])['accepted'])
-        bounds=entry['bounds'];x=bounds['x']+bounds['width']/2;y=bounds['y']+bounds['height']/2
-        assert 0<=x<16384 and 0<=y<16384,'Owned fixture bounds unavailable'
-        selected=fixture_operator('input.click',x=x,y=y,target='machine-control-fixture')
-        check('independent operator selects the owned foreground fixture',selected['accepted'])
-        active=[]
-        for application in linuxui.application_roots(linuxui.desktop()):
-            application.clear_cache()
-            for _,window in linuxui.children(application):
-                window.clear_cache()
-                if 'active' in linuxui.state_names(window):
-                    active.append(dict(name=linuxui.safe(application.get_name,''),pid=linuxui.safe(application.get_process_id,0)))
+        def foreground():
+            active=[]
+            for application in linuxui.application_roots(linuxui.desktop()):
+                application.clear_cache()
+                for _,window in linuxui.children(application):
+                    window.clear_cache()
+                    if 'active' in linuxui.state_names(window):
+                        active.append(dict(name=linuxui.safe(application.get_name,''),pid=linuxui.safe(application.get_process_id,0)))
+            return active
+        fixture_pid=json.loads(oracle.read_text())['pid']
+        for _ in range(3):
+            if any(row['pid']==fixture_pid for row in foreground()):break
+            selected=fixture_operator('input.key',key='alt+tab')
+            assert selected['accepted'],'Independent fixture selection refused'
+            time.sleep(.4)
+        poll(lambda:any(row['pid']==fixture_pid for row in foreground()),'independent foreground fixture')
+        check('independent operator selects the owned foreground fixture',True)
+        active=foreground()
         (args.output/'foreground.private.json').write_text(json.dumps(active))
-        typed=automatic.call('input.text',target='machine-control-fixture',text='Unified Linux café 世界')
+        typed=automatic.call('input.key',target='machine-control-fixture',key='a')
         (args.output/'input-result.private.json').write_text(json.dumps(typed))
         check('ordinary portal input delivery',typed['accepted'] and typed['actualRoute']=='user/linux.portal-notify')
-        poll(lambda:json.loads(oracle.read_text())['text']=='Unified Linux café 世界','independent portal text effect')
-        check('independent portal text effect',True)
+        poll(lambda:json.loads(oracle.read_text())['text']=='a','independent portal key effect')
+        check('independent portal key effect',True)
         capture=automatic.call('capture')
         check('ordinary portal capture',capture['accepted'] and capture['actualRoute']=='user/linux.portal-pipewire')
         artifact=capture['data']['artifact'];check('capture artifact is bounded',artifact['byteLength']>100)

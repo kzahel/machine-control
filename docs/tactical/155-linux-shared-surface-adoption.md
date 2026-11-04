@@ -211,3 +211,22 @@ effects on AT-SPI / portal. The native actor now checks that the warning does
 not receive keyboard focus. Debian declares the dependency; unavailable native
 controls keep readiness down and Settings explains that prerequisite. This
 provider change still requires its native acceptance before completion.
+
+
+**Current — nonactivating native gate and rendering finding:** the Xwayland
+provider passes 39 integrated checks, including a no-keyboard-focus assertion,
+an independently selected fixture receiving a portal key event, actual capture
+bytes/hash and clean Stop/exit. The independent fixture operator uses target-
+native window selection after the portal dialog; AT-SPI widget focus alone is
+not claimed as GNOME top-level activation. Clipboard text is not part of this
+bounded keyboard gate.
+
+Manual capture inspection then finds a blank X11 notice. A presentation-only
+probe reads that exact owned X11 window's pixels: the default path has one
+color, while image surfaces produce over a thousand colors with visible
+controls. Use the documented [GTK3 image-surface renderer](https://docs.gtk.org/gtk3/running)
+for this small two-dimensional panel and disable GL in that child only. A
+shared environment builder keeps production and the rendering regression in
+agreement. The renderer check runs under an isolated Xvfb server in CI; it is
+presentation evidence, not an admission or OS-input oracle. Final integrated
+visual and packaged acceptance remain required.

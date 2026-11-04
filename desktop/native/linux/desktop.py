@@ -49,6 +49,7 @@ from policy import Policy,PolicyError
 from access import Access
 from activity import Activity
 from channel import Channel,process_token
+import notice_environment
 
 class Desktop:
     def __init__(self, operator_pid, executable, instance="desktop", override=None):
@@ -468,14 +469,7 @@ class Desktop:
         except GLib.Error:observed(False,False,None)
 
     def start_safety(self):
-        environment = dict(os.environ)
-        environment.pop("NO_AT_BRIDGE", None)
-        # Mutter ignores GTK3 Wayland focus hints for this independent toplevel.
-        # Xwayland honors the notification/input hints and keeps the warning
-        # from becoming the foreground keyboard recipient at handoff.
-        environment['GDK_BACKEND']='x11'
-        environment.pop('DESKTOP_STARTUP_ID',None)
-        environment.pop('XDG_ACTIVATION_TOKEN',None)
+        environment=notice_environment.prepare(os.environ)
         self.safety = subprocess.Popen(["/usr/bin/python3", str(Path(__file__).with_name("notice.py"))],
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                        stderr=sys.stderr, env=environment)
