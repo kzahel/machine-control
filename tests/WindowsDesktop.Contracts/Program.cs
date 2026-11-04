@@ -11,6 +11,12 @@ if (args.Contains("--stdio-proxy-contract"))
     await RetainedPipeProxyFixtures.RunAsync();
     return;
 }
+if (args.Contains("--async-ipc-without-pool"))
+{
+    BrowserDevToolsFixtures.AsyncWithoutPool();
+    return;
+}
+
 if (args.Contains("--sync-ipc-without-pool"))
 {
     BrowserDevToolsFixtures.SyncWithoutPool();

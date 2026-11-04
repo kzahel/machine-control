@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 
@@ -10,8 +11,10 @@ namespace MachineControl.Windows;
 internal sealed class SharedBrowserHost : IDisposable
 {
     private readonly Process _process;
-    private readonly SemaphoreSlim _writes = new(1, 1);
-    private readonly BlockingCollection<(JsonObject Frame, TaskCompletionSource<bool> Completion)> _outbound = new(1);
+    // The owned writer serializes frames. No caller holds a permit until an
+    // async continuation runs: safety queries must progress with an occupied pool.
+    private readonly BlockingCollection<(JsonObject Frame, TaskCompletionSource<bool> Completion, long Bytes)> _outbound = new(64);
+    private long _outboundBytes;
     private readonly CancellationTokenSource _stop = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> _pending = new();
     private readonly Channel<JsonObject> _events = Channel.CreateBounded<JsonObject>(512);
@@ -132,59 +135,68 @@ internal sealed class SharedBrowserHost : IDisposable
 
     private void Write()
     {
-        foreach (var item in _outbound.GetConsumingEnumerable())
+        try
         {
-            try
+            foreach (var item in _outbound.GetConsumingEnumerable())
             {
-                BrowserWire.Write(_process.StandardInput.BaseStream, item.Frame, BrowserWire.MaximumInput);
-                item.Completion.TrySetResult(true);
+                try
+                {
+                    BrowserWire.Write(_process.StandardInput.BaseStream, item.Frame, BrowserWire.MaximumInput);
+                    item.Completion.TrySetResult(true);
+                }
+                catch (Exception ex)
+                {
+                    item.Completion.TrySetException(ex);
+                    Fault(ex is IOException or ObjectDisposedException ? "ipc_write_failed" : "ipc_write_invalid",
+                        item.Frame["method"]?.GetValue<string>());
+                }
+                finally { Interlocked.Add(ref _outboundBytes, -item.Bytes); }
             }
-            catch (Exception ex)
-            {
-                item.Completion.TrySetException(ex);
-                Fault(ex is IOException or ObjectDisposedException ? "ipc_write_failed" : "ipc_write_invalid",
-                    item.Frame["method"]?.GetValue<string>());
-            }
+        }
+        finally
+        {
+            // Only this thread closes stdin, after its last write. Disposal
+            // can kill a blocked child without waiting on the stream's lock.
+            try { _process.StandardInput.Close(); }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException) { }
         }
     }
 
     private async Task WriteAsync(JsonObject frame)
     {
-        await _writes.WaitAsync(_stop.Token).ConfigureAwait(false);
-        try
-        {
-            await QueueWrite(frame).WaitAsync(TimeSpan.FromSeconds(3), _stop.Token).ConfigureAwait(false);
-        }
+        try { await QueueWrite(frame).WaitAsync(TimeSpan.FromSeconds(3), _stop.Token).ConfigureAwait(false); }
         catch (Exception ex)
         {
             Fault(ex is TimeoutException or OperationCanceledException ? "ipc_write_timeout" :
                 ex is IOException ? "ipc_write_failed" : "ipc_write_invalid", frame["method"]?.GetValue<string>());
             throw new IOException("Shared browser runtime write failed; delivery unknown", ex);
         }
-        finally { _writes.Release(); }
     }
     private Task<bool> QueueWrite(JsonObject frame)
     {
+        if (_disposed != 0 || _faulted != 0) throw new IOException("Shared browser writer unavailable");
+        var bytes = (long)Encoding.UTF8.GetByteCount(frame.ToJsonString()) + 4;
         var written = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_outbound.TryAdd((frame, written))) throw new IOException("Shared browser writer unavailable");
-        return written.Task;
+        var added = false;
+        try
+        {
+            if (Interlocked.Add(ref _outboundBytes, bytes) > 32 * 1024 * 1024)
+                throw new IOException("Shared browser writer capacity");
+            added = _outbound.TryAdd((frame, written, bytes));
+            if (!added) throw new IOException("Shared browser writer unavailable");
+            return written.Task;
+        }
+        finally { if (!added) Interlocked.Add(ref _outboundBytes, -bytes); }
     }
     private void WriteSync(JsonObject frame)
     {
-        var entered = false;
-        try
-        {
-            entered = _writes.Wait(3000, _stop.Token);
-            if (!entered) throw new TimeoutException();
-            WaitSync(QueueWrite(frame), 3000, _stop.Token);
-        }
+        try { WaitSync(QueueWrite(frame), 3000, _stop.Token); }
         catch (Exception ex)
         {
             Fault(ex is TimeoutException or OperationCanceledException ? "ipc_write_timeout" :
                 ex is IOException ? "ipc_write_failed" : "ipc_write_invalid", frame["method"]?.GetValue<string>());
             throw new IOException("Shared browser runtime write failed; delivery unknown", ex);
         }
-        finally { if (entered) _writes.Release(); }
     }
 
     private void Read()
@@ -265,15 +277,9 @@ internal sealed class SharedBrowserHost : IDisposable
         _outbound.CompleteAdding();
         try
         {
-            // A blocked synchronous writer is released by terminating our
-            // exact child before closing its stream; disposal cannot queue
-            // behind that write's stream lock.
-            if (_writes.Wait(0))
-            {
-                try { _process.StandardInput.Close(); }
-                finally { _writes.Release(); }
-            }
-            else if (!_process.HasExited) _process.Kill(entireProcessTree: true);
+            // Completing the queue asks the owned writer to close stdin after
+            // draining. If it is blocked, terminate only our child at the same
+            // bounded deadline; never close the stream from another thread.
             if (!_process.WaitForExit(3000)) _process.Kill(entireProcessTree: true);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException) { }

@@ -12,7 +12,8 @@ internal static class BrowserDevToolsFixtures
     { if (!condition) throw new Exception("Shared browser native IPC: " + message); }
     internal static async Task RunAsync()
     {
-        await SyncWithoutPoolProcess();
+        await WithoutPoolProcess("--sync-ipc-without-pool");
+        await WithoutPoolProcess("--async-ipc-without-pool");
         BlockedWriter();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
         start.ArgumentList.Add(Path.GetFullPath("runtime/node/main.ts"));
@@ -166,12 +167,12 @@ internal static class BrowserDevToolsFixtures
         Console.WriteLine("Shared browser/native IPC contracts passed");
     }
 
-    private static async Task SyncWithoutPoolProcess()
+    private static async Task WithoutPoolProcess(string option)
     {
         var start = new ProcessStartInfo(Environment.ProcessPath!) { RedirectStandardOutput = true, RedirectStandardError = true };
         if (Path.GetFileNameWithoutExtension(Environment.ProcessPath) == "dotnet")
             start.ArgumentList.Add(typeof(BrowserDevToolsFixtures).Assembly.Location);
-        start.ArgumentList.Add("--sync-ipc-without-pool");
+        start.ArgumentList.Add(option);
         using var process = Process.Start(start)!;
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
@@ -217,6 +218,64 @@ internal static class BrowserDevToolsFixtures
                 "policy loss retains native status without authority");
         }
         finally { release.Set(); watchdog.Join(); blocker.GetAwaiter().GetResult(); }
+    }
+
+    internal static void AsyncWithoutPool()
+    {
+        Require(ThreadPool.SetMinThreads(1, 1) && ThreadPool.SetMaxThreads(1, 1), "isolated worker-pool limit");
+        using var occupied = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var blocker = Task.Run(() => { occupied.Set(); release.Wait(); });
+        occupied.Wait();
+        var watchdog = new Thread(() => { if (!release.Wait(TimeSpan.FromSeconds(6))) release.Set(); });
+        watchdog.Start();
+        var root = Path.Combine(Path.GetTempPath(), "mc-writer-" + Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(root);
+        var ready = Path.Combine(root, "ready"); var read = Path.Combine(root, "read"); var proceed = Path.Combine(root, "proceed");
+        Task<JsonObject>? pending = null;
+        var passed = false;
+        try
+        {
+            var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
+            start.ArgumentList.Add("--input-type=module"); start.ArgumentList.Add("--eval");
+            start.ArgumentList.Add($$$"""
+                import fs from 'node:fs';
+                const read = size => { const b = Buffer.alloc(size); let n = 0;
+                  while (n < size) { const got = fs.readSync(0, b, n, size-n, null); if (!got) return null; n += got; } return b; };
+                const frame = () => { const h = read(4); return h && JSON.parse(read(h.readUInt32LE()).toString()); };
+                const reply = frame => { const b = Buffer.from(JSON.stringify({type:'reply', id:frame.id, ok:true, data:{}}));
+                  const h = Buffer.alloc(4); h.writeUInt32LE(b.length); fs.writeSync(1,h); fs.writeSync(1,b); };
+                reply(frame());
+                fs.writeFileSync({{{System.Text.Json.JsonSerializer.Serialize(ready)}}}, 'ready');
+                const deadline = Date.now()+6000;
+                while (!fs.existsSync({{{System.Text.Json.JsonSerializer.Serialize(proceed)}}})) {
+                  if (Date.now()>deadline) process.exit(2); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);
+                }
+                const first = frame();
+                fs.writeFileSync({{{System.Text.Json.JsonSerializer.Serialize(read)}}}, 'read');
+                reply(first);
+                for (;;) { const next = frame(); if (!next) break; reply(next); }
+                """);
+            using var host = new SharedBrowserHost(start, _ => { }, _ => false, () => { });
+            Require(SpinWait.SpinUntil(() => File.Exists(ready), TimeSpan.FromSeconds(2)), "private child holds its reader");
+            pending = host.CallAsync(new JsonObject { ["method"] = "fixture.large", ["padding"] = new string('x', 2 * 1024 * 1024) }, CancellationToken.None);
+            File.WriteAllText(proceed, "continue");
+            Require(SpinWait.SpinUntil(() => File.Exists(read), TimeSpan.FromSeconds(2)), "child consumed the asynchronous write");
+            var timer = Stopwatch.StartNew();
+            host.Call(new JsonObject { ["method"] = "state" });
+            Require(timer.Elapsed < TimeSpan.FromSeconds(2), "completed asynchronous write cannot retain a pool-dependent writer permit");
+            passed = true;
+            // The synchronous query must finish before releasing the pool.
+            // Then consume the asynchronous result while its host is still alive.
+            release.Set(); blocker.GetAwaiter().GetResult();
+            pending.GetAwaiter().GetResult(); pending = null;
+        }
+        finally
+        {
+            release.Set(); watchdog.Join(); blocker.GetAwaiter().GetResult();
+            try { pending?.GetAwaiter().GetResult(); } catch (IOException) when (!passed) { }
+            Directory.Delete(root, true);
+        }
     }
 
     private static void BlockedWriter()
