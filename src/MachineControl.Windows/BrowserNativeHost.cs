@@ -19,36 +19,20 @@ internal static class BrowserNativeHost
         await BrowserWire.WriteAsync(pipe, new JsonObject { ["type"] = "register", ["origin"] = origin }, stop.Token);
         var registered = await BrowserWire.ReadAsync(pipe, stop.Token);
         if (registered?["type"]?.GetValue<string>() != "registered") return 1;
-        stop.CancelAfter(Timeout.InfiniteTimeSpan);
-        await using var input = Console.OpenStandardInput();
-        await using var output = Console.OpenStandardOutput();
-        var inbound = Task.Run(async () =>
+        var input = Console.OpenStandardInput();
+        var output = Console.OpenStandardOutput();
+        try
         {
-            while (await BrowserWire.ReadAsync(input, stop.Token) is { } frame)
+            await RetainedPipeProxy.RunAsync(() =>
             {
-                // Provider-to-resident frames include screenshots, up to the
-                // owned 16 MiB input ceiling rather than Chrome's 1 MiB output.
-                var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(frame, Contract.Json);
-                var header = BitConverter.GetBytes(bytes.Length);
-                await pipe.WriteAsync(header, stop.Token);
-                await pipe.WriteAsync(bytes, stop.Token);
-                await pipe.FlushAsync(stop.Token);
-            }
-        });
-        var outbound = Task.Run(async () =>
-        {
-            while (await BrowserWire.ReadAsync(pipe, stop.Token) is { } frame)
-                await BrowserWire.WriteAsync(output, frame, stop.Token);
-        });
-        var completed = await Task.WhenAny(inbound, outbound);
-        stop.Cancel();
-        pipe.Close();
-        // Chrome's inherited stdin is a synchronous anonymous pipe. A blocked
-        // ReadFile cannot be canceled by a managed cancellation token. Do not
-        // await that background reader after the resident disconnects: returning
-        // from this native-host-only Main ends the process and closes its handles,
-        // while the user's browser continues running.
-        try { await completed; }
+                while (BrowserWire.Read(input) is { } frame)
+                    BrowserWire.Write(pipe, frame, BrowserWire.MaximumInput);
+            }, () =>
+            {
+                while (BrowserWire.Read(pipe) is { } frame)
+                    BrowserWire.Write(output, frame);
+            });
+        }
         catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException) { }
         return 0;
     }

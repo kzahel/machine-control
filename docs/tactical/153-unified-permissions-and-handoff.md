@@ -216,3 +216,11 @@ These are source/build and fixture results, not packaged Windows acceptance.
 - Start now acknowledges the native input watermark and tolerates the countdown
   boundary. A click already classified as takeover can lead only to a fresh
   owner; manual/protected pauses and missing approval remain blocking.
+- Qualification reproduced a retained stdio transport stall with a single
+  worker: an idle anonymous-pipe read prevented request/reply progress. The
+  native owner proxy and extension native host now use dedicated I/O threads,
+  retaining their existing framing and ownership. A separate-process contract
+  exchanges ten frames with one worker and checks both caller and resident EOF;
+  it fails with the previous pool-based transport and passes with the new one.
+  Portable native contracts, formatting and ARM64/x64 publishes pass. The final
+  clean Windows candidate still needs qualification before broad review.

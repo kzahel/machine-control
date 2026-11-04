@@ -1,6 +1,16 @@
 using System.Text.Json;
 using MachineControl.Windows;
 
+if (args.Contains("--stdio-proxy-without-pool"))
+{
+    await RetainedPipeProxyFixtures.Child(args[^1]);
+    return;
+}
+if (args.Contains("--stdio-proxy-contract"))
+{
+    await RetainedPipeProxyFixtures.RunAsync();
+    return;
+}
 if (args.Contains("--sync-ipc-without-pool"))
 {
     BrowserDevToolsFixtures.SyncWithoutPool();
@@ -17,6 +27,7 @@ static void Refuses(Action action, string message)
     throw new Exception("Expected refusal: " + message);
 }
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
+await RetainedPipeProxyFixtures.RunAsync();
 JournalAclFixtures.Run();
 var journalRoot = Path.Combine(Path.GetTempPath(), "mc-journal-" + Guid.NewGuid().ToString("n"));
 try

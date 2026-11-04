@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/MachineControl.Windows/RetainedPipeProxy.cs" Link="RetainedPipeProxy.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopWork.cs" Link="DesktopWork.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopPresentation.cs" Link="DesktopPresentation.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopBrowserPreference.cs" Link="DesktopBrowserPreference.cs" />
