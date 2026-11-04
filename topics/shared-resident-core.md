@@ -2,8 +2,9 @@
 
 Topic: `shared-resident-core`
 
-Status: **unified Windows/reference candidate conformance passed;
-broad review, then Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+Status: **Windows/reference broad review complete; corrected ordinary and
+locked Browser paths qualified, protected Desktop qualification open before
+Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the candidate gates and remaining qualification limits.
 
 ## Motivation
@@ -16,8 +17,8 @@ revocation and generation fencing were separately implemented in the Swift Mac,
 C# Windows and Python Linux residents at the start of this work. Mac/Windows owner admission and CDP
 bridges also had separate implementations; Linux does not have identical
 feature coverage. These were overlapping policy implementations, not three
-equivalent translations of one enforced model. The Windows browser cutover below
-removes its duplicated policy; Mac/Linux adoption remains pending.
+equivalent translations of one enforced model. The Windows implementation now delegates ordinary Desktop and Browser policy
+to that shared core; Mac/Linux adoption remains pending.
 
 The product already shares its Python client, TypeScript settings UI,
 JavaScript Chrome extension, common result vocabulary and some conformance
@@ -29,9 +30,10 @@ The user requested using browser profiles to refactor this middle layer,
 with lightweight, fast verification rather than repeatedly assembling a
 desktop package or bringing up three OS appliances. The original language
 question compared iteration-friendly TS/Python with Rust's native deployment.
-The first deliverable established the deterministic boundary; the Windows
-browser adoption below turns it into a native product path. Other desktop
-operations and platform adoption remain separate work.
+The first deliverable established the deterministic boundary; Windows browser
+adoption made it a native product path. The subsequent unified-permissions
+slice adds ordinary Desktop admission and handoff to that same authority.
+Protected qualification and other platform adoption remain open.
 
 ## Terms and current scope
 
@@ -71,7 +73,7 @@ Windows remains the first native adoption vertical slice. Preserve existing
 providers, signed identities and protected watchdogs during migration.
 
 **Current:** strict, erasable TypeScript under `runtime/` implements the
-shared browser coordinator. Pure policy has no runtime dependencies; the
+shared surface admission/handoff policy and browser coordinator. Pure policy has no runtime dependencies; the
 production Node transport uses pinned `ws`. Strict checking remains a separate
 build gate. The language/deployment decision below supersedes the original
 prototype-only placement. The Python client remains unchanged in language.
@@ -131,25 +133,27 @@ not through parallel policy engines or another open-ended language comparison.
 
 ## Native adoption boundary
 
-**Decision for adoption:** one shared authority owns browser policy. The
-following split is implemented in Windows source; native/package execution
-is qualified separately. Mac and Linux have not adopted it.
+**Current Windows source:** one shared authority owns ordinary Desktop and
+Browser consent, admission and handoff. Native/package execution is qualified
+separately. Mac and Linux have not adopted it.
 
 | Responsibility | Owner after adoption |
 | --- | --- |
 | Native operator and browser-peer authentication | Existing native resident |
 | OS console/session observations, protected provider and emergency transport shutdown | Native adapters/watchdogs |
-| Exact profile approval, scope, lifetime, withdrawal and generation | Shared core |
+| Surface modes, exact profile approval, consent lifetime, withdrawal and generation | Shared core |
+| Waiting intents, task approval, countdown, pause, cooldown and active ownership | Shared core |
 | Profile selection, request admission to browser routes, deadline, terminal result and late-reply fencing | Shared core |
 | Browser endpoint tokens, profile-bound stream ownership/reservations and revocation | Shared policy, over bounded transport adapters |
-| Native caller identity and existing desktop control-owner admission | Native ingress, passed as a fenced capability input |
+| Native caller identity, physical-input classification and OS readiness | Native ingress/observations, passed as fenced facts |
 | Settings, extension panel and native notices | Projections and trusted operator decisions; never replacement authorities |
 
 Native ingress can deny an unsafe operation or close a route independently;
-it cannot mint, renew or restore browser approval. Remove the browser grant
-checks being replaced from native `DesktopGrants`/relay policy rather than
-renewing the same browser permission separately in two processes. Existing
-desktop grants and protected watchdogs remain native until their own migration.
+it cannot mint, renew or restore ordinary surface approval. Windows
+`DesktopGrants` is now a native facade over shared surface/task authorization,
+with final OS/session/effect checks. It does not retain a competing ordinary
+desktop grant engine. Protected watchdogs, credential discovery and delivery,
+covers and independently observed relock remain native.
 Mixed desktop/browser approval needs explicit composition and rollback; do
 not silently interpret an old consent record as an exact profile set.
 
@@ -163,8 +167,8 @@ packaged candidate acceptance is recorded in Tactical 152. Mac and Linux adopt t
 boundary after the complete Windows candidate, without porting another policy
 engine into Swift or Python.
 
-The module is the Windows browser policy implementation and the reference
-target uses the same owner. This is not an all-platform cutover. Authority
+The module is the Windows ordinary surface policy implementation and the
+reference target uses the same owner. This is not an all-platform cutover. Authority
 methods are internal trusted-host calls, not agent operations or a public
 JSON protocol. A future host must authenticate provider peers and operator
 decisions before creating handles. Public profile names and generations are
@@ -231,7 +235,8 @@ lifecycle, including independent effects, Stop/expiry, disconnect, child death,
 Off restart and fresh exact-profile consent. Appliance cleanup and claim/power
 restoration are verified. [Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md)
 owns exact source, execution and limits. This qualifies browser coordination;
-generic desktop admission and protected/native OS effects remain native.
+that earlier slice does not qualify unified Desktop admission or protected
+control. The subsequent slice is described below.
 
 **Current implementation:** `BrowserRelay` is an authenticated concurrent
 pipe and native-effect adapter. The old singleton routing, native wire request
@@ -241,7 +246,8 @@ ownership, tokens, per-tab reservations, CDP command correlation and stream
 revocation are no longer a competing Windows policy implementation.
 `DesktopGrants` delegates Browser/DevTools scope checks and consent to the
 shared projection; temporary browser consent uses the opaque checkpoint below.
-It retains generic desktop grants, caller admission and OS safety observations.
+It retains native caller authentication and OS safety observations; ordinary
+Desktop consent and task ownership now come from the same shared projection.
 `SharedBrowserHost` owns one pinned Node child and fails closed on child loss.
 Native code retains payload-free audit persistence and validated artifact/file
 operations. Settings is a disposable operator projection.
@@ -270,16 +276,23 @@ regressions distinguish startup from ordinary-call timeout and verify cleanup.
 Closed supervisor event codes distinguish startup/state timeouts without
 recording command payloads. Full operator qualification remains in Tactical 152.
 
-The reference target models the ordinary browser vocabulary, stateful tabs,
-input, upload, capture and raw-operation observations behind this same policy.
+The reference target models ordinary Desktop effects and the browser vocabulary,
+stateful tabs, input, upload, capture and raw-operation observations behind this
+same policy.
 Its effects are independent of the policy's reported delivery. It does not
 simulate an entire desktop or qualify native authentication, OS permissions,
 foreground behavior or protected control.
 
-**Decision (2026-11-03):** before macOS adoption, expand the shared core with the
+**Current Windows/reference implementation:** the shared core includes the
 [unified Desktop/Browser permissions and handoff contract](access-admission-and-pause.md#unified-permissions-and-handoff-contract).
-[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) develops
-that policy with the Windows adapter, reference target and synthetic clients.
+[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) owns
+its implementation and qualification. Broad review is complete and corrections
+are implemented. An unsigned ARM64 Windows candidate passes 48 ordinary
+Browser/Settings checks, 35 locked Browser checks and seven matching-installed
+companion startup checks after cold boot. Protected Desktop preparation still
+fails before credential delivery; effects, capture and relock remain an open
+gate. These results do not qualify live x64, physical HID or signed release
+installation.
 The user accepts temporarily broken/disabled Mac integration and Linux migration
 gaps in development. Preserving every old client, flag, protocol or platform
 behavior is not a gate. An explicit isolated legacy route is optional, with

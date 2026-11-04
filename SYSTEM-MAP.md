@@ -38,27 +38,26 @@ into a raw proxy for every testbed CLI.
 ## Target-controller implementation boundary
 
 **Current, unreleased Windows adoption:** [`runtime/`](runtime/README.md)
-owns shared browser approval, expiry, exact profile selection, request/reference
-fencing and CDP stream lifetime. The Windows desktop resident runs it as a
-privately bundled Node child through inherited framed pipes. C# authenticates
-extension peers and operator decisions, retains native session/owner safety,
-audit storage and artifact writes, and projects those facts into the child.
-The deterministic reference target executes the same policy with modeled
-browser effects. Mac and Linux residents retain their existing implementations.
-Bounded unsigned Windows ARM64 candidate acceptance is recorded in
-[Tactical 152](docs/tactical/152-shared-runtime-windows-adoption.md).
-This introduces no YA coordinator, private inventory owner, public approval
-endpoint or protected provider. The Python CLI/client remains the common
-agent-facing facade.
+owns ordinary Desktop and Browser surface consent, waiting/task admission,
+countdown, pauses, cooldown and ownership. It also owns exact profile selection,
+request/reference fencing and CDP stream lifetime. The Windows desktop resident
+runs it as a privately bundled Node child through inherited framed pipes. C#
+authenticates peers and operator decisions, observes native input/session facts,
+executes OS effects, retains protected guards and audit/artifact storage, and
+projects those facts into the child. The deterministic reference target executes
+the same policy with modeled effects. Mac and Linux have not adopted this model.
+The Python CLI/client remains the common agent-facing facade; this introduces
+no YA coordinator, private inventory owner or public approval endpoint.
 
-**Decision, next adoption:** the [unified permission/handoff model](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
-adds shared surface policy and admission to the same TypeScript core, proved
-first with Windows, the reference target and synthetic clients. Native adapters
-retain peer authentication, input observation/effects, presentation and protected
-guards; the Python client remains the facade. Mac/Linux integration may be
-temporarily unsupported while converging. Optional legacy adapters are isolated
-migration tools with deletion gates, not permanent authorities or silent fallback.
-This is a planned ownership change, not additional accepted runtime behavior.
+[Tactical 152](docs/tactical/152-shared-runtime-windows-adoption.md) records the
+accepted original Browser slice. [Tactical 153](docs/tactical/153-unified-permissions-and-handoff.md)
+owns the subsequent [unified permission/handoff model](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract),
+completed broad review and bounded Windows qualification. Ordinary and locked
+Browser acceptance has passed; protected Desktop qualification remains open.
+Native provider/credential/cover/relock proof is separate from shared-policy
+conformance. Mac/Linux integration may be temporarily unsupported while
+converging. Optional legacy adapters are isolated migration tools with deletion
+gates, not permanent authorities or silent fallback.
 
 **Decision:** [Runtime and presentation](topics/runtime-and-presentation.md)
 keeps Machine Control's runtime authority independent of its settings, native
