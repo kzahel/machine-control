@@ -21,6 +21,7 @@ from urllib.request import urlopen
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('runtime','source-root','output','chrome'):parser.add_argument('--'+name,type=Path,required=True)
+    parser.add_argument('--locked',action='store_true',help='Dedicated appliance only; caller owns final locked shutdown')
     args=parser.parse_args();args.output.mkdir(mode=0o700,parents=True,exist_ok=True)
     signal.signal(signal.SIGTERM,lambda *_:(_ for _ in ()).throw(SystemExit(143)))
     def load(name,path):
@@ -144,6 +145,45 @@ def main():
         finally:stream.close()
         check('Stop turns both surfaces Off',all(s['mode']=='off' for s in state()['accessPolicy']['surfaces'].values()))
         work.close();owners.remove(work)
+        if args.locked:
+            from gi.repository import Gio,GLib
+            bus=Gio.bus_get_sync(Gio.BusType.SESSION,None);system=Gio.bus_get_sync(Gio.BusType.SYSTEM,None)
+            def dbus(connection,destination,path,interface,method,parameters=None):
+                return connection.call_sync(destination,path,interface,method,parameters,None,Gio.DBusCallFlags.NONE,1000,None).unpack()
+            user=dbus(system,'org.freedesktop.login1','/org/freedesktop/login1','org.freedesktop.login1.Manager','GetUser',GLib.Variant('(u)',(os.getuid(),)))[0]
+            session=dbus(system,'org.freedesktop.login1',user,'org.freedesktop.DBus.Properties','Get',GLib.Variant('(ss)',('org.freedesktop.login1.User','Display')))[0][1]
+            def locked():
+                return dbus(system,'org.freedesktop.login1',session,'org.freedesktop.DBus.Properties','Get',GLib.Variant('(ss)',('org.freedesktop.login1.Session','LockedHint')))[0] is True
+            operator('browser_while_locked',enabled=True)
+            for surface in ('desktop','browser'):
+                operator('surface.configure',surface=surface,mode='automatic',lifetime='until_stopped',duration=0,
+                    browserProfileIds=[ids['Work']] if surface=='browser' else [])
+            try:dbus(bus,'org.gnome.ScreenSaver','/org/gnome/ScreenSaver','org.gnome.ScreenSaver','Lock')
+            except GLib.Error:pass  # Only the independent locked state is evidence.
+            poll(locked,'independent GNOME lock')
+            poll(lambda:state()['accessPolicy']['surfaces']['browser']['ready'] and
+                not state()['accessPolicy']['surfaces']['desktop']['ready'],'independent locked surface floors')
+            check('known lock retains consent with Desktop unavailable',all(s['mode']=='automatic' for s in state()['accessPolicy']['surfaces'].values()))
+            desktop=actor.Owner(endpoint,'fixture',['desktop']);owners.append(desktop)
+            check('locked Desktop request stays queued',desktop.status()['state']=='paused')
+            desktop.close();owners.remove(desktop)
+            retained=owner([ids['Work']],['browser.tabs','browser.snapshot','browser.click'])
+            snap=retained.call('browser.snapshot',browserProfileId=ids['Work'],tabId=tab)
+            check('locked selected-profile snapshot',snap['accepted'])
+            reference=next(row['reference'] for row in snap['data']['elements'] if row['name']=='Increment')
+            delivered=retained.call('browser.click',browserProfileId=ids['Work'],reference=reference)
+            check('locked Browser delivery',delivered['accepted'])
+            poll(lambda:effects['Work']==2,'independent locked page effect')
+            check('independent Browser effect keeps GNOME locked',locked() and effects=={'Work':2,'Personal':0})
+            operator('pause_surface',surface='browser',duration=30)
+            poll(lambda:retained.status()['state']=='paused','locked Browser pause')
+            operator('resume_surface',surface='browser');retained.wait()
+            check('locked Resume yields fresh Browser authority',retained.view['state']=='active' and locked())
+            operator('browser_while_locked',enabled=False)
+            poll(lambda:retained.status()['state']=='paused','locked opt-in withdrawal')
+            check('withdrawing locked opt-in leaves OS locked',locked())
+            retained.close();owners.remove(retained);operator('stop')
+            check('locked Stop ends both surface permissions',all(s['mode']=='off' for s in state()['accessPolicy']['surfaces'].values()) and locked())
         operator('quit');child.wait(10);check('shared child exits cleanly',child.returncode==0)
     except BaseException as error:
         failure=type(error).__name__+': '+str(error)

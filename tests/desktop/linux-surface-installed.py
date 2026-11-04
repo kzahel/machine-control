@@ -56,9 +56,16 @@ def main():
             peer.settimeout(20);peer.connect(str(endpoint));peer.sendall(json.dumps(dict(operation=operation,**fields)).encode()+b'\n')
             with peer.makefile('rb') as stream:return json.loads(stream.readline(16*1024*1024))
     def policy():return plain('status')['data']['admission']
+    def owned_pid(pid):
+        for _ in range(32):
+            if pid==app.pid:return True
+            if pid<=1:return False
+            try:pid=int(Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()[1])
+            except (OSError,ValueError,IndexError):return False
+        return False
     def nodes(safety=False):
         roots=linuxui.application_roots(linuxui.desktop())
-        selected=[r for r in roots if linuxui.safe(r.get_name,'')=='machine-control-safety'] if safety else [r for r in roots if linuxui.safe(r.get_process_id,0)==app.pid]
+        selected=[r for r in roots if linuxui.safe(r.get_name,'')=='machine-control-safety'] if safety else [r for r in roots if linuxui.safe(r.get_name,'')!='machine-control-safety' and owned_pid(linuxui.safe(r.get_process_id,0)) and any(linuxui.safe(w.get_role_name,'')=='frame' for _,w in linuxui.children(r))]
         if len(selected)!=1:return []
         selected[0].clear_cache();return list(linuxui.walk(selected[0],30,3000))
     def widget(label,role='push button',safety=False):
@@ -76,12 +83,27 @@ def main():
             peer.shutdown(socket.SHUT_WR)
             with peer.makefile('rb') as stream:value=json.load(stream)
             assert value['accepted'],'Independent native operator refused'
+            return value
+    def active_app():
+        for root in linuxui.application_roots(linuxui.desktop()):
+            if not owned_pid(linuxui.safe(root.get_process_id,0)):continue
+            root.clear_cache()
+            for _,window in linuxui.children(root):
+                window.clear_cache()
+                if 'active' in linuxui.state_names(window):return True
+        return False
+    def activate_app():
+        for _ in range(4):
+            if active_app():return
+            observer('input.key',key='alt+tab');time.sleep(.4)
+        assert active_app(),'Independent operator could not select the owned app'
     def choose(label,index,surface,mode):
         combo=poll(lambda:widget(label,'combo box'),label)
         selected=False
         if 'Selection' in linuxui.interfaces(combo):
             with contextlib.suppress(Exception):selected=combo.select_child(index)
         if not selected:
+            activate_app()
             assert combo.grab_focus(),'Native combo focus'
             observer('input.key',key='home')
             for _ in range(index):observer('input.key',key='down')
@@ -97,6 +119,11 @@ def main():
         check('packaged app starts both surfaces Off',all(s['mode']=='off' for s in policy()['surfaces'].values()))
         poll(lambda:widget('Desktop access mode','combo box'),'shared Settings modes')
         check('real Settings exposes independent modes',widget('Browser access mode','combo box') is not None)
+        activate_app()
+        picture=observer('capture',target='active_window')['data']['artifact']
+        image=Path(picture['guestPath']);content=image.read_bytes()
+        check('independent Settings capture hash',hashlib.sha256(content).hexdigest()==picture['sha256'])
+        (args.output/'settings.png').write_bytes(content);image.unlink()
         choose('Desktop access mode',1,'desktop','ask')
         oracle=args.output/'effect.json';unit='mc-surface-installed-'+str(os.getpid())+'.service'
         subprocess.run(['/usr/bin/systemd-run','--user','--quiet','--collect','--unit',unit,
@@ -147,7 +174,7 @@ def main():
         press('Permissions')
         check('native read-only observer setup is visible',poll(lambda:widget('Set up activity observer'),'activity observer setup') is not None)
         # End the exact owned app; its native children follow inherited lifetime.
-        app.terminate();app.wait(15)
+        os.killpg(app.pid,signal.SIGTERM);app.wait(15)
         poll(lambda:not endpoint.exists(),'owned companion endpoint cleanup')
         check('packaged app revokes on exit',True)
     except BaseException as error:
@@ -163,7 +190,7 @@ def main():
             if released.returncode and failure is None:failure='Local acceptance claim release failed'
         if unit:subprocess.run(['/usr/bin/systemctl','--user','stop',unit],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         if app and app.poll() is None:
-            app.terminate()
+            os.killpg(app.pid,signal.SIGTERM)
             with contextlib.suppress(subprocess.TimeoutExpired):app.wait(10)
             if app.poll() is None:os.killpg(app.pid,signal.SIGKILL);app.wait(5)
         log.close();report(True)
