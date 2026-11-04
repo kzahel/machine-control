@@ -51,7 +51,8 @@ jobs:
           version: 10.33.0
       - run: pnpm --dir runtime install --frozen-lockfile
       - run: pnpm --dir desktop install --frozen-lockfile
-      - run: pnpm --dir desktop exec playwright install --with-deps chromium --no-shell
+      - run: pnpm --dir desktop exec playwright install --with-deps chromium
+      - run: python bin/check --ui
       - run: python runtime/scripts/package.py --engine node --target native --output .artifacts/policy
       - run: node tests/runtime/qualify.mjs .artifacts/policy --native --browser
 

@@ -18,7 +18,7 @@ export type SurfacePolicy = {
   }>;
 };
 type Profile = { profileId: string; name: string; enabled: boolean; connected: boolean };
-type Request = { intentId: string; state: string; reason: string; surfaces?: string[]; noticeRemainingSeconds: number | null };
+type Request = { intentId: string; state: string; reason: string; surfaces?: string[]; profileIds?: string[]; noticeRemainingSeconds: number | null };
 type Choices = { desktop: Exclude<Mode, "off">; browser: Exclude<Mode, "off">; duration: number; profileIds: string[] };
 const key = "machine-control.surface-choices.v2";
 function choices(): Choices {
@@ -138,6 +138,11 @@ export function SurfaceAccess({ policy, profiles, requests, busy, act, protected
       {requests.slice(0, 8).map(request => <div className="control-request" key={request.intentId}>
         <p>{request.reason}</p><p className="note">{request.surfaces?.join(" + ")} · {request.state.replaceAll("_", " ")}
           {request.state === "announcing" ? ` · starts in ${Math.ceil(request.noticeRemainingSeconds ?? 0)}s` : ""}</p>
+        {!!request.profileIds?.length && <p className="note">Browser profiles: {request.profileIds.map(id => {
+          const shortId = id.length > 8 ? `…${id.slice(-8)}` : id;
+          const profile = profiles.find(profile => profile.profileId === id);
+          return profile ? `${profile.name} (${shortId})` : `Profile ${shortId}`;
+        }).join(", ")}</p>}
         <div className="request-actions">
           {request.state === "waiting_for_approval" && <button disabled={busy} onClick={() => void act({ method: "approve_control", intentId: request.intentId })}>Allow this task</button>}
           {request.state === "announcing" && <button disabled={busy} onClick={() => void act({ method: "start_control", intentId: request.intentId })}>Start now</button>}

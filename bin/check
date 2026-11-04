@@ -193,6 +193,15 @@ def portable_checks() -> None:
         print("\n== working-tree whitespace ==\nskip: source archive has no Git metadata")
 
 
+def ui_checks() -> None:
+    pnpm = shutil.which("pnpm")
+    if pnpm is None:
+        raise SystemExit("pnpm and installed desktop dependencies are required for UI checks")
+    run("build operator UI", [pnpm, "--dir", "desktop", "build"])
+    run("saved access choices UI", [pnpm, "--dir", "desktop", "test:access-choices"])
+    run("surface access UI", [pnpm, "--dir", "desktop", "test:surface-access"])
+
+
 def native_checks() -> None:
     system = platform.system().lower()
     if system == "darwin":
@@ -234,13 +243,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--portable", action="store_true")
     parser.add_argument("--native", action="store_true")
+    parser.add_argument("--ui", action="store_true")
     args = parser.parse_args()
-    portable = args.portable or not (args.portable or args.native)
-    native = args.native or not (args.portable or args.native)
+    portable = args.portable or not (args.portable or args.native or args.ui)
+    native = args.native or not (args.portable or args.native or args.ui)
     if portable:
         portable_checks()
     if native:
         native_checks()
+    if args.ui:
+        ui_checks()
     print("\nall requested checks passed")
     return 0
 

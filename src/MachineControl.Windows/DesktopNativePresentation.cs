@@ -53,8 +53,9 @@ internal sealed class DesktopNativePresentation : IDisposable
                                 "Starts in " + Math.Ceiling(current.GetProperty("noticeRemainingSeconds").GetDouble()) + " seconds. You can keep working.";
                         }
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
+                        broker.Journal?.Diagnostic("native.presentation.failed", FailureCode(ex));
                         timer.Stop();
                         broker.ApprovalPresentationAvailable = false;
                         broker.Stop("native_presentation_unavailable");
@@ -66,8 +67,9 @@ internal sealed class DesktopNativePresentation : IDisposable
                 Application.Run(context);
                 notice?.Dispose();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                broker.Journal?.Diagnostic("native.presentation.start_failed", FailureCode(ex));
                 _ready.TrySetResult(false);
                 broker.ApprovalPresentationAvailable = false;
                 broker.Stop("native_presentation_unavailable");
@@ -101,22 +103,51 @@ internal sealed class DesktopNativePresentation : IDisposable
         {
             try { action(); }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-            { MessageBox.Show(form, ex.Message, "Machine Control", MessageBoxButtons.OK, MessageBoxIcon.Information); }
+            {
+                if (form.Controls.Find("notice-error", false).OfType<Label>().FirstOrDefault() is { } error)
+                    error.Text = "This task changed. Check its current status before trying again.";
+                (form.Tag as DesktopJournal)?.Diagnostic("native.notice.action_failed", FailureCode(ex));
+            }
         };
         form.Controls.Add(button);
         return button;
     }
+    private static string FailureCode(Exception error) => error switch
+    {
+        System.Text.Json.JsonException => "invalid_json",
+        InvalidOperationException => "invalid_state",
+        ArgumentException => "invalid_argument",
+        System.IO.IOException => "io_failure",
+        TimeoutException => "timeout",
+        _ => "unexpected_exception"
+    };
     private static Form Notice(DesktopGrants broker, JsonElement intent)
     {
         var id = intent.GetProperty("intentId").GetString()!;
         var needsApproval = intent.GetProperty("state").GetString() == "waiting_for_approval";
         var surfaces = string.Join(" + ", intent.GetProperty("surfaces").EnumerateArray().Select(value => value.GetString()));
-        var form = Window(needsApproval ? "Machine Control requests access" : "Machine Control will use " + surfaces, 285, focus: false);
+        var profiles = intent.GetProperty("profileIds").EnumerateArray().Select(value => value.GetString()!).ToArray();
+        var extra = profiles.Length > 0 ? 50 : 0;
+        var form = Window(needsApproval ? "Machine Control requests access" : "Machine Control will use " + surfaces, 285 + extra, focus: false);
+        form.Tag = broker.Journal;
+        if (profiles.Length > 0)
+        {
+            var known = JsonSerializer.SerializeToElement(broker.BrowserPolicy?.Profiles, Contract.Json);
+            var labels = profiles.Select(profile =>
+            {
+                var name = known.ValueKind == JsonValueKind.Array ? known.EnumerateArray()
+                    .FirstOrDefault(item => item.TryGetProperty("profileId", out var id) && id.GetString() == profile) : default;
+                var shortId = profile.Length > 8 ? "…" + profile[^8..] : profile;
+                return name.ValueKind == JsonValueKind.Object && name.TryGetProperty("name", out var title)
+                    ? title.GetString() + " (" + shortId + ")" : "Profile " + shortId;
+            });
+            form.Controls.Add(Text("Browser profiles: " + string.Join(", ", labels), 100, 50));
+        }
         form.Controls.Add(Text(intent.GetProperty("reason").GetString()!, 18, 50));
         form.Controls.Add(Text("Surface: " + surfaces + ". A local app requested this task.", 70, 28));
-        var countdown = Text("", 104, 40); countdown.Name = "countdown"; form.Controls.Add(countdown);
+        var countdown = Text("", 104 + extra, 40); countdown.Name = "countdown"; form.Controls.Add(countdown);
         var responded = false;
-        Button(form, needsApproval ? "Allow this task" : "Start now", 18, 155, () =>
+        Button(form, needsApproval ? "Allow this task" : "Start now", 18, 155 + extra, () =>
         {
             // Drain native input before activation so choosing this button
             // cannot immediately count as a later human takeover.
@@ -125,13 +156,14 @@ internal sealed class DesktopNativePresentation : IDisposable
             if (needsApproval) broker.Admission.Approve(id); else broker.Admission.StartNow(id);
             responded = true; form.Close();
         });
-        Button(form, "Pause 30 seconds", 156, 155, () => { broker.PauseRequest(id, 30); responded = true; form.Close(); });
-        Button(form, "Pause 1 minute", 294, 155, () => { broker.PauseRequest(id, 60); responded = true; form.Close(); });
-        Button(form, "Until Resume", 18, 200, () => { broker.PauseRequest(id, null); responded = true; form.Close(); });
-        Button(form, "Deny task", 156, 200, () => { broker.Admission.CancelFromOperator(id); responded = true; form.Close(); });
-        Button(form, "Stop access", 294, 200, () => { broker.Stop("stopped_by_person"); responded = true; form.Close(); });
+        Button(form, "Pause 30 seconds", 156, 155 + extra, () => { broker.PauseRequest(id, 30); responded = true; form.Close(); });
+        Button(form, "Pause 1 minute", 294, 155 + extra, () => { broker.PauseRequest(id, 60); responded = true; form.Close(); });
+        Button(form, "Until Resume", 18, 200 + extra, () => { broker.PauseRequest(id, null); responded = true; form.Close(); });
+        Button(form, "Deny task", 156, 200 + extra, () => { broker.Admission.CancelFromOperator(id); responded = true; form.Close(); });
+        Button(form, "Stop access", 294, 200 + extra, () => { broker.Stop("stopped_by_person"); responded = true; form.Close(); });
         form.FormClosing += (_, _) => { if (!responded) broker.PauseRequest(id, 60); };
-        form.Controls.Add(Text("Mouse movement does not interrupt. Click, key or scroll to take control back.", 245, 36));
+        var footer = Text("Mouse movement does not interrupt. Click, key or scroll to take control back.", 245 + extra, 36);
+        footer.Name = "notice-error"; form.Controls.Add(footer);
         return form;
     }
     public void Dispose()

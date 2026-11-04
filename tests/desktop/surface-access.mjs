@@ -78,7 +78,8 @@ try {
   assert.equal((await page.evaluate(() => window.commands)).filter(command => command.method === "surface.configure").length, 0, "Remembering Ask is not arming after restart");
   await page.getByRole("button", { name: "Enable Ask first for desktop", exact: true }).click();
   await page.getByRole("button", { name: "Enable Automatic for browser", exact: true }).click();
-  await page.evaluate(() => { window.fixtureState.admission.requests = [{ intentId: "fixture-task", surfaces: ["desktop"], state: "waiting_for_approval", reason: "Fixture task", noticeRemainingSeconds: null }]; });
+  await page.evaluate(() => { window.fixtureState.admission.requests = [{ intentId: "fixture-task", surfaces: ["browser"], profileIds: ["fixture:work", "fixture:personal"], state: "waiting_for_approval", reason: "Fixture task", noticeRemainingSeconds: null }]; });
+  await page.getByText(/Browser profiles: Work .*Personal /).waitFor();
   await page.getByRole("button", { name: "Allow this task", exact: true }).click();
   await page.getByRole("button", { name: "Pause 30 seconds", exact: true }).click();
   await page.getByRole("button", { name: "Pause 1 minute", exact: true }).click();

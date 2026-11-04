@@ -116,72 +116,61 @@ details (commands/references tried, what happened, what finally worked) to:
 Kinds: friction|workaround|fallback|handoff|follow-up|summary. Notes carry your
 session ID; review with `usage show --commands --markdown`. No secrets.
 
-Inspect status/capabilities; request only the scopes needed for this task:
+Inspect status/capabilities and the independent Desktop/Browser modes:
   machine-control --target host --claim CLAIM_ID desktop status
   machine-control --target host --claim CLAIM_ID desktop capabilities
-  machine-control --target host --claim CLAIM_ID grant request \\
-    --surface desktop --reason 'describe the task' --duration 10m
-  machine-control --target host --claim CLAIM_ID grant status
+  machine-control --target host --claim CLAIM_ID browser profiles
 
-Check grant status first: the person may already have turned access on,
-possibly until they stop it; then use it without requesting. Otherwise a
-person approves a timed request (at most 8h) in MC's native UI. Never revoke
-access you did not request. Cancellation,
-timeout, refusal and revocation are terminal for the attempt; report them
-without automatically retrying or weakening policy. Discovery can work without
-an access grant. Missing OS permissions are separate from MC approval.
+An operator chooses Off, Ask first or Automatic for each surface in Settings.
+Off refuses quietly. Ask first requests approval for one task. Automatic warns
+before disruptive use and then starts unless the operator defers. Browser
+includes supported raw CDP, page JavaScript and streamed sessions; select exact
+approved profile IDs. It has no separate scripts/DevTools permission tier.
+OS permissions and protected-desktop preparation remain independent.
 
-Desktop workflow:
-  machine-control --target host --claim CLAIM_ID desktop applications
-  machine-control --target host --claim CLAIM_ID desktop windows
-  machine-control --target host --claim CLAIM_ID desktop snapshot --target APP
-  machine-control --target host --claim CLAIM_ID desktop action \\
-    --reference REFERENCE --action press
-  machine-control --target host --claim CLAIM_ID desktop capture \\
-    --scope window --target active_window
+For a multi-step task, retain one owner instead of opening a new handoff for
+each observation or click:
+  machine-control --target host --claim CLAIM_ID control stream \\
+    --surface desktop --reason 'describe the application task' \\
+    --wait 5m --duration 5m
+For Browser, use --surface browser --profile PROFILE_ID. Send one common
+request JSON object per line and read each result before sending the next.
+Close stdin in finally cleanup. Empty input acquires nothing. Inspect command
+help for the target's typed operations; the transport preserves native routes.
+
+The Python ControlSession SDK supports the same retained task, with
+surfaces=['desktop'] or surfaces=['browser'], profile_ids=[PROFILE_ID]. Call
+wait() once to acquire, call(request) for related observations/actions, and
+close() in finally or a context manager. For Browser background-only work,
+operations=['browser.tabs', 'browser.snapshot', 'browser.capture'] narrows the
+owner; it cannot later execute CDP or input. Unrestricted Browser tasks use a
+disruptive handoff. Use control call for a single independent operation.
+
+Pause and human takeover retain valid consent and the live waiting task but
+retire active ownership. Movement alone does not interrupt. Deliberate input
+yields to a fixed minute of cooldown, then a fresh warning. Use SDK wait() for
+a new owner and observe again before issuing new work. Never replay an uncertain
+mutation. A stream ends on interrupted/uncertain work; inspect the outcome and
+start a fresh task deliberately. Denial, Off and cancellation are terminal.
+Waits and heartbeats never extend finite consent. Renewal requires explicitly
+advertised provider support; a heartbeat alone is not renewal.
+
+References are scoped to runtime/session/desktop/provider generations;
+rediscover after ownership changes, navigation or restart. Request acceptance,
+delivery, observed effect and uncertainty are different facts. Verify the
+intended application effect independently. Capture results contain bounded
+artifact handles; pass the full returned handle unchanged to
+`desktop artifact HANDLE OUTPUT_PATH`, carrying target and claim, then use
+your harness's image viewer. A JSON pathname alone is not an image observation.
 
 For a native Open or Save panel an app has already shown (macOS), use
-  machine-control --target host --claim CLAIM_ID desktop dialog choose \\
-    --path /absolute/path --target APP
-instead of driving it with snapshots and keystrokes.
-
-Use desktop --help for action/input options. Observe before acting. References
-are scoped to runtime/session/desktop/provider generations; rediscover after
-navigation or restart. Never retarget or replay an uncertain mutation. Request
-acceptance, delivery, observed effect and uncertainty are different facts;
-verify the intended application effect independently.
-
-Mac locked use, when enabled by the operator in Settings:
-  machine-control --target host --claim CLAIM_ID desktop session control --duration 5m
-Keep this bounded owner command alive concurrently with the actual task. It
-requires ordinary observe/control approval and returns only when the session
-ends; heartbeats do not extend its deadline. Poll desktop status for
-data.lockedUse.controlSessionId and phase. In task finally cleanup, before
-releasing the claim:
-  machine-control --target host --claim CLAIM_ID desktop session end --session-id SESSION_ID
-Use macos-native while covered. The Mac must stay awake with its lid open.
-Physical takeover revokes access and pauses automatic unlock until manual
-unlock; report interrupted_by_physical_presence and do not rearm automatically.
-The setting alone grants no access. Expiry/disconnect/failure relocks. Never
-replace this task-owned lifecycle with ordinary appliance session.unlock.
-
-Browser workflow (requires the installed extension and a browser scope):
-  machine-control --target host --claim CLAIM_ID grant request \\
-    --surface browser --reason 'describe the browser task' --duration 10m
-  machine-control --target host --claim CLAIM_ID browser tabs
-  machine-control --target host --claim CLAIM_ID browser snapshot --tab TAB_ID
-  machine-control --target host --claim CLAIM_ID browser click \\
-    --tab TAB_ID --reference REFERENCE
-  machine-control --target host --claim CLAIM_ID browser capture --tab TAB_ID
-
-Use browser COMMAND --help for options. Raw CDP/evaluation/endpoints require
-the separate devtools scope; do not request it for ordinary browser semantics.
-Capture results contain bounded artifact handles. Pass the returned handle
-unchanged to `desktop artifact HANDLE OUTPUT_PATH`, carrying target and claim.
-For a Mac capture this is `data.artifactPath`, including its full path; do not
-substitute a basename or capture id. Then use your harness's image viewer.
-A JSON pathname alone is not an image observation.
-Release browser debugger sessions when finished with `browser release`.
+`desktop dialog choose --path /absolute/path --target APP` within its admitted
+Desktop task. Browser permission does not authorize OS-dialog fallback.
+Protected/covered tasks require their separately configured native route and
+control --prepared-console. Keep the task owner alive; closing, expiry or a
+safety failure triggers native cleanup/relock. Never replace that lifecycle
+with ordinary appliance session.unlock. Older scope-based resident channels
+cannot silently satisfy the unified v2 contract; update the resident instead.
 
 A trusted native desktop integration can bind a local control channel to
 its selected live agent process. The installed identity negotiates this
