@@ -324,3 +324,10 @@ Browser prompts; labels never become authority. Fixture focus waits for the
 observed focused state before sending Enter, and never calls an unadvertised
 AT-SPI action. All 47 desktop tests pass (one kernel-only skip on macOS).
 Integrated acceptance is being rerun on the clean caption revision.
+
+Native keyboard focus is now observed asynchronously before Enter rather than
+assuming a successful focus request is already visible through AT-SPI. Banner
+captions retain an absolute warning end time while the task and action context
+are unchanged, avoiding per-second action replacement; explicit GTK controls
+continue to display the live shared-policy countdown. Exact profile labels
+include ID suffixes so duplicate friendly names remain distinguishable.
