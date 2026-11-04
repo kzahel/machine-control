@@ -109,9 +109,9 @@ def main():
         ps(script)
         time.sleep(.4)
 
-    def new_owner(prepared=True, duration=120, scopes=('observe', 'control')):
+    def new_owner(prepared=True, duration=120):
         value = ControlSession({'command': [sys.executable, str(Path(__file__).resolve()), '--channel', str(exe), session]},
-                               reason='Bounded Windows locked-use fixture', scopes=scopes,
+                               reason='Bounded Windows locked-use fixture', surfaces=['desktop'],
                                prepared_console=prepared, wait=300 if args.scenario == 'activity' else 90, duration=duration)
         try:
             value.wait()
@@ -150,8 +150,8 @@ def main():
             external('approve-controller')
             wait(ready, 'controller approval completion', 90)
         check(direct({'operation': 'capabilities'})['data']['lockedUse']['permissionReady'], 'Exact local account controller approval is ready')
-        ui('Covered desktop access while locked', toggle=True)
-        ui('Enable access')
+        ui('Allow prepared tasks behind an opaque cover', toggle=True)
+        ui('Enable Automatic for desktop')
         check(direct({'operation': 'capabilities'})['data']['lockedUse']['enabled'], 'Explicit operator opt-in enabled')
         check(not direct({'operation': 'session.unlock.prepare'})['accepted'], 'An unowned caller cannot prepare unlock')
         if args.scenario in ('unlocked', 'idle-lock'):
@@ -191,20 +191,20 @@ def main():
             check(owner.call({'operation': 'snapshot', 'scope': 'system', 'processId': fixture.pid})['accepted'],
                   'Ordinary owner can observe before activity')
             external('diagnostic-human-ordinary')
-            wait(lambda: 'physical_activity' in owner.status()['blockingReasons'], 'native human activity pause')
+            wait(lambda: 'physical_takeover' in owner.status()['blockingReasons'], 'native deliberate takeover pause')
             check(owner.status()['state'] == 'paused', 'Virtual HID diagnostic input pauses real product ownership')
             check(ready(), 'Ordinary takeover leaves unlocked console unlocked')
-            check(direct({'operation': 'grant.status'})['data']['grant'] is not None, 'Ordinary takeover retains consent')
+            check('control' in direct({'operation': 'grant.status'})['data']['effectiveScopes'], 'Ordinary takeover retains consent')
             try:
                 owner.call({'operation': 'snapshot', 'scope': 'system'})
             except Exception as refusal:
                 check(getattr(refusal, 'code', None) == 'control_interrupted', 'Interrupted action is refused without replay')
             else:
                 raise AssertionError('Interrupted action unexpectedly dispatched')
-            ui('Pause access')
-            wait(lambda: 'physical_activity' not in owner.status()['blockingReasons'], 'real physical quiet timer', 45)
+            ui('Pause desktop until Resume')
+            wait(lambda: 'physical_takeover' not in owner.status()['blockingReasons'], 'fixed deliberate-takeover cooldown', 75)
             check('manual' in owner.status()['blockingReasons'], 'Quiet does not clear real operator Pause')
-            ui('Resume access')
+            ui('Resume desktop')
             owner.wait()
             check(owner.status()['sessionId'] != original_session, 'Operator Resume accepts fresh ordinary ownership')
             check(owner.call({'operation': 'snapshot', 'scope': 'system', 'processId': fixture.pid})['accepted'],
@@ -256,7 +256,7 @@ def main():
                         external('diagnostic-human-covered')
                         wait(lambda: not ready(), 'covered takeover independent relock', 30)
                         external('verify-relock-activity')
-                        check(direct({'operation': 'grant.status'})['data']['grant'] is not None,
+                        check('control' in direct({'operation': 'grant.status'})['data']['effectiveScopes'],
                               'Covered takeover retains real ordinary consent')
                         owner.wait()
                         check(owner.status()['sessionId'] != original_session,
@@ -264,7 +264,7 @@ def main():
                         check(not ready(), 'Fresh covered ownership does not itself unlock or replay work')
                     owner.close(); owner = None
                 else:
-                    ui('Stop access')
+                    ui('Stop all access')
             else:
                 external('verify-cover-' + args.scenario)
                 external('crash-' + args.scenario)
@@ -299,13 +299,13 @@ def main():
         check(not ready(), 'Finite task expiry relocks without a local prompt')
         owner.close(); owner = None
         unlock('pause')
-        ui('Pause access')
+        ui('Pause desktop until Resume')
         external('verify-relock-pause')
         check(not ready(), 'Operator Pause fences and relocks')
         owner.close(); owner = None
-        ui('Resume access')
+        ui('Resume desktop')
         unlock('stop')
-        ui('Stop access')
+        ui('Stop all access')
         external('verify-relock-stop')
         check(not ready(), 'Operator Stop revokes and relocks')
         owner.close(); owner = None

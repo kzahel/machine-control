@@ -100,7 +100,7 @@ def main():
 
     def new_owner():
         value = ControlSession({"command": [str(exe), "channel", "--profile", "user", "--instance", "desktop",
-            "--session-id", str(session.value)]}, scopes=["observe", "control"], reason="Native enrollment fixture",
+            "--session-id", str(session.value)]}, surfaces=["desktop"], reason="Native enrollment fixture",
             prepared_console=True, wait=90, duration=120)
         try:
             value.wait()
@@ -126,10 +126,10 @@ def main():
         else:
             raise AssertionError("Credential store readable by ordinary caller")
         operator("locked_use", enabled=True)
-        check("enrollment setup grants no ordinary access", direct("grant.status")["data"].get("grant") is None)
+        check("enrollment setup grants no ordinary access", operator("state")["state"]["accessPolicy"]["surfaces"]["desktop"]["mode"] == "off")
         check("unowned enrolled unlock refused", not direct("session.unlock")["accepted"])
         check("ordinary JSON credential route refused", not direct("session.unlock", credentialKind="password")["accepted"])
-        operator("arm", scopes=["observe", "control"], duration=600)
+        operator("surface.configure", surface="desktop", mode="automatic", duration=600, lifetime="timed")
         # Ordinary tasks keep their unlocked origin; the prepared option does
         # not let them acquire later relock or automatic credential authority.
         owner = new_owner()

@@ -47,6 +47,7 @@ def main():
     parser.add_argument('--install', type=Path, required=True)
     parser.add_argument('--chrome', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--locked-browser', action='store_true', help='Qualify Browser effects, pause and Stop while the OS remains locked')
     parser.add_argument('--settings', action='store_true', help='Also qualify the staged Tauri Settings lifecycle with UI Automation')
     parser.add_argument('--desktop-fixture', type=Path, help='Also prove v2 Desktop ownership with an independent native counter window')
     parser.add_argument('--chromium', action='store_true', help='Use the Chromium snapshot native-host registry key')
@@ -55,6 +56,8 @@ def main():
     parser.add_argument('--keep-profile-data-on-failure', action='store_true', help='Controller must remove retained scratch profiles after diagnosis')
     parser.add_argument('--browser-startup-seconds', type=int, default=180, choices=range(60, 901), metavar='60..900')
     args = parser.parse_args()
+    if args.locked_browser and (args.settings or args.desktop_fixture):
+        parser.error('--locked-browser is a native Browser-only acceptance route')
     # Task Scheduler defaults to Below Normal. Browser startup can then starve
     # the actor's heartbeat independently of resident health. Qualify the
     # ordinary interactive launch class and retain the original in evidence.
@@ -93,6 +96,8 @@ def main():
     processes, sockets = [], []
     runtime = owner = browser = app = None
     debug_port = None
+    locked_preference = Path(os.environ['LOCALAPPDATA']) / 'MachineControl/presentation/desktop-browser-while-locked.json'
+    saved_locked_preference = locked_preference.read_bytes() if locked_preference.exists() else None
     replies = queue.Queue()
     started = time.monotonic()
     logs = (args.output / 'actor.log').open('w', encoding='utf-8')
@@ -173,6 +178,49 @@ def main():
               and refusal['errorCode'] in ('surface_disabled', 'access_paused')
               and grant.get('grant') is None and not grant['effectiveScopes']
               and browser_state['available'] and not browser_state['approvedProfiles'], label)
+    def locked():
+        pointer, size = ctypes.c_void_p(), ctypes.c_uint()
+        api = ctypes.windll.wtsapi32
+        assert api.WTSQuerySessionInformationW(None, session.value, 25, ctypes.byref(pointer), ctypes.byref(size))
+        try:
+            assert size.value >= 20
+            flags = ctypes.c_int.from_address(pointer.value + 16).value
+            assert flags in (0, 1)
+            return flags == 0
+        finally: api.WTSFreeMemory(pointer)
+
+    def approve_named_browser_task():
+        value = ObservedOwner({'command': [str(exe), 'channel', '--profile', 'user', '--instance', 'desktop',
+                                          '--session-id', str(session.value)]}, reason='Named Browser task approval',
+                              surfaces=['browser'], profile_ids=list(ids.values()), wait=90, duration=120, trace=owner_trace)
+        try:
+            check(value.status()['state'] == 'waiting_for_approval', 'Browser Ask waits for its exact named-profile task')
+            script = r"""
+$ErrorActionPreference='Stop'
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+$deadline=[DateTime]::UtcNow.AddSeconds(20)
+do{
+ $windows=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,NATIVE_PID))
+ foreach($window in $windows){
+  if($window.Current.Name -ne 'Machine Control requests access'){continue}
+  $items=$window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
+  $profiles=@($items|Where-Object {$_.Current.Name -like 'Browser profiles:*'})
+  if($profiles.Count -ne 1){continue}
+  if($profiles[0].Current.Name -notmatch 'Work' -or $profiles[0].Current.Name -notmatch 'Personal'){throw 'Exact Browser profile names missing from native approval'}
+  $button=$window.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Allow this task'))
+  if($button){$button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();exit}
+ }
+ Start-Sleep -Milliseconds 100
+}while([DateTime]::UtcNow -lt $deadline)
+throw 'Named native Browser approval unavailable'
+""".replace('NATIVE_PID', str(runtime.pid))
+            subprocess.run(['pwsh.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand',
+                base64.b64encode(script.encode('utf-16-le')).decode()], check=True, stdout=logs, stderr=logs, timeout=30)
+            check(True, 'Native Browser task approval names both exact selected profiles')
+            value.wait()
+            check(value.call({'operation': 'browser.tabs', 'browserProfileId': ids['Work']})['accepted'], 'Native Ask approval admits its Browser task')
+        finally: value.close()
+
     def profiles(): return operator('state')['state']['browser']['profiles']
     def arm(ids, seconds=900): operator('surface.configure', surface='browser', mode='automatic', duration=seconds, lifetime='timed', browserProfileIds=ids)
     def new_owner():
@@ -507,7 +555,19 @@ throw ('Staged operator UI element unavailable: '+ACTION+' '+NAME)
         # The real switcher opens a regular-profile window in our exact live
         # browser process, rather than starting another automation browser.
         check(browser.poll() is None, 'Both profiles belong to one test browser process')
-        arm(list(ids.values())); new_owner()
+        check(not locked(), 'Browser acceptance starts on the unlocked console')
+        operator('surface.configure', surface='browser', mode='ask', duration=900, lifetime='timed', browserProfileIds=list(ids.values()))
+        approve_named_browser_task()
+        if args.locked_browser:
+            baseline_helper = direct('capabilities')['data']['lockedUse']
+            operator('browser_while_locked', enabled=True)
+            arm(list(ids.values()))
+            assert ctypes.windll.user32.LockWorkStation()
+            poll(locked)
+            check(locked(), 'OS lock independently observed before Browser ownership')
+            new_owner()
+        else:
+            arm(list(ids.values())); new_owner()
         generations = {name: accepted('browser.tabs', name)['providerGeneration'] for name in ids}
         time.sleep(5)
         check({name: accepted('browser.tabs', name)['providerGeneration'] for name in ids} == generations, 'Both live provider generations remain stable without reconnect churn')
@@ -579,6 +639,29 @@ throw ('Staged operator UI element unavailable: '+ACTION+' '+NAME)
             poll(lambda: all(target['targetId'] != created for target in cdp_accepted(root, 'Target.getTargets')['targetInfos']))
             root.close()
         owner.close(); owner = None
+        if args.locked_browser:
+            new_owner()
+            endpoint = accepted('browser.endpoint', 'Work')
+            stream = CdpSocket(endpoint['browserEndpoint'], timeout=endpoint['commandTimeoutMs']/1000+5)
+            sockets.append(stream); stream.call('Browser.getVersion')
+            operator('pause')
+            poll(lambda: owner.status()['state'] == 'paused')
+            stream.wait_closed()
+            check(locked(), 'Pause fences the live Browser stream while Windows stays locked')
+            owner.close(); owner = None
+            operator('resume'); new_owner()
+            check(accepted('browser.tabs', 'Work')['browserProfileId'] == ids['Work'] and locked(),
+                  'Resume obtains fresh exact-profile ownership without unlocking')
+            operator('stop')
+            poll(lambda: owner.status()['state'] == 'ended')
+            check(direct('browser.tabs')['errorCode'] == 'surface_disabled', 'Stop revokes locked Browser authority')
+            check(direct('snapshot')['errorCode'] == 'surface_disabled', 'Browser consent never enables Desktop capture')
+            helper = direct('capabilities')['data']['lockedUse']
+            check(helper['enabled'] == baseline_helper['enabled'] and helper['permissionReady'] == baseline_helper['permissionReady'],
+                  'Browser work leaves protected Desktop setup unchanged')
+            check(locked(), 'Windows remains locked after native Browser effects, streams, Pause and Stop')
+            report['passed'] = True
+            return
         operator('stop')
         check(direct('browser.tabs')['errorCode'] == 'surface_disabled', 'Stop revokes all profile authority')
         arm([ids['Work']]); new_owner()
@@ -698,6 +781,9 @@ throw ('Staged operator UI element unavailable: '+ACTION+' '+NAME)
             try: winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, key_path, winreg.KEY_WOW64_32KEY)
             except FileNotFoundError: pass
         backup.unlink()
+        if args.locked_browser:
+            if saved_locked_preference is None: locked_preference.unlink(missing_ok=True)
+            else: locked_preference.write_bytes(saved_locked_preference)
         server.shutdown(); server.server_close(); logs.close()
         try:
             deadline = time.monotonic() + 30

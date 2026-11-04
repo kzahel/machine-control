@@ -21,8 +21,8 @@ credential use. Covered VM qualification is tracked in Tactical 102.
    Cancellation leaves existing enrollment unchanged. A newly installed helper
    can remain installed and unarmed after cancellation.
 3. Successful setup enables the covered-desktop option. It persists as a local
-   preference, separate from ordinary access consent. Enable observation and
-   control access for the work you authorize. Setup itself grants no agent access.
+   preference, separate from ordinary access consent. Choose the Desktop access mode
+   for the work you authorize. Setup itself grants no agent access.
 
 Use **Update saved password…** after changing the Windows password. Use
 **Remove unlock setup…** to erase enrollment. Changing the covered-desktop
@@ -40,8 +40,11 @@ this desktop profile.
 
 ## Enrolled agent task
 
-Retain a `ControlSession` with `prepared_console=True`, exactly `observe` and
-`control` scopes and a finite duration of at most 900 seconds. The owner must
+Retain a v2 `ControlSession` with `prepared_console=True`,
+`surfaces=["desktop"]` and a finite duration of at most 900 seconds. Choose
+Desktop Automatic or approve the exact task under Desktop Ask first; helper
+setup grants neither. Prepared Windows owners do not support renewal until
+the independent guardian can acknowledge an extended deadline. The owner must
 start with the console locked. Dispatch `session.unlock` through that owner;
 no controller key, credential file or password is sent by the agent. Unowned
 requests and ordinary JSON credentials are refused. An unlocked-origin task
