@@ -31,8 +31,9 @@ def main():
     checks=[];children=[];owners=[];failure=None;child=None;web=None;clipboard=None;clipboard_changed=False
     log=(args.output/'browser.log').open('w');effects={'Work':0,'Personal':0}
     def report(complete=False):
-        (args.output/'summary.json').write_text(json.dumps(dict(complete=complete,passed=complete and failure is None,
+        (args.output/'summary.tmp.json').write_text(json.dumps(dict(complete=complete,passed=complete and failure is None,
             failure=failure,checks=checks,effects=effects),indent=2))
+        (args.output/'summary.tmp.json').replace(args.output/'summary.json')
     def check(name,value):
         checks.append(dict(name=name,passed=bool(value)));report()
         if not value:raise AssertionError(name)

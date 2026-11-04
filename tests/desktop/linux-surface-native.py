@@ -36,8 +36,9 @@ def main():
     checks=[];owned=[];owners=[];child=None;failure=None;fixture_unit=None
     log=(args.output/'native.log').open('w')
     def report(complete=False):
-        (args.output/'summary.json').write_text(json.dumps(dict(complete=complete,passed=complete and failure is None,
+        (args.output/'summary.tmp.json').write_text(json.dumps(dict(complete=complete,passed=complete and failure is None,
             failure=failure,checks=checks),indent=2))
+        (args.output/'summary.tmp.json').replace(args.output/'summary.json')
     def check(name,value):
         checks.append(dict(name=name,passed=bool(value)));report()
         if not value:raise AssertionError(name)

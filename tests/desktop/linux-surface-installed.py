@@ -33,8 +33,9 @@ def main():
     endpoint=Path(os.environ['XDG_RUNTIME_DIR'])/'machine-control-desktop/desktop.sock'
     cli=[str(args.client/'python/bin/python3'),'-I','-B',str(args.client/'platforms/linux/host/linuxhost.py')]
     def report(complete=False):
-        (args.output/'summary.json').write_text(json.dumps(dict(complete=complete,passed=complete and failure is None,
+        (args.output/'summary.tmp.json').write_text(json.dumps(dict(complete=complete,passed=complete and failure is None,
             failure=failure,checks=checks),indent=2))
+        (args.output/'summary.tmp.json').replace(args.output/'summary.json')
     def check(name,value):
         checks.append(dict(name=name,passed=bool(value)));report()
         if not value:raise AssertionError(name)
