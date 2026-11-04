@@ -196,6 +196,11 @@ class Policy:
                 elif kind == 'browser.state' and isinstance(frame.get('state'), dict):
                     with self.lock:
                         self.snapshot = frame['state']
+                elif kind == 'request.finished' and isinstance(frame.get('result'), dict):
+                    # Core emits this diagnostic completion as well as resolving
+                    # browser.call. Only the correlated RPC owns completion;
+                    # neither replay nor a second native dispatch is allowed.
+                    pass
                 elif kind in {'provider.send', 'provider.close', 'access.event', 'native.check'}:
                     with self.lock:
                         if len(self.events) >= 512 or self.event_bytes + size > 2 * MAXIMUM:

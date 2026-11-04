@@ -14,7 +14,7 @@ import shutil
 import tempfile
 import subprocess
 import sys
-from desktop_channel import relay
+import importlib.util
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -131,11 +131,14 @@ def main(arguments):
             "--claim-id", identifier], capture=True).returncode:
             raise ValueError("Exclusive target use requires a live claim")
         if command == 'channel' and not rest:
+            spec=importlib.util.spec_from_file_location('desktop_channel',Path(__file__).with_name('desktop_channel.py'))
+            transport=importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(transport)
             def check():
                 if claim(['check','--provider','linux-host','--resource-id',resource_id(),
                           '--claim-id',identifier],capture=True).returncode:
                     raise ValueError('Target claim ended')
-            return relay(check)
+            return transport.relay(check)
         if command in {"control", "control-local"} and len(rest) == 1:
             request = json.loads(rest[0])
             if not isinstance(request, dict):

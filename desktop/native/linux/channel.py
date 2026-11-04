@@ -36,7 +36,10 @@ class Channel:
     def reply(self,request,data=None,error=None):
         value=dict(schema=SCHEMA,requestId=request.get('requestId',''),accepted=error is None)
         if error:value.update(errorCode=error,message='Control request refused')
-        else:value['data']=data or {}
+        else:
+            value['data']=data or {}
+            if value['data'].get('schema')=='machine-control-admission/v2':
+                value['data']={**value['data'],'requestSequencing':'strict'}
         body=json.dumps(value,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()+b'\n'
         with self.lock:
             if self.closed.is_set():return
@@ -88,9 +91,13 @@ class Channel:
             if self.closed.is_set():return False
             if not isinstance(request.get('requestId'),str) or not 0<len(request['requestId'])<=128:
                 raise ValueError('invalid_admission_request')
-            sequence=self.integer(request.get('requestSequence'),1,2**53-1)
-            if sequence!=self.sequence+1:raise ValueError('invalid_request_sequence')
-            self.sequence=sequence
+            # The unchanged SDK negotiates sequencing in its opening reply.
+            # Explicitly sequenced callers start at one; an unsequenced open
+            # leaves one as the first required subsequent sequence.
+            if self.intent is not None or 'requestSequence' in request:
+                sequence=self.integer(request.get('requestSequence'),1,2**53-1)
+                if sequence!=self.sequence+1:raise ValueError('invalid_request_sequence')
+                self.sequence=sequence
             operation=request.get('operation')
             common={'operation','requestId','requestSequence'}
             if self.intent is None:

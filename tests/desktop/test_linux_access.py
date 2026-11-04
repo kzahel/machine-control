@@ -112,3 +112,29 @@ class AccessTests(unittest.TestCase):
         channel.close()
         while not self.callbacks.empty():self.callbacks.get()()
         self.assertNotIn(channel.label,self.access.owners)
+
+    def test_sdk_open_negotiates_the_first_required_sequence(self):
+        server,client=socket.socketpair();client.settimeout(2)
+        self.addCleanup(server.close);self.addCleanup(client.close)
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+            scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
+            channels=set(),changed=lambda:None)
+        channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
+        # This portable case supplies only the authenticated native caller fact;
+        # the Linux appliance gate exercises the actual /proc identity check.
+        channel.authority=lambda:None
+        owner.channels.add(channel);self.addCleanup(channel.close)
+        def call(sequence,operation,**fields):
+            channel.handle(dict(requestId=str(sequence),operation=operation,**({'requestSequence':sequence} if sequence else {}),**fields))
+            # Each response is small; no framing assumption about recv chunks.
+            body=b''
+            while not body.endswith(b'\n'):body+=client.recv(65536)
+            return json.loads(body)
+        opened=call(0,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],reason='Channel fixture')
+        self.assertTrue(opened['accepted']);self.assertEqual(opened['data']['state'],'offered')
+        self.assertEqual(opened['data']['requestSequencing'],'strict')
+        self.assertTrue(call(1,'control.heartbeat')['accepted'])
+        self.assertEqual(call(1,'control.status')['errorCode'],'invalid_request_sequence')
+        channel.close()
+        while not self.callbacks.empty():self.callbacks.get()()
+        self.assertNotIn(channel.label,self.access.owners)

@@ -154,3 +154,25 @@ an explicit native acceptance check. Global pause also has its own native
 Resume control, preserving independent surface pauses. Full acceptance remains
 in progress. An isolated fixture must run outside the operator's descendant
 tree, which the production provider intentionally protects.
+
+
+**Current — native companion gate:** the clean warning-fix runtime passes 33
+real GNOME/GTK checks: initial Off, retained live owners, Ask first, warning /
+Start now, automatic countdown, independent AT-SPI fixture effects, per-task
+deferral, Resume with a new session, stale native references, native denial,
+portal consent / actual capture and native Stop. The two-monitor appliance
+requires an explicit current native source selector; the actor refuses to
+guess. Each run removes its observer installation and owned processes. The
+first ARM64 optimized Tauri build also succeeds. Packaged UI, real profiles,
+streamed CDP and unchanged SDK acceptance remain distinct pending gates.
+
+**Current — client/browser boundary findings:** the shipped Python SDK opens
+without a sequence and negotiates strict ordering from the reply. Linux now
+advertises that negotiation and requires sequencing afterward; explicit
+sequenced fixture owners retain their original behavior. The local adapter
+loads its sibling relay by exact path, including under isolated Python. The
+shared child also emits an informational `request.finished` before the
+correlated browser RPC reply. Accept that known frame without completing the
+request twice or treating it as child failure. Portable regression checks pass.
+Linux portal setup no longer requires disabling independent surface consent;
+the native pending chooser supplies its own Desktop readiness floor.

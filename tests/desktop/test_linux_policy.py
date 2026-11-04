@@ -48,6 +48,12 @@ class TransportTests(unittest.TestCase):
         host=self.fixture('stderr')
         self.assertEqual(host.call({'method':'inspect'}),{})
 
+    def test_informational_completion_does_not_replace_or_duplicate_rpc(self):
+        host=self.fixture('finished')
+        self.assertEqual(host.call({'method':'inspect'}),{'completed':True})
+        self.assertTrue(host.alive)
+        self.assertEqual(host.call({'method':'inspect'}),{'completed':True})
+
     def test_blocked_writer_is_bounded_and_reaped(self):
         host=self.fixture('no-read')
         started=time.monotonic()

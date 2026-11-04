@@ -1109,8 +1109,6 @@ function App() {
                     <button
                       disabled={
                         busy ||
-                        !!grant || unifiedOn ||
-                        !!state?.pending ||
                         state?.portal?.state === "pending"
                       }
                       onClick={() =>

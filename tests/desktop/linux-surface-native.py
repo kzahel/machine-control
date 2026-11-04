@@ -7,6 +7,7 @@ No simulated policy, operator hook or approval bypass is added to the product.
 import argparse
 import contextlib
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,7 @@ def main():
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--source-root',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--portal-source',help='Exact native screen name on a multi-screen target')
     args=parser.parse_args();signal.signal(signal.SIGTERM,lambda *_:(_ for _ in ()).throw(SystemExit(143)))
     args.output.mkdir(mode=0o700,parents=True,exist_ok=True)
     sys.path.insert(0,str(args.runtime))
@@ -130,15 +132,27 @@ def main():
         automatic.wait();check('warning reaches offer automatically',automatic.view['state']=='active')
         effect(automatic)
         # Portal consent is independently acted on through native accessibility.
-        consent=subprocess.Popen(['/usr/bin/python3',str(args.source_root/'tests/desktop/linux-consent.py'),
-            '--runtime',str(args.runtime)],stdout=log,stderr=log);owned.append(consent)
+        consent_command=['/usr/bin/python3',str(args.source_root/'tests/desktop/linux-consent.py'),
+            '--runtime',str(args.runtime)]
+        if args.portal_source:consent_command+=['--source',args.portal_source]
+        consent=subprocess.Popen(consent_command,stdout=log,stderr=log);owned.append(consent)
         operator('permission');consent.wait(40);check('real compositor consent',consent.returncode==0)
         poll(lambda:state()['portal']['state']=='ready','portal ready')
         # The pending chooser yields the old session. A new warning is required.
         automatic.wait()
+        snapshot=automatic.call('snapshot',target='machine-control-fixture',maxDepth=16)
+        entry=next(row for row in snapshot['data']['elements'] if row['label']=='Fixture Text')
+        check('ordinary native focus',automatic.call('focus',reference=entry['reference'])['accepted'])
+        typed=automatic.call('input.text',target='machine-control-fixture',text='Unified Linux café 世界')
+        check('ordinary portal input delivery',typed['accepted'] and typed['actualRoute']=='user/linux.portal-notify')
+        poll(lambda:json.loads(oracle.read_text())['text']=='Unified Linux café 世界','independent portal text effect')
+        check('independent portal text effect',True)
         capture=automatic.call('capture')
         check('ordinary portal capture',capture['accepted'] and capture['actualRoute']=='user/linux.portal-pipewire')
         artifact=capture['data']['artifact'];check('capture artifact is bounded',artifact['byteLength']>100)
+        image=Path(artifact['guestPath']);content=image.read_bytes()
+        check('capture artifact hash',hashlib.sha256(content).hexdigest()==artifact['sha256'])
+        (args.output/'capture.png').write_bytes(content);image.unlink()
         press('Stop all access');waiting(automatic,'ended')
         check('native Stop turns both surfaces Off',all(s['mode']=='off' for s in state()['accessPolicy']['surfaces'].values()))
         automatic.close();owners.remove(automatic)

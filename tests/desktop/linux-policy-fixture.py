@@ -22,6 +22,9 @@ while True:
     elif mode=='bad-reply':send(dict(type='reply',id=frame['id'],ok=True,data=[]))
     elif mode=='partial':sys.stdout.buffer.write(b'\x10\x00');sys.stdout.buffer.flush();break
     elif mode=='environment':send(dict(type='reply',id=frame['id'],ok=True,data=dict(keys=sorted(os.environ))))
+    elif mode=='finished':
+        send(dict(type='request.finished',result=dict(accepted=True)))
+        send(dict(type='reply',id=frame['id'],ok=True,data=dict(completed=True)))
     elif mode=='stderr':
         os.write(2,b'x'*1048576)
         send(dict(type='reply',id=frame['id'],ok=True,data={}))
