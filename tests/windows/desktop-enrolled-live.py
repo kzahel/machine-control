@@ -6,6 +6,7 @@ controller owns enrollment, independent account/logon observations, restoration,
 normal shutdown and claim release. Leaves Windows locked after its final task.
 """
 import argparse
+import base64
 import ctypes
 import hashlib
 import json
@@ -22,13 +23,15 @@ from control_session import ControlSession
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--fixture", type=Path, required=True, help="Separately built native counter fixture")
     parser.add_argument("--failure-hold", type=int, choices=range(0, 121), default=0)
     args = parser.parse_args()
     exe = Path(os.environ["ProgramFiles"]) / "MachineControlDesktopUac/machine-control-windows.exe"
     args.output.mkdir(parents=True, exist_ok=True)
     session = ctypes.c_uint()
     assert ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(session))
-    child = owner = None
+    child = owner = fixture = None
+    marker = args.output / "native-counter.json"
     checks = []
     report = {"passed": False, "checks": checks, "runtimeSha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
               "operatorRoute": "inherited_native_operator"}
@@ -112,6 +115,11 @@ def main():
 
     try:
         check("initial console unlocked", not locked())
+        report["actorSha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        product = json.loads((exe.parent / "build.json").read_text(encoding="utf-8"))
+        report["runtimeSourceRevision"] = product["sourceRevision"]
+        report["runtimeSourceDirty"] = product["sourceDirty"]
+        report["fixtureSha256"] = hashlib.sha256(args.fixture.read_bytes()).hexdigest()
         original_identity = console_identity()
         child = subprocess.Popen([str(exe), "desktop"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True)
         operator("hello", processId=os.getpid())
@@ -130,6 +138,11 @@ def main():
         check("unowned enrolled unlock refused", not direct("session.unlock")["accepted"])
         check("ordinary JSON credential route refused", not direct("session.unlock", credentialKind="password")["accepted"])
         operator("surface.configure", surface="desktop", mode="automatic", duration=600, lifetime="timed")
+        fixture = subprocess.Popen([str(args.fixture), "--counter-output", str(marker)], stdout=log, stderr=log)
+        def counter():
+            try: return json.loads(marker.read_text())
+            except (OSError, ValueError): return {}
+        wait(lambda: counter().get("processId") == fixture.pid)
         # Ordinary tasks keep their unlocked origin; the prepared option does
         # not let them acquire later relock or automatic credential authority.
         owner = new_owner()
@@ -163,6 +176,30 @@ def main():
             check(finish + ": Browser consent changes preserve covered Desktop authority", True)
             observed = owner.call({"operation": "windows"})
             check(finish + ": ordinary window observation after unlock", observed["accepted"])
+            hwnd = next(window["hwnd"] for window in observed["data"]["windows"] if window["processId"] == fixture.pid)
+            snapshot = owner.call({"operation": "snapshot", "hwnd": hwnd, "maxDepth": 8, "maxElements": 100})
+            check(finish + ": native fixture semantics behind cover", snapshot["accepted"])
+            reference = next(element["reference"] for element in snapshot["data"]["elements"] if element.get("name") == "Increment counter")
+            expected = counter()["counter"] + 1
+            invoked = owner.call({"operation": "invoke", "reference": reference, "hwnd": hwnd})
+            wait(lambda: counter().get("counter") == expected)
+            check(finish + ": independent native effect behind cover", invoked["accepted"] and counter()["counter"] == expected)
+            captured = owner.call({"operation": "screenshot", "scope": "system", "hwnd": hwnd})
+            check(finish + ": native capture behind cover", captured["accepted"])
+            image = Path(captured["data"]["targetLocalPath"])
+            pixels = image.read_bytes()
+            check(finish + ": real captured PNG bytes", pixels.startswith(b"\x89PNG\r\n\x1a\n"))
+            (args.output / (finish + "-covered-fixture.png")).write_bytes(pixels)
+            literal = "'" + str(image).replace("'", "''") + "'"
+            script = "Add-Type -AssemblyName System.Drawing;$image=[Drawing.Bitmap]::new(" + literal + ");" + \
+                "try{$count=0;for($y=0;$y -lt $image.Height;$y+=10){for($x=0;$x -lt $image.Width;$x+=10){" + \
+                "$pixel=$image.GetPixel($x,$y);if(($pixel.R+$pixel.G+$pixel.B) -gt 30){$count++}}};$count}finally{$image.Dispose()}"
+            colored = subprocess.check_output(["pwsh.exe", "-NoProfile", "-EncodedCommand",
+                base64.b64encode(script.encode("utf-16-le")).decode()], text=True, timeout=20)
+            check(finish + ": capture observes underlying application pixels", int(colored.strip()) > 100)
+            fields = ("actualRoute", "delivery", "effect", "uncertainty", "captureFidelity", "coordinateSpace", "privilege")
+            report.setdefault("nativeEffects", {})[finish] = {operation: {key: result.get(key) for key in fields}
+                for operation, result in (("snapshot", snapshot), ("invoke", invoked), ("capture", captured))}
             if finish == "stop":
                 operator("stop")
             owner.close(); owner = None
@@ -181,12 +218,15 @@ def main():
     finally:
         if owner:
             owner.close()
+        if fixture and fixture.poll() is None:
+            fixture.terminate(); fixture.wait(timeout=10)
         if child and child.poll() is None:
             child.stdin.close()
             try:
                 child.wait(timeout=20)
             except subprocess.TimeoutExpired:
                 child.kill(); child.wait(timeout=5)
+        report["cleanup"] = (fixture is None or fixture.poll() is not None) and (child is None or child.poll() is not None) and (owner is None or owner.stopped.is_set())
         (args.output / "result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
         log.close()
 
