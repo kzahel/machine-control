@@ -55,6 +55,16 @@ def main():
     parser.add_argument('--keep-profile-data-on-failure', action='store_true', help='Controller must remove retained scratch profiles after diagnosis')
     parser.add_argument('--browser-startup-seconds', type=int, default=180, choices=range(60, 901), metavar='60..900')
     args = parser.parse_args()
+    # Task Scheduler defaults to Below Normal. Browser startup can then starve
+    # the actor's heartbeat independently of resident health. Qualify the
+    # ordinary interactive launch class and retain the original in evidence.
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.GetPriorityClass.argtypes = [ctypes.c_void_p]
+    kernel.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    original_priority = kernel.GetPriorityClass(ctypes.c_void_p(-1))
+    if original_priority in (0x40, 0x4000):  # Idle / Below Normal
+        if not kernel.SetPriorityClass(ctypes.c_void_p(-1), 0x20):
+            raise ctypes.WinError(ctypes.get_last_error())
     assert args.chrome.name.lower() == 'chrome.exe'
     assert 'test' in str(args.chrome).lower(), 'Use a separately identified test browser'
     args.output.mkdir(parents=True, exist_ok=True)
@@ -71,6 +81,7 @@ def main():
                   operatorRoute='inherited_native_operator', browserProfiles=2, browserProcesses=1)
     identity = json.loads((args.install/'runtime/build.json').read_text(encoding='utf-8'))
     report.update(sourceRevision=identity['sourceRevision'], sourceDirty=identity['sourceDirty'],
+                  originalProcessPriorityClass=original_priority,
                   processPriorityClass=ctypes.windll.kernel32.GetPriorityClass(ctypes.c_void_p(-1)))
     for label, path in [('actorSha256', Path(__file__)), ('ownerObserverSha256', Path(__file__).with_name('observed_owner.py')),
                         ('policyPayloadSha256', args.install/'runtime/shared-policy/payload.json'),

@@ -19,6 +19,9 @@ owner and explicit surface configuration. `--settings` tests the actual staged
 Tauri UI. `--desktop-fixture` adds native semantic counter effects, per-task Ask
 and stale-reference fencing. Both the native marker and HTTP browser oracle
 observe effects independently of resident delivery results. The controller
+launches at ordinary interactive priority: the actor normalizes Idle/Below
+Normal launches and records both classes. CPU-starvation qualification remains
+separate from normal heartbeat/reconnect acceptance. The controller
 still owns claims, source/digest checks, task/process/registration cleanup,
 credential verification and original-power restoration.
 
