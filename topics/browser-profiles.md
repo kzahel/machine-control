@@ -33,7 +33,8 @@ The Windows Access surface lists known profiles with connected, enabled and
 approved states, plus protocol/conflict repair guidance. Access controls and native approval prompts name
 the profiles being approved. Connection, availability and approval are distinct
 states. The extension can withdraw its own availability; enabling it cannot
-create a Browser or DevTools grant. Stop remains global.
+create Browser authority. The unified Browser surface includes supported
+CDP, evaluation and streams; there is no separate scripts consent tier. Stop remains global.
 
 Multiple profiles can remain connected and be approved. The first version
 preserves existing desktop admission and target-use arbitration; it does not

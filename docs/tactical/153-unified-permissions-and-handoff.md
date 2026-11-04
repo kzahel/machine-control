@@ -265,3 +265,46 @@ unarmed profile edit while terminal transport failure removes the controls.
 This is UI contract evidence, complemented by the actual Windows lifecycle
 run; it is not an OS or authorization oracle by itself. Broad review and any
 resulting corrections are the next Windows gate.
+
+### Broad review and corrections
+
+**Current (2026-11-04):** the requested single independent broad review is
+complete. It found a late-takeover lifetime defect and a locked preparation
+quiet-guard bypass when a background Browser owner was active. The corrections
+also cover unknown human-input observation, scoped pause origins, common
+operation narrowing, admission audit transitions, exact profile notices,
+nonmodal notice errors and current agent instructions.
+
+- `1fdaba4` reproduces and corrects resumed waiting after the initial wait
+  expires. A fresh cooldown/notice/offer period stays under the task ceiling;
+  each SDK wait pins the new server period rather than the original submission.
+- `8f9dbfd` counts active Desktop ownership for protected quiet eligibility,
+  blocks the shared disruptive-input resource on unknown observation, preserves
+  unrelated background Browser work, keeps global/surface pause origins,
+  enforces narrowed operations and journals closed transition metadata with
+  hashed correlations. Lightweight native queries omit task text/full views.
+- `f4188d3` names selected profiles in native/Settings tasks, keeps notice
+  errors inline and records closed native presentation exception classes. It
+  replaces obsolete agent grant instructions and wires rendered UI acceptance
+  into the common check entry point and CI.
+- `618718f` adds explicit ordinary owner renewal under the same consent and
+  owner/generation fence. Prepared Windows owners refuse renewal until their
+  independent guardian can acknowledge it. Heartbeats and pauses do not renew.
+- `bb0f5e8` migrates covered/enrolled actors to v2 and reuses the real-profile
+  actor for locked Browser effects, streams, Pause/Resume and Stop. The native
+  Ask fixture inspects both profile names before allowing its exact task.
+- `8a5e618` exposes independent global pause controls and distinct scope labels.
+  Global Resume retains an independent surface pause.
+- `3da11a9` keeps explicit ordinary renewal responsive during a held provider
+  action. Its transport regression fails with the action-busy guard and passes
+  when renewal is allowed to retain the same owner independently.
+
+Strict TypeScript, all 79 shared runtime tests, portable repository checks,
+rendered UI checks, native contracts and ARM64/x64 publishes pass. The clean
+`8a5e618` candidate passes native contracts and 26 actual Windows handoff
+checks, including late takeover, and four native Rust operator tests. Full
+Browser/Settings and protected-transition qualification are still in progress
+at this checkpoint. The subsequent renewal correction requires final clean
+candidate qualification.
+The earlier missing cooldown warning remains unexplained; the diagnostic code
+improves future failure evidence and is not an established fix for that miss.

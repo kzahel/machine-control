@@ -2,8 +2,8 @@
 
 Topic: `access-admission-and-pause`
 
-Status: **unified Windows/reference candidate conformance passed;
-broad review precedes Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+Status: **Windows/reference broad review complete; corrections are
+implemented and undergoing fresh native qualification before Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the current candidate and its limits. Earlier platform admission
 evidence below does not qualify the new experience on Mac or Linux.
 
