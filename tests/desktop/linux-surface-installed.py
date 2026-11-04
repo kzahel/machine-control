@@ -107,11 +107,17 @@ def main():
         if 'Selection' in linuxui.interfaces(combo):
             with contextlib.suppress(Exception):selected=combo.select_child(index)
         if not selected:
+            observer('input.key',key='escape')
             activate_app()
             assert combo.grab_focus(),'Native combo focus'
-            observer('input.key',key='home')
-            for _ in range(index):observer('input.key',key='down')
-            observer('input.key',key='enter')
+            def focused():
+                combo.clear_cache();return 'focused' in linuxui.state_names(combo)
+            poll(focused,'observed native combo focus')
+            # A committed change disables the select while native policy is
+            # updated. Select Automatic directly rather than committing Ask
+            # first and losing focus before a second Down can reach it.
+            observer('input.key',key='end' if index==2 else 'home')
+            if index==1:observer('input.key',key='down')
         poll(lambda:policy()['surfaces'][surface]['mode']==mode,label+' applied')
         check('Settings applies '+surface+' '+mode,True)
     try:
@@ -203,6 +209,8 @@ def main():
         check('packaged app revokes on exit',True)
     except BaseException as error:
         failure=type(error).__name__+': '+str(error)
+        report()
+        with contextlib.suppress(Exception):(args.output/'failure-policy.private.json').write_text(json.dumps(policy()))
         with contextlib.suppress(Exception):
             (args.output/'ui.private.json').write_text(json.dumps([i for _,i in nodes()]))
         raise
