@@ -1,8 +1,8 @@
 # Private native host inlet
 
-Status: **v2 surface-policy integration under qualification**. The earlier
-Windows browser inlet was accepted in a bounded unsigned ARM64 candidate; that
-evidence does not qualify the new permissions and handoff implementation.
+Status: **v2 surface-policy Windows candidate conformance passed; broad review
+pending**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+records current evidence and its unsigned ARM64 VM limits.
 This private inlet is not an agent API or an independently installed service.
 The language/deployment decision and migration gates live in
 [the shared-core topic](../topics/shared-resident-core.md) and

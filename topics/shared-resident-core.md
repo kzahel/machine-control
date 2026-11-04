@@ -2,8 +2,9 @@
 
 Topic: `shared-resident-core`
 
-Status: **Windows browser cutover accepted in an unsigned ARM64 candidate;
-unified Windows/reference permissions and handoff under native qualification, then Mac/Linux**.
+Status: **unified Windows/reference candidate conformance passed;
+broad review, then Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+records the candidate gates and remaining qualification limits.
 
 ## Motivation
 

@@ -4,8 +4,8 @@ Owning topics: [access admission and pause](../../topics/access-admission-and-pa
 [shared resident core](../../topics/shared-resident-core.md),
 [browser profiles](../../topics/browser-profiles.md).
 
-Status: **implementation in progress; shared policy and Windows adapter/UI/client implemented;
-new native/package acceptance pending**.
+Status: **Windows candidate conformance passed; broad review pending,
+then macOS and Linux adoption**.
 
 ## Motivation and objective
 
@@ -53,8 +53,9 @@ or another grant/admission engine inside the reference provider.
 
 Mac/Linux integration preservation is not a gate for Windows development.
 Unsupported builds/routes must report that honestly and refuse incompatible
-semantics. Do not silently run a legacy policy behind a new-mode UI. This plan
-is not an all-platform implementation or a publication/personal-install change.
+semantics. Do not silently run a legacy policy behind a new-mode UI. Delivery
+proceeds through Windows, macOS and Linux; publication and personal installation
+remain outside this workstream.
 Protected/covered changes retain independent lock, cover, credential and relock
 proof; ordinary desktop UX does not bypass those native guards.
 
@@ -162,8 +163,8 @@ and interrupted effects. This checkpoint does not change installed behavior:
 Windows now delegates admission to that engine and exposes the v2 operator UI
 and Python channel. Its former C# queue/grant-request policy was removed.
 Native contracts use the real shared process; the fixture clock host is not
-packaged. New native/package acceptance remains pending before the requested
-broad review.
+packaged. The Windows candidate now passes the bounded qualification below;
+the requested broad review precedes macOS/Linux adoption.
 
 The approved autonomous sequence is Windows/shared/reference implementation and
 acceptance, one broad Opus 5.5 High review through the work-account router pool
@@ -205,9 +206,9 @@ account when the requested route is unavailable.
 contract tests run the real Node process through the C# inherited IPC client;
 the mode matrix, live channel ownership, native safety, activity classification,
 audit, bounded work and late-result checks pass. Windows runtime formatting
-verification and self-contained ARM64/x64 publishes pass. The native interactive
-handoff actor builds for ARM64; its new Windows live execution is still pending.
-These are source/build and fixture results, not packaged Windows acceptance.
+verification and self-contained ARM64/x64 publishes pass. These local checks
+are source/build and fixture evidence; the separate live Windows qualification
+is recorded below.
 
 - Legacy Windows operator `arm`/target-wide `decision` commands and the old C#
   policy-only test project are removed. The v2 Python API/CLI uses surfaces;
@@ -222,8 +223,8 @@ These are source/build and fixture results, not packaged Windows acceptance.
   retaining their existing framing and ownership. A separate-process contract
   exchanges ten frames with one worker and checks both caller and resident EOF;
   it fails with the previous pool-based transport and passes with the new one.
-  Portable native contracts, formatting and ARM64/x64 publishes pass. The final
-  clean Windows candidate still needs qualification before broad review.
+  Portable native contracts, formatting and ARM64/x64 publishes pass. The
+  subsequent clean candidate qualification is recorded below.
 - Packaged Settings inspection exposed a transient status-poll collision with
   operator/update work. Treating that collision as a lost resident unmounted
   the form and discarded unarmed profile choices. Windows now returns explicit
@@ -232,3 +233,35 @@ These are source/build and fixture results, not packaged Windows acceptance.
   and passes with the correction, while real transport failure still removes
   control widgets. Native visual inspection also found a clipped pause label;
   the notice now uses wider, evenly spaced button columns.
+
+### Windows candidate qualification
+
+**Current (2026-11-04):** clean product source `9721b92` passes native desktop
+and unlock contracts, all 25 native handoff checks, four Windows Rust operator
+tests and the production Tauri build. The full browser/Settings actor passes
+all 44 checks, including independent native/page effects, two stable regular
+profiles in one browser, exact selection, supported CDP/eval/upload/capture,
+live expiry, reconnect fencing, actual policy-child death, Settings closure,
+window recreation and fresh consent after app restart. Its scratch profiles,
+temporary registration and owned processes are cleaned by the actor; controller
+staging, claim and power cleanup remain separate work.
+
+The native handoff actor includes the diagnostic-only `0714e2e` change. An
+earlier rehearsal missed the fresh warning after cooldown; aggregate status
+omitted its terminal intent. The unchanged-deadline diagnostic rerun passes,
+but that earlier failure has no established cause and remains a review
+question. Visual inspection of the corrected notice confirms legible button
+labels and preserved foreground focus on the owned fixture.
+
+These are unsigned ARM64 VM results with a separately identified, sandboxed
+Chromium and software rendering. ARM64/x64 runtime publishes pass; this does
+not establish live x64, physical-HID, signed installer or protected-transition
+qualification. Physical takeover facts in the handoff fixture are supplied
+in process; native hooks separately observe real injected keyboard/mouse
+events. Existing protected guards and their contract checks remain in place.
+
+The rendered Settings regression proves that pending metadata preserves an
+unarmed profile edit while terminal transport failure removes the controls.
+This is UI contract evidence, complemented by the actual Windows lifecycle
+run; it is not an OS or authorization oracle by itself. Broad review and any
+resulting corrections are the next Windows gate.

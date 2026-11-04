@@ -2,10 +2,10 @@
 
 Topic: `access-admission-and-pause`
 
-Status: **unified Desktop/Browser permissions and handoff design agreed;
-Windows/shared implementation under native qualification, before Mac/Linux adoption**. Existing admission
-implementations and their bounded acceptance remain current evidence below;
-they do not implement or qualify the complete new experience.
+Status: **unified Windows/reference candidate conformance passed;
+broad review precedes Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+records the current candidate and its limits. Earlier platform admission
+evidence below does not qualify the new experience on Mac or Linux.
 
 ## Scope and motivation
 
