@@ -40,19 +40,9 @@ def find(linuxui,label):
     return selected[0] if len(selected)==1 else None
 
 
-def press(linuxui,control,operator):
-    node,info=control
-    info['fixtureRoute']='none';info['fixtureReason']='unadvertised_action'
-    with contextlib.suppress(Exception):
-        info['fixtureAdvertisedActions']=node.get_n_actions()
-        if info['fixtureAdvertisedActions']>0 and node.do_action(0):
-            info['fixtureRoute']='atspi-action';info['fixtureReason']='delivered';return True
-    # GNOME St controls expose focus/geometry but no AT-SPI action on this
-    # session. Use the configured native focus shortcut and the exact focused
-    # control through the independent fixture operator, never an app endpoint.
+def focus_notification(operator):
     from gi.repository import Gio
     import re,time
-    info['fixtureRoute']='native-keyboard'
     bindings=Gio.Settings.new('org.gnome.shell.keybindings').get_strv('focus-active-notification')
     if not bindings:return False
     binding=bindings[0];modifiers=re.findall(r'<([^>]+)>',binding)
@@ -61,9 +51,31 @@ def press(linuxui,control,operator):
     key=re.sub(r'<[^>]+>','',binding).lower()
     if not re.fullmatch('[a-z0-9]+',key):return False
     shortcut='+'.join([*(names[value] for value in modifiers),key])
-    info['fixtureReason']='focus_shortcut'
     if operator('input.key',key=shortcut).get('accepted') is not True:return False
     time.sleep(.15)
+    return True
+
+
+def locate(linuxui,label,operator):
+    control=find(linuxui,label)
+    if control:return control
+    # Normal-urgency paused banners do not expose their action buttons until
+    # expanded. Use the operator's configured shortcut before inspecting them.
+    if focus_notification(operator):return find(linuxui,label)
+    return None
+
+
+def press(linuxui,control,operator):
+    node,info=control
+    info['fixtureRoute']='none';info['fixtureReason']='unadvertised_action'
+    with contextlib.suppress(Exception):
+        info['fixtureAdvertisedActions']=node.get_n_actions()
+        if info['fixtureAdvertisedActions']>0 and node.do_action(0):
+            info['fixtureRoute']='atspi-action';info['fixtureReason']='delivered';return True
+    # GNOME St exposes focus but no advertised action on this session.
+    import time
+    info['fixtureRoute']='native-keyboard';info['fixtureReason']='focus_shortcut'
+    if not focus_notification(operator):return False
     if info['role']=='push button':
         fresh=control
         info['fixtureReason']='fresh_control_missing'

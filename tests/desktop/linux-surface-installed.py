@@ -74,7 +74,7 @@ def main():
     def press(label,safety=False):
         if safety:
             import linux_notice_ui
-            control=poll(lambda:linux_notice_ui.find(linuxui,label),'native notice '+label)
+            control=poll(lambda:linux_notice_ui.locate(linuxui,label,observer),'native notice '+label)
             check('native UI '+label,linux_notice_ui.press(linuxui,control,observer));return
         node=poll(lambda:widget(label),'native UI '+label)
         check('native UI '+label,node.do_action(0))

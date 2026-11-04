@@ -77,7 +77,7 @@ def main():
         return list(linuxui.walk(app,25,2000))
     def press(label):
         import linux_notice_ui
-        control=poll(lambda:linux_notice_ui.find(linuxui,label),label)
+        control=poll(lambda:linux_notice_ui.locate(linuxui,label,fixture_operator),label)
         delivered=linux_notice_ui.press(linuxui,control,fixture_operator)
         (args.output/'last-notice-action.private.json').write_text(json.dumps(control[1]))
         check('native notice '+label,delivered)
