@@ -78,6 +78,27 @@ class SharedPolicyTests(unittest.TestCase):
         cache=ROOT/'.artifacts/runtime-cache';cache.mkdir(parents=True,exist_ok=True)
         package.build('node',target,cls.root,cache,None)
 
+    def test_packaged_usr_share_layout_does_not_use_a_system_node(self):
+        import os
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix=Path(temporary)/'usr'
+            native=prefix/'lib/machine-control/linux-runtime';native.mkdir(parents=True)
+            shutil.copyfile(ROOT/'desktop/native/linux/policy.py',native/'policy.py')
+            shared=prefix/'share/machine-control/shared-policy'
+            shutil.copytree(self.root,shared,copy_function=os.link)
+            spec=importlib.util.spec_from_file_location('installed_policy',native/'policy.py')
+            installed=importlib.util.module_from_spec(spec);spec.loader.exec_module(installed)
+            host=installed.Policy(lambda *_:None,lambda _:None,lambda _:None)
+            try:self.assertEqual(host.call({'method':'access.state'})['schema'],'machine-control-admission/v2')
+            finally:host.stop()
+            # A corrupt explicit staging tree fails closed, rather than quietly
+            # selecting another interpreter or an ambient/global Node binary.
+            (native/'shared-policy').mkdir()
+            with self.assertRaises(installed.PolicyError):
+                installed.Policy(lambda *_:None,lambda _:None,lambda _:None)
+
     def test_actual_core_owns_modes_offer_session_and_stop(self):
         callbacks=queue.Queue()
         host=Policy(lambda f,*a:callbacks.put(lambda:f(*a)),lambda _:None,lambda _:None,root=self.root)

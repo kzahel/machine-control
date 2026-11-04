@@ -93,6 +93,19 @@ def inventory(directory, target, version, revision, purpose="candidate"):
                 if entry and (entry["byteLength"] != file.stat().st_size or entry["sha256"] != digest(file)):
                     raise ValueError("Runtime source receipt mismatch")
                 files.append({"name": "linux-runtime/" + name, "size": file.stat().st_size, "sha256": digest(file)})
+            policy=root/'usr/share/machine-control/shared-policy'
+            entries=metadata.get('policyFiles',[])
+            expected={entry['path'] for entry in entries}
+            if (metadata.get('policyInstallation')!='usr_share' or not entries or
+                metadata.get('admissionSchema')!='machine-control-admission/v2' or
+                expected!={file.relative_to(policy).as_posix() for file in policy.rglob('*') if file.is_file()}):
+                raise ValueError('Required pinned Linux policy payload is missing')
+            for entry in entries:
+                name=entry['path'];file=policy/name
+                if (not safe_name(name) or file.is_symlink() or not file.is_file() or
+                    file.stat().st_size!=entry['byteLength'] or digest(file)!=entry['sha256']):
+                    raise ValueError('Pinned Linux policy receipt mismatch')
+                files.append({'name':'shared-policy/'+name,'size':file.stat().st_size,'sha256':digest(file)})
             # linuxdeploy rewrites every ELF under usr/lib, even resource
             # interpreters. Keep the pinned CLI in usr/share in both formats.
             cli = root / "usr/share/machine-control/mc-cli"
@@ -196,6 +209,7 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                 "linux-runtime/artifacts.py", "linux-runtime/shortcut.py", "linux-runtime/startup.py", "linux-runtime/linuxcontrol.py",
                 "linux-runtime/linuxui.py", "linux-runtime/extension/manifest.json",
                 "linux-runtime/extension/service_worker.js", "linux-runtime/extension/indicators.js"}
+    required.update({'shared-policy/node','shared-policy/payload.json','shared-policy/policy/node/main.ts'})
     if tuple(map(int, version.split("."))) >= (0, 5, 3):
         required.add("linux-runtime/updates.py")
     if tuple(map(int, version.split("."))) >= (0, 5, 4):

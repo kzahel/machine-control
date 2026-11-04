@@ -12,6 +12,7 @@ pub enum Failure {
     Cancelled,
     Wait,
 }
+#[cfg(target_os = "windows")]
 impl Failure {
     pub fn code(&self) -> &'static str {
         match self {

@@ -7,7 +7,9 @@
     ],
     "createUpdaterArtifacts": true,
     "resources": {
-      "native/linux-runtime/": "linux-runtime/"
+      "native/linux-runtime/*.py": "linux-runtime/",
+      "native/linux-runtime/desktop-runtime.json": "linux-runtime/desktop-runtime.json",
+      "native/linux-runtime/extension/": "linux-runtime/extension/"
     },
     "linux": {
       "deb": {
@@ -26,12 +28,14 @@
           "xdg-desktop-portal-gnome"
         ],
         "files": {
-          "/usr/share/machine-control/mc-cli": "native/mc-cli/"
+          "/usr/share/machine-control/mc-cli": "native/mc-cli/",
+          "/usr/share/machine-control/shared-policy": "native/linux-runtime/shared-policy/"
         }
       },
       "appimage": {
         "files": {
-          "/usr/share/machine-control/mc-cli": "native/mc-cli/"
+          "/usr/share/machine-control/mc-cli": "native/mc-cli/",
+          "/usr/share/machine-control/shared-policy": "native/linux-runtime/shared-policy/"
         }
       }
     }

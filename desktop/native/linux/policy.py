@@ -52,7 +52,17 @@ class Policy:
         self.outgoing = queue.Queue(maxsize=64)
         self.output_bytes = 0
         self.reaped = threading.Event()
-        root = Path(root) if root is not None else Path(__file__).resolve().parent / 'shared-policy'
+        if root is None:
+            native=Path(__file__).resolve().parent
+            staged=native/'shared-policy'
+            # linuxdeploy rewrites ELF resources under usr/lib. The installed
+            # pinned interpreter belongs beside the Python client in usr/share;
+            # source-native harnesses retain the explicitly staged local tree.
+            if staged.exists():root=staged
+            elif len(native.parents)>2 and native.parents[1].name=='lib' and native.parents[2].name=='usr':
+                root=native.parents[2]/'share/machine-control/shared-policy'
+            else:raise PolicyError('packaged_policy_unavailable')
+        root=Path(root)
         # command is constructor injection for transport fixtures, never an
         # environment override or a production system-Node fallback.
         if command is None:

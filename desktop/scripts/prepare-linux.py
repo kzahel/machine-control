@@ -52,13 +52,15 @@ def stage(destination, revision, arch=None):
     manifest = json.loads((policy / "payload.json").read_text())
     manifest.update(qualificationOnly=False, consumer="linux-desktop")
     (policy / "payload.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    policy_files=[]
     for path in sorted(policy.rglob("*")):
         if path.is_file():
-            files.append({"path":path.relative_to(destination).as_posix(),
+            policy_files.append({"path":path.relative_to(policy).as_posix(),
                           "sha256":hashlib.sha256(path.read_bytes()).hexdigest(),
                           "byteLength":path.stat().st_size})
     identity = {"schema": "machine-control-linux-desktop-runtime/v0", "sourceRevision": revision,
                 "profile": "gnome_wayland", "privilege": "ordinary_user", "files": files,
+                "policyFiles":policy_files, "policyInstallation":"usr_share",
                 "policyPayloadProtocol":2, "admissionSchema":"machine-control-admission/v2", "architecture":arch}
     (destination / "desktop-runtime.json").write_text(json.dumps(identity, indent=2) + "\n")
 

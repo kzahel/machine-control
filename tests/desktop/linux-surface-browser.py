@@ -89,6 +89,7 @@ def main():
             manifest.chmod(0o600)
             chrome=subprocess.Popen([str(args.chrome),'--user-data-dir='+str(profile),'--remote-debugging-port=0',
                 '--no-first-run','--no-default-browser-check','--no-proxy-server','--no-sandbox',
+                '--disable-gpu','--ozone-platform=wayland','--password-store=basic',
                 '--disable-extensions-except='+str(extension),'--load-extension='+str(extension),url],
                 env=env,stdout=log,stderr=log,start_new_session=True);children.append(chrome)
             port_file=profile/'DevToolsActivePort';poll(port_file.exists,'owned browser')
@@ -119,7 +120,11 @@ def main():
         check('Browser mode does not arm Desktop',state()['accessPolicy']['surfaces']['desktop']['mode']=='off')
         read=owner([ids['Work']],['browser.tabs','browser.snapshot'])
         tabs=read.call('browser.tabs',browserProfileId=ids['Work']);check('exact profile tabs',tabs['accepted'])
-        tab=next(row['tabId'] for row in tabs['data']['tabs'] if row.get('url','').endswith('/Work'))
+        def fixture_tab():
+            reply=read.call('browser.tabs',browserProfileId=ids['Work'])
+            (args.output/'tabs.private.json').write_text(json.dumps(reply))
+            return next((row for row in reply.get('data',{}).get('tabs',[]) if row.get('url','').endswith('/Work')),None)
+        tab=poll(fixture_tab,'loaded Work fixture')['tabId']
         read.close();owners.remove(read)
         work=owner([ids['Work']])
         snap=work.call('browser.snapshot',browserProfileId=ids['Work'],tabId=tab);check('controlled profile AX snapshot',snap['accepted'])

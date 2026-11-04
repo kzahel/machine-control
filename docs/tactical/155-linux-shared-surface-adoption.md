@@ -176,3 +176,26 @@ correlated browser RPC reply. Accept that known frame without completing the
 request twice or treating it as child failure. Portable regression checks pass.
 Linux portal setup no longer requires disabling independent surface consent;
 the native pending chooser supplies its own Desktop readiness floor.
+
+
+**Current — real browser gate:** the clean shared-completion-fix source passes
+13 checks with two separately identified real test-browser profiles. Work and
+Personal remain connected together; exact Work selection yields one independent
+HTTP fixture effect and Personal yields none. Real streamed CDP works and Stop
+revokes its retained connection while preserving both extension transports.
+The test browser uses the existing Wayland software-rendering fixture flags;
+unqualified virtual-GPU acceleration is not inferred.
+
+**Decision — installed Linux payload layout:** put the pinned shared policy in
+`usr/share/machine-control/shared-policy`, beside the shipped Python client,
+so AppImage ELF rewriting under `usr/lib` cannot alter its pinned interpreter.
+Explicit resource maps exclude that tree from ordinary native resources.
+Package inventory checks both the native files and the complete policy receipt.
+Source-native harnesses retain an explicit staged tree; installed resolution
+uses the owned relative `usr/share` layout without environment or system-Node
+fallback. The actual pinned child passes the relocated-layout regression.
+
+The native all-target clippy gate also finds a Windows-only diagnostic method
+included unused in Linux tests. Its implementation now has its proper Windows
+compile guard; Windows behavior is unchanged. Final package construction and
+Settings / shipped-client acceptance remain in progress.

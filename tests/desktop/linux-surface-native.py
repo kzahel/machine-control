@@ -64,6 +64,14 @@ def main():
         with socket.socket(socket.AF_UNIX) as peer:
             peer.settimeout(30);peer.connect(str(endpoint));peer.sendall(json.dumps(dict(operation=operation,**fields)).encode()+b'\n')
             with peer.makefile('rb') as stream:return json.loads(stream.readline(16*1024*1024))
+    def fixture_operator(operation,**fields):
+        # Independently select the owned foreground fixture as the human-side
+        # operator after portal consent. Never route ordinary effects here.
+        path=Path(os.environ['XDG_RUNTIME_DIR'])/'linuxvm-testbed/control.sock'
+        with socket.socket(socket.AF_UNIX) as peer:
+            peer.settimeout(20);peer.connect(str(path));peer.sendall(json.dumps(dict(operation=operation,**fields)).encode()+b'\n')
+            peer.shutdown(socket.SHUT_WR)
+            with peer.makefile('rb') as stream:return json.load(stream)
     def nodes(name):
         app=linuxui.choose_application(linuxui.desktop(),name);app.clear_cache()
         return list(linuxui.walk(app,25,2000))
@@ -143,6 +151,10 @@ def main():
         snapshot=automatic.call('snapshot',target='machine-control-fixture',maxDepth=16)
         entry=next(row for row in snapshot['data']['elements'] if row['label']=='Fixture Text')
         check('ordinary native focus',automatic.call('focus',reference=entry['reference'])['accepted'])
+        bounds=entry['bounds'];x=bounds['x']+bounds['width']/2;y=bounds['y']+bounds['height']/2
+        assert 0<=x<16384 and 0<=y<16384,'Owned fixture bounds unavailable'
+        selected=fixture_operator('input.click',x=x,y=y,target='machine-control-fixture')
+        check('independent operator selects the owned foreground fixture',selected['accepted'])
         typed=automatic.call('input.text',target='machine-control-fixture',text='Unified Linux café 世界')
         check('ordinary portal input delivery',typed['accepted'] and typed['actualRoute']=='user/linux.portal-notify')
         poll(lambda:json.loads(oracle.read_text())['text']=='Unified Linux café 世界','independent portal text effect')
