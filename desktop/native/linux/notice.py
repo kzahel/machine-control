@@ -77,7 +77,12 @@ def permitted():return (settings.get_boolean('show-banners') and application.get
 def notify(identifier,summary,body,actions):
     return call('Notify',GLib.Variant('(susssasa{sv}i)',('Machine Control',identifier,
         'preferences-desktop-remote-desktop',summary,body,actions,
-        {'urgency':GLib.Variant('y',1 if current and current.get('state')=='paused' else 2),'resident':GLib.Variant('b',True),
+        # GNOME acknowledges resident notifications without a banner when
+        # their app is focused. Approval and takeover must still warn while
+        # Settings is in front. Critical nonresident notices persist until
+        # acted upon; their exact task/state binding handles action closure.
+        {'urgency':GLib.Variant('y',1 if current and current.get('state')=='paused' else 2),
+         'resident':GLib.Variant('b',not current or current.get('state') not in ('waiting_for_approval','announcing')),
          'suppress-sound':GLib.Variant('b',True),'desktop-entry':GLib.Variant('s','Machine Control')},0)))[0]
 def close(identifier):call('CloseNotification',GLib.Variant('(u)',(identifier,)))
 def show():
