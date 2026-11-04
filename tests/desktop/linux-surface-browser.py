@@ -117,6 +117,9 @@ def main():
             finally:connection.close()
         profiles=poll(lambda:(rows if len(rows:=state()['browser']['profiles'])==2 and all(p['enabled'] and p['connected'] for p in rows) else None),'two enabled profiles')
         ids={p['name']:p['profileId'] for p in profiles}
+        subprocess.run(['/usr/bin/wl-copy','--clear'] if clipboard is None else ['/usr/bin/wl-copy'],
+            input=clipboard,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=3)
+        clipboard_changed=False
         check('two independently named real profiles stay connected',set(ids)=={'Work','Personal'})
         operator('surface.configure',surface='browser',mode='automatic',lifetime='until_stopped',duration=0,browserProfileIds=[ids['Work']])
         check('Browser mode does not arm Desktop',state()['accessPolicy']['surfaces']['desktop']['mode']=='off')
@@ -158,6 +161,27 @@ def main():
         check('ordinary physical input cannot answer native approval',not refused['accepted'] and refused['errorCode']=='approval_prompt_visible')
         check('native approval interlock preserves independent Desktop owner',desktop.status()['state']=='active' and desktop.view['sessionId']==session and pending.status()['state']=='waiting_for_approval')
         pending.close();owners.remove(pending);desktop.close();owners.remove(desktop);operator('stop')
+        # Keep the same preferences and real extension profiles while losing
+        # the armed resident abruptly. Reconnection must restore discovery,
+        # never consent, owners or page effects.
+        operator('browser_while_locked',enabled=True)
+        for surface in ('desktop','browser'):
+            operator('surface.configure',surface=surface,mode='automatic',lifetime='until_stopped',duration=0,
+                browserProfileIds=[ids['Work']] if surface=='browser' else [])
+        retained=owner([ids['Work']],['browser.tabs'])
+        check('pre-crash Browser owner is live',retained.call('browser.tabs',browserProfileId=ids['Work'])['accepted'])
+        child.kill();child.wait(10)
+        try:retained.status();lost=False
+        except (AssertionError,OSError,ConnectionError):lost=True
+        check('abrupt resident loss closes the live owner',lost)
+        retained.close();owners.remove(retained)
+        child=subprocess.Popen(['/usr/bin/python3',str(args.runtime/'desktop.py')],
+            stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=log,text=True,env=env)
+        operator('hello',processId=os.getpid(),executable='/usr/bin/true')
+        poll(lambda:state()['safetyAvailable'] and state()['permissions']['accessibility'],'fresh unlocked native readiness')
+        poll(lambda:set(row['profileId'] for row in state()['browser']['profiles'] if row['connected'])==set(ids.values()),'both real profiles reconnect')
+        check('restart restores both connections with both surfaces Off',all(row['mode']=='off' for row in state()['accessPolicy']['surfaces'].values()))
+        check('restart restores no active task or page effect',state()['accessPolicy']['active']==0 and effects['Personal']==0 and effects['Work']==1)
         if args.locked:
             from gi.repository import Gio,GLib
             bus=Gio.bus_get_sync(Gio.BusType.SESSION,None);system=Gio.bus_get_sync(Gio.BusType.SYSTEM,None)
@@ -197,27 +221,6 @@ def main():
             check('withdrawing locked opt-in leaves OS locked',locked())
             retained.close();owners.remove(retained);operator('stop')
             check('locked Stop ends both surface permissions',all(s['mode']=='off' for s in state()['accessPolicy']['surfaces'].values()) and locked())
-        # Keep the same preferences and real extension profiles while losing
-        # the armed resident abruptly. Reconnection must restore discovery,
-        # never consent, owners or page effects.
-        operator('browser_while_locked',enabled=True)
-        for surface in ('desktop','browser'):
-            operator('surface.configure',surface=surface,mode='automatic',lifetime='until_stopped',duration=0,
-                browserProfileIds=[ids['Work']] if surface=='browser' else [])
-        retained=owner([ids['Work']],['browser.tabs'])
-        check('pre-crash Browser owner is live',retained.call('browser.tabs',browserProfileId=ids['Work'])['accepted'])
-        child.kill();child.wait(10)
-        try:retained.status();lost=False
-        except (AssertionError,OSError,ConnectionError):lost=True
-        check('abrupt resident loss closes the live owner',lost)
-        retained.close();owners.remove(retained)
-        child=subprocess.Popen(['/usr/bin/python3',str(args.runtime/'desktop.py')],
-            stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=log,text=True,env=env)
-        operator('hello',processId=os.getpid(),executable='/usr/bin/true')
-        poll(lambda:state()['safetyAvailable'],'fresh native safety process')
-        poll(lambda:set(row['profileId'] for row in state()['browser']['profiles'] if row['connected'])==set(ids.values()),'both real profiles reconnect')
-        check('restart restores both connections with both surfaces Off',all(row['mode']=='off' for row in state()['accessPolicy']['surfaces'].values()))
-        check('restart restores no active task or page effect',state()['accessPolicy']['active']==0 and effects['Personal']==0 and effects['Work']==(2 if args.locked else 1))
         operator('quit');child.wait(10);check('shared child exits cleanly',child.returncode==0)
     except BaseException as error:
         failure=type(error).__name__+': '+str(error)
@@ -235,8 +238,11 @@ def main():
             if process.poll() is None:os.killpg(process.pid,signal.SIGKILL);process.wait(5)
         if web:web.shutdown()
         if clipboard_changed:
-            subprocess.run(['/usr/bin/wl-copy','--clear'] if clipboard is None else ['/usr/bin/wl-copy'],
-                input=clipboard,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=3)
+            try:
+                subprocess.run(['/usr/bin/wl-copy','--clear'] if clipboard is None else ['/usr/bin/wl-copy'],
+                    input=clipboard,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=3)
+            except (OSError,subprocess.TimeoutExpired):
+                if failure is None:failure='Native clipboard restoration unavailable'
         log.close();report(True)
 
 
