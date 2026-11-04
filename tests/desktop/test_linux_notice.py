@@ -60,6 +60,16 @@ class NotificationTests(unittest.TestCase):
             'task','active')
         self.notice.action(':1.42',self.notice.identifier,self.token())
         self.assertEqual(self.shown,[True]);self.assertEqual(self.events,[])
+    def test_hiding_open_panel_restores_banner_before_late_old_close(self):
+        old=self.notice.identifier
+        self.notice.action(':1.42',old,'default')
+        self.notice.closed(':1.42',old,2)
+        self.assertFalse(self.notice.acknowledged())
+        self.notice.return_to_banner();self.update()
+        self.assertTrue(self.notice.acknowledged())
+        self.assertNotEqual(old,self.notice.identifier)
+        self.notice.closed(':1.42',old,2)
+        self.assertEqual(self.events,[])
     def test_countdown_replaces_without_rotating_callback_binding(self):
         token=self.token();self.update(body='Starting in nine seconds')
         self.assertEqual(self.token(),token);self.assertEqual(self.sent[-1][0],7)

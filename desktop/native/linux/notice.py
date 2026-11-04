@@ -39,7 +39,7 @@ reason=Gtk.Label(xalign=0);reason.set_line_wrap(True);box.pack_start(reason,Fals
 caller=Gtk.Label(xalign=0);caller.set_line_wrap(True);box.pack_start(caller,False,False,0)
 countdown=Gtk.Label(xalign=0);countdown.set_line_wrap(True);box.pack_start(countdown,False,False,0)
 buttons=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5);box.pack_start(buttons,False,False,0)
-binding=None;current=None;panel_requested=False;choices=[];caption_binding=None;caption_body='';activation=None
+binding=None;current=None;current_view=None;panel_requested=False;choices=[];caption_binding=None;caption_body='';activation=None
 
 
 def intent(method,**fields):print(json.dumps(dict(method=method,**fields)),flush=True)
@@ -47,7 +47,10 @@ def intent(method,**fields):print(json.dumps(dict(method=method,**fields)),flush
 
 def hide_controls():
     global panel_requested
-    panel_requested=False;window.hide();alive()
+    panel_requested=False
+    notification.return_to_banner()
+    if current_view is not None:update(current_view)
+    window.hide();alive()
 
 def button(label,method,**fields):
     value=Gtk.Button(label=label)
@@ -104,7 +107,8 @@ def alive():
 
 
 def update(value):
-    global binding,current,panel_requested,choices,caption_binding,caption_body
+    global binding,current,current_view,panel_requested,choices,caption_binding,caption_body
+    current_view=value
     requests=value.get('requests',[])
     row=primary_request(requests)
     current=row

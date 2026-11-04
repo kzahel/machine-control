@@ -52,6 +52,14 @@ class Notification:
         # retry. A new announcing binding still requires a new native post.
         return bool(self.identifier or self.state=='paused' and self.binding is not None and self.dismissed==self.binding)
 
+    def return_to_banner(self):
+        # GNOME can close a notification when its Open action activates the
+        # panel. Explicitly hiding that panel must restore native controls
+        # before reporting it unmapped. Retire any old ID against late closes.
+        identifier=self.identifier;self.identifier=0
+        self.message=None;self.dismissed=None;self.opened=False
+        if identifier:self.close(identifier)
+
     def withdraw(self):
         identifier=self.identifier
         self.identifier=0;self.binding=None;self.actions={};self.message=None
