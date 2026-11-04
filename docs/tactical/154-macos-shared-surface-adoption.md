@@ -119,3 +119,22 @@ appliance plane. Its regression also verifies that v2 Settings cannot present
 the retired idle-first policy. The protected helper has not been installed in
 these failed preparation trials; its original missing state and screensaver
 rule are verified after cleanup. Actual protected acceptance remains open.
+
+
+**Current — protected preparation boundary:** actual native Permissions now
+prepares the production helper without arming ordinary access. Original helper
+absence and the screensaver rule are restored after each trial. An inherited
+fixture prevents use of the old global oracle; the native fixture now accepts
+an isolated test directory for state and surface files without touching the
+inherited app. Its default path remains unchanged.
+
+The first locked-origin trial reaches native guard preparation, where ordinary
+status is incorrectly refused as a protected transition. Discovery and Browser
+operations now bypass that desktop-effect guard. One accepted desktop action
+waits asynchronously for its native guard, with an independent bound and fresh
+owner checks; no provider action is dispatched/replayed during preparation.
+Native tests prove one dispatch after readiness and zero dispatch after Stop.
+Controlled capability/profile discovery also uses the same projection as plain
+discovery, preserving the shipped Python client's exact-profile negotiation
+without broadening a task's operation set. All 227 Swift tests and native
+static smoke pass. Actual protected effects/relock remain an open gate.

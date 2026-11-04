@@ -347,6 +347,74 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual((command(b,"control.status")["data"] as! [String:Any])["state"] as? String,"offered")
         XCTAssertEqual(effects,1)
     }
+    func testLiveOwnerCanDiscoverExactProfilesWithoutBroadeningItsOperations() throws {
+        server.controlledProvider = nil
+        let client = try connect()
+        let offer = exchange(client,["operation":"control.open", "schema":AccessAdmission.schema,
+            "requestId":"narrow-discovery", "surfaces":["desktop"], "operations":["snapshot"],
+            "reason":"Fixture", "durationSeconds":60, "waitSeconds":120])["data"] as! [String:Any]
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        for operation in ["capabilities", "browser.profiles"] {
+            let reply = command(client,"control.dispatch",["sessionId":active["sessionId"]!,
+                "resourceGenerations":active["resourceGenerations"]!, "request":["operation":operation]])
+            let result = try XCTUnwrap(reply["data"] as? [String:Any])
+            XCTAssertEqual(result["accepted"] as? Bool,true)
+            if operation == "capabilities" {
+                let data = try XCTUnwrap(result["data"] as? [String:Any])
+                XCTAssertEqual((data["browser"] as? [String:Any])?["profileSelectionSupported"] as? Bool,true)
+            }
+        }
+        let refused = command(client,"control.dispatch",["sessionId":active["sessionId"]!,
+            "resourceGenerations":active["resourceGenerations"]!, "request":["operation":"input.text", "text":"Fixture"]])
+        XCTAssertEqual(refused["accepted"] as? Bool,false)
+        XCTAssertEqual(effects,0)
+    }
+
+    func testNativePreparationDispatchesExactlyOnceWhenTheGuardIsReady() throws {
+        server.coveredActivation = { channel,_ in channel.coveredSessionID = "fixture-native-guard" }
+        var ready = false
+        server.coveredPreparation = { _ in ready ? .ready : .waiting }
+        let client = try connect(), offer = open(client,"native-ready")
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        let completed = expectation(description:"one action completes after native readiness")
+        try writeSocket(client,data:encodeJSONLine(["operation":"control.dispatch","requestId":"native-ready-action",
+            "sessionId":active["sessionId"]!,"resourceGenerations":active["resourceGenerations"]!,"request":["operation":"snapshot"]]))
+        DispatchQueue.global().async {
+            let reply = (try? readSocket(client)).flatMap { try? JSONSerialization.jsonObject(with:$0) } as? [String:Any]
+            XCTAssertEqual((reply?["data"] as? [String:Any])?["accepted"] as? Bool,true)
+            completed.fulfill()
+        }
+        DispatchQueue.main.asyncAfter(deadline:.now() + .milliseconds(100)) {
+            XCTAssertEqual(self.effects,0); ready = true
+        }
+        wait(for:[completed],timeout:2)
+        XCTAssertEqual(effects,1)
+    }
+
+    func testNativePreparationWaitsWithoutDispatchAndStopFencesItsReturn() throws {
+        server.coveredActivation = { channel,_ in channel.coveredSessionID = "fixture-native-guard" }
+        var ready = false
+        server.coveredPreparation = { _ in ready ? .ready : .waiting }
+        let client = try connect(), offer = open(client,"native-preparation")
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        let completed = expectation(description:"pending native preparation is cancelled")
+        let waiting = expectation(description:"operator remains responsive")
+        try writeSocket(client,data:encodeJSONLine(["operation":"control.dispatch","requestId":"pending-native",
+            "sessionId":active["sessionId"]!,"resourceGenerations":active["resourceGenerations"]!,"request":["operation":"snapshot"]]))
+        DispatchQueue.global().async {
+            let reply = (try? readSocket(client)).flatMap { try? JSONSerialization.jsonObject(with:$0) } as? [String:Any]
+            XCTAssertEqual((reply?["data"] as? [String:Any])?["accepted"] as? Bool,false)
+            completed.fulfill()
+        }
+        DispatchQueue.main.asyncAfter(deadline:.now() + .milliseconds(100)) {
+            XCTAssertEqual(self.effects,0)
+            self.server.revoke(reason:"stopped_by_person")
+            ready = true; waiting.fulfill()
+        }
+        wait(for:[waiting,completed],timeout:2)
+        XCTAssertEqual(effects,0,"No pending action may run after Stop")
+    }
+
     func testWireNumbersCannotBeBooleanOrFractional() {
         XCTAssertNil(admissionInteger(true))
         XCTAssertNil(admissionInteger(1.5))

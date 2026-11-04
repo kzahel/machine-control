@@ -85,13 +85,20 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
     private let interactionSurface = InteractionSurface()
     private weak var fixtureWindow: NSWindow?
 
+    private var isolatedDirectory: URL? {
+        guard let path = ProcessInfo.processInfo.environment["MC_FIXTURE_DIRECTORY"], path.hasPrefix("/") else { return nil }
+        return URL(fileURLWithPath:path, isDirectory:true)
+    }
+
     private var stateURL: URL {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        if let isolatedDirectory { return isolatedDirectory.appendingPathComponent("state.json") }
+        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("machine-control-fixture/state.json")
     }
 
     private var surfaceRootURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        if let isolatedDirectory { return isolatedDirectory.appendingPathComponent("surface-corpus", isDirectory:true) }
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MachineControlSurfaceCorpus", isDirectory: true)
     }
 

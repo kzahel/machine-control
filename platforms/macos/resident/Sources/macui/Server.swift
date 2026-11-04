@@ -123,6 +123,15 @@ final class ResidentServer {
     func referencedProcess(_ reference: String) -> pid_t? { nativeProvider.referenceOwners[reference] }
     var noticeSeconds = 10.0 { didSet { broker.admission.reconfigureNotice(noticeSeconds) } }
     var coveredActivation: ((AdmissionChannel, [String:Any]) throws -> Void)?
+    enum CoveredPreparation { case ready, waiting, refused(String) }
+    var coveredPreparationTimeout = 20.0
+    lazy var coveredPreparation: (AdmissionChannel) -> CoveredPreparation = { [weak self] channel in
+        guard let self, let id = channel.coveredSessionID,
+              self.lockedUse.lease?.id == id else { return .refused("locked_use_interrupted") }
+        if self.lockedUse.phase == "active" { return .ready }
+        if ["waiting_for_lock", "unlocking"].contains(self.lockedUse.phase) { return .waiting }
+        return .refused("locked_use_interrupted")
+    }
     var controlledProvider: (([String:Any]) -> [String:Any])?
     var outerRecoveryFactory: (OuterClaimBinding) -> OuterRecovery = {
         OuterRecovery(binding:$0, input:OuterRecovery.emitNative)
@@ -192,7 +201,8 @@ final class ResidentServer {
         } catch { Darwin.close(pair[0]); Darwin.close(pair[1]); throw error }
     }
     func dispatchControlled(_ channel: AdmissionChannel, action original: [String:Any], session: String,
-                            generations: [String:Int], completion: @escaping ([String:Any]) -> Void) {
+                            generations: [String:Int], preparationDeadline:TimeInterval? = nil,
+                            completion: @escaping ([String:Any]) -> Void) {
         var action = original
         let operation = action["operation"] as? String ?? ""
         if operation.hasPrefix("outer.") {
@@ -237,6 +247,33 @@ final class ResidentServer {
             }
             return
         }
+        if channel.coveredSessionID != nil &&
+           [.scoped(.observe), .scoped(.control)].contains(operationClass(operation)) {
+            // Preparing the native guard is part of this one admitted task.
+            // Wait without dispatch/replay; Stop, expiry and owner loss still
+            // progress on main and are rechecked before any provider effect.
+            if let code = broker.admission.authorize(owner:channel.owner, id:channel.intentID,
+                session:session, generations:generations, operation:operation) {
+                completion(service.refusal(action, code:code, message:"Control owner ended during native preparation")); return
+            }
+            switch coveredPreparation(channel) {
+            case .ready: break
+            case let .refused(code):
+                completion(service.refusal(action, code:code, message:"Protected preparation ended")); return
+            case .waiting:
+                let deadline = preparationDeadline ?? ProcessInfo.processInfo.systemUptime + coveredPreparationTimeout
+                guard ProcessInfo.processInfo.systemUptime < deadline else {
+                    try? broker.admission.cancel(owner:channel.owner, id:channel.intentID)
+                    completion(service.refusal(action, code:"locked_use_preparation_timeout", message:"Native guard preparation timed out")); return
+                }
+                DispatchQueue.main.asyncAfter(deadline:.now() + .milliseconds(50)) { [weak self, weak channel] in
+                    guard let self, let channel else { return }
+                    self.dispatchControlled(channel, action:original, session:session, generations:generations,
+                        preparationDeadline:deadline, completion:completion)
+                }
+                return
+            }
+        }
         if let refusal = lockedUse.refusal(action) {
             completion(service.refusal(action, code:refusal.code, message:refusal.message)); return
         }
@@ -248,7 +285,7 @@ final class ResidentServer {
         }
         let finish: ([String:Any]) -> Void = { [weak self, weak channel] original in
             guard let self, let channel else { return }
-            var result = original
+            var result = self.projectDiscovery(original)
             self.refreshAdmission()
             if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
                 session:session, generations:generations, operation:operation) {
@@ -261,7 +298,7 @@ final class ResidentServer {
             }
             completion(result)
         }
-        if [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
+        if operation == "browser.profiles" || [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
             let authority = BrowserRelay.Authority(ownerSession:channel.owner + ":" + session,
                 profileIDs:channel.profileIDs, validate:{ [weak self, weak channel] in
                     guard let self, let channel else { return "owner_disconnected" }
@@ -689,28 +726,35 @@ final class ResidentServer {
             completion:{ [weak self] original in
                 defer { Darwin.close(client) }
                 guard let self else { return }
-                var response = original
-                if ["status", "capabilities"].contains(operation), var data = response["data"] as? [String:Any] {
-                    data["presentation"] = self.presentationStatus()
-                    data["deployment"] = self.broker.statusJSON
-                    data["lockedUse"] = self.lockedUse.status
-                    data["browserWhileLocked"] = self.browserWhileLockedStatus
-                    data["physicalActivity"] = self.activity.status
-                    data["admission"] = self.broker.admission.status
-                    data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
-                    let browser = self.browser.statusJSON
-                    data["browser"] = browser
-                    if self.updates.request(check:false) != nil {
-                        data["updateDiscovery"] = ["operations":["update.check", "update.status"], "route":"desktop.native-updater", "installation":"local_operator_only"]
-                    }
-                    response["data"] = data
-                }
+                let response = self.projectDiscovery(original)
                 self.respond(client, request, response, caller:caller, claimID:claimID)
                 if operation == "server.stop" {
                     self.broker.journal?.event("resident.stop"); self.revoke(reason:"resident_stopping")
                     self.stop(); exit(0)
                 }
             })
+    }
+
+    private func projectDiscovery(_ original:[String:Any]) -> [String:Any] {
+        var response = original
+        if original["accepted"] as? Bool == true,
+           ["status", "capabilities"].contains(original["operation"] as? String ?? ""),
+           var data = response["data"] as? [String:Any] {
+            data["presentation"] = presentationStatus()
+            data["deployment"] = broker.statusJSON
+            data["lockedUse"] = lockedUse.status
+            data["browserWhileLocked"] = browserWhileLockedStatus
+            data["physicalActivity"] = activity.status
+            data["admission"] = broker.admission.status
+            data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
+            let browser = browser.statusJSON
+            data["browser"] = browser
+            if updates.request(check:false) != nil {
+                data["updateDiscovery"] = ["operations":["update.check", "update.status"], "route":"desktop.native-updater", "installation":"local_operator_only"]
+            }
+            response["data"] = data
+        }
+        return response
     }
 
     /// Returns a response now, or nil when the client stays open for a

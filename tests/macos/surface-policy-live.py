@@ -16,6 +16,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -323,6 +324,8 @@ def main():
         check('all profile connections survive Off without reconnect fights',all(p['connected'] for p in status()['browser']['profiles']))
         choose('Browser access mode',2)
         poll(lambda:surface('browser')['mode']=='automatic','Browser for owned CDP stream')
+        if any(pause['reason']=='manual' for pause in surface('browser')['pauses']):
+            press('Resume browser')
         with Owner(endpoint,args.claim,['browser'],profiles=[ids['Work']]) as owner:
             owner.wait()
             offered = owner.call('browser.endpoint',browserProfileId=ids['Work'])
@@ -342,6 +345,24 @@ def main():
             finally:
                 stream.close()
 
+        # Exercise the unchanged shipped Python client, including its owned
+        # capabilities negotiation before exact-profile work. Never write
+        # bytecode into the sealed candidate while importing the SDK.
+        sys.dont_write_bytecode=True
+        os.environ['PYTHONDONTWRITEBYTECODE']='1'
+        runtime=resident.parents[1]/'Resources/mc-cli'
+        sys.path.insert(0,str(runtime/'client'))
+        from control_session import ControlSession
+        target=dict(platform='macos',command=[str(runtime/'python/bin/python3'),'-I','-B',
+            str(runtime/'platforms/macos/host/machost.py')],_claimId=args.claim)
+        choose('Browser access mode',2)
+        poll(lambda:surface('browser')['mode']=='automatic','Browser for shipped SDK')
+        with ControlSession(target,reason='Verify shipped Python profile negotiation',surfaces=['browser'],
+                            profile_ids=[ids['Work']],operations=['browser.tabs'],duration=60,wait=120) as sdk:
+            sdk.wait()
+            result=sdk.call({'operation':'browser.tabs'})
+            check('shipped Python SDK negotiates exact profiles on its live owner',result.get('accepted') is True)
+        press('Stop all access')
         args.report.write_text(json.dumps({'passed':True,'checks':checks,'checkCount':len(checks),
             'effects':counters,'coverage':['native-settings','shared-admission-v2','native-observation','two-real-profiles','independent-browser-effect'],
             'physicalHidQualification':False,'protectedHelperQualification':False})+'\n')

@@ -787,6 +787,11 @@ final class MacLockedUse {
             pauseReason:helper["lockedUsePauseReason"] as? String)
     }
     func refusal(_ request: [String: Any]) -> GrantRefusal? {
+        switch operationClass(request["operation"] as? String ?? "") {
+        case .discovery, .grantManagement, .lifecycle, .providerRegistration,
+             .scoped(.browser), .scoped(.devtools): return nil
+        default: break
+        }
         if let refusal = recoveryFence.refusal(for:request["operation"] as? String ?? "") { return refusal }
         guard lease != nil else { return nil }
         if let reason = safety.reason {

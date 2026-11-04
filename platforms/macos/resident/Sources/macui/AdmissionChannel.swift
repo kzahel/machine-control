@@ -269,11 +269,13 @@ final class AdmissionChannel {
                 if let refusal = admission.authorize(owner:owner, id:intentID, session:session, generations:generations, operation:operation) {
                     throw MacUIError.action(refusal)
                 }
-                guard case let .scoped(scope) = operationClass(operation), scopes.contains(scope),
-                      !["session.control", "permissions.request"].contains(operation),
-                      operations == nil || operations!.contains(operation),
-                      !(delegation != nil && operation.hasPrefix("outer.")) else {
-                    throw MacUIError.action("operation_not_permitted_by_control_channel")
+                if !["capabilities", "browser.profiles"].contains(operation) {
+                    guard case let .scoped(scope) = operationClass(operation), scopes.contains(scope),
+                          !["session.control", "permissions.request"].contains(operation),
+                          operations == nil || operations!.contains(operation),
+                          !(delegation != nil && operation.hasPrefix("outer.")) else {
+                        throw MacUIError.action("operation_not_permitted_by_control_channel")
+                    }
                 }
                 if let refusal = server.broker.authorize(operation, controlled:true, delegatedScopes:delegation == nil ? nil : scopes) { throw MacUIError.action(refusal.code) }
                 action["requestId"] = id
