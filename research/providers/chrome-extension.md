@@ -17,7 +17,7 @@ the browser's native-host manifest directory.
 
 ## Architecture and reach
 
-**Decision, pending adoption:** the [unified permission model](../../topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+**Decision, implemented in unreleased desktop adapters:** the [unified permission model](../../topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
 treats Browser as one surface including supported CDP and page JavaScript,
 independent of Desktop's mode. Existing browser/DevTools scope flags and the
 acceptance matrix below describe current implementations. [Tactical 153](../../docs/tactical/153-unified-permissions-and-handoff.md)
@@ -88,8 +88,8 @@ macOS/Linux replacement-loop mechanism was not evidence of identical Windows
 oscillation. The unreleased Windows source now replaces that path with
 concurrent authenticated transports into the shared TypeScript coordinator.
 The unreleased Mac source now uses concurrent authenticated transports and
-exact profile selection as well. Linux retains the singleton path until its
-sequential adoption.
+exact profile selection as well. Linux source now does the same; its bounded
+native/profile/package evidence and qualification limits are recorded below.
 
 **Decision:** [named browser profiles](../../topics/browser-profiles.md) owns
 the full registry/selection/authority direction; no interim singleton fix is
@@ -111,7 +111,7 @@ are recorded in [Tactical 152](../../docs/tactical/152-shared-runtime-windows-ad
 An earlier fake-peer composition also passes five-minute owner continuity.
 This does not establish signed installation, store delivery, physical/GPU/native
 x64 or Mac/Linux multi-profile execution. Later Mac evidence is scoped below;
-Linux retains its legacy behavior until adoption.
+Linux evidence is scoped separately below.
 
 **Current (2026-11-04), bounded Mac ARM64 `conformance-tested`:** the real
 packaged Swift resident hosts the same pinned TypeScript authority. Twenty
@@ -122,7 +122,26 @@ stream, revocation of that open stream and the shipped Python SDK. Native app/po
 owned processes are restored. This establishes neither physical input,
 Intel execution, signed publication nor protected-helper composition.
 [Tactical 154](../../docs/tactical/154-macos-shared-surface-adoption.md) owns
-remaining acceptance and cleanup.
+acceptance, cleanup and qualification limits.
+
+**Current (2026-11-04), bounded Linux ARM64 `live-tested`:** the ordinary
+Python resident hosts the same pinned authority and concurrent authenticated
+native-host connections. Sixteen GNOME Wayland checks establish two enabled
+profiles, independent Work-only HTTP effects with zero Personal effects,
+unapproved-profile refusal, real owner-bound streamed CDP and stream revocation
+on Stop while both profiles remain connected. A concurrent Desktop owner
+cannot use physical input or GNOME Shell semantics to answer Browser approval;
+its own session remains active. These are isolated Playwright Chromium profiles
+with an explicit disabled fixture sandbox, not the user's installed browser.
+Source `0435ccf` also passes 29 combined profile/locked/restart checks:
+preapproved Work effects preserve the real GNOME lock, Desktop stays unavailable,
+Pause/Resume and opt-in withdrawal work, and abrupt armed process loss restores
+both connections with authority Off and no replayed page effects. The exact old
+pinned Node child also dies with its native parent. Both unsigned packages pass
+real Settings and shipped-SDK acceptance; original package/helper state and
+Off are restored, owned processes/staging are removed and the claim is released.
+Physical HID, signed release/store delivery and other compositor/hardware coverage remain separate.
+[Tactical 155](../../docs/tactical/155-linux-shared-surface-adoption.md).
 
 **Current (2026-11-02), bounded Mac ARM64 `live-tested`:** a Node-hosted adapter
 consumes the unchanged worker protocol through real Chrome native messaging,

@@ -46,10 +46,16 @@ owns the execution record and portable contract tests.
 
 **Current (2026-11-04), `built` and bounded `live-tested`:** the Python process
 adapter hosts the actual pinned v2 authority with bounded framing, queues,
-deadlines and reaping; six portable tests pass. The ordinary companion has not
-yet cut over. On the accepted ARM64 GNOME Wayland appliance its ordinary user
-cannot read input event devices, so AT-SPI/portal availability is not treated
-as physical-input coverage. A separate, explicitly installed read-only service
+deadlines and reaping. The ordinary companion now delegates v2 Desktop and
+Browser policy to that child; its replaced Python grant/approval engines are
+removed. Forty-three native handoff/portal checks, sixteen two-profile Browser
+checks, real notification pixels and EOF/termination cleanup pass. The final
+source `0435ccf` passes 30 sealed Debian and 28 actual outer-AppImage SDK checks,
+plus 29 profile/locked/restart checks. Exact child disappearance on abrupt parent
+loss, original package/helper restoration, owned cleanup, final Off and claim
+release pass. The final 53-case Linux desktop suite has no skips. On this
+ARM64 GNOME Wayland appliance its ordinary user cannot read input event devices,
+so AT-SPI/portal availability is not treated as physical-input coverage. A separate, explicitly installed read-only service
 supplies active-console-bound health and opaque coalesced activity tokens.
 Its native probe passes under a closed device policy and no-new-privileges;
 a foreign-UID peer is refused and receipt-owned uninstall restores original
@@ -60,9 +66,13 @@ virtual-input sources are excluded and there is no injection/grab/command API.
 The [kernel event ABI](https://cdn.kernel.org/doc/html/latest/input/event-codes.html)
 defines event kinds and overflow behavior. This is owned adapter code over the
 kernel interface, not imported provider code. Physical HID, compositor variants,
-GUI privilege approval and integrated new desktop qualification remain open.
+GUI privilege approval, signed distribution and broader desktop qualification
+remain open. GNOME owns the nonactivating native notification; explicit GTK
+controls open through a user action. Notification-owner loss, disabled banners
+or an unavailable activity feed floor disruptive admission. GNOME Shell
+notifications are a separate native facility from XDG portal consent.
 [Tactical 155](../../docs/tactical/155-linux-shared-surface-adoption.md) owns
-execution and remaining gates.
+execution, final restoration and remaining qualification limits.
 
 ## Native foundation
 
@@ -81,7 +91,7 @@ Sway/wlroots, GNOME/Mutter, KDE/KWin, XWayland, and nested compositors.
 | [Touchpoint](../providers/touchpoint.md) | `source-reviewed` | Compact AT-SPI facade; raw input mainly X11 | Alternative semantics/facade reference |
 | [kwin-mcp](../providers/kwin-mcp.md) | `source-reviewed` | Private virtual KWin session, compositor capture, EIS/libei input | Best isolated-session model |
 | [OculOS](../providers/oculos.md) | `source-reviewed` | AT-SPI/daemon shape, incomplete capture depth | Service reference |
-| [XDG Desktop Portal](../providers/xdg-desktop-portal.md) | `conformance-tested` on GNOME 46 Wayland x64 VM | RemoteDesktop Notify, ScreenCast/PipeWire and ordinary-user AT-SPI companion | Signed Debian/AppImage desktop preview; separate from the appliance |
+| [XDG Desktop Portal](../providers/xdg-desktop-portal.md) | `conformance-tested` on GNOME 46 Wayland x64 VM; bounded ARM64 source input/capture | RemoteDesktop Notify, ScreenCast/PipeWire and ordinary-user AT-SPI companion | Signed Debian/AppImage desktop preview; separate from the appliance |
 | Existing linuxVM route | `adopted` for GNOME 46 Wayland | Persistent AT-SPI resident, GNOME capture, appliance virtual HID, user-systemd lifecycle, guarded QEMU guest-agent transport | Accepted logged-in software-testing route; outer UI is recovery-only |
 
 ## Accepted GNOME Wayland profile

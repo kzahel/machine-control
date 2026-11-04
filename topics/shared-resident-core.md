@@ -3,7 +3,9 @@
 Topic: `shared-resident-core`
 
 Status: **Windows/reference broad review and bounded native qualification
-passed; bounded macOS ordinary/streamed/protected adoption passed, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+passed; bounded macOS ordinary/streamed/protected adoption passed; bounded
+Linux native, sealed-package, profile/lock/restart and restoration acceptance
+passed**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the candidate gates and remaining qualification limits.
 [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md) owns the
 macOS acceptance, cleanup and remaining qualification limits.
@@ -20,14 +22,18 @@ bridges also had separate implementations; Linux does not have identical
 feature coverage. These were overlapping policy implementations, not three
 equivalent translations of one enforced model. The Windows implementation now delegates ordinary Desktop and Browser policy
 to that shared core. The macOS adapter now does the same in the unreleased
-source and passes a bounded ordinary packaged slice; protected/stream adoption
-gates remain open. Linux adoption remains pending.
+source and passes bounded ordinary, streamed-CDP and protected packaged
+acceptance. Linux delegates the same policy and passes bounded native, packaged
+and restoration acceptance in
+[Tactical 155](../docs/tactical/155-linux-shared-surface-adoption.md).
 
 The product already shares its Python client, TypeScript settings UI,
 JavaScript Chrome extension, common result vocabulary and some conformance
 runners. Native peer authentication, accessibility, capture, input, console
-observation and protected operations need platform implementations. On the remaining legacy paths, portable
-policy remains intertwined with those native responsibilities.
+observation and protected operations need platform implementations. The adopted
+ordinary desktop paths keep those native responsibilities outside the policy
+engine. Dedicated appliance and protected providers retain their
+explicit native authority boundaries.
 
 The user requested using browser profiles to refactor this middle layer,
 with lightweight, fast verification rather than repeatedly assembling a
@@ -36,7 +42,8 @@ question compared iteration-friendly TS/Python with Rust's native deployment.
 The first deliverable established the deterministic boundary; Windows browser
 adoption made it a native product path. The subsequent unified-permissions
 slice adds ordinary Desktop admission and handoff to that same authority.
-Protected qualification and other platform adoption remain open.
+Signed distribution, physical-device qualification and broader platform
+coverage remain separate from these bounded adoption gates.
 
 ## Terms and current scope
 
@@ -91,7 +98,7 @@ APIs; the inherited process host is a replaceable adapter around that source.
 The current runtime pin is Node 24.22.2, with exact upstream archive hashes
 and upstream notices retained in the payload. This settles the implementation
 direction. Bounded Windows candidate acceptance is recorded below; signed
-installation and other platforms are separate gates.
+distribution and broader hardware qualification remain separate gates.
 
 **Current:** both pinned Node and Bun 1.4.4 payloads build for all six desktop
 targets. Header inspection verifies OS/architecture, not executable correctness.
@@ -140,7 +147,9 @@ not through parallel policy engines or another open-ended language comparison.
 Browser consent, admission and handoff. Native/package execution is qualified
 separately. The unreleased Mac adapter now adopts that same authority; its
 ordinary, streamed-CDP and protected packaged slices pass in [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md).
-Linux adoption remains pending.
+The Linux adapter uses the same authority and passes bounded native handoff,
+profile/lock/restart, sealed-package and cleanup qualification in
+[Tactical 155](../docs/tactical/155-linux-shared-surface-adoption.md).
 
 | Responsibility | Owner after adoption |
 | --- | --- |

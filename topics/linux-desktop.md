@@ -5,25 +5,31 @@ Topic: `linux-desktop`
 Status: public desktop 0.5.4 includes signed Debian/AppImage packages for
 x64 and ARM64. Focused ARM64 Debian indefinite-access, native semantic effect
 and Stop acceptance passes on Ubuntu GNOME Wayland; earlier x64 coverage
-remains. ARM64 portal/browser/lifecycle acceptance remains separate. The unpublished
+remains. Signed ARM64 portal/browser/lifecycle release acceptance remains
+separate from the unreleased evidence below. The unpublished
 runtime/presentation candidate passes bounded x64 native acceptance in
 [Tactical 111](../docs/tactical/111-linux-runtime-presentation.md).
 
-**Current, in progress (2026-11-04):** after bounded Windows and Mac gates,
+**Current, unreleased (2026-11-04):** after bounded Windows and Mac gates,
 [Tactical 155](../docs/tactical/155-linux-shared-surface-adoption.md) replaces the
 ordinary companion's grant/admission/browser coordination with the same pinned
 TypeScript child. Python retains GTK, AT-SPI, portal, native peers and session
-facts. Transport tests and an independently installed/removed read-only native
-activity observer pass; integrated v2 UI/profile/owner qualification remains
-open. The observer supplies only active-console-bound health and opaque,
+facts. The read-only native observer, 43 real native handoff/portal checks,
+29 Browser/lock/restart checks and native EOF/termination rendering gates
+pass. Source `0435ccf` passes 30 Debian and 28 actual outer-AppImage Settings /
+shipped-SDK checks, including an outside SDK effect. The final 53-case native
+desktop suite passes without skips. Original package/helper state, owned cleanup,
+Off and claim release are verified. The observer supplies only
+active-console-bound health and opaque,
 coalesced activity facts. It has no input/command API and does not replace
 ordinary-user portal effects with appliance root virtual HID. Without a healthy
 qualified feed, disruptive admission stays unavailable.
 
 **Current, unreleased (2026-10-17):** The shared Settings option retains
 previously approved browser access while the same console stays locked. It
-defaults off, grants no authority itself, preserves expiry and separate
-DevTools scope, and refuses desktop control and new approval. Unknown or
+defaults off, grants no authority itself, preserves consent expiry and exact
+profile selection, and refuses desktop control and new approval. The shared
+model includes supported CDP and page scripts in Browser permission. Unknown or
 replaced session identity revokes. [Tactical 131](../docs/tactical/131-windows-linux-browser-while-locked.md)
 owns implementation and bounded source-native acceptance.
 
@@ -91,8 +97,8 @@ retains the earlier 0.5.0 production metadata and signed replacement acceptance.
 Positive installed AppImage production-feed replacement to 0.5.4 remains
 separate from authenticated production metadata and Debian acceptance.
 
-**Open:** ARM64 portal/browser/lifecycle execution, physical hardware, other compositors,
-multiple monitors/scaling, suspend/resume, arbitrary window activation, and
+**Open:** signed ARM64 release lifecycle, physical hardware, other compositors,
+general multiple-monitor/scaling behavior, suspend/resume, arbitrary window activation, and
 protected login/unlock need separate acceptance.
 
 **Current, public 0.5.4:** the native operator supports **Until I turn it

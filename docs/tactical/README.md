@@ -1,15 +1,16 @@
 # Implementation Tacticals
 
 - [155 — Linux shared surface adoption](155-linux-shared-surface-adoption.md)
-  (in progress): one shared authority, native GTK handoff, honest physical-input
-  observation, exact profiles, live channels and packaged cleanup.
+  (complete for bounded ARM64 GNOME Wayland acceptance): one shared authority,
+  native handoff, read-only activity observation, profiles/lock/restart, both
+  unsigned packages, local/outside SDK and restored Off/claim release.
 
 - [154 — macOS shared surface adoption](154-macos-shared-surface-adoption.md)
   (complete for bounded ARM64 appliance acceptance): replace Swift ordinary policy with the same v2 child, preserve
   native/protected ceilings, and qualify real Settings, profiles and cleanup.
 
 - [153 — Unified permissions and handoff](153-unified-permissions-and-handoff.md)
-  (bounded Windows acceptance complete; macOS next): independent Desktop/Browser
+  (bounded Windows acceptance complete; macOS/Linux in 154–155): independent Desktop/Browser
   modes, unified Browser/CDP, deliberate takeover and queued handoff; Windows
   and synthetic clients first, with temporary legacy paths removed at cutover.
 

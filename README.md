@@ -32,9 +32,10 @@ Chromebooks, Android devices, and more.
   supported control sessions, stop access, and inspect activity.
 
 The [unified Desktop/Browser permissions experience](topics/access-admission-and-pause.md)
-is implemented in the unreleased Windows/shared-core candidate and Mac adapter.
-Mac ordinary, streamed-browser and protected composition pass bounded appliance
-acceptance. Linux adoption follows. The linked topic records evidence and limits.
+is implemented in the unreleased Windows, macOS and Linux adapters over one
+shared policy core. Their bounded appliance records cover ordinary control,
+profiles and platform-specific protected/locked behavior. The linked topic
+records exact candidate evidence and remaining qualification limits.
 
 Available controls depend on the platform and selected permissions. Machine
 Control combines native UI information with screenshots and input, so agents
@@ -141,12 +142,13 @@ from observed effects. See [architecture](topics/architecture.md),
 [inner-first routing](topics/inner-first-routing.md), and
 [capabilities and results](topics/capabilities-and-results.md).
 
-**Current, unreleased Windows/reference implementation:** independent Desktop
+**Current, unreleased desktop/reference implementation:** independent Desktop
 and Browser Off, Ask first and Automatic modes share one permission/handoff
 engine, including takeover warnings, deliberate-input interruption and queued
 retry. Browser includes supported CDP and page JavaScript. Broad review and
 bounded unsigned Windows ARM64 candidate acceptance have passed. macOS and Linux
-adoption follow; temporary integration gaps remain acceptable during migration.
+now adopt that same core; their native/package records are linked from the
+shared-resident topic. Signed publication and broader hardware remain separate.
 The [permissions and handoff contract](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
 and [implementation record](docs/tactical/153-unified-permissions-and-handoff.md)
 own the contract, evidence and limits. These modes have not been published.

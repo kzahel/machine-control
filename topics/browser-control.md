@@ -33,9 +33,10 @@ The [access-admission topic](access-admission-and-pause.md#unified-permissions-a
 owns modes, handoff, pause and compound-operation policy. Background browser
 work does not acquire the entire desktop. Native desktop effects still require
 Desktop's mode; provider limits and protected guards are unchanged. Windows and
-the shared reference/synthetic-client corpus lead adoption before Mac/Linux.
-[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) owns the
-migration; temporary isolated legacy support must have a removal gate.
+the shared reference/synthetic-client corpus led the cutover. Unreleased Mac
+and Linux adapters now use the same authority;
+[shared resident core](shared-resident-core.md) links their bounded qualification
+records. Adopted ordinary paths have no silent legacy fallback.
 
 ## Current
 

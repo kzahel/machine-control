@@ -4,7 +4,8 @@ Topic: `browser-profiles`
 
 Status: **Windows named-profile browser cutover accepted in an unsigned ARM64
 candidate; Mac ordinary/streamed and protected packaged slices passed;
-Linux adoption follows**.
+Linux ordinary/profile, packaged, locked, restart and restoration gates
+passed in a bounded unsigned ARM64 GNOME Wayland appliance**.
 
 ## Scope and current evidence
 
@@ -23,14 +24,15 @@ provider, private inventory or coordination owner is introduced.
 
 ## Product behavior
 
-**Decision, implemented on Windows and in the unreleased Mac adapter:** each extension installation has an editable local label such as
+**Decision, implemented in the unreleased desktop adapters:** each extension
+installation has an editable local label such as
 **Work** or **Personal**, a persistent opaque identity and an **Enable this
 profile** switch. Fresh and upgraded installations begin unavailable for
 control until explicitly enabled. Disabled installations may announce bounded
 connection metadata, but cannot enumerate tabs, attach debuggers or execute
 browser work. This permits setup and profile discovery without page access.
 
-The Windows and unreleased Mac Access surfaces list known profiles with connected, enabled and
+The shared Access surface lists known profiles with connected, enabled and
 approved states, plus protocol/conflict repair guidance. Access controls and native approval prompts name
 the profiles being approved. Connection, availability and approval are distinct
 states. The extension can withdraw its own availability; enabling it cannot
@@ -105,14 +107,14 @@ never retargets a grant, reference or endpoint.
 
 ## Authority and lifecycle rules
 
-**Current Windows source:** one Browser permission includes supported CDP
+**Current unreleased desktop source:** one Browser permission includes supported CDP
 and page JavaScript, carrying exact approved profile IDs. The earlier accepted
 [Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) slice used
 separate legacy scope approvals; that is historical evidence for its own build.
 
 **Decision:** Browser’s independent Off / Ask first / Automatic mode and exact
 profile set follow the [unified permission contract](access-admission-and-pause.md#unified-permissions-and-handoff-contract).
-The separate user-facing scripts/DevTools tier is removed on Windows. Native
+The separate user-facing scripts/DevTools tier is removed in the adopted model. Native
 provider scope mappings remain internal and cannot widen old consent silently.
 
 **Decision, retained profile invariants:** operator arming and native approval can select several profiles. An agent
@@ -154,13 +156,12 @@ and generations under the existing private retention policy.
 
 **Decision for incremental adoption:** retain native-messaging frame protocol
 v1 and negotiate the additional profile protocol v1 through `hello.profile`
-and `profile.accepted`. The migrated Windows resident requires persistent
-profile metadata and keeps incompatible or colliding copies connected but
+and `profile.accepted`. Migrated desktop residents require persistent
+profile metadata and keep incompatible or colliding copies connected but
 unarmed with a typed refusal, avoiding a reconnect fight. Extension-local
 identity/name/availability are persistent; profile-aware enable/name/reset UI
-appears when the resident negotiates support. Pre-cutover Mac/Linux residents
-retain their existing single-profile behavior; this does not qualify them for
-named profiles or provide a legacy fallback on the migrated Windows resident.
+appears when the resident negotiates support. Older published residents retain
+their original behavior. The adopted source has no singleton fallback.
 
 **Current:** the [shared resident core](shared-resident-core.md) passes the
 deterministic reference slice in [Tactical 150](../docs/tactical/150-shared-resident-core.md)
@@ -169,7 +170,11 @@ and a bounded two-process, headless real-browser fixture in
 pipe peers, exact operator/native approval selection and shared CDP routing.
 [Tactical 152](../docs/tactical/152-shared-runtime-windows-adoption.md) owns
 its complete bounded 39-check real-browser/Settings candidate acceptance,
-source identity and cleanup. No Mac/Linux adoption or publication is implied.
+source identity and cleanup. Mac adoption is recorded in
+[Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md); Linux
+adoption and its bounded gates are recorded in
+[Tactical 155](../docs/tactical/155-linux-shared-surface-adoption.md).
+These source cutovers do not imply publication.
 
 **Decision:** qualify unified permissions/handoff on Windows with the shared
 core and reference/synthetic clients before Mac/Linux adoption. Temporary
@@ -177,11 +182,12 @@ integration breakage/disablement is acceptable; optional legacy behavior must
 be isolated and removed after cutover. Each platform adopts the same policy,
 removes its replaced engine and passes its declared native/package gates.
 
-**Current Windows requirement:** a versioned profile-aware handshake precedes
+**Current adopted-adapter requirement:** a versioned profile-aware handshake precedes
 grants and browser work. Native transport registration is not admission
 of an unidentified browser provider. Bound pre-handshake connections, workers,
-queues and metadata. macOS/Linux need per-connection state; Windows uses a concurrent bounded named-pipe accept loop; Mac/Linux still
-need independent per-connection native transport adapters.
+queues and metadata. Windows uses a concurrent bounded named-pipe accept loop;
+Mac and Linux use independent authenticated native transport connections into
+the same profile registry.
 
 Require matching profile-aware runtime and extension versions for this first
 implementation. Mixed versions must present an actionable update state, stay
@@ -193,7 +199,7 @@ Chrome Web Store delivery remain separate acceptance/release steps.
 Do not broaden Chromium browser support, add incognito support, discover Chrome
 account names or merge store/development identities as part of named profiles.
 The original profile slice excluded desktop admission redesign; that is now
-explicitly the next slice in [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md).
+implemented by the subsequent slice in [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md).
 Explicitly exclude incognito tabs from the initial route
 even if Chrome's extension setting permits incognito execution.
 

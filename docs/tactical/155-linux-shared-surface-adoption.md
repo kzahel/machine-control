@@ -2,7 +2,9 @@
 
 Topics: `shared-resident-core`, `access-admission-and-pause`, `linux-desktop`
 
-Status: **In progress**, after bounded Windows and macOS acceptance.
+Status: **Complete for bounded unsigned ARM64 GNOME Wayland appliance
+acceptance**, after bounded Windows and macOS acceptance. Signed release and
+broader hardware/compositor qualification remain separate.
 
 ## Objective and motivation
 
@@ -358,3 +360,158 @@ focus shortcut, then an independently observed focused control before Enter.
 Full native state and the last action route are retained privately on failure.
 All 50 desktop tests pass (one kernel-only skip on macOS); full integrated and
 packaged acceptance remains open.
+
+**Current — bounded native handoff accepted:** the real GNOME Wayland run
+passes 43 checks on native runtime source `6705705`, using the fixture at
+`e3f7448`. It positively establishes the independent fixture's foreground
+before checking that the warning preserves focus, then exercises native
+approval/Start, explicit full controls and return to the banner, independent
+surface pause, task deferral/Resume with fresh authority, stale-reference
+refusal, denial and Automatic countdown. Real compositor consent is followed
+by ordinary portal key delivery with an independently observed fixture effect,
+selected-screen capture with bounded artifact/hash checks, native Stop and
+owned-child exit. The read-only observer is removed after the gate.
+
+GTK 3 has no GdkWayland 3 introspection namespace on this target. The notice
+uses the public C activation function from the loaded GTK 3 library instead.
+Opening the task panel can close its original notification; Hide now restores
+a fresh banner ID after flushing native panel withdrawal, without reporting
+an intermediate unavailable state. Delayed closure of the original ID cannot
+withdraw the new banner. A portable regression covers that boundary. The
+human-side fixture expands normal paused banners through the configured
+notification shortcut before locating their buttons. No product policy timer
+or ordinary input fallback was added. All 51 Linux desktop tests pass (one
+kernel-only skip on macOS), all 47 platform static tests pass (four native-only
+skips), and all 79 shared reference tests pass on the controller. Final sealed
+packages, profile interlock/lock, native lifetime reruns and cleanup remain
+separate gates below.
+
+**Current — final native-host checks:** all 51 Linux desktop tests pass on the
+actual Linux host without skips. The 47 platform tests pass with only the
+macOS seed-builder case skipped; Linux peer/relay and live-claim tests execute.
+Strict checking passes for both TypeScript projects. All 79 reference tests
+also pass under the bundled Linux Node pin. Native notification pixel gates
+independently pass EOF and SIGTERM with inherited stdin still open, each with
+326 distinct action-region colors and exact withdrawal. The two-profile live
+Browser gate passes all 16 checks, including real stream revocation and the
+pending-approval input/Shell interlock without withdrawing the independent
+Desktop session. The final source `f951786` builds both unsigned formats and
+passes complete container, source-identity, pinned-policy and relocated CLI
+inventory. Packaged live SDK and final lock/cleanup gates are still in progress.
+
+**Current — require the visible warning, not only policy state:** sealed
+`f951786` passes real Settings, shipped-SDK admission, independent native
+semantic effect, pause/Resume with fresh authority and Stop. The fixture's
+second mode change initially committed Ask as an intermediate value; the UI
+correctly disabled the control during its pending native update, dropping the
+next Down. The fixture now observes actual focus and selects Automatic with
+one End gesture.
+
+A stronger check then reproduces an actual product bug: with Settings focused,
+the policy announces but GNOME silently acknowledges its resident notification
+without showing a banner. The [qualified GNOME implementation](https://github.com/GNOME/gnome-shell/blob/46.0/js/ui/notificationDaemon.js#L331)
+explicitly has this behavior. Source `8a67412` makes approval and takeover
+warnings critical nonresident notifications while retaining resident active /
+paused status. Native action closure remains bound to exact IDs and one-shot
+decisions. All 43 native handoff/portal checks and both pixel/lifetime gates
+pass again; all 51 desktop tests pass on Linux without skips. Sealed acceptance
+now requires the actual Start action to be showing while Settings keeps focus.
+
+The rebuild retains a recorded exact Git comparison with fully checked
+`f951786`: Rust, frontend, runtime and dependency sources are unchanged; only
+the notice and native fixture changed. Their completed format/Clippy/Rust gates
+are reused rather than churned again. Native resources, compiled source
+identity, both package formats and full payload inventories are rebuilt and
+checked at the new source. This is separate from overlay diagnostics: no
+accepted packaged payload is edited in place.
+
+**Current — shutdown and actual child ownership:** the sealed native SDK and
+focused-warning slices pass, including outside SDK effects, but process-family
+termination initially leaves the companion socket path. Native teardown could
+abort after setting its stopped latch when a Stop RPC or another cleanup
+failed. Source `aaf5b2d` fences work first and independently closes/reaps each
+owned resource. A portable regression injects failures across nine cleanup
+boundaries; 52 desktop tests pass on Linux. That source passes 43 native checks,
+30 Debian checks and 28 actual outer-AppImage checks, including socket cleanup.
+Both Settings captures are independently inspected and clear.
+
+The real Browser gate then passes armed crash/reconnect and retained-lock
+behavior. Fixture ordering is corrected to establish fresh consent while
+unlocked, prove crash restart, and only then lock the OS. Setup clipboard
+changes are restored before locking; cleanup errors always produce a terminal
+result. Quit-only EOF is accepted only after exit zero and socket removal,
+matching the inherited private channel's shutdown lifetime. Other requests
+still require a reply. The resulting 28-check Browser/lock/restart run passes.
+
+Final process inspection nevertheless finds a live policy Node orphan from
+the abrupt-parent-loss test. Revoked native access is insufficient evidence
+of owned-child cleanup. Source `0435ccf` adds a single-threaded exec launcher
+that installs Linux's kernel parent-death SIGKILL bond, checks the actual
+parent and execs the same pinned child. It avoids a Python preexec hook in the
+threaded resident and adds no interpreter discovery or policy engine. A native
+regression proves that even a child ignoring TERM and EOF dies with its parent;
+the real Browser crash fixture now also observes the exact old Node process.
+The first 53-test native run passes that regression but correctly rejects an
+incomplete installed-layout fixture that omitted its launcher. The fixture is
+updated; at that point final child-bound native/package/restart qualification
+remained open. The final results follow below.
+The earlier exact orphan is stopped by verified path/process identity.
+
+
+## Final result and qualification boundary
+
+**Current — accepted composition:** production source `0435ccf` passes all
+final native and sealed-package gates below. The actor/installed-layout fixture
+revision is `3fdf74d`; those later changes affect tests only. No accepted package
+is patched in place. The final build reconstructs native resources, compiled
+source identity, Debian and AppImage containers and complete pinned-policy /
+Python-client inventories. Both unsigned artifacts and their full-byte hashes,
+summaries and captures are retained privately.
+
+| Gate | Final result |
+| --- | --- |
+| Linux desktop unit/integration suite | 53 tests, no skips; includes real kernel parent death and relocated installed layout |
+| Shared reference suite | 79 tests under the bundled Linux Node pin |
+| Platform static suite | 47 tests; only the macOS seed-builder case skipped |
+| TypeScript | Both projects pass strict checking |
+| Native handoff and ordinary portal effects | 43 checks |
+| Sealed Debian Settings and shipped Python SDK | 30 checks, including local and outside SDK effects and a visible warning with Settings focused |
+| Actual outer AppImage, Settings and shipped SDK | 28 checks |
+| Two real profiles, streamed CDP, lock and armed crash/restart | 29 checks, including disappearance of the exact old policy child |
+| Native notification presentation and lifetime | Independently composed action pixels; EOF and SIGTERM/held-stdin withdraw the exact notice |
+
+The final child-bound build reuses completed format, all-target Clippy, Rust
+tests and frontend gates from `f951786` through its recorded exact-source
+comparison chain. Their code and dependencies are unchanged; these are reused
+gates, not newly executed Rust tests at `0435ccf`. Both native/package builds
+and payload verification do execute at the final source.
+
+**Current — restoration:** all 1,353 original installed-package entries retain
+their exact bytes, ownership, modes and link targets. The temporary SDK relay
+and read-only activity service return to original absence. Final inspection
+finds no live owned process or attributed crash file; exact receipt-owned
+AppImage extraction roots and acceptance staging are removed. The original
+appliance power state is Off and its exact target-use claim is released.
+Canonical password-file metadata is unchanged, owner-only and nonempty; no
+Linux password authentication was tested. Operational CLI audit/usage records
+and GNOME notification registration remain; no original full-GNOME-settings
+baseline exists, so full OS identity is not asserted. Retained audit pages bind
+the same exact resource and claims, with their explicit incomplete-coverage and
+self-asserted-attribution limits. No VM or clone was created.
+
+**Qualification limits:** this is unsigned ARM64 Ubuntu 24.04 / GNOME 46
+Wayland VM evidence. Two displays exist, but portal acceptance selects the
+current primary screen; arbitrary layouts/scaling are not qualified. Browser
+fixtures use separate Playwright Chromium profiles and disable their sandbox
+only for the fixture, without changing OS sandbox policy. Portal input proves
+an ordinary key effect, not clipboard-backed Unicode. Physical HID takeover,
+GUI observer authorization, signed distribution, fresh installation/update,
+new-model Linux x64, other compositors/X11, suspend/load and general window
+activation remain unqualified. Ordinary protected login/unlock is unsupported;
+the separately authorized appliance provider is not a fallback.
+
+**Decision — next:** qualify a signed candidate and physical human-input
+handoff without adding another policy implementation. The requested ordinary
+Windows → macOS → Linux source migration is complete within each platform's
+declared bounded gates. Python clients and native OS providers remain in their
+existing languages. Publication and personal installation were not performed.

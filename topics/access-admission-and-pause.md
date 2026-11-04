@@ -3,11 +3,15 @@
 Topic: `access-admission-and-pause`
 
 Status: **Windows/reference broad review and bounded native qualification
-passed; bounded macOS ordinary/streamed/protected adoption passed, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
-records the current candidate and its limits. Earlier platform admission
-evidence below does not qualify the new experience on Mac or Linux.
+passed; bounded macOS ordinary/streamed/protected adoption passed; bounded
+Linux native, sealed-package, profile/lock/restart and restoration acceptance
+passed**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+records the Windows candidate and its limits. Earlier platform admission
+evidence below does not qualify the new shared implementation.
 [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md) records
 macOS ordinary, streamed-CDP and protected packaged acceptance and cleanup.
+[Tactical 155](../docs/tactical/155-linux-shared-surface-adoption.md) owns Linux
+native, packaged and restoration qualification.
 
 ## Scope and motivation
 
@@ -33,8 +37,9 @@ policy.
 **Decision (2026-11-03):** configure **Desktop** and **Browser** independently
 with the same three modes. This supersedes the earlier idle-first default,
 movement-as-takeover rule and requirement to preserve legacy desktop behavior
-throughout migration. It is implemented in the unreleased Windows/shared-reference candidate;
-Mac/Linux adoption and publication remain separate gates.
+throughout migration. It is implemented in the unreleased Windows, macOS and
+Linux adapters and shared reference target. Native acceptance is bounded by
+the platform-specific tactical records; publication remains separate.
 [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) owns the
 Windows/shared-core/reference-target implementation and acceptance gates.
 
@@ -512,9 +517,9 @@ pass the common corpus and their declared native/package gates. The migration
 plan must identify the owner and exit condition of every temporary bridge.
 Compatibility is a temporary delivery tool, not a second long-term product.
 
-[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) is the next
-bounded implementation plan. Older tacticals remain execution history. The
-new rules do not broaden outer-control permission or replace target-native
+[Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) records the completed Windows/shared-model slice;
+Tacticals 154–155 record subsequent macOS/Linux adoption. Older tacticals remain
+execution history. The new rules do not broaden outer-control permission or replace target-native
 providers, target-use claims, caller authentication or protected safety guards.
 Repository/candidate integration may temporarily be unsupported; this decision
 does not replace a personal installation or authorize publication by itself.

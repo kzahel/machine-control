@@ -10,7 +10,7 @@ CC0, and font license texts in
 Backend and media-plugin licenses remain separate. Machine Control calls
 installed D-Bus interfaces and media libraries; it does not copy portal code.
 
-Last review: 2026-10-02.
+Last review: 2026-11-04.
 
 ## Architecture and reach
 
@@ -38,6 +38,16 @@ independently observed; lock closes the sharing session.
 [Tactical 056](../../docs/tactical/056-linux-desktop.md) owns execution and
 package-specific gates.
 
+**Current — bounded ARM64 GNOME Wayland VM, unreleased source:** the shared
+policy adapter passes native compositor consent, ordinary RemoteDesktop key
+insertion with an independent fixture-file effect, and selected-primary-screen
+ScreenCast capture with PNG/hash verification and visually clear native UI.
+The target has two monitors; this does not qualify arbitrary monitor/scaling
+combinations. This run does not qualify clipboard-backed Unicode, physical
+input or other compositors. [Tactical 155](../../docs/tactical/155-linux-shared-surface-adoption.md)
+owns exact source and acceptance. GNOME's task notifications use its native
+notification service independently of portal consent.
+
 **Current:** Mutter Notify keysyms acknowledge tested non-keymap Unicode without
 inserting it. The adapter reuses the owned clipboard ownership oracle and
 portal Ctrl+V, preserving Unicode with an explicit clipboard side effect.
@@ -56,6 +66,6 @@ distinct route. Operator/approval/portal and password surfaces stay guarded.
 Root appliance input is never a desktop fallback.
 
 **Open:** KDE/wlroots/X11, physical hardware, multi-monitor scaling, restore-token
-lifetime, libei comparison, arbitrary window activation, ARM64 desktop execution,
-and suspend/resume. Report the actual backend, selected screen and
+lifetime, libei comparison, arbitrary window activation, signed ARM64 release
+acceptance, and suspend/resume. Report the actual backend, selected screen and
 devices, ordinary-user privilege, and session state.

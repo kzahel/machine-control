@@ -37,7 +37,7 @@ into a raw proxy for every testbed CLI.
 
 ## Target-controller implementation boundary
 
-**Current, unreleased Windows adoption:** [`runtime/`](runtime/README.md)
+**Current, unreleased desktop adoption:** [`runtime/`](runtime/README.md)
 owns ordinary Desktop and Browser surface consent, waiting/task admission,
 countdown, pauses, cooldown and ownership. It also owns exact profile selection,
 request/reference fencing and CDP stream lifetime. The Windows desktop resident
@@ -47,7 +47,9 @@ executes OS effects, retains protected guards and audit/artifact storage, and
 projects those facts into the child. The deterministic reference target executes
 the same policy with modeled effects. The unreleased Mac adapter now uses this
 policy with bounded ordinary, streamed-CDP and protected packaged acceptance.
-Linux adoption is in progress. Its new native read-only activity observer
+The Linux adapter now uses the same policy and passes native handoff/profile
+and sealed-package gates, including lock/restart and restored Off/claim release.
+Its native read-only activity observer
 belongs to Machine Control and exposes active-console-bound health/activity
 facts only. It has no input or command API; ordinary desktop effects retain
 AT-SPI/portal and never fall back to the appliance root input broker. Integrated
@@ -62,9 +64,10 @@ completed broad review and bounded Windows qualification. Ordinary and locked
 Browser, matching-companion startup and enrolled Desktop acceptance have passed
 on the bounded unsigned Windows ARM64 candidate.
 Native provider/credential/cover/relock proof is separate from shared-policy
-conformance. Mac/Linux integration may be temporarily unsupported while
-converging. Optional legacy adapters are isolated migration tools with deletion
-gates, not permanent authorities or silent fallback.
+conformance. Each adopted adapter removes its replaced ordinary policy engine
+and fails closed if the shared child is unavailable. Any separate appliance/protected
+provider retains its explicit capability and authority boundary; it is not
+an ordinary desktop fallback.
 
 **Decision:** [Runtime and presentation](topics/runtime-and-presentation.md)
 keeps Machine Control's runtime authority independent of its settings, native

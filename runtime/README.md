@@ -72,7 +72,7 @@ the real extension against the packaged child. To evaluate Bun, use
 `--engine bun --bun /path/to/pinned/bun`; compiled evaluation artifacts are not
 authorized for redistribution by this script. No system installation changes.
 
-## Surface admission under development
+## Surface admission
 
 `src/admission.ts` owns the new Desktop/Browser Off, Ask first and Automatic
 policy, task-specific approvals, original consent ceilings, atomic reservations,
@@ -82,10 +82,12 @@ authenticated native channels to those objects; public identifiers cannot open
 that inlet. Its v2 state is separate from the existing browser wire protocol.
 
 The deterministic and real-process admission tests run in the portable suite.
-Windows now uses the v2 engine through its native adapter, operator UI and
-Python channel. New native/package acceptance remains pending; source and
-fixture checks alone do not qualify the operator experience. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md)
-tracks that work and subsequent platform cutovers.
+Windows, macOS and Linux source now use the v2 engine through native adapters,
+operator UI and the retained Python client. The platform-specific records
+separate native/package acceptance and its limits from portable conformance:
+[Windows](../docs/tactical/153-unified-permissions-and-handoff.md),
+[macOS](../docs/tactical/154-macos-shared-surface-adoption.md), and
+[Linux](../docs/tactical/155-linux-shared-surface-adoption.md).
 
 ## Boundary
 
@@ -151,7 +153,10 @@ choices before invoking the production inlet. Extension-local UUIDs and labels
 supply profile identity; exact operator selection supplies authority. Native
 code retains session/owner safety, audit storage and artifact writes. The
 shared host owns browser scope, lifetime, routing, references and CDP streams.
-Its bundled Node runtime is required in Windows desktop companion payloads.
+A bundled Node runtime is required in adopted desktop companion payloads.
+Linux installs its exact pinned ELF under `usr/share/machine-control` so
+AppImage ELF rewriting cannot alter it; both containers verify its complete
+payload. Native peer authentication and OS effects remain platform-owned.
 Run `pnpm --dir runtime install --frozen-lockfile` before packaging.
 Windows signing preserves the pinned upstream Node executable. The publisher
 catalog authenticates `payload.json`; `scripts/verify.py` checks its full-byte
@@ -160,6 +165,8 @@ inventory before signing/bundling and during installed verification.
 `testing/browser-host.ts` retains a private fixture inlet for the original
 real-browser regression. `testing/reference-browser.ts` supplies the complete
 ordinary-operation model behind the production inlet. Neither proves native
-Windows integration by itself. Mac and Linux residents have not adopted this
-boundary. The Python CLI/client remains in Python; `browser --profile` checks
+platform integration by itself. Windows, macOS and Linux residents now adopt
+the production boundary; their bounded acceptance and remaining qualification
+limits are recorded in Tacticals 153–155. The Python CLI/client remains in
+Python; `browser --profile` checks
 resident capability before dispatch and refuses an incompatible resident.
