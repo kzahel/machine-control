@@ -177,8 +177,12 @@ def main():
         check('Settings Stop turns both surfaces Off',all(s['mode']=='off' for s in policy()['surfaces'].values()))
         sdk.close();sdk=None
         choose('Desktop access mode',2,'desktop','automatic')
+        activate_app()
         sdk=ControlSession(target,reason='Verify packaged Automatic warning',surfaces=['desktop'],wait=120,duration=60)
-        poll(lambda:sdk.status()['state']=='announcing','automatic notice');sdk.wait()
+        poll(lambda:sdk.status()['state']=='announcing','automatic notice')
+        import linux_notice_ui
+        check('Automatic banner is visible while Settings has focus',poll(lambda:linux_notice_ui.find(linuxui,'Start now'),'visible Automatic banner') is not None and active_app())
+        sdk.wait()
         check('packaged Automatic warns then starts',sdk.view['state']=='active')
         if args.remote_handoff:
             sdk.close();sdk=None
