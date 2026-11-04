@@ -48,7 +48,7 @@ interface Intent {
   readonly request: AdmissionRequest;
   readonly identity: string;
   readonly resources: readonly string[];
-  readonly deadline: number;
+  deadline: number;
   readonly taskDeadline: number;
   readonly approvals: Map<Surface, number>;
   heartbeat: number;
@@ -311,6 +311,10 @@ export class AccessAdmission {
       if (intent.session && this.#blocks(intent).length > 0) {
         this.#release(intent, "paused");
         intent.heartbeat = now + 60_000;
+        // Active work can outlive its original queue wait. Each yield receives
+        // a new waiting period, including the handoff, under the task ceiling.
+        intent.deadline = Math.min(intent.taskDeadline, now + Math.max(intent.request.waitMs,
+          Math.max(0, this.#humanCooldownUntil - now) + this.#noticeMs + 15_000));
         intent.state = "paused";
         yielded.push(intent);
       }

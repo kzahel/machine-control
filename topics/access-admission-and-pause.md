@@ -71,6 +71,9 @@ an explicit finite lifetime or Until turned off, with visible current armed/
 paused/expired status. A timed pause, heartbeat or retry never extends consent.
 Ask first approval applies to the admitted task/owner, rather than making an
 unrelated waiting task automatically eligible under a target-wide grant.
+A yielded task receives a fresh waiting period that fits its cooldown, notice
+and activation offer, capped by the original overall task deadline. The client
+waits against that new period rather than its initial submission deadline.
 A still-authorized task can resume through a fresh handoff without another
 approval click; it receives a new active session under the original consent
 ceiling. A different task cannot inherit that approval.

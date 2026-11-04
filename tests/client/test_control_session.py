@@ -34,6 +34,15 @@ class ControlSessionTests(unittest.TestCase):
                          {"operation": "browser.tabs", "browserProfileId": "Work profile"})
         with self.assertRaises(mc.ClientError): mc.browser_request(["tabs", "--profile", "Work"], "macos")
 
+    def test_resumed_wait_uses_the_new_server_waiting_period(self):
+        with self.session("resumed") as owner:
+            first = owner.wait()
+            # The original submission deadline has elapsed during active work.
+            owner.deadline = time.monotonic() - 1
+            fresh = owner.wait()
+            self.assertNotEqual(fresh["sessionId"], first["sessionId"])
+        self.assertNotIn("effect", self.record.read_text())
+
     def test_typed_renewal_keeps_live_owner_and_refusal_closes_without_replay(self):
         with self.session("renewable") as owner:
             original = owner.wait()

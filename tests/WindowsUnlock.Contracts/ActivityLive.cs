@@ -47,9 +47,9 @@ internal static class ActivityLive
             }
         }
         void Human(string kind = "key") => grants.Activity.ObservePhysical((double)Stopwatch.GetTimestamp() / Stopwatch.Frequency, kind);
-        JsonElement Submit(string name)
+        JsonElement Submit(string name, int waitSeconds = 300)
         {
-            var result = View(grants.Admission.Submit("fixture", name, ["desktop"], 300, 120, "Native handoff acceptance"));
+            var result = View(grants.Admission.Submit("fixture", name, ["desktop"], waitSeconds, 120, "Native handoff acceptance"));
             liveIntent = result.GetProperty("intentId").GetString();
             return result;
         }
@@ -84,7 +84,7 @@ internal static class ActivityLive
         const string warning = "Machine Control will use desktop", approval = "Machine Control requests access";
         var foreground = GetForegroundWindow();
         Human();
-        var first = Submit("automatic");
+        var first = Submit("automatic", 15);
         var id = first.GetProperty("intentId").GetString()!;
         Check(first.GetProperty("state").GetString() == "announcing", "Recent human activity starts the default warning instead of refusing");
         Check(first.GetProperty("noticeRemainingSeconds").GetDouble() > 9, "Default warning is ten seconds");
@@ -114,6 +114,9 @@ internal static class ActivityLive
         Check(Authorize(active) is null, "Agent-injected input does not interrupt ownership");
         Human("movement");
         Check(Authorize(active) is null, "Accidental movement does not interrupt ownership");
+        while (Status(id).GetProperty("waitRemainingSeconds").GetDouble() > 0)
+        { Status(id, true); await Task.Delay(200); }
+        Check(Authorize(active) is null, "Active work can outlive its initial waiting budget");
         Human("scroll");
         Check(Authorize(active) == "stale_control_session", "Deliberate takeover retires the old native owner before dispatch");
         Check(grants.Admission.Enabled("desktop"), "Takeover retains until-off consent");

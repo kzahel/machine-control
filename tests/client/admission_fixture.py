@@ -7,6 +7,8 @@ import sys
 state = "offered"
 sequence = 0
 remaining = 60
+resumed_polls = 0
+activations = 0
 mode = os.environ.get("MC_ADMISSION_FIXTURE", "ready")
 version = "v1" if (mode.startswith("outer") or mode == "legacy-ready") else "v2"
 schema = "machine-control-admission/" + version
@@ -20,7 +22,7 @@ def event(name):
 def view():
     return dict(schema=schema, revision=1, intentId="fixture-intent", state=state,
         offerGeneration=1, blockingReasons=[], resourceGenerations={"desktop":1} if state == "active" else {},
-        sessionId="fixture-session" if state == "active" else None, terminalReason="cancelled" if state == "ended" else None)
+        sessionId=("fixture-session" + str(activations) if mode == "resumed" else "fixture-session") if state == "active" else None, terminalReason="cancelled" if state == "ended" else None)
 
 for line in sys.stdin.buffer:
     request = json.loads(line)
@@ -41,9 +43,14 @@ for line in sys.stdin.buffer:
         state = "paused"
     elif operation == "control.accept":
         state = "active"
+        activations += 1
+    elif mode == "resumed" and operation == "control.status" and activations == 1:
+        resumed_polls += 1
+        state = "paused" if resumed_polls == 1 else "offered"
     elif operation == "control.cancel":
         state = "ended"
     data = view()
+    if mode == "resumed": data["waitRemainingSeconds"] = 2
     if mode.startswith("renewable"):
         data.update(renewal="owner_connection/v1", activeRemainingSeconds=remaining)
     if operation == "control.renew":

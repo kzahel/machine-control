@@ -264,8 +264,17 @@ class ControlSession:
 
     def wait(self):
         """Accept only a currently offered activation; never replay old work."""
+        deadline = None
         while True:
             view = self.status()
+            if deadline is None:
+                # A resumed task has a fresh server-bounded waiting period.
+                # Pin it once per wait call so repeated polls cannot extend it.
+                budget = view.get("waitRemainingSeconds")
+                if type(budget) in (int, float) and 0 <= budget <= 14400:
+                    deadline = time.monotonic() + budget
+                else:
+                    deadline = self.deadline
             if view["state"] == "ended":
                 raise mc.ClientError(view.get("terminalReason") or "control_ended", "Control intent ended")
             if view["state"] == "active":
@@ -283,7 +292,7 @@ class ControlSession:
                 except mc.ClientError as error:
                     if error.code not in {"stale_activation_offer", "admission_changed"}:
                         raise
-            remaining = self.deadline - time.monotonic()
+            remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise mc.ClientError("wait_deadline_exceeded", "Control wait deadline exceeded")
             self.stopped.wait(min(0.25, remaining))

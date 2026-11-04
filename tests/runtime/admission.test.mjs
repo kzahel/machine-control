@@ -65,6 +65,25 @@ test("typing during countdown does not defer; movement never interrupts; takeove
   assert.equal(f.inspect(intent).state, "paused");
 });
 
+test("late takeover gets a fresh bounded wait and warning after the initial wait expired", () => {
+  const f = fixture(), intent = f.request("desktop", { waitMs: 30_000 });
+  f.advance(10_000);
+  const active = f.activate(intent);
+  for (let i = 0; i < 35; ++i) { f.advance(1000); f.inspect(intent, f.owner, true); }
+  assert.equal(f.inspect(intent).waitRemainingSeconds, 0);
+  f.policy.input("desktop", "key");
+  assert.equal(f.inspect(intent).state, "paused");
+  assert.equal(f.inspect(intent).waitRemainingSeconds, 85, "cooldown, warning and offer fit within the task ceiling");
+  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+  for (let i = 0; i < 60; ++i) { f.advance(1000); f.inspect(intent, f.owner, true); }
+  assert.equal(f.inspect(intent).state, "announcing");
+  f.advance(10_000);
+  const fresh = f.activate(intent);
+  assert.notEqual(fresh.sessionId, active.sessionId);
+  for (let i = 0; i < 35; ++i) { f.advance(1000); f.inspect(intent, f.owner, true); }
+  assert.equal(f.inspect(intent).terminalReason, "duration_expired", "resuming never extends the task ceiling");
+});
+
 test("Ask first approval survives a pause only for the same live task and does not extend consent", () => {
   const f = fixture("ask");
   f.policy.configure("desktop", { mode: "ask", durationMs: 90_000 });
