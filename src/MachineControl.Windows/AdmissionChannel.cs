@@ -114,7 +114,8 @@ internal static class AdmissionChannel
                             await Reply(id, accepted); break;
                         case "control.renew":
                             if (prepared) throw new InvalidOperationException("control_renewal_unavailable");
-                            if (Volatile.Read(ref activeAction) is not null) throw new InvalidOperationException("control_action_in_progress");
+                            // Renewal preserves the owner fence and performs no
+                            // provider work. It must progress during a long action.
                             var seconds = Required(request, "durationSeconds").GetValue<int>();
                             if (seconds is < 1 or > 900) throw new ArgumentException("invalid_renewal_duration");
                             await Reply(id, admission.Renew(owner, intentId, Required(request, "sessionId").GetValue<string>(),

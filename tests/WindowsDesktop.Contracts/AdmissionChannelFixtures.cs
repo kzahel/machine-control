@@ -122,6 +122,13 @@ internal static class AdmissionChannelFixtures
             await providerStarted.Task.WaitAsync(stop.Token);
             try
             {
+                var busyRenewal = await Call(a, "control.renew", new()
+                {
+                    ["sessionId"] = active["sessionId"]!.DeepClone(),
+                    ["resourceGenerations"] = active["resourceGenerations"]!.DeepClone(),
+                    ["durationSeconds"] = 120
+                });
+                Require(busyRenewal["accepted"]!.GetValue<bool>(), "An in-flight action cannot starve same-owner renewal");
                 var overlapping = Action(); overlapping["request"] = new JsonObject { ["operation"] = "capabilities" };
                 Require((await Call(a, "control.dispatch", overlapping))["errorCode"]!.GetValue<string>() == "control_action_in_progress", "Unsettled provider work still excludes another dispatch");
             }
