@@ -34,6 +34,8 @@ try {
     window.__TAURI_INTERNALS__ = { transformCallback: () => 1, unregisterCallback: () => {}, invoke: async (command, args) => {
       if (command !== "operator_command") return 1;
       const request = args.command;
+      if (request.method === "state" && window.busyStatePoll) { window.busyPolls = (window.busyPolls ?? 0) + 1; return { ok: true, busy: true }; }
+      if (request.method === "state" && window.failedStatePoll) throw "Resident unavailable";
       if (request.method !== "state" && request.method !== "update_sync") window.commands.push(request);
       if (request.method === "surface.configure") Object.assign(policy.surfaces[request.surface], { mode: request.mode,
         profileIds: request.browserProfileIds, consentRemainingSeconds: request.lifetime === "timed" ? request.duration : null });
@@ -55,6 +57,12 @@ try {
   const browserMode = page.getByRole("combobox", { name: "Browser access mode" });
   assert.equal(await browserMode.locator('option[value="automatic"]').evaluate(option => option.disabled), true);
   await page.getByRole("checkbox", { name: "Allow profile Work", exact: true }).check();
+  await page.evaluate(() => { window.busyStatePoll = true; });
+  await page.waitForFunction(() => window.busyPolls > 0);
+  assert.equal(await page.getByRole("checkbox", { name: "Allow profile Work", exact: true }).isChecked(), true,
+    "a busy metadata poll must preserve an unarmed profile edit");
+  assert.equal((await page.evaluate(() => window.commands)).filter(command => command.method === "surface.configure").length, 0);
+  await page.evaluate(() => { window.busyStatePoll = false; });
   await page.getByRole("combobox", { name: "Desktop access mode" }).selectOption("ask");
   await browserMode.selectOption("automatic");
   let commands = await page.evaluate(() => window.commands);
@@ -87,6 +95,10 @@ try {
   await page.evaluate(() => { window.fixtureState.accessPolicy.available = false; });
   await page.getByRole("alert").filter({ hasText: "control engine is unavailable" }).waitFor();
   assert.equal(await page.getByRole("combobox", { name: "Desktop access mode" }).isDisabled(), true);
+  await page.evaluate(() => { window.failedStatePoll = true; });
+  await page.getByText("Resident unavailable", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("combobox", { name: "Desktop access mode" }).count(), 0,
+    "a terminal transport failure must remove control widgets");
   assert.deepEqual(errors, []);
   console.log("Surface settings modes, exact profiles, remembered choices, task controls and independent pauses passed");
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

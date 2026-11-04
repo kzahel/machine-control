@@ -306,7 +306,12 @@ pub fn command(command: Value) -> Result<Value, String> {
         return Err("Operator work cancelled by Stop".into());
     }
     // Reject overload instead of growing a queue behind a slow companion.
-    let _permit = command_permit(command["method"].as_str().unwrap_or(""))?;
+    let Some(_permit) = command_permit(command["method"].as_str().unwrap_or(""))? else {
+        // A skipped metadata poll has no new state or authority. Let Settings
+        // retain its form until the next poll instead of treating contention
+        // with operator/update work as a lost resident.
+        return Ok(json!({"ok":true,"busy":true}));
+    };
     if command["operatorEpoch"]
         .as_u64()
         .is_some_and(|value| value != epoch())
@@ -443,18 +448,19 @@ pub fn shutdown() {
 
 static COMMAND_GATE: Mutex<()> = Mutex::new(());
 
-fn command_permit(method: &str) -> Result<std::sync::MutexGuard<'static, ()>, String> {
+fn command_permit(method: &str) -> Result<Option<std::sync::MutexGuard<'static, ()>>, String> {
     // Housekeeping never queues ahead of the person. A real operator command
     // gets a short bounded opportunity to acquire IPC on its background worker.
     let until = std::time::Instant::now() + Duration::from_millis(500);
     loop {
         match COMMAND_GATE.try_lock() {
-            Ok(permit) => return Ok(permit),
+            Ok(permit) => return Ok(Some(permit)),
             Err(std::sync::TryLockError::Poisoned(_)) => return Err("Operator unavailable".into()),
             Err(std::sync::TryLockError::WouldBlock) => {
-                if matches!(method, "state" | "update_sync" | "logs.diagnostic")
-                    || std::time::Instant::now() >= until
-                {
+                if matches!(method, "state" | "update_sync") {
+                    return Ok(None);
+                }
+                if method == "logs.diagnostic" || std::time::Instant::now() >= until {
                     return Err("Resident is busy; try again".into());
                 }
                 std::thread::sleep(Duration::from_millis(10));
@@ -494,7 +500,12 @@ mod tests {
     fn housekeeping_refuses_and_operator_admission_remains_bounded() {
         let _occupied = COMMAND_GATE.lock().unwrap();
         let started = std::time::Instant::now();
-        assert!(command_permit("state").is_err());
+        assert!(command_permit("state").unwrap().is_none());
+        assert!(command_permit("update_sync").unwrap().is_none());
+        assert_eq!(
+            command(json!({"method":"state"})).unwrap(),
+            json!({"ok":true,"busy":true})
+        );
         assert!(started.elapsed() < Duration::from_millis(250));
         assert!(command_permit("pause").is_err());
         assert!(started.elapsed() < Duration::from_secs(1));

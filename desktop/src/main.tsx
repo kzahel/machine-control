@@ -174,6 +174,7 @@ const labels: Record<Scope, string> = {
 };
 async function native(command: Record<string, unknown>) {
   return invoke<{
+    busy?: boolean;
     state?: State;
     extensionPath?: string;
     history?: History;
@@ -278,6 +279,9 @@ function App() {
     refreshInFlight.current = true;
     try {
       const r = await native({ method: "state" });
+      // Housekeeping may yield to an operator action or update sync. A skipped
+      // poll must not unmount the form and discard its unarmed profile edits.
+      if (r.busy) return;
       if (r.setupPending) {
         setState(
           (previous) =>

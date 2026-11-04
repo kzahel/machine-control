@@ -96,7 +96,7 @@ internal sealed class DesktopNativePresentation : IDisposable
     { Text = content, Location = new Point(18, top), Size = new Size(404, height), AutoEllipsis = true };
     private static Button Button(Form form, string label, int left, int top, Action action)
     {
-        var button = new Button { Text = label, Location = new Point(left, top), Size = new Size(118, 34), AccessibleName = label };
+        var button = new Button { Text = label, Location = new Point(left, top), Size = new Size(128, 34), AccessibleName = label };
         button.Click += (_, _) =>
         {
             try { action(); }
@@ -125,11 +125,11 @@ internal sealed class DesktopNativePresentation : IDisposable
             if (needsApproval) broker.Admission.Approve(id); else broker.Admission.StartNow(id);
             responded = true; form.Close();
         });
-        Button(form, "Pause 30 seconds", 154, 155, () => { broker.PauseRequest(id, 30); responded = true; form.Close(); });
-        Button(form, "Pause 1 minute", 286, 155, () => { broker.PauseRequest(id, 60); responded = true; form.Close(); });
+        Button(form, "Pause 30 seconds", 156, 155, () => { broker.PauseRequest(id, 30); responded = true; form.Close(); });
+        Button(form, "Pause 1 minute", 294, 155, () => { broker.PauseRequest(id, 60); responded = true; form.Close(); });
         Button(form, "Until Resume", 18, 200, () => { broker.PauseRequest(id, null); responded = true; form.Close(); });
-        Button(form, "Deny task", 154, 200, () => { broker.Admission.CancelFromOperator(id); responded = true; form.Close(); });
-        Button(form, "Stop access", 286, 200, () => { broker.Stop("stopped_by_person"); responded = true; form.Close(); });
+        Button(form, "Deny task", 156, 200, () => { broker.Admission.CancelFromOperator(id); responded = true; form.Close(); });
+        Button(form, "Stop access", 294, 200, () => { broker.Stop("stopped_by_person"); responded = true; form.Close(); });
         form.FormClosing += (_, _) => { if (!responded) broker.PauseRequest(id, 60); };
         form.Controls.Add(Text("Mouse movement does not interrupt. Click, key or scroll to take control back.", 245, 36));
         return form;

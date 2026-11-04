@@ -224,3 +224,11 @@ These are source/build and fixture results, not packaged Windows acceptance.
   it fails with the previous pool-based transport and passes with the new one.
   Portable native contracts, formatting and ARM64/x64 publishes pass. The final
   clean Windows candidate still needs qualification before broad review.
+- Packaged Settings inspection exposed a transient status-poll collision with
+  operator/update work. Treating that collision as a lost resident unmounted
+  the form and discarded unarmed profile choices. Windows now returns explicit
+  pending metadata without queueing; the UI retains its form until the next
+  poll. A rendered regression reproduces the lost choice in the previous UI
+  and passes with the correction, while real transport failure still removes
+  control widgets. Native visual inspection also found a clipped pause label;
+  the notice now uses wider, evenly spaced button columns.
