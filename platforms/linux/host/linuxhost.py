@@ -51,12 +51,32 @@ def resource_id():
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def claim(arguments, capture=False):
+def claim_state():
     state = Path(os.environ.get("MACHINE_CONTROL_HOST_STATE_DIR",
                                 str(Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "machine-control/controller")))
+    return state / "claims"
+
+
+def claim(arguments, capture=False):
     return subprocess.run([sys.executable, str(ROOT / "providers/claims/claims.py"),
-                           "--state-dir", str(state / "claims"), *arguments],
+                           "--state-dir", str(claim_state()), *arguments],
                           text=True, capture_output=capture)
+
+
+def live_claim_checker(identifier):
+    """Reuse exact claim validation without a process launch per live frame."""
+    spec=importlib.util.spec_from_file_location('linux_host_claims',ROOT/'providers/claims/claims.py')
+    claims=importlib.util.module_from_spec(spec);spec.loader.exec_module(claims)
+    identity=resource_id()
+    arguments=claims.parser().parse_args(['--state-dir',str(claim_state()),'check',
+        '--provider','linux-host','--resource-id',identity,'--claim-id',identifier])
+    def check():
+        try:
+            if resource_id()!=identity:raise ValueError('Local target identity changed')
+            claims.command_check(arguments)
+        except claims.ClaimError as error:
+            raise ValueError('Target claim ended') from error
+    return check
 
 
 def doctor():
@@ -134,11 +154,7 @@ def main(arguments):
             spec=importlib.util.spec_from_file_location('desktop_channel',Path(__file__).with_name('desktop_channel.py'))
             transport=importlib.util.module_from_spec(spec)
             spec.loader.exec_module(transport)
-            def check():
-                if claim(['check','--provider','linux-host','--resource-id',resource_id(),
-                          '--claim-id',identifier],capture=True).returncode:
-                    raise ValueError('Target claim ended')
-            return transport.relay(check)
+            return transport.relay(live_claim_checker(identifier))
         if command in {"control", "control-local"} and len(rest) == 1:
             request = json.loads(rest[0])
             if not isinstance(request, dict):

@@ -230,3 +230,17 @@ shared environment builder keeps production and the rendering regression in
 agreement. The renderer check runs under an isolated Xvfb server in CI; it is
 presentation evidence, not an admission or OS-input oracle. Final integrated
 visual and packaged acceptance remain required.
+
+**Current — shipped SDK lease finding:** packaged Settings reaches native
+approval and activation, but repeated checks of the exact local claim launch
+another Python process on every live frame and periodic poll. Under the real
+composition that overhead expires the five-second owner lease even while the
+transport remains open. The live host now imports the existing authoritative
+claim implementation once and calls its same checked-store operation for each
+frame and periodic check. It retains exact identity, release, expiry and store
+validation; no cached grant or longer owner lease is introduced. A regression
+uses a real claim, prohibits process creation during repeated checks, changes
+the local identity and releases the claim to prove immediate refusal. The
+relay also starts its progress clocks after the authority check, and schedules
+its next periodic check from completion rather than its stale start time.
+Final packaged acceptance remains required.

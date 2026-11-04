@@ -35,7 +35,8 @@ def relay(check=lambda:None):
         try:
             while os.getppid()==parent:
                 now=time.monotonic()
-                if now>=check_at:check();check_at=now+1
+                if now>=check_at:
+                    check();check_at=time.monotonic()+1;now=time.monotonic()
                 if write_at is not None and now-write_at>3:raise ValueError('Resident write timeout')
                 if output_at is not None and now-output_at>3:raise ValueError('Caller write timeout')
                 readable=[incoming] if len(to_socket)<65536 else []
@@ -50,6 +51,7 @@ def relay(check=lambda:None):
                         count=request.index(b'\n')+1
                         if count>65536:raise ValueError('Request frame too large')
                         check()  # Each complete frame retains exact-target claim authority.
+                        now=time.monotonic();check_at=now+1
                         if not to_socket:write_at=now
                         to_socket.extend(request[:count]);del request[:count]
                     if len(request)>65536:raise ValueError('Request frame too large')
