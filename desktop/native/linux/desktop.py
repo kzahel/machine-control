@@ -721,29 +721,38 @@ class Desktop:
         self.scheduler.post(lambda: self.shutdown() or False)
 
     def shutdown(self):
-        self.journal.event("resident.stop")
         if self.stopped:
             return
         self.stopped = True
-        self.work.cancel()
-        self.grants.stop("operator_disconnected")
-        self.portal.close()
-        self.browser.close()
-        for channel in list(self.channels):channel.close()
-        self.activity.close()
-        self.policy.stop()
-        self.socket.close()
-        self.endpoint.unlink(missing_ok=True)
-        self.recovery.close()
-        self.recovery_endpoint.unlink(missing_ok=True)
-        self.presentation.close()
-        with self.safety_condition:
-            self.safety_condition.notify_all()
-        if self.safety.poll() is None:
-            self.safety.terminate()
-        try:self.safety.wait(timeout=4)
-        except subprocess.TimeoutExpired:
-            self.safety.kill();self.safety.wait(timeout=1)
+        self.inhibit.set()
+        def close(name, action):
+            try:action()
+            except Exception:
+                # Simultaneous process-family termination can end Node before
+                # its Stop reply. No failed resource may strand the remaining
+                # listeners, peers or children. Diagnostics carry no payload.
+                try:self.journal.diagnostic('resident.cleanup',name)
+                except Exception:pass
+        close('audit',lambda:self.journal.event('resident.stop'))
+        close('work',self.work.cancel)
+        close('access',lambda:self.grants.stop('operator_disconnected'))
+        close('policy',self.policy.stop)
+        close('portal',self.portal.close)
+        close('browser',self.browser.close)
+        for channel in list(self.channels):close('channel',channel.close)
+        close('activity',self.activity.close)
+        close('listener',self.socket.close)
+        close('endpoint',lambda:self.endpoint.unlink(missing_ok=True))
+        close('operator-listener',self.recovery.close)
+        close('operator-endpoint',lambda:self.recovery_endpoint.unlink(missing_ok=True))
+        close('presentation',self.presentation.close)
+        def notice():
+            with self.safety_condition:self.safety_condition.notify_all()
+            if self.safety.poll() is None:self.safety.terminate()
+            try:self.safety.wait(timeout=4)
+            except subprocess.TimeoutExpired:
+                self.safety.kill();self.safety.wait(timeout=1)
+        close('notice',notice)
         self.loop.quit()
 
 
