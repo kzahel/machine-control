@@ -178,3 +178,15 @@ The failed trial restores helper absence, the original screensaver rule,
 app/policy/native preferences and owned processes. A normal guest reboot
 returns the baseline to an independently ready unlocked session; no outer UI
 or credential retry is used.
+
+**Current — native shortcut finding:** the corrected package passes all 20
+ordinary checks again. Two protected tasks each unlock, independently conceal,
+change the fixture once and capture it; the first cleanly releases/relocks and
+retains ordinary consent. The second exposes a layout mismatch in the native
+Stop chord: registration hard-codes the US period key while input correctly
+resolves the displayed chord on Dvorak. Both Mac shells now share one native
+shortcut object using the effective Command layout, refresh on input-source
+changes, report failed registration as unavailable, and release their Carbon
+handler/registration. Dvorak, Command-hybrid, shifted-period and unavailable
+layout cases are covered; all 229 Swift tests pass. Actual Stop and final
+protected cleanup remain unqualified until a new packaged trial passes.

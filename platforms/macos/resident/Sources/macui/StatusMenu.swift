@@ -5,7 +5,7 @@ import Carbon.HIToolbox
 /// The menu bar presence of the resident: grant state, Stop, manual arming,
 /// recent activity, and permission setup. Enforcement stays in the broker.
 final class StatusMenuController: NSObject, NSMenuDelegate {
-    static let stopShortcut = "⌃⌥⌘."
+    static let stopShortcut = StopShortcut.label
 
     let broker: GrantBroker
     let approval: ApprovalPanelController
@@ -20,7 +20,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
     private var refreshTimer: Timer?
-    private var hotKey: EventHotKeyRef?
+    private var hotKey: StopShortcut?
+    var stopShortcutAvailable: Bool { hotKey?.available == true }
     private(set) var menuOpen = false
 
     init(broker: GrantBroker, approval: ApprovalPanelController, setup: SetupWindowController) {
@@ -32,7 +33,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
         statusItem.menu = menu
         statusItem.button?.toolTip = "Machine Control"
-        registerStopHotKey()
+        hotKey = StopShortcut { [weak self] in self?.stopFromHotKey() }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.updateIcon()
         }
@@ -181,19 +182,4 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    private func registerStopHotKey() {
-        var handlerSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                        eventKind: UInt32(kEventHotKeyPressed))
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, context in
-            guard let context else { return noErr }
-            let controller = Unmanaged<StatusMenuController>.fromOpaque(context).takeUnretainedValue()
-            DispatchQueue.main.async { controller.stopFromHotKey() }
-            return noErr
-        }, 1, &handlerSpec, context, nil)
-        let identifier = EventHotKeyID(signature: OSType(0x4D43_5354), id: 1)
-        RegisterEventHotKey(UInt32(kVK_ANSI_Period),
-                            UInt32(controlKey | optionKey | cmdKey),
-                            identifier, GetApplicationEventTarget(), 0, &hotKey)
-    }
 }

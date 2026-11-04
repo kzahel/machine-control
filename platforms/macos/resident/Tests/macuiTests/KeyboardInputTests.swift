@@ -55,6 +55,20 @@ final class KeyboardInputTests: XCTestCase {
         XCTAssertEqual(resolved.code, 37)
         XCTAssertEqual(resolved.flags, [.maskCommand, .maskShift])
     }
+    func testStopShortcutUsesTheEffectiveCommandLayout() throws {
+        let command = CGEventFlags.maskCommand.rawValue
+        let shifted = CGEventFlags([.maskShift, .maskCommand]).rawValue
+        let dvorak = layout([14:[command:"."], 47:[command:"v"]])
+        let key = try StopShortcut.key(in:dvorak)
+        XCTAssertEqual(key.code,14)
+        XCTAssertEqual(key.flags,[.maskControl,.maskAlternate,.maskCommand])
+        let hybrid = layout([14:[0:".",command:"e"], 47:[0:"v",command:"."]])
+        XCTAssertEqual(try StopShortcut.key(in:hybrid).code,47)
+        let shiftLayout = layout([47:[command:":",shifted:"."]])
+        XCTAssertTrue(try StopShortcut.key(in:shiftLayout).flags.contains(.maskShift))
+        XCTAssertThrowsError(try StopShortcut.key(in:layout([:])))
+    }
+
     func testPunctuationSeparatorsAndNamedKeys() throws {
         let l = layout([27:[0:"-",CGEventFlags.maskCommand.rawValue:"-"],24:[0:"=",CGEventFlags.maskShift.rawValue:"+"],
                         44:[0:"/",CGEventFlags.maskShift.rawValue:"?"]])

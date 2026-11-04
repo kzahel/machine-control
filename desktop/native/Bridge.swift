@@ -7,7 +7,7 @@ import Foundation
 private var launchPresentation: PresentationProfile?
 private var desktopRuntime: ResidentRuntime?
 private var desktopMenuTracking = false
-private var desktopHotKey: EventHotKeyRef?
+private var desktopHotKey: StopShortcut?
 
 private func stopDesktopAccess() { desktopRuntime?.stopAccess() }
 
@@ -60,7 +60,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
         }
         try runtime.start()
         desktopRuntime = runtime
-        runtime.stopShortcutAvailable = { desktopHotKey != nil }
+        runtime.stopShortcutAvailable = { desktopHotKey?.available == true }
         // AppKit's standard application-menu termination can finish before the
         // Tauri exit-request callback. End protected control in the native
         // lifecycle notification as well, before the process disappears.
@@ -71,13 +71,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
             }
         NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { _ in desktopMenuTracking = true }
         NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { _ in desktopMenuTracking = false }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-            stopDesktopAccess()
-            return noErr
-        }, 1, &spec, nil, nil)
-        RegisterEventHotKey(UInt32(kVK_ANSI_Period), UInt32(controlKey | optionKey | cmdKey),
-            EventHotKeyID(signature: OSType(0x4D43_5354), id: 1), GetApplicationEventTarget(), 0, &desktopHotKey)
+        desktopHotKey = StopShortcut { stopDesktopAccess() }
         return bridgeJSON(["ok": true, "presentation":runtime.presentationJSON])
     } catch { return bridgeJSON(["ok": false, "error": String(describing: error)]) }
 }

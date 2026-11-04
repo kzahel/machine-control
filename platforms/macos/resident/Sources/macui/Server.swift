@@ -908,6 +908,7 @@ func runResident(socketPath: String) throws -> Never {
     let setup = SetupWindowController()
     setup.browserConnected = { [weak server] in server?.browser.connected == true }
     let menu = StatusMenuController(broker: broker, approval: approval, setup: setup)
+    runtime.stopShortcutAvailable = { [weak menu] in menu?.stopShortcutAvailable == true }
     menu.trustedAccess = { [weak server] in server?.callerTrust.status["enabled"] as? Bool == true }
     menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
     menu.onResume = { [weak runtime] in
