@@ -48,9 +48,13 @@ def intent(method,**fields):print(json.dumps(dict(method=method,**fields)),flush
 def hide_controls():
     global panel_requested
     panel_requested=False
+    # Let the compositor withdraw the focused panel before posting its banner;
+    # GNOME suppresses banners belonging to the currently focused application.
+    # No availability update is emitted between unmapping and reposting.
+    window.hide();Gdk.Display.get_default().sync()
     notification.return_to_banner()
     if current_view is not None:update(current_view)
-    window.hide();alive()
+    alive()
 
 def button(label,method,**fields):
     value=Gtk.Button(label=label)
