@@ -12,6 +12,8 @@ class Notification:
     def update(self,binding,summary,body,choices,intent,state):
         binding=(binding,json.dumps(choices,sort_keys=True,separators=(',',':'),allow_nan=False))
         if binding!=self.binding:
+            identifier=self.identifier;self.identifier=0
+            if identifier:self.close(identifier)
             self.binding=binding;self.actions={('stop' if method=='stop' else uuid.uuid4().hex):(method,fields) for _,method,fields in choices}
             self.message=None;self.acted=False;self.opened=False;self.stopped=False;self.dismissed=None
         self.intent,self.state=intent,state

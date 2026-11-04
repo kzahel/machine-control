@@ -52,7 +52,4 @@ def press(linuxui,control,operator):
         fresh[0].clear_cache()
         if 'focused' not in linuxui.state_names(fresh[0]):return False
     delivered=operator('input.key',key='enter').get('accepted') is True
-    # Explicit fixture selection releases Shell's keyboard grab. Opening the
-    # full controls intentionally focuses that window instead.
-    if info['role']=='push button' and delivered:operator('input.key',key='alt+tab')
     return delivered

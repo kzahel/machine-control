@@ -302,3 +302,12 @@ approval, show the other countdowns and offer an explicitly global Pause all
 button. A changed button set rotates callback bindings even if the selected
 task/state is unchanged. All 46 portable desktop tests pass (one kernel-only
 skip on macOS); native lifetime and integrated acceptance remain required.
+
+A native notification's close signal carries only its ID, without an action
+or view generation. Reusing that ID across approval/warning/active states
+could apply a delayed close to the next state. A changed presentation binding
+now retires the old notification and creates a new native ID; countdown-only
+updates retain their ID. A regression proves a late close cannot defer the new
+state. Native failure evidence includes current owner/blocking state. Fixture
+activation uses the previously verified focus/Enter sequence without an
+additional window-switch gesture that could itself dismiss the notification.

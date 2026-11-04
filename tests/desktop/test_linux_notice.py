@@ -10,7 +10,11 @@ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 class NotificationTests(unittest.TestCase):
     def setUp(self):
         self.sent=[];self.closed=[];self.events=[];self.shown=[]
-        def notify(identifier,*fields):self.sent.append((identifier,*fields));return identifier or 7
+        self.next_id=6
+        def notify(identifier,*fields):
+            self.sent.append((identifier,*fields))
+            if not identifier:self.next_id+=1
+            return identifier or self.next_id
         self.notice=module.Notification(':1.42',notify,self.closed.append,
             lambda method,**fields:self.events.append((method,fields)),lambda:self.shown.append(True))
         self.choices=[('Allow this task','intent.approve',dict(intentId='task')),('Stop all access','stop',{})]
@@ -23,7 +27,7 @@ class NotificationTests(unittest.TestCase):
         self.notice.action(':1.43',7,token);self.notice.action(':1.42',8,token)
         self.update('another');self.notice.action(':1.42',7,token)
         self.assertEqual(self.events,[])
-        self.notice.action(':1.42',7,self.token())
+        self.notice.action(':1.42',self.notice.identifier,self.token())
         self.assertEqual(self.events,[('intent.approve',{'intentId':'task'})])
     def test_decisions_do_not_replay_and_stop_remains_immediate(self):
         token=self.token()
@@ -36,8 +40,13 @@ class NotificationTests(unittest.TestCase):
             ('Pause all 30 seconds','pause',{'duration':30}),('Stop all access','stop',{})],
             'task','waiting_for_approval')
         self.notice.action(':1.42',7,old);self.assertEqual(self.events,[])
-        self.notice.action(':1.42',7,self.token())
+        self.notice.action(':1.42',self.notice.identifier,self.token())
         self.assertEqual(self.events,[('pause',{'duration':30})])
+    def test_late_close_cannot_defer_a_replaced_notification_generation(self):
+        old=self.notice.identifier;self.update('announcing')
+        self.assertNotEqual(old,self.notice.identifier)
+        self.notice.closed(':1.42',old,2)
+        self.assertEqual(self.events,[]);self.assertEqual(self.closed,[old])
     def test_countdown_replaces_without_rotating_callback_binding(self):
         token=self.token();self.update(body='Starting in nine seconds')
         self.assertEqual(self.token(),token);self.assertEqual(self.sent[-1][0],7)
@@ -52,7 +61,7 @@ class NotificationTests(unittest.TestCase):
         self.notice.closed(':1.42',7,2);self.assertEqual(self.events,[])
         self.update('active');self.notice.withdraw()
         self.notice.action(':1.42',7,'stop');self.notice.closed(':1.42',7,2)
-        self.assertEqual(self.closed,[7]);self.assertEqual(self.events,[])
+        self.assertEqual(self.closed,[8]);self.assertEqual(self.events,[])
 
 
 class PresentationTests(unittest.TestCase):

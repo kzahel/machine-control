@@ -190,7 +190,9 @@ def main():
         automatic.close();owners.remove(automatic)
         operator('quit');child.wait(10);check('owned policy and native UI exit',child.returncode==0)
     except BaseException as error:
-        failure=type(error).__name__+': '+str(error);raise
+        failure=type(error).__name__+': '+str(error)
+        with contextlib.suppress(Exception):(args.output/'failure-state.private.json').write_text(json.dumps(dict(native=state(),owners=[owner.status() for owner in owners])))
+        raise
     finally:
         for value in owners:
             with contextlib.suppress(Exception):value.close()
