@@ -124,11 +124,11 @@ def main():
         subprocess.run(['/usr/bin/systemd-run','--user','--quiet','--collect','--unit',fixture_unit,
             '/usr/bin/python3',str(runner)],stdout=log,stderr=log,check=True)
         poll(lambda:oracle.exists(),'owned fixture')
-        operator('control_notice',noticeSeconds=5);configure('ask')
+        operator('control_notice',noticeSeconds=10);configure('ask')
         poll(lambda:state()['activityObserver']['healthy'],'actual read-only observer')
         first=owner();waiting(first,'waiting_for_approval')
-        press('Allow this task');waiting(first,'announcing')
         check('native warning does not take keyboard focus',any(row['pid']==json.loads(oracle.read_text())['pid'] for row in foreground()))
+        press('Allow this task');waiting(first,'announcing')
         press('Start now');first.wait()
         check('Ask first yields a live owner',first.view['state']=='active')
         reference=effect(first);original=first.view['sessionId']

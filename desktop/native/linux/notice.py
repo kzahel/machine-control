@@ -8,11 +8,12 @@ import os
 import signal
 import sys
 import threading
+import select
 import gi
 
 gi.require_version('Gtk','3.0')
 from gi.repository import GLib,Gtk,Gdk,Gio
-from notification_state import Notification
+from notification_state import Notification,primary_request,other_announcements
 
 parent=os.getppid()
 if ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)!=0 or os.getppid()!=parent:
@@ -68,13 +69,13 @@ def show():
     if current is None:return
     panel_requested=True;window.show_all();window.present();alive()
 notification=Notification(owner,notify,close,intent,show)
-def signal_received(_bus,sender,_path,_interface,signal,parameters):
+def signal_received(_bus,sender,_path,_interface,signal,parameters,*_data):
     values=parameters.unpack()
     if signal=='ActionInvoked':notification.action(sender,*values)
     elif signal=='NotificationClosed':notification.closed(sender,*values)
 # Bind to the actual service owner, never a replacement or a claimed sender.
 bus.signal_subscribe(owner,service,None,path,None,Gio.DBusSignalFlags.NONE,signal_received)
-def owner_changed(_bus,_sender,_path,_interface,_signal,parameters):
+def owner_changed(_bus,_sender,_path,_interface,_signal,parameters,*_data):
     if parameters.unpack()[2]!=owner:Gtk.main_quit()
 bus.signal_subscribe('org.freedesktop.DBus','org.freedesktop.DBus','NameOwnerChanged',
     '/org/freedesktop/DBus',service,Gio.DBusSignalFlags.NONE,owner_changed)
@@ -88,9 +89,7 @@ def alive():
 def update(value):
     global binding,current,panel_requested,choices
     requests=value.get('requests',[])
-    priority={'waiting_for_approval':0,'announcing':1,'active':2,'paused':3,
-              'waiting_for_availability':4,'waiting_for_resource':5,'offered':6}
-    row=min(requests,key=lambda row:priority.get(row.get('state'),9)) if requests else None
+    row=primary_request(requests)
     current=row
     if row is None:
         window.hide();panel_requested=False;binding=None;notification.withdraw();alive();return False
@@ -109,7 +108,11 @@ def update(value):
     text=('Starting in '+str(math.ceil(remaining))+' seconds.' if isinstance(remaining,(int,float)) else '')
     if state=='paused':text=('Retry in '+str(math.ceil(cooldown))+' seconds, with a fresh warning.' if cooldown else 'A fresh warning appears before access resumes.')
     if state=='waiting_for_availability':text='Check permissions and provider availability in Settings. This request remains queued.'
-    countdown.set_text(text)
+    others=other_announcements(requests,row)
+    countdown.set_text('\n'.join([text,*others]).strip())
+    if others:
+        surfaces=sorted({surface for task in requests if task.get('state')=='announcing' for surface in task.get('surfaces',[])})
+        heading.set_text('Starting '+' + '.join(surfaces)+' control')
     key=(identifier,state,tuple(surfaces),bool(value.get('globalPauses')))
     if key!=binding:
         binding=key;choices=[]
@@ -132,6 +135,7 @@ def update(value):
     # mapped only after an explicit native notification action by the user.
     primary=[choice for choice in choices if choice[1] not in ('stop','settings','panel.hide')][:2]
     primary.extend(choice for choice in choices if choice[1]=='stop')
+    if others:primary=[('Pause all 30 seconds','pause',{'duration':30}),('Stop all access','stop',{})]
     body='\n'.join(html.escape(text) for text in (reason.get_text(),caller.get_text(),countdown.get_text()) if text)
     try:notification.update(key,'Machine Control — '+heading.get_text(),body,primary,identifier,state)
     except (GLib.Error,ValueError):Gtk.main_quit();return False
@@ -140,21 +144,34 @@ def update(value):
 
 
 window.connect('delete-event',lambda *_:(intent('stop'),True)[1])
+stopping=threading.Event()
 def reader():
+    # Never finalize Python with a daemon holding BufferedReader's stdin lock.
+    descriptor=sys.stdin.fileno();os.set_blocking(descriptor,False);buffer=bytearray()
     try:
-        for line in sys.stdin.buffer:
-            if len(line)>65536:break
-            value=json.loads(line)
-            if not isinstance(value,dict) or value.get('schema')!='machine-control-admission/v2':break
-            GLib.idle_add(update,value)
+        while not stopping.is_set():
+            if not select.select([descriptor],[],[],.2)[0]:continue
+            try:chunk=os.read(descriptor,8192)
+            except BlockingIOError:continue
+            if not chunk:break
+            buffer.extend(chunk)
+            while b'\n' in buffer:
+                line,_,remaining=buffer.partition(b'\n');buffer=bytearray(remaining)
+                if len(line)>65535:return
+                value=json.loads(line)
+                if not isinstance(value,dict) or value.get('schema')!='machine-control-admission/v2':return
+                GLib.idle_add(update,value)
+            if len(buffer)>65535:return
     finally:GLib.idle_add(Gtk.main_quit)
 
-threading.Thread(target=reader,daemon=True).start()
+reader_thread=threading.Thread(target=reader,name='mc-notice-input')
+reader_thread.start()
 GLib.timeout_add(500,alive)
 signal.signal(signal.SIGTERM,lambda *_:GLib.idle_add(Gtk.main_quit))
 signal.signal(signal.SIGINT,lambda *_:GLib.idle_add(Gtk.main_quit))
-intent('ready')
-try:Gtk.main()
+try:
+    intent('ready');Gtk.main()
 finally:
+    stopping.set();reader_thread.join(timeout=1)
     try:notification.withdraw()
     except GLib.Error:pass

@@ -1,5 +1,6 @@
 """Native notification identity/actions only; all access policy stays in Node."""
 import uuid
+import json
 
 
 class Notification:
@@ -9,6 +10,7 @@ class Notification:
         self.dismissed=None;self.acted=False;self.opened=False;self.stopped=False;self.intent=None;self.state=None
 
     def update(self,binding,summary,body,choices,intent,state):
+        binding=(binding,json.dumps(choices,sort_keys=True,separators=(',',':'),allow_nan=False))
         if binding!=self.binding:
             self.binding=binding;self.actions={('stop' if method=='stop' else uuid.uuid4().hex):(method,fields) for _,method,fields in choices}
             self.message=None;self.acted=False;self.opened=False;self.stopped=False;self.dismissed=None
@@ -47,3 +49,23 @@ class Notification:
         self.identifier=0;self.binding=None;self.actions={};self.message=None
         self.dismissed=None;self.intent=None;self.state=None;self.acted=False;self.opened=False;self.stopped=False
         if identifier:self.close(identifier)
+
+
+def primary_request(requests):
+    # An imminent handoff must not hide behind another surface's Ask first
+    # task. This selects presentation only; Node still owns every deadline.
+    priority={'announcing':0,'waiting_for_approval':1,'active':2,'paused':3,
+              'waiting_for_availability':4,'waiting_for_resource':5,'offered':6}
+    return min(requests,key=lambda row:priority.get(row.get('state'),9)) if requests else None
+
+
+def other_announcements(requests,selected):
+    import math
+    rows=[row for row in requests if row is not selected and row.get('state')=='announcing']
+    lines=[]
+    for row in rows[:2]:
+        remaining=row.get('noticeRemainingSeconds')
+        delay=str(math.ceil(remaining))+' seconds' if isinstance(remaining,(int,float)) else 'shortly'
+        lines.append('Also starting '+', '.join(row.get('surfaces',[]))+' in '+delay+': '+row.get('reason',''))
+    if len(rows)>2:lines.append(str(len(rows)-2)+' more tasks are starting. Open Settings for details.')
+    return lines

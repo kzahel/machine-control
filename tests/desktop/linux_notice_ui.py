@@ -31,10 +31,28 @@ def press(linuxui,control,operator):
     node,info=control
     with contextlib.suppress(Exception):
         if node.do_action(0):return True
-    # GNOME St controls expose geometry but no AT-SPI action on the qualified
-    # session. This is the independent fixture's explicit human-side input,
-    # never an ordinary provider fallback or a product approval endpoint.
-    bounds=info['bounds']
-    reply=operator('input.click',x=bounds['x']+bounds['width']//2,
-        y=bounds['y']+bounds['height']//2,button='left')
-    return reply.get('accepted') is True
+    # GNOME St controls expose focus/geometry but no AT-SPI action on this
+    # session. Use the configured native focus shortcut and the exact focused
+    # control through the independent fixture operator, never an app endpoint.
+    from gi.repository import Gio
+    import re,time
+    bindings=Gio.Settings.new('org.gnome.shell.keybindings').get_strv('focus-active-notification')
+    if not bindings:return False
+    binding=bindings[0];modifiers=re.findall(r'<([^>]+)>',binding)
+    names={'Super':'super','Control':'ctrl','Primary':'ctrl','Alt':'alt','Shift':'shift'}
+    if any(value not in names for value in modifiers):return False
+    key=re.sub(r'<[^>]+>','',binding).lower()
+    if not re.fullmatch('[a-z0-9]+',key):return False
+    shortcut='+'.join([*(names[value] for value in modifiers),key])
+    if operator('input.key',key=shortcut).get('accepted') is not True:return False
+    time.sleep(.15)
+    if info['role']=='push button':
+        fresh=find(linuxui,info['name'])
+        if fresh is None or not fresh[0].grab_focus():return False
+        fresh[0].clear_cache()
+        if 'focused' not in linuxui.state_names(fresh[0]):return False
+    delivered=operator('input.key',key='enter').get('accepted') is True
+    # Explicit fixture selection releases Shell's keyboard grab. Opening the
+    # full controls intentionally focuses that window instead.
+    if info['role']=='push button' and delivered:operator('input.key',key='alt+tab')
+    return delivered

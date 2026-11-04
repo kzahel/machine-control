@@ -30,6 +30,14 @@ class NotificationTests(unittest.TestCase):
         for _ in range(2):self.notice.action(':1.42',7,token)
         for _ in range(2):self.notice.action(':1.42',7,'stop')
         self.assertEqual([method for method,_ in self.events],['intent.approve','stop'])
+    def test_changed_buttons_rotate_callbacks_even_when_task_state_is_same(self):
+        old=self.token()
+        self.notice.update('ask','Machine Control','Reason',[
+            ('Pause all 30 seconds','pause',{'duration':30}),('Stop all access','stop',{})],
+            'task','waiting_for_approval')
+        self.notice.action(':1.42',7,old);self.assertEqual(self.events,[])
+        self.notice.action(':1.42',7,self.token())
+        self.assertEqual(self.events,[('pause',{'duration':30})])
     def test_countdown_replaces_without_rotating_callback_binding(self):
         token=self.token();self.update(body='Starting in nine seconds')
         self.assertEqual(self.token(),token);self.assertEqual(self.sent[-1][0],7)
@@ -45,6 +53,18 @@ class NotificationTests(unittest.TestCase):
         self.update('active');self.notice.withdraw()
         self.notice.action(':1.42',7,'stop');self.notice.closed(':1.42',7,2)
         self.assertEqual(self.closed,[7]);self.assertEqual(self.events,[])
+
+
+class PresentationTests(unittest.TestCase):
+    def test_imminent_browser_warning_is_not_hidden_by_desktop_approval(self):
+        ask=dict(state='waiting_for_approval',surfaces=['desktop'])
+        automatic=dict(state='announcing',surfaces=['browser'])
+        self.assertIs(module.primary_request([ask,automatic]),automatic)
+    def test_concurrent_surface_warnings_keep_each_remaining_countdown(self):
+        desktop=dict(state='announcing',surfaces=['desktop'],noticeRemainingSeconds=3,reason='Desktop task')
+        browser=dict(state='announcing',surfaces=['browser'],noticeRemainingSeconds=8.2,reason='Browser task')
+        selected=module.primary_request([desktop,browser])
+        self.assertEqual(module.other_announcements([desktop,browser],selected),['Also starting browser in 9 seconds: Browser task'])
 
 
 if __name__=='__main__':unittest.main()

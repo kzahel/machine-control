@@ -283,3 +283,22 @@ not X11 backing-buffer contents; it requires a real GNOME session rather than
 pretending Xvfb qualifies notifications. Five portable callback tests, all 43
 Linux desktop tests (one native-kernel skip on macOS), TypeScript checking and
 frontend construction pass. Full native/package/locked acceptance remains open.
+
+The real GNOME renderer gate now passes: composed approval actions contain
+hundreds of pixel values, and EOF withdraws the exact owned notification.
+GNOME St exposes focus but no AT-SPI action for these buttons on this session.
+An independent human-side fixture uses the configured notification-focus
+shortcut, focuses the exact native control and sends Enter; the presentation
+probe observes the exact approval callback. An earlier appliance pointer
+request was accepted without an observed approval; its delivery is not treated
+as an effect or as ordinary provider qualification.
+
+Native shutdown also exposes Python's buffered-stdin daemon-thread finalization
+failure when the parent terminates the notice with stdin still open. The notice
+now uses bounded nonblocking reads and joins its reader before interpreter exit;
+the renderer has a separate SIGTERM/held-stdin gate. Concurrent imminent
+announcements take presentation priority over another surface's pending
+approval, show the other countdowns and offer an explicitly global Pause all
+button. A changed button set rotates callback bindings even if the selected
+task/state is unchanged. All 46 portable desktop tests pass (one kernel-only
+skip on macOS); native lifetime and integrated acceptance remain required.
