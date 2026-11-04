@@ -90,7 +90,19 @@ final class AccessAdmission {
         }
         if let requests = result["requests"] as? [[String: Any]] {
             let live = Set(requests.compactMap { $0["intentId"] as? String })
-            for id in Array(sessions.keys) where !live.contains(id) { endNative(id, reason: "access_ended") }
+            for id in Array(sessions.keys) where !live.contains(id) {
+                // Status omits terminal intents. Its synchronous reply can
+                // overtake the main-queue ending event; retain the actual
+                // shared reason before releasing the native protected owner.
+                var reason = "control_policy_unavailable"
+                if let requirement = requirements[id], let invoke,
+                   let ended = try? invoke(["method":"access.inspect", "owner":requirement.owner,
+                                            "intentId":id, "heartbeat":false]),
+                   let terminal = ended["terminalReason"] as? String {
+                    reason = terminal
+                }
+                endNative(id, reason:reason)
+            }
             for item in requests { request(item) }
         } else { request(result) }
         if let surfaces = result["surfaces"] as? [String: [String: Any]],

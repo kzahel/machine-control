@@ -49,7 +49,14 @@ def main():
             return json.loads(channel.makefile('rb').readline(16*1024*1024))
 
     def status():
-        result=exchange(endpoint,'status');assert result.get('accepted'),result.get('errorCode');return result['data']
+        # A read that straddles relock may lose its native observation epoch.
+        # Repeat discovery only; effect requests are never retried.
+        def observed():
+            result=exchange(endpoint,'status')
+            if result.get('errorCode')=='control_generation_changed':return None
+            assert result.get('accepted'),result.get('errorCode')
+            return result['data']
+        return poll(observed,'stable native status',5)
 
     def observe(operation,**fields):
         nonlocal observer_owner

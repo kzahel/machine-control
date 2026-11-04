@@ -158,3 +158,23 @@ policy and native operator preferences restore successfully; owned observer and
 browser processes are reaped. A subsequent protected trial remains its own
 gate. The re-enable action uses the real Settings button, avoiding reliance on
 an already-Off dropdown selection to trigger a change event.
+
+**Current — protected completion finding:** a locked-origin task waits for native
+readiness, unlocks behind the guard, independently conceals the display,
+changes its isolated native fixture exactly once and captures that fixture.
+It relocks. Completion then exposes a native mapping race: a synchronous status
+reply omits terminal intents before their queued ending events are processed.
+The adapter must obtain the actual shared terminal reason before ending its
+native owner, rather than misclassifying a clean cancellation as a fault.
+A real-child regression covers that ordering and prevents duplicate release.
+Readonly status observations may be repeated across native generation changes;
+no effect request is repeated. Two-task completion/Stop qualification remains
+open until the corrected package passes.
+
+All 228 Swift tests pass with the ending-reason repair. Visual inspection also
+finds stale cover text claiming pointer movement interrupts control; the text
+now names deliberate keys, clicks and scrolling, matching the native filter.
+The failed trial restores helper absence, the original screensaver rule,
+app/policy/native preferences and owned processes. A normal guest reboot
+returns the baseline to an independently ready unlocked session; no outer UI
+or credential retry is used.

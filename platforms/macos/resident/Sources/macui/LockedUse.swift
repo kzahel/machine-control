@@ -326,7 +326,7 @@ final class DisplayCovers {
             stack.orientation = .vertical; stack.spacing = 14
             let title = NSTextField(labelWithString: "Machine Control is working")
             title.font = .systemFont(ofSize: 25, weight: .semibold); title.textColor = .white
-            let hint = NSTextField(labelWithString: "Press any key or move the pointer to take over.")
+            let hint = NSTextField(labelWithString: "Press a key, click, or scroll to take over.")
             hint.font = .systemFont(ofSize: 15); hint.textColor = NSColor(calibratedWhite: 0.8, alpha: 1)
             stack.addArrangedSubview(title); stack.addArrangedSubview(hint)
             stack.translatesAutoresizingMaskIntoConstraints = false

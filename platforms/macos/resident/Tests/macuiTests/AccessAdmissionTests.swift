@@ -23,6 +23,26 @@ final class AccessAdmissionTests: XCTestCase {
         admission.receive(["type":"access.event", "event":"yielded", "intentId":id, "sessionId":session])
         XCTAssertEqual(endings,before,"A queued old event cannot end the newly accepted native owner")
     }
+    func testSynchronousCancelPreservesCleanEndingBeforeQueuedEvent() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission
+        try admission.configure("desktop", mode:"automatic", seconds:nil)
+        let offered = try admission.submit(owner:"clean", requestID:"cancel", resources:["desktop"],
+            wait:120, duration:60, reason:"Fixture", authority:{ nil })
+        let id = try XCTUnwrap(offered["intentId"] as? String)
+        let active = try admission.accept(owner:"clean", id:id,
+            generation:try XCTUnwrap(offered["offerGeneration"] as? Int))
+        let session = try XCTUnwrap(active["sessionId"] as? String)
+        var reasons:[String] = []
+        admission.sessionEnded = { _, _, reason in reasons.append(reason) }
+        try admission.cancel(owner:"clean", id:id)
+        XCTAssertEqual(reasons, ["cancelled"])
+        XCTAssertTrue(cleanCoveredEnding(coveredAdmissionEnding(try XCTUnwrap(reasons.first))))
+        admission.receive(["type":"access.event", "event":"ended", "intentId":id,
+                           "sessionId":session, "reason":"cancelled"])
+        XCTAssertEqual(reasons, ["cancelled"], "Queued ending cannot release the native owner twice")
+        XCTAssertTrue(admission.enabled("desktop"))
+    }
+
     func testAskFirstApprovalIsSpecificAndStopDoesNotRearm() throws {
         let fixture = try SharedPolicyFixture(), admission = fixture.admission
         try admission.configure("desktop",mode:"ask",seconds:nil)
