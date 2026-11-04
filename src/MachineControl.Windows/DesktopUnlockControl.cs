@@ -11,6 +11,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
     private readonly CancellationTokenSource _end = new();
     private readonly CancellationTokenSource _watchStop = new();
     private NamedPipeServerStream? _guardian;
+    private GuardianJson? _guardianJson;
     private Process? _process;
     private Task? _watch;
     internal CancellationToken Interrupted => _end.Token;
@@ -29,7 +30,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
         return control;
     }
 
-    private async Task<bool> QueryAsync(CancellationToken stop, bool physicalTakeover = false, bool complete = false, bool attemptStarted = false, int? guardianPid = null)
+    private async Task<bool> QueryAsync(CancellationToken stop, bool physicalTakeover = false, bool complete = false, bool attemptStarted = false, int? guardianPid = null, int? guardianExitCode = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
         timeout.CancelAfter(TimeSpan.FromSeconds(2));
@@ -37,8 +38,8 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
             System.Security.Principal.TokenImpersonationLevel.Identification);
         await pipe.ConnectAsync(timeout.Token);
         DesktopUacNative.RequireServer(pipe, residentPid);
-        await UnlockWire.WriteAsync(pipe, new { physicalTakeover, complete, attemptStarted, guardianPid }, timeout.Token);
-        using var reply = JsonDocument.Parse(await UnlockWire.ReadLineAsync(pipe, timeout.Token));
+        await UnlockWire.WriteAsync(pipe, new { physicalTakeover, complete, attemptStarted, guardianPid, guardianExitCode }, timeout.Token);
+        using var reply = JsonDocument.Parse(await new GuardianJson(pipe).ReadAsync(timeout.Token));
         return reply.RootElement.GetProperty("allowed").GetBoolean();
     }
 
@@ -53,6 +54,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
     {
         var name = "machine-control-relock-" + Guid.NewGuid().ToString("n");
         _guardian = PipeTransport.CreateSystemOnlyServer(name);
+        _guardianJson = new GuardianJson(_guardian);
         var child = SessionLauncher.LaunchSystem(session, name, challenge.ServiceGeneration, relockGuardian: true);
         _process = Process.GetProcessById(child.ProcessId);
         _ = _process.Handle;
@@ -63,7 +65,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
         DesktopUacNative.RequireSystem(_guardian);
         if (DesktopUacNative.ClientPid(_guardian) != child.ProcessId) throw new UnauthorizedAccessException("relock_guardian_identity_mismatch");
         await UnlockWire.WriteAsync(_guardian, new RelockStart(session, challenge.TargetUserSid, challenge.SessionLogonId, StartedLocked: true), timeout.Token);
-        using var ready = JsonDocument.Parse(await UnlockWire.ReadLineAsync(_guardian, timeout.Token));
+        using var ready = JsonDocument.Parse(await _guardianJson.ReadAsync(timeout.Token));
         if (ready.RootElement.GetProperty("stage").GetString() != "ready") throw new IOException("relock_guardian_unavailable");
         _watch = WatchAsync();
     }
@@ -79,7 +81,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_watchStop.Token);
                 deadline.CancelAfter(TimeSpan.FromSeconds(2));
                 await UnlockWire.WriteAsync(_guardian!, new { allowed }, deadline.Token);
-                using var pulse = JsonDocument.Parse(await UnlockWire.ReadLineAsync(_guardian!, deadline.Token));
+                using var pulse = JsonDocument.Parse(await _guardianJson!.ReadAsync(deadline.Token));
                 if (pulse.RootElement.GetProperty("physicalTakeover").GetBoolean())
                 {
                     _ = await QueryAsync(deadline.Token, physicalTakeover: true);
@@ -114,7 +116,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
                 await _process.WaitForExitAsync(wait.Token);
                 var exitCode = _process.ExitCode;
                 exited(exitCode);
-                if (RelockExit.Relocked(exitCode)) _ = await QueryAsync(CancellationToken.None, complete: true);
+                if (RelockExit.Relocked(exitCode)) _ = await QueryAsync(CancellationToken.None, complete: true, guardianExitCode: exitCode);
             }
             catch (Exception error) when (error is OperationCanceledException or IOException or UnauthorizedAccessException or InvalidOperationException) { }
             _process.Dispose();

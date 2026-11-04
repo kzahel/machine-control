@@ -461,3 +461,30 @@ that closed reason and exit code, with no input or credential values. This
 instrumentation does not qualify protected effects; the Windows gate remains
 open until preparation, native effect, capture and owner/Stop relock pass.
 Portable contracts, formatting and ARM64/x64 publishes pass for the diagnostic.
+
+**Current, diagnostic candidate:** `e68e2ce` passes native gates, seven Rust
+checks, the production build and seven matching-helper startup checks after
+cold boot. Its enrolled actor confirms unlock, unchanged console/logon identity,
+Browser configuration independence and ordinary window observation. The next
+fixture snapshot is delivered through Cua but returns stale ownership after a
+private guardian callback fails; the native journal records
+`access.locked_use_guard_failed` before that result. Actor cleanup and original
+helper/ACL/service/preference restoration are verified. The earlier
+pre-credential cancellation did not recur; its cause remains unestablished.
+A stale completion marker in the private supervisor initially misreported startup
+failure while its new actor was still running. Restoration refused the live
+resident, the actual actor subsequently passed and cleaned up, and completion
+markers are now candidate-scoped.
+
+The private callback and guardian pulse channels previously used the credential
+wire's one-byte async reader. Those channels contain JSON only. A separate
+bounded buffered reader now preserves partial/queued frame boundaries, strict
+UTF-8, cancellation and the 16 KiB limit while using one underlying read for a
+complete callback. The framing fixture fails with the previous byte reader and
+passes with buffering. Credential/proof channels retain their exact-through-
+newline reader, so no buffered read-ahead can consume a secret. Watchdog and
+callback deadlines are unchanged. Closed callback-phase/type and guardian-end
+codes provide evidence if the interruption recurs after unlock. Portable
+contracts, formatting and ARM64/x64 publishes pass. Actual protected acceptance
+must establish this composition; reduced I/O alone does not prove the earlier
+intermittent failure's cause.

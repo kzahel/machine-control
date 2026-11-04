@@ -178,6 +178,8 @@ def main():
             check(finish + ": ordinary window observation after unlock", observed["accepted"])
             hwnd = next(window["hwnd"] for window in observed["data"]["windows"] if window["processId"] == fixture.pid)
             snapshot = owner.call({"operation": "snapshot", "hwnd": hwnd, "maxDepth": 8, "maxElements": 100})
+            report[finish + "Snapshot"] = {key: snapshot.get(key) for key in
+                ("accepted", "actualRoute", "errorCode", "delivery", "effect", "uncertainty", "retrySafety", "elapsedMs")}
             check(finish + ": native fixture semantics behind cover", snapshot["accepted"])
             reference = next(element["reference"] for element in snapshot["data"]["elements"] if element.get("name") == "Increment counter")
             expected = counter()["counter"] + 1

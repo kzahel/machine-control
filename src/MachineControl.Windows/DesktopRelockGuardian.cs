@@ -21,7 +21,8 @@ internal static class DesktopRelockGuardian
         using var setup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await pipe.ConnectAsync(setup.Token);
         DesktopUacNative.RequireServer(pipe, DesktopUacNative.ServicePid());
-        var start = JsonSerializer.Deserialize<RelockStart>(await UnlockWire.ReadLineAsync(pipe, setup.Token), Contract.Json)
+        var frames = new GuardianJson(pipe);
+        var start = JsonSerializer.Deserialize<RelockStart>(await frames.ReadAsync(setup.Token), Contract.Json)
             ?? throw new InvalidDataException();
         if (!start.StartedLocked || start.SessionId != Process.GetCurrentProcess().SessionId || !SameConsole(start) ||
             SessionStateInspector.IsLocked(start.SessionId) != true) throw new UnauthorizedAccessException();
@@ -125,7 +126,7 @@ internal static class DesktopRelockGuardian
                 {
                     using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
                     deadline.CancelAfter(TimeSpan.FromSeconds(3));
-                    using var pulse = JsonDocument.Parse(await UnlockWire.ReadLineAsync(pipe, deadline.Token));
+                    using var pulse = JsonDocument.Parse(await frames.ReadAsync(deadline.Token));
                     if (!pulse.RootElement.GetProperty("allowed").GetBoolean()) End(10);
                     Interlocked.Exchange(ref heartbeat, Stopwatch.GetTimestamp());
                     await UnlockWire.WriteAsync(pipe, new { physicalTakeover = Volatile.Read(ref physical) != 0 }, deadline.Token);

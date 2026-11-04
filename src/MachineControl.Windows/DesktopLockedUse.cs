@@ -283,15 +283,23 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                 await pipe.WaitForConnectionAsync(guardToken);
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(guardToken);
                 deadline.CancelAfter(TimeSpan.FromSeconds(2));
+                var phase = "peer";
                 try
                 {
                     DesktopUacNative.RequireSystem(pipe);
-                    using var frame = JsonDocument.Parse(await UnlockWire.ReadLineAsync(pipe, deadline.Token));
+                    phase = "read";
+                    using var frame = JsonDocument.Parse(await new GuardianJson(pipe).ReadAsync(deadline.Token));
+                    phase = "lease";
                     Tick();
+                    phase = "preparation";
                     var prepared = Prepared();
                     var policy = prepared ? UnlockPolicy.Read(Instance) : null;
                     deadline.Token.ThrowIfCancellationRequested();
+                    if (frame.RootElement.TryGetProperty("complete", out var completed) && completed.ValueKind == JsonValueKind.True &&
+                        frame.RootElement.TryGetProperty("guardianExitCode", out var exit) && exit.ValueKind == JsonValueKind.Number && exit.TryGetInt32(out var code))
+                        grants.Journal?.Diagnostic("locked_use.guardian", RelockExit.Reason(code));
                     object reply;
+                    phase = "authorization";
                     lock (grants.Gate)
                     {
                         if (frame.RootElement.TryGetProperty("attemptStarted", out var started) && started.GetBoolean())
@@ -301,7 +309,10 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                         if (frame.RootElement.TryGetProperty("physicalTakeover", out var takeover) && takeover.GetBoolean())
                             grants.Activity.CoveredTakeover();
                         if (frame.RootElement.TryGetProperty("complete", out var complete) && complete.GetBoolean())
-                        { lease.Ending = true; lease.Complete = true; grants.Admission.Pause("desktop", "relock_pending"); }
+                        {
+                            lease.Ending = true; lease.Complete = true;
+                            grants.Admission.Pause("desktop", "relock_pending");
+                        }
                         var owner = lease.Request.ControlOwnership!;
                         reply = new
                         {
@@ -311,10 +322,14 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                             grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is null
                         };
                     }
+                    phase = "reply";
                     await UnlockWire.WriteAsync(pipe, reply, deadline.Token);
                 }
                 catch (Exception error) when (error is IOException or InvalidDataException or JsonException or OperationCanceledException or UnauthorizedAccessException or ArgumentException or FormatException or System.Security.Cryptography.CryptographicException)
-                { lock (grants.Gate) grants.Stop("locked_use_guard_failed"); }
+                {
+                    grants.Journal?.Diagnostic("locked_use.guard", phase + "." + error.GetType().Name);
+                    lock (grants.Gate) grants.Stop("locked_use_guard_failed");
+                }
             }
         }
         catch (OperationCanceledException) when (guardToken.IsCancellationRequested) { }
