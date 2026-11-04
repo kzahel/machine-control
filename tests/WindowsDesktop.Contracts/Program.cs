@@ -43,12 +43,14 @@ try
     Assert(journal.Record(new Result { RequestId = "SENTINEL", Operation = "input.text", Accepted = true, Data = "SENTINEL", Message = "SENTINEL" }), "Durable result");
     journal.QueueAdmission(new System.Text.Json.Nodes.JsonObject
     { ["event"] = "approved", ["intentId"] = "PRIVATE-INTENT", ["sessionId"] = "PRIVATE-SESSION", ["reason"] = "PRIVATE-TASK", ["surface"] = "browser" });
+    journal.QueueAdmission(new System.Text.Json.Nodes.JsonObject
+    { ["event"] = "pause", ["reason"] = "relock_pending", ["surface"] = "desktop" });
     var auditDeadline = System.Diagnostics.Stopwatch.StartNew();
-    while (!JsonSerializer.Serialize(journal.Preview(), Contract.Json).Contains("admission.approved"))
+    while (!JsonSerializer.Serialize(journal.Preview(), Contract.Json).Contains("relock_pending"))
     { if (auditDeadline.Elapsed.TotalSeconds > 5) throw new Exception("Admission audit not drained"); await Task.Delay(10); }
     var admissionAudit = JsonSerializer.Serialize(journal.Preview(), Contract.Json);
     Assert(!admissionAudit.Contains("PRIVATE-"), "Admission audit hashes correlations and rejects arbitrary reason text");
-    Assert(admissionAudit.Contains("surface.browser"), "Scoped admission event retained");
+    Assert(admissionAudit.Contains("surface.browser") && admissionAudit.Contains("relock_pending"), "Scoped admission and protected relock reason retained");
     var recovered = new DesktopJournal(journalRoot);
     var preview = JsonSerializer.Serialize(recovered.Preview(), Contract.Json);
     Assert(!preview.Contains("SENTINEL"), "Payload and raw request ID excluded");

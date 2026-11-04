@@ -93,7 +93,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         {
             if (_lease is not { } lease || lease != observed) return;
             var owner = lease.Request.ControlOwnership!;
-            if (!lease.Ending && (!grants.PreparedConsole || grants.AuthorizationRevision != lease.Revision ||
+            if (!lease.Ending && (!grants.PreparedConsole || grants.DesktopConsentRevision != lease.Revision ||
                 grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is not null))
             {
                 lease.Ending = true;
@@ -143,7 +143,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                     Delivery = "refused",
                     Effect = "refused"
                 };
-            var lease = new Lease(request, grants.AuthorizationRevision, policy);
+            var lease = new Lease(request, grants.DesktopConsentRevision, policy);
             _lease = lease;
             _ = Task.Run(() => ServeGuardAsync(lease));
             return new Result
@@ -307,7 +307,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                         {
                             allowed = _lease == lease && !lease.Ending && prepared &&
                             policy == lease.ProtectedGrant &&
-                            grants.PreparedConsole && grants.AuthorizationRevision == lease.Revision &&
+                            grants.PreparedConsole && grants.DesktopConsentRevision == lease.Revision &&
                             grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is null
                         };
                     }

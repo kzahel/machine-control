@@ -53,7 +53,7 @@ internal sealed class DesktopJournal
     private static readonly HashSet<string> AdmissionEvents = new(
         "renewed requested approved deferred start_now takeover pause resume configured stopped yielded rejected waiting_for_resource waiting_for_approval paused announcing offered active ended".Split(' '));
     private static readonly HashSet<string> AdmissionReasons = new(
-        "manual physical_takeover operator_deferral activity_unknown physical_activity local_use_episode resource_unavailable paused stale_control_session stale_generation operation_not_permitted_by_control_channel owner_disconnected consent_replaced surface_disabled consent_expired profile_not_approved queue_lease_expired duration_expired wait_deadline_exceeded activation_offer_expired cancelled denied_by_person stopped".Split(' '));
+        "relock_pending manual physical_takeover operator_deferral activity_unknown physical_activity local_use_episode resource_unavailable paused stale_control_session stale_generation operation_not_permitted_by_control_channel owner_disconnected consent_replaced surface_disabled consent_expired profile_not_approved queue_lease_expired duration_expired wait_deadline_exceeded activation_offer_expired cancelled denied_by_person stopped".Split(' '));
     internal void QueueAdmission(JsonObject value)
     {
         var name = value["event"]?.GetValue<string>();

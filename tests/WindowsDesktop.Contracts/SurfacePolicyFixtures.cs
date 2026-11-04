@@ -34,6 +34,10 @@ internal static class SurfacePolicyFixtures
             }
         grants.ConfigureSurface("desktop", "automatic", 0, "until_stopped");
         grants.ConfigureSurface("browser", "automatic", 0, "until_stopped", ["fixture-profile"]);
+        var protectedDesktopCeiling = grants.DesktopConsentRevision;
+        grants.ConfigureSurface("browser", "automatic", 0, "until_stopped", ["fixture-profile"]);
+        Require(grants.DesktopConsentRevision == protectedDesktopCeiling,
+            "Browser consent cannot revoke the independent native protected Desktop ceiling");
         var browserGeneration = grants.BrowserGeneration;
         grants.Admission.Pause("desktop", "manual");
         Require(grants.Authorize("type") == "access_paused", "Desktop surface pause applies");
@@ -46,9 +50,16 @@ internal static class SurfacePolicyFixtures
         grants.ConfigureSurface("desktop", "automatic", 60, "timed");
         grants.Pause(); clock.Advance(60); grants.Resume();
         Require(grants.Authorize("type") == "surface_disabled", "Pause cannot extend finite consent");
+        grants.ConfigureSurface("desktop", "automatic", 300, "timed");
         grants.ConfigureBrowserWhileLocked(true);
         grants.SetReady(false, true, "fixture-logon");
         Require(grants.BrowserOnlyWhileLocked && grants.Authorize("browser.eval", controlled: true) is null, "Full Browser surface retains same-logon locked opt-in");
+        grants.ConfigureBrowserWhileLocked(false);
+        Require(!grants.BrowserOnlyWhileLocked && grants.Admission.Enabled("desktop") && grants.Admission.Enabled("browser"),
+            "Disabling locked Browser availability cannot revoke either surface consent");
+        grants.SetReady(true, consoleIdentity: "fixture-logon");
+        grants.ConfigureBrowserWhileLocked(true);
+        grants.SetReady(false, true, "fixture-logon");
         grants.SetReady(false, true, "other-fixture-logon");
         Require(!grants.BrowserOnlyWhileLocked && grants.Authorize("browser.eval") is not null, "A different console cannot inherit browser consent");
         grants.SetReady(true);

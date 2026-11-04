@@ -145,11 +145,22 @@ def main():
             wait(locked)
             report["phase"] = finish + ": opening locked owner"
             owner = new_owner()
+            operator("browser_while_locked", enabled=False)
+            check(finish + ": Browser availability cannot revoke prepared Desktop ownership", owner.status()["state"] == "active")
             check(finish + ": ordinary dispatch refused while locked", not owner.call({"operation": "windows"})["accepted"])
             result = owner.call({"operation": "session.unlock"})
             report[finish + "Unlock"] = result
             check(finish + ": enrolled unlock independently confirmed", result["accepted"] and result["effect"] == "confirmed" and not locked())
             check(finish + ": same console account, session and task logon", console_identity() == original_identity)
+            operator("surface.configure", surface="browser", mode="off", duration=600, lifetime="timed", browserProfileIds=[])
+            # Observe several independent guardian pulses; a target-wide
+            # consent revision used to end/relock this unrelated Desktop task.
+            deadline = time.monotonic() + 2.5
+            while time.monotonic() < deadline:
+                check_active = owner.status()["state"] == "active" and not locked()
+                if not check_active: raise AssertionError("Browser configuration interrupted covered Desktop ownership")
+                time.sleep(.2)
+            check(finish + ": Browser consent changes preserve covered Desktop authority", True)
             observed = owner.call({"operation": "windows"})
             check(finish + ": ordinary window observation after unlock", observed["accepted"])
             if finish == "stop":

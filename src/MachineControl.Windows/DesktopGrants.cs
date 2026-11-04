@@ -18,7 +18,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private string _browserGeneration = Guid.NewGuid().ToString("n");
     private bool _ready, _preparedConsole, _lockedConsole, _browserWhileLocked, _updating;
     private string? _consoleIdentity, _browserConsentConsole, _lastEnded;
-    private long _authorizationRevision;
+    private long _desktopConsentRevision;
     private AccessAdmission? _admission;
     private DesktopActivityPolicy? _activityPolicy;
     private readonly Queue<object> _activity = new();
@@ -41,7 +41,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     internal bool PreparedConsole { get { lock (Gate) return _preparedConsole; } }
     internal bool ConsoleReady { get { lock (Gate) return _ready; } }
     internal bool? TaskStartLocked { get { lock (Gate) return _ready ? false : _lockedConsole ? true : null; } }
-    internal long AuthorizationRevision { get { lock (Gate) return _authorizationRevision; } }
+    internal long DesktopConsentRevision { get { lock (Gate) return _desktopConsentRevision; } }
     internal DesktopActivityPolicy Activity => _activityPolicy ??= new(this, _time);
     internal AccessAdmission Admission
     {
@@ -82,7 +82,6 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         {
             if (!loading && enabled && (!_ready || _consoleIdentity is null)) throw new InvalidOperationException("Enable browser access on the current unlocked console");
             _browserWhileLocked = enabled;
-            if (!enabled && !_ready && _lockedConsole) Stop("browser_locked_access_disabled");
             PublishReady();
         }
     }
@@ -130,7 +129,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             }
             else _generation = Guid.NewGuid().ToString("n");
             Admission.Configure(surface, mode, seconds, surface == "browser" ? browserProfileIds ?? [] : []);
-            ++_authorizationRevision; _lastEnded = null;
+            if (surface == "desktop") ++_desktopConsentRevision;
+            _lastEnded = null;
             Journal?.QueueEvent(mode == "off" ? "access.disabled" : "access.enabled");
             PublishReady();
         }
@@ -212,7 +212,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         lock (Gate)
         {
             _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n");
-            ++_authorizationRevision; _lastEnded = reason; _browserConsentConsole = null;
+            ++_desktopConsentRevision; _lastEnded = reason; _browserConsentConsole = null;
             _admission?.Stop(reason); BrowserPolicy?.Stop(); Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
         }
     }
