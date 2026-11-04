@@ -25,7 +25,7 @@ try {
   await context.addInitScript(() => {
     window.commands = [];
     const surface = () => ({ mode: "off", expired: false, consentRemainingSeconds: null, profileIds: [], ready: true, pauses: [] });
-    const policy = { schema: "machine-control-admission/v2", noticeSeconds: 10, surfaces: { desktop: surface(), browser: surface() } };
+    const policy = { schema: "machine-control-admission/v2", noticeSeconds: 10, globalPauses: [], surfaces: { desktop: surface(), browser: surface() } };
     const state = { platform: "windows", deployment: { policy: { preset: "workstation", grantMode: "surface_modes" }, grant: null, pendingRequest: null },
       accessPolicy: policy, admission: { active: 0, waiting: 0, requests: [] }, permissions: { accessibility: true, screenRecording: true },
       browser: { connected: true, profiles: [{ profileId: "fixture:work", name: "Work", enabled: true, connected: true },
@@ -40,8 +40,16 @@ try {
       if (request.method === "surface.configure") Object.assign(policy.surfaces[request.surface], { mode: request.mode,
         profileIds: request.browserProfileIds, consentRemainingSeconds: request.lifetime === "timed" ? request.duration : null });
       if (request.method === "stop") for (const surface of Object.values(policy.surfaces)) surface.mode = "off";
-      if (request.method === "pause_surface") policy.surfaces[request.surface].pauses = [{ reason: "manual", remainingSeconds: request.duration ?? null }];
-      if (request.method === "resume_surface") policy.surfaces[request.surface].pauses = [];
+      if (request.method === "pause_surface") policy.surfaces[request.surface].pauses = [{ reason: "manual", scope: request.surface, remainingSeconds: request.duration ?? null }, ...policy.globalPauses.map(pause => ({ ...pause, scope: "all" }))];
+      if (request.method === "resume_surface") policy.surfaces[request.surface].pauses = policy.globalPauses.map(pause => ({ ...pause, scope: "all" }));
+      if (request.method === "pause") {
+        policy.globalPauses = [{ reason: "manual", remainingSeconds: request.duration ?? null }];
+        for (const surface of Object.values(policy.surfaces)) surface.pauses = [...surface.pauses.filter(pause => pause.scope !== "all"), ...policy.globalPauses.map(pause => ({ ...pause, scope: "all" }))];
+      }
+      if (request.method === "resume") {
+        policy.globalPauses = [];
+        for (const surface of Object.values(policy.surfaces)) surface.pauses = surface.pauses.filter(pause => pause.scope !== "all");
+      }
       if (request.method === "control_notice") policy.noticeSeconds = request.noticeSeconds;
       return { ok: true, state: structuredClone(state) };
     } };
@@ -70,6 +78,12 @@ try {
     [["desktop", "ask", []], ["browser", "automatic", ["fixture:work"]]]);
   await page.getByRole("button", { name: "Pause desktop 30s", exact: true }).click();
   assert.equal(await page.getByRole("combobox", { name: "Browser access mode" }).inputValue(), "automatic");
+  await page.getByRole("button", { name: "Resume desktop", exact: true }).click();
+  await page.getByRole("button", { name: "Pause desktop until Resume", exact: true }).click();
+  await page.getByRole("button", { name: "Pause all 30s", exact: true }).click();
+  await page.getByRole("button", { name: "Resume global pause", exact: true }).click();
+  assert.deepEqual(await page.evaluate(() => Object.values(window.fixtureState.accessPolicy.surfaces).map(surface => surface.pauses.length)), [1, 0],
+    "Global Resume preserves an independently paused Desktop");
   await page.getByRole("button", { name: "Resume desktop", exact: true }).click();
   await page.getByRole("button", { name: "Stop all access", exact: true }).click();
   await page.getByRole("button", { name: "Enable Ask first for desktop", exact: true }).waitFor();

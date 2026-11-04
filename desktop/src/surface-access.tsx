@@ -6,6 +6,7 @@ export type SurfacePolicy = {
   schema: string;
   available?: boolean;
   handoffCooldownRemainingSeconds?: number;
+  globalPauses?: { reason: string; remainingSeconds: number | null }[];
   deferrals?: { resource: string; remainingSeconds: number | null }[];
   noticeSeconds: number;
   surfaces: Record<Surface, {
@@ -14,7 +15,7 @@ export type SurfacePolicy = {
     consentRemainingSeconds: number | null;
     profileIds: string[];
     ready: boolean;
-    pauses: { reason: string; remainingSeconds: number | null }[];
+    pauses: { reason: string; scope?: Surface | "all"; remainingSeconds: number | null }[];
   }>;
 };
 type Profile = { profileId: string; name: string; enabled: boolean; connected: boolean };
@@ -53,6 +54,15 @@ export function SurfaceAccess({ policy, profiles, requests, busy, act, protected
       <div><h1>Computer access</h1><p className="grant-detail">Choose how agents may use each surface.</p></div>
       <button disabled={busy} onClick={() => void act({ method: "stop" })}>Stop all access</button>
     </div>
+    <section className="group" aria-label="Global pause">
+      <div className="request-actions">
+        <button disabled={busy || policy.available === false} onClick={() => void act({ method: "pause", duration: 30 })}>Pause all 30s</button>
+        <button disabled={busy || policy.available === false} onClick={() => void act({ method: "pause", duration: 60 })}>Pause all 1m</button>
+        <button disabled={busy || policy.available === false} onClick={() => void act({ method: "pause" })}>Pause all until Resume</button>
+        {!!policy.globalPauses?.length && <button disabled={busy} onClick={() => void act({ method: "resume" })}>Resume global pause</button>}
+      </div>
+      {!!policy.globalPauses?.length && <p className="note">Global pause overrides both surfaces. Resuming it preserves independent surface pauses.</p>}
+    </section>
     {(policy.handoffCooldownRemainingSeconds ?? 0) > 0 && <p role="status" className="note">
       Disruptive work waits {Math.ceil(policy.handoffCooldownRemainingSeconds!)}s before a fresh warning. Background browser work can continue.
     </p>}
@@ -96,8 +106,8 @@ export function SurfaceAccess({ policy, profiles, requests, busy, act, protected
             <label className="scope" key={id}><input type="checkbox" checked disabled={busy}
               onChange={() => setSelection(selection.filter(value => value !== id))} />Unavailable profile · {id.slice(-8)}</label>)}
         </>}
-        {state.pauses.map(pause => <p role="status" className="note" key={pause.reason}>
-          Paused: {pause.reason.replaceAll("_", " ")}{pause.remainingSeconds === null ? " · until Resume" : ` · ${Math.ceil(pause.remainingSeconds)}s remaining`}
+        {state.pauses.map(pause => <p role="status" className="note" key={`${pause.scope ?? surface}:${pause.reason}`}>
+          {pause.scope === "all" ? "Paused globally" : "Paused"}: {pause.reason.replaceAll("_", " ")}{pause.remainingSeconds === null ? " · until Resume" : ` · ${Math.ceil(pause.remainingSeconds)}s remaining`}
         </p>)}
         {enabled && !state.ready && <p role="status" className="note">Waiting for the {label.toLowerCase()} provider to become available.</p>}
         <div className="request-actions">

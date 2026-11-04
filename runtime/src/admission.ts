@@ -482,7 +482,7 @@ export class AccessAdmission {
           mode: config.mode, expired: config.mode !== "off" && this.#now >= config.expiresAt,
           consentRemainingSeconds: Number.isFinite(config.expiresAt) ? Math.max(0, config.expiresAt - this.#now) / 1000 : null,
           profileIds: [...config.profiles].sort(), ready: available.ready, noticeVisible: available.noticeVisible,
-          pauses: [...available.pauses, ...this.#globalPauses].map(([reason, until]) => ({ reason, remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
+          pauses: [...available.pauses, ...this.#globalPauses].map(([reason, until], index) => ({ reason, scope: index < available.pauses.size ? surface : "all", remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
         }];
       }));
   }
