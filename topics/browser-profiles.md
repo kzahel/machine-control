@@ -3,7 +3,7 @@
 Topic: `browser-profiles`
 
 Status: **Windows named-profile browser cutover accepted in an unsigned ARM64
-candidate; Mac ordinary/streamed packaged slice passed, protected gate open;
+candidate; Mac ordinary/streamed and protected packaged slices passed;
 Linux adoption follows**.
 
 ## Scope and current evidence

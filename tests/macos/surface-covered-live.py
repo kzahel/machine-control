@@ -58,7 +58,7 @@ def main():
             return result['data']
         return poll(observed,'stable native status',5)
 
-    def observe(operation,**fields):
+    def observe(operation,*,expect_stop=False,**fields):
         nonlocal observer_owner
         if observer_owner is None:
             result=exchange(args.observer_socket,operation,provider='macos-native',**fields)
@@ -68,7 +68,19 @@ def main():
             observer_owner=actor.Owner(args.observer_socket,args.claim,['desktop'],duration=900)
         if observer_owner.status()['state']!='active':observer_owner.wait()
         result=observer_owner.call(operation,provider='macos-native',**fields)
-        assert result.get('accepted'),result.get('errorCode');return result.get('data',{})
+        if expect_stop:
+            # Stop/relock can fence this independent observer after delivery.
+            # This receipt proves no effect; the owner, modes and independent
+            # lock observation below must all confirm the actual outcome.
+            assert operation=='input.key' and fields=={'key':'ctrl-alt-cmd-.'}
+            args.report.with_name('native-stop-delivery.json').write_text(json.dumps(result)+'\n')
+            revoked=(result.get('errorCode')=='stale_control_session' and
+                     result.get('delivery')=='confirmed' and
+                     result.get('uncertainty')=='interrupted_after_possible_dispatch')
+            assert result.get('accepted') or revoked,result.get('errorCode')
+        else:
+            assert result.get('accepted'),result.get('errorCode')
+        return result.get('data',{})
 
     pid=status()['processId']
     def tree(query='',target=None):
@@ -183,7 +195,7 @@ def main():
                 if number==2:
                     # The actual registered native Stop shortcut, delivered by
                     # the independent operator observer, remains usable covered.
-                    observe('input.key',key='ctrl-alt-cmd-.')
+                    observe('input.key',key='ctrl-alt-cmd-.',expect_stop=True)
                     poll(lambda:owner.status()['state']=='ended','native hotkey ends owner')
             poll(locked,'independent relock',45)
             poll(lambda:status()['lockedUse']['controlSessionId'] is None,'native helper cleanup')

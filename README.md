@@ -33,8 +33,8 @@ Chromebooks, Android devices, and more.
 
 The [unified Desktop/Browser permissions experience](topics/access-admission-and-pause.md)
 is implemented in the unreleased Windows/shared-core candidate and Mac adapter.
-Mac ordinary and streamed-browser acceptance passes; protected composition and
-Linux adoption follow. The linked topic records bounded acceptance and limits.
+Mac ordinary, streamed-browser and protected composition pass bounded appliance
+acceptance. Linux adoption follows. The linked topic records evidence and limits.
 
 Available controls depend on the platform and selected permissions. Machine
 Control combines native UI information with screenshots and input, so agents

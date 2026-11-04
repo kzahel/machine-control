@@ -2,8 +2,8 @@
 
 Topics: `shared-resident-core`, `access-admission-and-pause`
 
-Status: **Ordinary and streamed-CDP packaged slices passed; protected-helper
-composition remains open.** This follows the bounded Windows acceptance in
+Status: **Complete for the bounded ARM64 appliance profile; ordinary,
+streamed-CDP and protected composition pass.** This follows the bounded Windows acceptance in
 [Tactical 153](153-unified-permissions-and-handoff.md).
 
 ## Objective and motivation
@@ -190,3 +190,48 @@ changes, report failed registration as unavailable, and release their Carbon
 handler/registration. Dvorak, Command-hybrid, shifted-period and unavailable
 layout cases are covered; all 229 Swift tests pass. Actual Stop and final
 protected cleanup remain unqualified until a new packaged trial passes.
+
+**Current — Stop effect and harness receipt:** the clean bbb53fd package
+reports `stopped_by_person`, turns both surfaces Off and relocks after the
+layout-aware chord. That transition also invalidates the independent observer
+before its input receipt returns. The actor now permits that specific
+confirmed-delivery/late-revocation receipt only for its one Stop key; it still
+requires independent owner termination, Off state and IOKit lock readback.
+There is no key retry and delivery alone never counts as the Stop effect.
+A separate fresh preparation trial timed out once before any protected task;
+cleanup verified helper absence and restored policy before another trial.
+The later preparation succeeds. Cold preparation reliability is not inferred
+from that retry; its timeout remains recorded separately.
+
+
+## Final result and limits
+
+**Current — bounded acceptance:** clean b58ecaa passes 20 packaged ordinary and
+streamed-CDP checks, including the shipped Python SDK and Work = 1 / Personal = 0.
+Clean bbb53fd passes 18 protected checks: native preparation without arming,
+separate Desktop consent, two distinct live owners, first observation held
+through preparation, independently observed concealment, two isolated native
+fixture effects, underlying captures, completion relock with consent retained,
+layout-aware native Stop, both surfaces Off and final IOKit-observed relock.
+The Stop receipt may be fenced after delivery; its actual effect is checked
+independently. Visual inspection confirms the opaque cover and corrected
+keys/click/scroll guidance. All 229 Swift tests and native static smoke pass;
+source deployment and claimed doctor pass. No Python client rewrite is made.
+
+**Current — cleanup:** exact native app/policy/preferences, original helper
+absence and screensaver rule restore. Owned fixture/observer/browser processes
+are reaped. Three owned persistent guest stages are removed only after the
+controller backup's app bytes/modes/links match its complete manifest. The
+canonical password file remains owner-only, nonempty and unchanged; password
+authentication is not performed in this run. The declared final power state
+is independently Off, reached through the documented bounded Tart stop after
+ordinary shutdown requires administrator authorization. The continuation claim
+is released. No VM or clone is created and no outer UI is used.
+
+**Limits:** local ad-hoc ARM64 Tart appliance with SIP disabled and one display.
+This does not qualify a SIP-enabled physical host, Intel execution, signed
+publication, physical HID takeover, multiple-display privacy or prolonged load.
+One preparation reply timeout remains a separate cold-setup reliability
+follow-up; its cleanup and later successful preparation do not prove its cause
+or reliable first-attempt cold preparation. Existing physical/signed evidence
+belongs to its recorded revisions. Linux adoption follows this bounded gate.

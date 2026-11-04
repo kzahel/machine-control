@@ -8,6 +8,18 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-11-04), bounded shared-policy adoption:** the unreleased
+native guard binds Desktop surface consent and one live shared owner, while
+Swift/root retain their independent native safety ceiling. Clean bbb53fd passes
+18 local ad-hoc ARM64 appliance checks, including two isolated effects,
+concealment, clean completion/relock with consent retained, native Stop and
+final relock. Swift obtains the actual shared terminal reason before releasing
+a removed owner, and the native Stop chord follows the active Command layout.
+[Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md#final-result-and-limits)
+owns exact source, cleanup and limits, including a preparation timeout whose
+cause remains open. This does not replace the physical/signed evidence or close
+the sustained editing/renewal investigation below.
+
 **Current (2026-11-02), investigation:**
 [Tactical 148](../docs/tactical/148-covered-editing-and-candidate-integrity.md)
 isolates a diagnostic defect that can invalidate its own signed candidate:

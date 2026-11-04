@@ -3,11 +3,11 @@
 Topic: `access-admission-and-pause`
 
 Status: **Windows/reference broad review and bounded native qualification
-passed; macOS adoption in progress, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+passed; bounded macOS ordinary/streamed/protected adoption passed, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the current candidate and its limits. Earlier platform admission
 evidence below does not qualify the new experience on Mac or Linux.
 [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md) records
-macOS ordinary packaged acceptance and the still-open stream/protected gates.
+macOS ordinary, streamed-CDP and protected packaged acceptance and cleanup.
 
 ## Scope and motivation
 

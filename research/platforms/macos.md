@@ -5,17 +5,21 @@ live-tested in a prepared Tart appliance; login and preboot planes remain open.
 
 ## Shared ordinary permissions
 
-**Current (2026-11-04), `built` and bounded `live-tested`:** the unreleased
-Swift adapter delegates ordinary Desktop/Browser admission, profiles and CDP
-coordination to the same pinned TypeScript/Node child as Windows/reference.
-A local ad-hoc ARM64 packaged trial passes 17 real Settings/notice/owner/profile
-checks. Two Chrome for Testing profiles remain connected; the selected Work
-profile has one independently recorded effect and Personal has none. Original
-app/policy/native operator preferences and owned-process cleanup are verified. This does not
-qualify physical HID, Intel, signed publication, streaming or the new protected
-owner composition. Earlier protected evidence below belongs to its recorded
-implementation. [Tactical 154](../../docs/tactical/154-macos-shared-surface-adoption.md)
-owns the current migration gates.
+**Current (2026-11-04), bounded `conformance-tested`:** the unreleased Swift
+adapter delegates ordinary Desktop/Browser admission, profiles and CDP to the
+same pinned TypeScript/Node child as Windows/reference. Clean b58ecaa passes
+20 packaged Settings/notice/owner/profile/stream/client checks. Work records
+one independent effect and Personal zero. Clean bbb53fd passes 18 protected
+checks with two isolated native effects, concealment, completion/relock,
+layout-aware native Stop and final relock. Native app/policy/preferences,
+helper absence, screensaver rule, owned processes, guest staging, Off power
+and claim release are verified. All 229 Swift tests and native static smoke
+pass. [Tactical 154](../../docs/tactical/154-macos-shared-surface-adoption.md#final-result-and-limits)
+owns exact evidence and limits. This is one-display ad-hoc ARM64 Tart evidence
+with SIP disabled; physical HID, Intel, signed publication and multiple-display
+privacy remain separate. One preparation reply timeout remains unexplained;
+later successful setup does not qualify reliable first-attempt cold setup.
+Earlier physical/protected evidence below belongs to its recorded revisions.
 
 ## Native foundation
 

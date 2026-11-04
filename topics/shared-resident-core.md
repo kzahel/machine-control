@@ -3,10 +3,10 @@
 Topic: `shared-resident-core`
 
 Status: **Windows/reference broad review and bounded native qualification
-passed; macOS adoption in progress, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+passed; bounded macOS ordinary/streamed/protected adoption passed, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the candidate gates and remaining qualification limits.
 [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md) owns the
-macOS migration and its separate live acceptance gate.
+macOS acceptance, cleanup and remaining qualification limits.
 
 ## Motivation
 
@@ -139,8 +139,7 @@ not through parallel policy engines or another open-ended language comparison.
 **Current Windows source:** one shared authority owns ordinary Desktop and
 Browser consent, admission and handoff. Native/package execution is qualified
 separately. The unreleased Mac adapter now adopts that same authority; its
-ordinary and streamed-CDP packaged slices pass, with protected composition
-still open in [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md).
+ordinary, streamed-CDP and protected packaged slices pass in [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md).
 Linux adoption remains pending.
 
 | Responsibility | Owner after adoption |

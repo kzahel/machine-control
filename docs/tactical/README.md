@@ -1,7 +1,7 @@
 # Implementation Tacticals
 
 - [154 — macOS shared surface adoption](154-macos-shared-surface-adoption.md)
-  (in progress): replace Swift ordinary policy with the same v2 child, preserve
+  (complete for bounded ARM64 appliance acceptance): replace Swift ordinary policy with the same v2 child, preserve
   native/protected ceilings, and qualify real Settings, profiles and cleanup.
 
 - [153 — Unified permissions and handoff](153-unified-permissions-and-handoff.md)
