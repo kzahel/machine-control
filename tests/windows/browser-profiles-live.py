@@ -286,12 +286,15 @@ Press $other
         if result.returncode: raise RuntimeError(result.stderr[-2000:])
 
     def ui(action, name='', checked=True):
+        report['lastOperatorUi'] = dict(action=action, name=name, checked=checked)
+        print('Settings UI: '+action+' '+name, flush=True)
         # UIA operates only the exact staged operator process. No private
         # WebView debugging or direct arming hook is used for this phase.
         script = r'''
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 $deadline=[DateTime]::UtcNow.AddSeconds(30)
+$toggleSent=$false
 do {
  $process=Get-Process -Id APP_PID
  $process.Refresh()
@@ -301,10 +304,15 @@ do {
   $all=$window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
   foreach($item in $all){
    if($item.Current.Name -notmatch NAME){continue}
+   if(ACTION -in @('check','press') -and $item.Current.IsOffscreen){
+    $scroll=$null
+    if($item.TryGetCurrentPattern([Windows.Automation.ScrollItemPattern]::Pattern,[ref]$scroll)){$scroll.ScrollIntoView()}
+   }
    if(ACTION -eq 'check' -and $item.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox){
     $toggle=$item.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
-    if(($toggle.Current.ToggleState -eq 'On') -ne CHECKED){$toggle.Toggle()}
-    exit
+    if(($toggle.Current.ToggleState -eq 'On') -eq CHECKED){exit}
+    if(-not $toggleSent){$toggle.Toggle();$toggleSent=$true}
+    break
    }
    if(ACTION -eq 'press' -and $item.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $item.Current.IsEnabled){
     $item.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();exit
@@ -322,10 +330,19 @@ do {
  }
  Start-Sleep -Milliseconds 100
 }while([DateTime]::UtcNow -lt $deadline)
-throw 'Staged operator UI element unavailable'
+try {
+ $rows=@($all|Select-Object -First 256|ForEach-Object {
+  $toggle=$null;$checked=$null
+  try{if($_.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern,[ref]$toggle)){$checked=$toggle.Current.ToggleState.ToString()}}catch{}
+  [ordered]@{name=$_.Current.Name;enabled=$_.Current.IsEnabled;type=$_.Current.ControlType.ProgrammaticName;checked=$checked;offscreen=$_.Current.IsOffscreen}
+ })
+ $rows|ConvertTo-Json -Depth 6|Set-Content UI_DIAGNOSTIC_PATH
+}catch{}
+throw ('Staged operator UI element unavailable: '+ACTION+' '+NAME)
 '''
         quote = lambda value: "'" + str(value).replace("'", "''") + "'"
         script = script.replace('APP_PID', str(app.pid)).replace('ACTION', quote(action)).replace('NAME', quote(name)).replace('CHECKED', '$true' if checked else '$false')
+        script = script.replace('UI_DIAGNOSTIC_PATH', quote(str(args.output/'operator-ui-failure.json')))
         result = subprocess.run(['pwsh.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', base64.b64encode(script.encode('utf-16-le')).decode()], capture_output=True, text=True, timeout=45)
         if result.returncode: raise RuntimeError(result.stderr[-2000:])
 
