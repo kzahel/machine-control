@@ -249,7 +249,7 @@ class Desktop:
             stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health)
 
     def notice_capability(self):
-        return dict(route='gtk3_xwayland_notification',requiresXwayland=True,
+        return dict(route='gtk3_xwayland_window',requiresXwayland=True,
             available=self.safety_available and time.monotonic()-self.safety_observed<=2)
 
     def operator(self, command):

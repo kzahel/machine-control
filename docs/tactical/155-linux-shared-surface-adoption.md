@@ -244,3 +244,13 @@ the local identity and releases the claim to prove immediate refusal. The
 relay also starts its progress clocks after the authority check, and schedules
 its next periodic check from completion rather than its stale start time.
 Final packaged acceptance remains required.
+
+**Decision — managed nonactivating notice:** an independent full-compositor
+capture remains black with the X11 notification window type even when its own
+window readback is valid. The same image-rendered contents in a managed normal
+Xwayland window are visibly composed by GNOME. Use that managed window with
+`accept_focus=false`, `focus_on_map=false` and keep-above; closing it remains
+Stop. Report its actual window route. The renderer harness now optionally
+requires independent GNOME screenshot pixels in the owned native rectangle,
+so valid offscreen contents alone cannot pass. Integrated keyboard-focus and
+portal-effect acceptance is still required after this provider change.
