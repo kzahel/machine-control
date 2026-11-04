@@ -8,6 +8,7 @@ import queue
 import select
 import struct
 import subprocess
+import sys
 import threading
 import time
 
@@ -70,6 +71,8 @@ class Policy:
             if not executable.is_file() or not os.access(executable, os.X_OK) or not entry.is_file():
                 raise PolicyError('packaged_policy_unavailable')
             command = [str(executable), str(entry)]
+        if sys.platform=='linux':
+            command=[sys.executable,'-I','-B',str(Path(__file__).with_name('policy_exec.py')),str(os.getpid()),*command]
         self.process = subprocess.Popen(command, cwd=root, env={}, close_fds=True,
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, bufsize=0)

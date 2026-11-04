@@ -176,7 +176,24 @@ def main():
                 browserProfileIds=[ids['Work']] if surface=='browser' else [])
         retained=owner([ids['Work']],['browser.tabs'])
         check('pre-crash Browser owner is live',retained.call('browser.tabs',browserProfileId=ids['Work'])['accepted'])
+        policies=[]
+        for process in Path('/proc').iterdir():
+            if not process.name.isdecimal():continue
+            try:
+                parent=int((process/'stat').read_text().rsplit(')',1)[1].split()[1])
+                command=(process/'cmdline').read_bytes().split(b'\0')
+                if parent==child.pid and command[0].endswith(b'/shared-policy/node'):policies.append(process)
+            except (OSError,ValueError,IndexError):pass
+        assert policies,'Actual native policy process was not observed'
         child.kill();child.wait(10)
+        def policies_dead():
+            for process in policies:
+                try:
+                    if (process/'stat').read_text().rsplit(')',1)[1].split()[0]!='Z':return False
+                except FileNotFoundError:pass
+            return True
+        poll(policies_dead,'kernel ends the exact old policy child',3)
+        check('native parent loss leaves no live policy process',True)
         try:retained.status();lost=False
         except (AssertionError,OSError,ConnectionError):lost=True
         check('abrupt resident loss closes the live owner',lost)
