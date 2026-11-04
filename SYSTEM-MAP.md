@@ -45,7 +45,9 @@ runs it as a privately bundled Node child through inherited framed pipes. C#
 authenticates peers and operator decisions, observes native input/session facts,
 executes OS effects, retains protected guards and audit/artifact storage, and
 projects those facts into the child. The deterministic reference target executes
-the same policy with modeled effects. Mac and Linux have not adopted this model.
+the same policy with modeled effects. The unreleased Mac adapter now uses this
+policy with bounded ordinary packaged acceptance; stream/protected qualification
+remains open. Linux has not adopted this model.
 The Python CLI/client remains the common agent-facing facade; this introduces
 no YA coordinator, private inventory owner or public approval endpoint.
 

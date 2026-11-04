@@ -28,7 +28,7 @@ struct AdmissionRequestOrder {
 /// cannot select another connection's owner. This profile coordinates callers;
 /// it does not isolate hostile processes sharing the user's shell authority.
 final class AdmissionChannel {
-    static let schema = "machine-control-admission-channel/v1"
+    static let schema = "machine-control-admission-channel/v2"
     let descriptor: Int32
     let caller: CallerIdentity
     let owner = UUID().uuidString
@@ -51,9 +51,9 @@ final class AdmissionChannel {
     private(set) var delegation: DesktopDelegation?
     private var trustRevision = ""
     private(set) var preparedConsole = false
-    private var authorityPinned = false
-    private var authorizationGrantID: String?
-    private var authorizationDeadline: TimeInterval?
+    private(set) var surfaces: [String] = []
+    private(set) var profileIDs: [String] = []
+    private var operations: [String]?
     private static let verificationSlots = DispatchSemaphore(value:4)
     private var verificationTimeout: DispatchWorkItem?
 
@@ -63,15 +63,27 @@ final class AdmissionChannel {
     }
     func open(_ request: [String:Any]) throws {
         guard let server, caller.uid == getuid(), caller.pid > 0,
-              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation", "preparedConsole"]),
+              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "surfaces", "profileIds", "operations", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation", "preparedConsole"]),
               request["schema"] as? String == AccessAdmission.schema,
-              let names = request["scopes"] as? [String], !names.isEmpty, Set(names).count == names.count,
-              names.allSatisfy({ GrantScope(rawValue:$0) != nil }),
+              let names = request["surfaces"] as? [String], (1...2).contains(names.count), Set(names).count == names.count,
+              names.allSatisfy({ ["desktop", "browser"].contains($0) }),
               let duration = admissionInteger(request["durationSeconds"]),
               let wait = admissionInteger(request["waitSeconds"]),
               let reason = request["reason"] as? String,
               let requestID = request["requestId"] as? String, order.accept(request) else { throw MacUIError.usage("invalid_admission_request") }
-        scopes = Set(names.compactMap(GrantScope.init(rawValue:)))
+        surfaces = names
+        scopes = Set(names.flatMap { $0 == "desktop" ? [GrantScope.observe, .control] : [.browser, .devtools] })
+        guard request["profileIds"] == nil || request["profileIds"] is [String] else { throw MacUIError.usage("invalid_browser_profiles") }
+        profileIDs = request["profileIds"] as? [String] ?? []
+        guard !surfaces.contains("browser") || !profileIDs.isEmpty else { throw MacUIError.usage("exact_browser_profile_required") }
+        guard surfaces.contains("browser") || profileIDs.isEmpty else { throw MacUIError.usage("invalid_browser_profiles") }
+        if let value = request["operations"] {
+            guard let list = value as? [String], (1...64).contains(list.count), Set(list).count == list.count,
+                  list.allSatisfy({ if case let .scoped(scope) = operationClass($0) { return scopes.contains(scope) }; return false }) else {
+                throw MacUIError.usage("invalid_admission_operations")
+            }
+            operations = list
+        }
         if request["desktopDelegation"] != nil {
             guard request["outerRecovery"] == nil, server.broker.policy.grantMode == .approval else {
                 throw MacUIError.permission("desktop_delegation_profile_denied")
@@ -129,7 +141,7 @@ final class AdmissionChannel {
         let flags = fcntl(descriptor, F_GETFL)
         guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else { throw MacUIError.action("control_transport_unavailable") }
         let broker = server.broker
-        let view = try broker.admission.submit(owner:owner, requestID:requestID, resources:["desktop"],
+        let view = try broker.admission.submit(owner:owner, requestID:requestID, resources:surfaces,
             wait:Double(wait), duration:Double(duration), reason:reason,
             authority:{ [weak broker, weak self, scopes] in
                 guard let broker, let self else { return "resident_stopped" }
@@ -142,17 +154,12 @@ final class AdmissionChannel {
                         if let refusal = server.preparedConsoleAuthority(scopes:scopes) { return refusal }
                     } else if !server.approvalDesktopUnlocked() { return "desktop_delegation_requires_unlocked_console" }
                 } else {
-                    if self.authorityPinned {
-                        if self.authorizationGrantID != broker.activeGrant?.id { return "access_ended" }
-                        if let deadline = self.authorizationDeadline,
-                           broker.admission.now() >= deadline { return "access_ended" }
-                    }
                     if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
                 }
                 do { try self.outer?.binding.validate(); return nil }
                 catch { return String(describing:error) }
             },
-            notice:server.approvalDesktopUnlocked() ? server.noticeSeconds : 0)
+            profileIDs:profileIDs, operations:operations)
         intentID = view["intentId"] as! String
         if let source {
             source.setEventHandler { [weak self] in self?.readable() }
@@ -213,20 +220,13 @@ final class AdmissionChannel {
                 let physicalBaseline = server.activity.physicalAt
                 let accept = { try admission.accept(owner:self.owner, id:self.intentID, generation:generation) }
                 let view = try outer.map { try $0.binding.transaction(accept) } ?? accept()
-                if delegation == nil && outer == nil {
-                    authorityPinned = true
-                    authorizationGrantID = server.broker.activeGrant?.id
-                    authorizationDeadline = server.broker.activeGrant?.expiresAt.map {
-                        server.broker.admission.now() + max(0, $0.timeIntervalSince(server.broker.now()))
-                    }
-                }
-                server.activity.arm(baseline:physicalBaseline)
+                if surfaces.contains("desktop") { server.activity.arm(baseline:physicalBaseline) }
                 do {
-                    if outer == nil && (delegation == nil || preparedConsole) {
+                    if surfaces.contains("desktop") && outer == nil && (delegation == nil || preparedConsole) {
                         if preparedConsole && !server.preparedConsoleReady() { throw MacUIError.action("locked_use_disabled") }
                         try server.activateCovered(self, view:view)
                     }
-                    else if !server.approvalDesktopUnlocked() { throw MacUIError.action("outer_requires_unlocked_host") }
+                    else if outer != nil && !server.approvalDesktopUnlocked() { throw MacUIError.action("outer_requires_unlocked_host") }
                 }
                 catch { try? admission.cancel(owner:owner, id:intentID); throw error }
                 reply(id, data:view)
@@ -243,15 +243,7 @@ final class AdmissionChannel {
                       let duration = ControlSessionLease.duration(request["durationSeconds"]) else {
                     throw MacUIError.action("control_renewal_unavailable")
                 }
-                // The grant continues to own the total lifetime. Neither a
-                // heartbeat nor renewal can restart its approval countdown.
-                var seconds = Double(duration)
-                if let deadline = authorizationDeadline {
-                    seconds = min(seconds, deadline - admission.now())
-                }
-                if let expiry = server.broker.activeGrant?.expiresAt {
-                    seconds = min(seconds, expiry.timeIntervalSince(server.broker.now()))
-                }
+                let seconds = Double(duration)
                 guard server.broker.journal?.event("control.renew.intent") != false else { throw MacUIError.action("audit_storage_unavailable") }
                 let renewed = try admission.renew(owner:owner, id:intentID, session:session,
                     generations:generations, seconds:seconds) { deadline in
@@ -274,11 +266,12 @@ final class AdmissionChannel {
                       let generations = request["resourceGenerations"] as? [String:Int],
                       var action = request["request"] as? [String:Any],
                       let operation = action["operation"] as? String else { throw MacUIError.usage("invalid_control_action") }
-                if let refusal = admission.authorize(owner:owner, id:intentID, session:session, generations:generations) {
+                if let refusal = admission.authorize(owner:owner, id:intentID, session:session, generations:generations, operation:operation) {
                     throw MacUIError.action(refusal)
                 }
                 guard case let .scoped(scope) = operationClass(operation), scopes.contains(scope),
-                      !["session.control", "permissions.request", "browser.endpoint"].contains(operation),
+                      !["session.control", "permissions.request"].contains(operation),
+                      operations == nil || operations!.contains(operation),
                       !(delegation != nil && operation.hasPrefix("outer.")) else {
                     throw MacUIError.action("operation_not_permitted_by_control_channel")
                 }

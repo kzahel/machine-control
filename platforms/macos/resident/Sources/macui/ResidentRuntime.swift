@@ -35,7 +35,7 @@ final class ResidentRuntime {
     init(socketPath: String, policy: DeploymentPolicy = .load(),
          journal: DesktopJournal? = DesktopJournal(), service: ResidentService = ResidentService(),
          presentationOverride: PresentationProfile? = nil,
-         preferences: UserDefaults = .standard) throws {
+         preferences: UserDefaults = .standard, policyDirectory:URL? = nil) throws {
         // Do not let a second shell unlink the authoritative resident endpoint.
         let existing = try residentSocket()
         defer { Darwin.close(existing) }
@@ -54,16 +54,14 @@ final class ResidentRuntime {
             unknown:{ PresentationPreference(profile:.personal, diagnostic:"presentation_observation_unavailable") }, read:{ store.load() })
         let broker = GrantBroker(policy:policy)
         broker.journal = journal
-        if policy.grantMode == .approval { attachOperatorConsent(broker, socketPath:socketPath) }
-        server = ResidentServer(socketPath:socketPath, service:service, broker:broker, preferences:preferences)
+        server = ResidentServer(socketPath:socketPath, service:service, broker:broker, preferences:preferences, policyDirectory:policyDirectory)
         resumeHelper = { observation, cancelled in
             try service.resumeCoveredAvailability(observation:observation, cancellation:cancelled)
         }
         server.presentationStatus = { [weak self] in self?.presentationJSON ?? [:] }
         if policy.grantMode == .approval { server.approver = approver }
-        server.activity.respectRecentActivity = UserDefaults.standard.string(forKey:"machineControl.admissionPolicy") != "announce"
-        let notice = UserDefaults.standard.integer(forKey:"machineControl.admissionNoticeSeconds")
-        server.noticeSeconds = (5...60).contains(notice) ? Double(notice) : 10
+        let notice = preferences.object(forKey:"machineControl.admissionNoticeSeconds") as? Int ?? 10
+        server.noticeSeconds = (0...60).contains(notice) ? Double(notice) : 10
     }
 
     func start() throws {
@@ -71,9 +69,8 @@ final class ResidentRuntime {
         guard !running else { return }
         try server.start()
         server.broker.journal?.startRuntime(instance:server.socketPath)
-        server.devtools.start()
         server.notice = AdmissionNotice(server:server)
-        if server.broker.policy.grantMode == .approval { server.activity.enable() }
+        server.activity.enable()
         let timer = DispatchSource.makeTimerSource(queue:.main)
         timer.schedule(deadline:.now() + 1, repeating:.seconds(1))
         timer.setEventHandler { [weak self] in self?.refreshPresentation() }

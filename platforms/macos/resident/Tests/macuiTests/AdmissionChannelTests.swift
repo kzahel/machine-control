@@ -16,7 +16,7 @@ final class AdmissionChannelTests: XCTestCase {
         path = "/tmp/mc-admission-\(getpid())-\(UUID().uuidString.prefix(8)).sock"
         broker = GrantBroker(policy:.workstation(issue:nil))
         broker.admission.now = { [fixture] in fixture.clock }
-        server = ResidentServer(socketPath:path, service:ResidentService(), broker:broker)
+        server = ResidentServer(socketPath:path, service:ResidentService(), broker:broker, policyDirectory:try testPolicyRoot())
         server.noticeSeconds = 0
         server.coveredActivation = { _, _ in }
         server.approvalDesktopUnlocked = { true }
@@ -25,7 +25,8 @@ final class AdmissionChannelTests: XCTestCase {
             fixture.effects += 1
             return ["accepted":true, "delivery":"confirmed", "effect":"observed", "data":["count":fixture.effects]]
         }
-        broker.issueUntilStopped(scopes:[.observe, .control], reason:"fixture", requester:"fixture", approver:"fixture")
+        broker.admission.setInputReady(true)
+        try server.configureSurface("desktop",mode:"automatic",seconds:nil)
         try server.start()
     }
     override func tearDown() {
@@ -51,7 +52,7 @@ final class AdmissionChannelTests: XCTestCase {
         server.callerTrust.peerStillValid = { _,_ in true }
         let fd = try connect()
         let request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema,
-            "requestId":"slow-verification", "scopes":["observe","control"], "reason":"fixture",
+            "requestId":"slow-verification", "surfaces":["desktop"], "reason":"fixture",
             "durationSeconds":60, "waitSeconds":120,
             "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]]
         try writeSocket(fd, data:encodeJSONLine(request))
@@ -71,50 +72,11 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(effects,0)
     }
 
-    func testPreparedDelegationRequiresSeparateConsentAndHelperAndFencesRevocation() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-prepared-delegate-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
-        defer { try? FileManager.default.removeItem(at:directory) }
-        server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-        server.callerTrust.peerValid = { _,_ in true }; server.callerTrust.peerStillValid = { _,_ in true }
-        var activations = 0
-        server.coveredActivation = { channel,_ in XCTAssertTrue(channel.preparedConsole); activations += 1 }
-        server.preparedConsoleReady = { false }
-        func openPrepared(_ fd: Int32, _ id:String) -> [String:Any] {
-            exchange(fd,["operation":"control.open", "schema":AccessAdmission.schema, "requestId":id,
-                "scopes":["observe","control"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120,
-                "preparedConsole":true, "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]])
-        }
-        broker.revoke(reason:"fixture")
-        let pending = try connect()
-        let first = openPrepared(pending,"no-consent")["data"] as! [String:Any]
-        XCTAssertEqual(first["state"] as? String,"waiting_for_approval")
-        XCTAssertEqual(activations,0)
-        broker.issueUntilStopped(scopes:[.observe], reason:"fixture", requester:"fixture", approver:"fixture")
-        XCTAssertEqual((command(pending,"control.status")["data"] as? [String:Any])?["state"] as? String,"waiting_for_approval")
-        broker.issueUntilStopped(scopes:[.observe,.control], reason:"fixture", requester:"fixture", approver:"fixture")
-        let offer = command(pending,"control.status")["data"] as! [String:Any]
-        XCTAssertEqual(command(pending,"control.accept",["offerGeneration":offer["offerGeneration"]!])["errorCode"] as? String,"locked_use_disabled")
-        XCTAssertEqual(activations,0)
-        server.preparedConsoleReady = { true }
-        let ready = try connect(), next = openPrepared(ready,"prepared")["data"] as! [String:Any]
-        let active = command(ready,"control.accept",["offerGeneration":next["offerGeneration"]!])["data"] as! [String:Any]
-        XCTAssertEqual(activations,1)
-        func effect() -> [String:Any] {
-            command(ready,"control.dispatch",["sessionId":active["sessionId"]!, "resourceGenerations":active["resourceGenerations"]!, "request":["operation":"snapshot"]])
-        }
-        XCTAssertEqual((effect()["data"] as? [String:Any])?["accepted"] as? Bool,true)
-        broker.revoke(reason:"approval_expired")
-        XCTAssertEqual(effect()["accepted"] as? Bool,false)
-        XCTAssertEqual(effects,1)
-        XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
-    }
 
     func testPreparedRequestCannotBeClaimedByAnUndelegatedOrMistypedCaller() throws {
         for value: Any in [true, "true", 1, false] {
             let response = exchange(try connect(),["operation":"control.open", "schema":AccessAdmission.schema,
-                "requestId":UUID().uuidString, "scopes":["observe","control"], "reason":"fixture", "durationSeconds":60,
+                "requestId":UUID().uuidString, "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60,
                 "waitSeconds":120, "preparedConsole":value])
             XCTAssertEqual(response["errorCode"] as? String,"invalid_prepared_console_request")
         }
@@ -186,55 +148,7 @@ final class AdmissionChannelTests: XCTestCase {
         clients.append(fd); return fd
     }
 
-    func testDelegatedOwnerDoesNotInheritAmbientGrantAndStopFencesFreshConnections() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-admitted-desktop-fixture-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
-        defer { try? FileManager.default.removeItem(at:directory) }
-        server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        server.callerTrust.peerValid = { _,_ in false }
-        server.callerTrust.peerStillValid = { _,_ in true }
-        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture-only",publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-        let delegation: [String:Any] = ["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture-session", "sessionGeneration":UUID().uuidString]
-        func request(_ fd: Int32, _ id: String) -> [String:Any] {
-            exchange(fd,["operation":"control.open","schema":AccessAdmission.schema,"requestId":id,
-                "scopes":["observe","control"],"reason":"Authenticated fixture session","durationSeconds":60,
-                "waitSeconds":120,"desktopDelegation":delegation])
-        }
-        let foreign = try connect()
-        XCTAssertEqual(request(foreign,"foreign")["errorCode"] as? String,"desktop_caller_identity_denied")
-        XCTAssertEqual(effects,0)
-        // Explicit ambient approval above did not rescue the rejected delegate.
-        broker.revoke(reason:"fixture_reset")
-        server.callerTrust.peerValid = { _,_ in true }
-        let client = try connect(), first = request(client,"trusted")
-        let offered = first["data"] as! [String:Any]
-        XCTAssertEqual(offered["ownerAssurance"] as? String,"verified_desktop_integration")
-        var active = command(client,"control.accept",["offerGeneration":offered["offerGeneration"]!])["data"] as! [String:Any]
-        func dispatch(_ operation: String) -> [String:Any] {
-            command(client,"control.dispatch",["sessionId":active["sessionId"]!,"resourceGenerations":active["resourceGenerations"]!,"request":["operation":operation]])
-        }
-        XCTAssertEqual((dispatch("snapshot")["data"] as? [String:Any])?["accepted"] as? Bool,true)
-        XCTAssertEqual(effects,1)
-        XCTAssertEqual(dispatch("session.unlock")["accepted"] as? Bool,false)
-        XCTAssertEqual(dispatch("outer.prepare")["accepted"] as? Bool,false)
-        XCTAssertEqual(effects,1)
-        let old = active["sessionId"] as? String
-        try broker.pause()
-        XCTAssertEqual(dispatch("snapshot")["accepted"] as? Bool,false)
-        XCTAssertEqual(effects,1)
-        XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
-        try broker.resume()
-        let next = command(client,"control.status")["data"] as! [String:Any]
-        active = command(client,"control.accept",["offerGeneration":next["offerGeneration"]!])["data"] as! [String:Any]
-        XCTAssertNotEqual(active["sessionId"] as? String,old)
-        XCTAssertEqual((dispatch("snapshot")["data"] as? [String:Any])?["accepted"] as? Bool,true)
-        XCTAssertEqual(effects,2)
-        server.revoke(reason:"stopped_by_person")
-        XCTAssertEqual(dispatch("snapshot")["accepted"] as? Bool,false)
-        let reconnect = try connect()
-        XCTAssertEqual(request(reconnect,"reconnect")["errorCode"] as? String,"desktop_trust_not_enabled")
-        XCTAssertEqual(effects,2)
-    }
+
     private func exchange(_ fd: Int32, _ request: [String:Any]) -> [String:Any] {
         let done = expectation(description:"channel reply")
         var result: [String:Any] = [:]
@@ -249,7 +163,7 @@ final class AdmissionChannelTests: XCTestCase {
     }
     private func open(_ fd: Int32, _ id: String) -> [String:Any] {
         let response = exchange(fd, ["operation":"control.open", "schema":AccessAdmission.schema, "requestId":id,
-            "scopes":["observe", "control"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120])
+            "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120])
         XCTAssertEqual(response["accepted"] as? Bool, true, "Open refused: \(response)")
         return response["data"] as? [String:Any] ?? [:]
     }
@@ -273,25 +187,7 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual((command(client,"control.status")["data"] as? [String:Any])?["state"] as? String,"ended")
         XCTAssertEqual(effects,0)
     }
-    func testTimedApprovalCapsRenewalAndWallClockRollbackCannotExtendIt() throws {
-        var wall = Date(timeIntervalSince1970:1000)
-        broker.now = { wall }
-        broker.issue(scopes:[.observe,.control], durationSeconds:120, reason:"fixture", requester:"fixture", approver:"fixture")
-        let client = try connect(), offer = open(client,"timed-renew")
-        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
-        clock = 103; wall = wall.addingTimeInterval(-500)
-        let renewed = command(client,"control.renew",["sessionId":active["sessionId"]!,
-            "resourceGenerations":active["resourceGenerations"]!, "durationSeconds":900])["data"] as! [String:Any]
-        XCTAssertEqual(renewed["activeRemainingSeconds"] as? Double,117)
-        while clock < 220 {
-            clock = min(220,clock+4)
-            _ = command(client,"control.heartbeat")
-        }
-        XCTAssertNotNil(broker.activeGrant) // Wall time alone still appears valid.
-        let final = command(client,"control.status")["data"] as! [String:Any]
-        XCTAssertEqual(final["state"] as? String,"ended")
-        XCTAssertEqual(final["terminalReason"] as? String,"access_ended")
-    }
+
     func testLeaseRenewalCanAcknowledgeWhileTheSameOwnersActionIsPending() throws {
         let client = try connect(), offer = open(client,"pending-renewal")
         let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
@@ -426,7 +322,7 @@ final class AdmissionChannelTests: XCTestCase {
         }
         func openOuter(_ fd: Int32, _ name: String) throws -> [String:Any] {
             let reply = exchange(fd,["operation":"control.open","schema":AccessAdmission.schema,"requestId":name,
-                "scopes":["observe","control"],"reason":"Explicit fixture recovery","durationSeconds":60,"waitSeconds":120,
+                "surfaces":["desktop"],"reason":"Explicit fixture recovery","durationSeconds":60,"waitSeconds":120,
                 "outerRecovery":try binding(name)])
             XCTAssertEqual(reply["accepted"] as? Bool,true); return reply["data"] as! [String:Any]
         }
@@ -465,17 +361,5 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual((command(live, "control.status")["data"] as? [String:Any])?["state"] as? String, "paused")
         XCTAssertEqual(effects, 0)
     }
-    func testDeadWaiterAndLateOfferCannotExecute() throws {
-        let a = try connect()
-        let initial = open(a, "first")
-        clock += 15
-        let expired = command(a, "control.accept", ["offerGeneration":initial["offerGeneration"]!])
-        XCTAssertEqual(expired["accepted"] as? Bool, false)
-        XCTAssertEqual(effects, 0)
-        let b = try connect(); _ = open(b, "second")
-        clock += 60
-        let status = command(b, "control.heartbeat")["data"] as! [String:Any]
-        XCTAssertEqual(status["terminalReason"] as? String, "queue_lease_expired")
-        XCTAssertEqual(effects, 0)
-    }
+
 }

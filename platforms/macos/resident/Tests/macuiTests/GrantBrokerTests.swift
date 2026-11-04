@@ -1,238 +1,40 @@
 import XCTest
 @testable import macui
-
-final class GrantBrokerTests: XCTestCase {
-    func testRenewalPreservesNativeReferencesWhilePauseStillFencesThem() throws {
-        let broker = broker()
-        broker.issueUntilStopped(scopes:[.observe,.control], reason:"manual", requester:"operator", approver:"test")
-        var uptime = 0.0; broker.admission.now = { uptime }
-        let admission = broker.admission
-        let offer = try admission.submit(owner:"a", requestID:"renew", resources:["desktop"],
-            wait:120, duration:60, reason:"Fixture", authority:{ nil })
-        let id = offer["intentId"] as! String
-        let active = try admission.accept(owner:"a", id:id, generation:offer["offerGeneration"] as! Int)
-        var invalidations = 0
-        let epoch = ProviderEpoch(), token = UUID()
-        let snapshot = epoch.current
-        broker.availabilityChanged = { invalidations += 1; epoch.invalidate() }
-        let revision = admission.revision
-        uptime = 3
-        _ = try admission.renew(owner:"a", id:id, session:active["sessionId"] as! String,
-            generations:active["resourceGenerations"] as! [String:Int], seconds:120)
-        broker.refreshAvailability()
-        XCTAssertGreaterThan(admission.revision, revision, "Renewal remains observable")
-        XCTAssertEqual(invalidations,0,"A deadline extension must preserve native snapshots and pending actions")
-        XCTAssertNil(epoch.refusal(snapshot))
-        XCTAssertNotNil(epoch.refusal(token))
-        try broker.pause()
-        XCTAssertGreaterThan(invalidations,0,"Pause must still fence native work")
-        XCTAssertNotNil(epoch.refusal(snapshot))
-    }
-    func testPausePreservesApprovalAndGatesEveryScope() throws {
-        let broker = broker()
-        let grant = broker.issueUntilStopped(scopes: Set(GrantScope.allCases), reason: "manual",
-            requester: "operator", approver: "test")
-        var uptime = 0.0; broker.admission.now = { uptime }
-        try broker.pause()
-        for operation in ["snapshot", "capture", "input.text", "browser.tabs", "browser.eval", "app.launch"] {
-            XCTAssertEqual(broker.authorize(operation)?.code, "access_paused")
-        }
-        XCTAssertFalse(broker.browserAllowed); XCTAssertFalse(broker.devtoolsAllowed)
-        XCTAssertNil(broker.authorize("status")); XCTAssertNil(broker.authorize("grant.revoke"))
-        XCTAssertEqual(broker.activeGrant?.id, grant.id)
-        try broker.pause(reason: "safety_fault")
-        try broker.resume()
-        XCTAssertEqual(broker.authorize("snapshot")?.code, "access_paused")
-        broker.admission.resume("desktop", reason: "safety_fault")
-        XCTAssertNil(broker.authorize("snapshot"))
-        try broker.pause(seconds: 1); uptime = 1; broker.refreshAvailability()
-        XCTAssertNil(broker.authorize("snapshot"))
-        broker.issue(scopes: [.observe], durationSeconds: 60, reason: "timed", requester: "operator", approver: "test")
-        try broker.pause(); clock = clock.addingTimeInterval(60); try broker.resume()
-        XCTAssertEqual(broker.authorize("snapshot")?.code, "approval_required")
-        XCTAssertThrowsError(try broker.pause(seconds: 0))
-    }
-    private var clock = Date(timeIntervalSince1970: 1_000_000)
-
-    private func broker(_ policy: DeploymentPolicy = .workstation(issue: nil)) -> GrantBroker {
-        let value = GrantBroker(policy: policy)
-        value.now = { [unowned self] in self.clock }
-        return value
-    }
-
-    private func request(_ scopes: Set<GrantScope>, duration: Int = 900) -> GrantRequest {
-        GrantRequest(id: "r", scopes: scopes, durationSeconds: duration, timeoutSeconds: 30,
-                     reason: "test", claimID: nil, caller: CallerIdentity(uid: 0, chain: []))
-    }
-
-    func testOperationClasses() {
-        XCTAssertEqual(operationClass("status"), .discovery)
-        XCTAssertEqual(operationClass("desktop.delegation.status"), .discovery)
-        XCTAssertEqual(operationClass("grant.request"), .grantManagement)
-        XCTAssertEqual(operationClass("snapshot"), .scoped(.observe))
-        XCTAssertEqual(operationClass("input.click"), .scoped(.control))
-        XCTAssertEqual(operationClass("browser.tabs"), .scoped(.browser))
-        XCTAssertEqual(operationClass("session.unlock"), .protected)
-        XCTAssertEqual(operationClass("something.new"), .scoped(.control))
-    }
-
-    func testDevtoolsIsSeparateFromBrowser() {
-        XCTAssertEqual(operationClass("browser.cdp"), .scoped(.devtools))
-        XCTAssertEqual(operationClass("browser.eval"), .scoped(.devtools))
-        let broker = broker()
-        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "r", requester: "x",
-                     approver: "test")
-        XCTAssertNil(broker.authorize("browser.tabs"))
-        XCTAssertEqual(broker.authorize("browser.cdp")?.requiredScope, .devtools)
-        XCTAssertFalse(broker.devtoolsAllowed)
-        broker.issue(scopes: [.browser, .devtools], durationSeconds: 600, reason: "r",
-                     requester: "x", approver: "test")
-        XCTAssertNil(broker.authorize("browser.eval"))
-        XCTAssertTrue(broker.devtoolsAllowed)
-    }
-
-    func testWorkstationRefusesWithoutGrant() {
-        let broker = broker()
-        XCTAssertNil(broker.authorize("status"))
-        XCTAssertNil(broker.authorize("grant.request"))
-        XCTAssertEqual(broker.authorize("snapshot")?.code, "approval_required")
-        XCTAssertEqual(broker.authorize("snapshot")?.requiredScope, .observe)
-        XCTAssertEqual(broker.authorize("input.key")?.code, "approval_required")
-        XCTAssertEqual(broker.authorize("session.unlock")?.code, "operation_not_permitted_by_policy")
-    }
-
-    func testStandingPolicyAllowsOrdinaryAndProtected() {
-        let appliance = DeploymentPolicy(preset: "appliance", grantMode: .standing,
-                                         protectedOperations: true, source: "policy_file", issue: nil)
-        let broker = broker(appliance)
-        XCTAssertNil(broker.authorize("input.key"))
-        XCTAssertNil(broker.authorize("session.unlock"))
-        let unprotected = self.broker(DeploymentPolicy(preset: "unattended", grantMode: .standing,
-            protectedOperations: false, source: "policy_file", issue: nil))
-        XCTAssertEqual(unprotected.authorize("session.unlock")?.code, "operation_not_permitted_by_policy")
-    }
-
-    func testGrantScopesAndExpiry() {
-        let broker = broker()
-        broker.issue(scopes: [.observe], durationSeconds: 120, reason: "r", requester: "x",
-                     approver: "test")
-        XCTAssertNil(broker.authorize("capture"))
-        XCTAssertEqual(broker.authorize("input.text")?.code, "approval_required")
-        clock = clock.addingTimeInterval(121)
-        XCTAssertEqual(broker.authorize("capture")?.code, "approval_required")
-        XCTAssertEqual(broker.lastEnded?.reason, "expired")
-    }
-
-    func testRevokeEndsGrant() {
-        let broker = broker()
-        broker.issue(scopes: [.observe, .control], durationSeconds: 600, reason: "r",
-                     requester: "x", approver: "test")
-        XCTAssertNil(broker.authorize("input.click"))
-        broker.revoke(reason: "stop")
-        XCTAssertEqual(broker.authorize("input.click")?.code, "approval_required")
-        XCTAssertEqual(broker.lastEnded?.reason, "stop")
-    }
-
-    func testManualUntilStoppedHasNoTimerAndRetainsScopeChecks() {
-        let broker = broker()
-        let grant = broker.issueUntilStopped(scopes: [.observe], reason: "manual",
-                                            requester: "local operator", approver: "local_tauri")
-        XCTAssertNil(grant.expiresAt)
-        let json = grant.json(now: clock)
-        XCTAssertEqual(json["lifetime"] as? String, "until_stopped")
-        XCTAssertTrue(json["expiresAt"] is NSNull)
-        XCTAssertTrue(json["remainingSeconds"] is NSNull)
-        clock = clock.addingTimeInterval(30 * 24 * 60 * 60)
-        XCTAssertNil(broker.authorize("capture"))
-        XCTAssertEqual(broker.authorize("input.key")?.code, "approval_required")
-        XCTAssertEqual(broker.authorize("session.unlock")?.code, "operation_not_permitted_by_policy")
-        broker.revoke(reason: "stopped_by_person")
-        XCTAssertEqual(broker.authorize("capture")?.code, "approval_required")
-    }
-
-    func testManualUntilStoppedCanBeRevokedAndNewBrokerStartsOff() {
-        let broker = broker()
-        broker.issueUntilStopped(scopes: [.observe, .control], reason: "manual",
-                                 requester: "local operator", approver: "local_tauri")
-        broker.revoke(reason: "desktop_locked")
+final class GrantBrokerTests:XCTestCase {
+    func testNativeConsentProjectionCannotAuthorizeAnOrdinaryCall() throws {
+        let broker = GrantBroker(policy:.workstation(issue:nil)); try bindPolicy(broker)
+        XCTAssertEqual(broker.authorize("snapshot")?.code,"surface_disabled")
+        try broker.configureSurface("desktop",mode:"automatic",seconds:nil)
+        broker.desktopRouteReady = true
+        XCTAssertNotNil(broker.activeGrant)
+        XCTAssertEqual(broker.authorize("snapshot")?.code,"control_session_required")
+        XCTAssertNil(broker.authorize("snapshot",controlled:true))
+        XCTAssertEqual(broker.authorize("session.unlock",controlled:true)?.code,"operation_not_permitted_by_policy")
+        let id = broker.desktopConsentID
+        try broker.configureSurface("browser",mode:"ask",seconds:nil,profiles:["profile-one"])
+        XCTAssertEqual(broker.desktopConsentID,id)
+        try broker.pause(surface:"browser")
+        XCTAssertEqual(broker.desktopConsentID,id)
+        broker.revoke(reason:"stopped_by_person")
         XCTAssertNil(broker.activeGrant)
-        XCTAssertEqual(broker.lastEnded?.reason, "desktop_locked")
-        broker.issueUntilStopped(scopes: [.observe], reason: "manual",
-                                 requester: "local operator", approver: "local_tauri")
-        XCTAssertNil(self.broker().activeGrant)
+        XCTAssertNotEqual(broker.desktopConsentID,id)
+        try broker.resume(); XCTAssertFalse(broker.admission.enabled("desktop"))
     }
-
-    func testAgentRequestCannotCreateUntilStoppedGrant() throws {
-        let broker = broker()
-        let request = try GrantRequest.parse([
-            "scopes": ["observe"], "reason": "test", "lifetime": "until_stopped",
-            "durationSeconds": 0
-        ], caller: CallerIdentity(uid: 0, chain: [])).get()
-        XCTAssertNil(broker.beginPending(request))
-        let grant = broker.finishPending(.approved(scopes: [.observe], durationSeconds: 0),
-                                         approver: "test")
-        XCTAssertEqual(grant?.expiresAt, clock.addingTimeInterval(60))
-        clock = clock.addingTimeInterval(61)
-        XCTAssertEqual(broker.authorize("capture")?.code, "approval_required")
+    func testUnknownOperatorCannotCreateConsentAndOffRemainsAvailable() throws {
+        let broker = GrantBroker(policy:.workstation(issue:nil)); try bindPolicy(broker)
+        broker.operatorReady = { false }
+        XCTAssertThrowsError(try broker.configureSurface("desktop",mode:"automatic",seconds:nil))
+        try broker.configureSurface("desktop",mode:"off",seconds:nil)
+        XCTAssertFalse(broker.admission.enabled("desktop"))
     }
-
-    func testPendingPromptPausesControlButNotObservation() {
-        let broker = broker()
-        broker.issue(scopes: [.observe, .control], durationSeconds: 600, reason: "r",
-                     requester: "x", approver: "test")
-        XCTAssertNil(broker.beginPending(request([.browser])))
-        XCTAssertEqual(broker.authorize("input.click")?.code, "approval_prompt_visible")
-        XCTAssertNil(broker.authorize("snapshot"))
-        XCTAssertEqual(broker.beginPending(request([.observe]))?.code, "approval_pending")
+    func testManagedProtectedPlaneRemainsSeparateFromOrdinarySurfaceTasks() {
+        let broker = GrantBroker(policy:DeploymentPolicy(preset:"appliance",grantMode:.standing,protectedOperations:true,source:"policy_file",issue:nil))
+        XCTAssertNil(broker.authorize("session.unlock"))
+        XCTAssertNotNil(broker.authorize("snapshot"))
     }
-
-    func testApprovalCanOnlyNarrow() {
-        let broker = broker()
-        XCTAssertNil(broker.beginPending(request([.observe], duration: 300)))
-        let grant = broker.finishPending(.approved(scopes: [.observe, .control], durationSeconds: 3600),
-                                         approver: "test")
-        XCTAssertEqual(grant?.scopes, [.observe])
-        XCTAssertEqual(grant?.expiresAt.map { Int($0.timeIntervalSince(clock)) }, 300)
-        XCTAssertNil(broker.pending)
-    }
-
-    func testDeniedOrTimedOutIssuesNothing() {
-        let broker = broker()
-        _ = broker.beginPending(request([.control]))
-        XCTAssertNil(broker.finishPending(.denied, approver: "test"))
-        _ = broker.beginPending(request([.control]))
-        XCTAssertNil(broker.finishPending(.timedOut, approver: "test"))
-        XCTAssertNil(broker.grant)
-    }
-
-    func testCoveringGrantAvoidsPrompt() {
-        let broker = broker()
-        broker.issue(scopes: [.observe, .control], durationSeconds: 600, reason: "r",
-                     requester: "x", approver: "test")
-        XCTAssertNotNil(broker.covering(request([.control])))
-        XCTAssertNil(broker.covering(request([.browser])))
-    }
-
-    func testRequestParsingBoundsValues() throws {
-        let caller = CallerIdentity(uid: 0, chain: [])
-        let parsed = try GrantRequest.parse(["scopes": ["control"], "reason": " fix ",
-                                             "durationSeconds": 999_999, "timeoutSeconds": 1],
-                                            caller: caller).get()
-        XCTAssertEqual(parsed.durationSeconds, GrantRequest.durationRange.upperBound)
-        XCTAssertEqual(parsed.timeoutSeconds, GrantRequest.timeoutRange.lowerBound)
-        XCTAssertEqual(parsed.reason, "fix")
-        XCTAssertThrowsError(try GrantRequest.parse(["scopes": ["root"], "reason": "x"],
-                                                    caller: caller).get())
-        XCTAssertThrowsError(try GrantRequest.parse(["scopes": ["control"]], caller: caller).get())
-    }
-
     func testAuditIsBounded() {
-        let broker = broker()
-        for index in 0..<150 {
-            broker.record(operation: "op\(index)", accepted: false, errorCode: nil,
-                          caller: CallerIdentity(uid: 0, chain: []), claimID: nil)
-        }
-        XCTAssertEqual(broker.audit.count, 100)
-        XCTAssertEqual(broker.audit.first?.operation, "op50")
+        let broker = GrantBroker(policy:.workstation(issue:nil))
+        for index in 0..<150 { broker.record(operation:"op\(index)",accepted:false,errorCode:nil,caller:CallerIdentity(uid:0,chain:[]),claimID:nil) }
+        XCTAssertEqual(broker.audit.count,100); XCTAssertEqual(broker.audit.first?.operation,"op50")
     }
 }

@@ -18,10 +18,8 @@ func operationClass(_ operation: String) -> OperationClass {
         return .grantManagement
     case "browser.provider":
         return .providerRegistration
-    case "browser.endpoint":
-        // Reports the DevTools WebSocket endpoint; the token, not this call,
-        // gates the socket, and the endpoint is only present under a grant.
-        return .discovery
+    case "browser.profiles": return .discovery
+    case "browser.endpoint": return .scoped(.devtools)
     case "browser.cdp", "browser.eval":
         // Raw DevTools protocol access is broader than operating tabs: it
         // can run scripts and read data on any signed-in site.
@@ -175,332 +173,147 @@ struct AuditEntry {
     }
 }
 
-/// Owns the live grant for this resident. All access happens on the main
-/// queue, like the rest of the resident.
+/// Native policy/safety ceilings and shared-policy projections. Surface
+/// consent, task approval, queueing and expiry belong exclusively to Node.
 final class GrantBroker {
-    /// Operational failure ends live authority, not the person's saved choice.
-    /// Only a trusted authority transition may invalidate that choice.
     enum ConsentDisposition { case retain, invalidate }
     let policy: DeploymentPolicy
     var journal: DesktopJournal?
     var now: () -> Date = Date.init
-    private var observers: [() -> Void] = []
-    var bindAuthorityBeforeObservers: (() -> Void)?
-
     var authorityChanged: (() -> Void)?
-    private(set) var grant: Grant? {
-        didSet { if oldValue?.id != grant?.id { authorityChanged?() } }
-    }
-    private(set) var pending: GrantRequest?
+    var availabilityChanged: (() -> Void)?
+    var bindAuthorityBeforeObservers: (() -> Void)?
+    private var observers: [() -> Void] = []
+    private var observedAvailability = 0
+    private(set) var desktopConsentID = UUID().uuidString
+    private(set) var browserConsentID = UUID().uuidString
     private(set) var lastEnded: (reason: String, at: Date)?
     private(set) var audit: [AuditEntry] = []
-    private let auditLimit = 100
-    var consentStore: OperatorConsentStore?
-    var consentStorageError: String?
+    var desktopRouteReady = false
+    var browserRouteReady = false
+    var browserOnlyWhileLocked = false
+    var operatorReady: () -> Bool = { false }
+    // Legacy authority records are deliberately not loaded or restored.
+    var consentStorageError: String? { nil }
     var restorationBlockedScopes = Set<GrantScope>()
-    /// A retained mixed grant keeps its identity and expiry, but cannot expose
-    /// desktop observation/input while only browser access is permitted.
-    var browserOnlyWhileLocked = false {
-        didSet { if oldValue != browserOnlyWhileLocked { notify() } }
-    }
+    var pending: GrantRequest? { nil }
     static let browserScopes: Set<GrantScope> = [.browser, .devtools]
-    private func scopeAvailable(_ scope: GrantScope) -> Bool {
-        !browserOnlyWhileLocked || Self.browserScopes.contains(scope)
-    }
-    var availabilityChanged: (() -> Void)?
-    private var availabilityRevision = 0
+    static let personStopReasons: Set<String> = ["stopped_from_menu", "stopped_by_hotkey", "stopped_by_person"]
     lazy var admission: AccessAdmission = {
         let value = AccessAdmission()
-        value.register("desktop")
+        value.register("desktop", ready: false); value.register("browser", ready: false)
         value.changed = { [weak self] in self?.refreshAvailability() }
         return value
     }()
-
-    func refreshAvailability() {
-        admission.refresh()
-        guard availabilityRevision != admission.availabilityRevision else { return }
-        availabilityRevision = admission.availabilityRevision
-        availabilityChanged?()
-        notify()
-    }
-
-    /// Called only by trusted native/operator surfaces or internal monitors.
-    func pause(reason: String = "manual", seconds: Int? = nil) throws {
-        if reason == "manual" || reason == "operator_deferral" { try consentStore?.pause(seconds:seconds, deferral:reason == "operator_deferral") }
-        try admission.pause("desktop", reason: reason, seconds: seconds.map(Double.init))
-        journal?.event("access.paused")
-    }
-
-    func resume() throws {
-        try consentStore?.resume()
-        admission.resume("desktop", reason: "manual")
-        admission.resume("desktop", reason: "operator_deferral")
-        admission.resume("desktop", reason: "local_use_episode")
-        journal?.event("access.resumed")
-    }
-
-    init(policy: DeploymentPolicy) {
-        self.policy = policy
-    }
-
-    /// Registers a callback for grant, pending-request, and expiry changes.
-    func observe(_ observer: @escaping () -> Void) {
-        observers.append(observer)
-    }
-
+    init(policy: DeploymentPolicy) { self.policy = policy }
+    func observe(_ observer: @escaping () -> Void) { observers.append(observer) }
     private func notify() {
         bindAuthorityBeforeObservers?()
         for observer in observers { observer() }
     }
-
-    /// Whether browser operations are currently allowed.
-    var browserAllowed: Bool { allows(.browser) }
-
-    /// Whether raw DevTools protocol access is currently allowed.
-    var devtoolsAllowed: Bool { allows(.devtools) }
-
-    private func allows(_ scope: GrantScope) -> Bool {
-        scopeAvailable(scope) && admission.blocks("desktop").isEmpty &&
-            (policy.grantMode == .standing || activeGrant?.scopes.contains(scope) == true)
+    func refreshAvailability() {
+        admission.refresh()
+        guard observedAvailability != admission.availabilityRevision else { return }
+        observedAvailability = admission.availabilityRevision
+        availabilityChanged?(); notify()
     }
-
-    /// The live grant, after retiring an expired one.
+    var browserAllowed: Bool {
+        browserRouteReady && admission.enabled("browser") && admission.blocks("browser").isEmpty
+    }
+    var devtoolsAllowed: Bool { browserAllowed }
     var activeGrant: Grant? {
-        if let expiry = grant?.expiresAt, expiry <= now() {
-            end(reason: "expired", consent: grant?.origin == .person ? .invalidate : .retain)
-        }
-        return grant
+        // A read-only native helper binding. This cannot authorize an action;
+        // every ordinary action also needs its live shared owner/fence.
+        guard admission.enabled("desktop") else { return nil }
+        let state = admission.surface("desktop")
+        let remaining = (state["consentRemainingSeconds"] as? NSNumber)?.doubleValue
+        return Grant(id: desktopConsentID, scopes: [.observe, .control], issuedAt: now(),
+            expiresAt: remaining.map { now().addingTimeInterval($0) },
+            reason: "Desktop surface consent", requester: "local operator",
+            approver: "surface_modes", origin: .person)
     }
-
-    func authorize(_ operation: String, controlled: Bool = false, delegatedScopes: Set<GrantScope>? = nil) -> GrantRefusal? {
+    var grant: Grant? { activeGrant }
+    func validateSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String]) throws {
+        guard ["desktop", "browser"].contains(surface), ["off", "ask", "automatic"].contains(mode),
+              seconds == nil || (60...28800).contains(seconds!) else {
+            throw MacUIError.usage("invalid_surface_configuration")
+        }
+        guard mode == "off" || operatorReady() else { throw MacUIError.permission("unlocked_operator_required") }
+        guard journal?.errorCode == nil || mode == "off" else { throw MacUIError.action("audit_storage_unavailable") }
+    }
+    func configureSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String] = []) throws {
+        try validateSurface(surface, mode:mode, seconds:seconds, profiles:profiles)
+        try admission.configure(surface, mode: mode, seconds: seconds, profiles: profiles)
+        if surface == "desktop" { desktopConsentID = UUID().uuidString; authorityChanged?() }
+        else { browserConsentID = UUID().uuidString }
+        lastEnded = nil; journal?.event(mode == "off" ? "access.disabled" : "access.enabled")
+        notify()
+    }
+    func pause(reason: String = "manual", seconds: Int? = nil, surface: String = "all") throws {
+        try admission.pause(surface, reason: reason, seconds: seconds.map(Double.init))
+        journal?.event("access.paused")
+    }
+    func resume(surface: String = "all") throws {
+        admission.resume(surface, reason: "manual"); admission.resume(surface, reason: "operator_deferral")
+        admission.resume(surface, reason: "local_use_episode"); admission.resume(surface, reason: "physical_takeover")
+        journal?.event("access.resumed")
+    }
+    func authorize(_ operation: String, controlled: Bool = false,
+                   delegatedScopes: Set<GrantScope>? = nil) -> GrantRefusal? {
         switch operationClass(operation) {
-        case .discovery, .grantManagement, .lifecycle, .providerRegistration:
-            return nil
+        case .discovery, .grantManagement, .lifecycle, .providerRegistration: return nil
         case .protected:
-            guard policy.protectedOperations else {
-                return GrantRefusal("operation_not_permitted_by_policy",
-                    "The \(policy.preset) deployment policy does not allow \(operation)")
-            }
-            guard policy.grantMode == .standing else {
-                return GrantRefusal("operation_not_permitted_by_policy",
-                    "Protected operations require a standing deployment policy")
-            }
-            if !admission.blocks("desktop").isEmpty {
-                return GrantRefusal("access_paused", "Computer access is temporarily paused")
+            // The explicitly installed managed-appliance administration plane
+            // is separate from ordinary workstation surface consent.
+            guard policy.protectedOperations && policy.grantMode == .standing else {
+                return GrantRefusal("operation_not_permitted_by_policy", "Protected administration requires its native managed policy")
             }
             return nil
         case let .scoped(scope):
-            if restorationBlockedScopes.contains(scope) {
-                return GrantRefusal("access_temporarily_unavailable", "Saved consent is retained; this route is waiting for readiness", requiredScope:scope)
+            let surface = Self.browserScopes.contains(scope) ? "browser" : "desktop"
+            guard admission.enabled(surface) else { return GrantRefusal("surface_disabled", "This surface is Off", requiredScope: scope) }
+            guard controlled else { return GrantRefusal("control_session_required", "Open one live surface task", requiredScope: scope) }
+            if let delegatedScopes, !delegatedScopes.contains(scope) {
+                return GrantRefusal("desktop_trust_scope_denied", "Caller authority does not include this operation")
             }
-            guard scopeAvailable(scope) else {
-                return GrantRefusal("desktop_locked_browser_only",
-                    "Only previously approved browser access is available while locked",
-                    requiredScope: scope)
+            guard surface == "browser" ? browserRouteReady : desktopRouteReady else {
+                return GrantRefusal(surface == "desktop" && browserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable",
+                    "The native route is temporarily unavailable", requiredScope: scope)
             }
-            if !controlled && admission.reserved {
-                return GrantRefusal("control_session_required", "The desktop is reserved; use an owner-bound control channel", requiredScope:scope)
-            }
-            if !admission.blocks("desktop").isEmpty {
-                return GrantRefusal("access_paused", "Computer access is temporarily paused; inspect grant.status", requiredScope: scope)
-            }
-            if policy.grantMode == .standing { return nil }
-            // A controlled session must not be able to act on its own
-            // approval prompt, so control waits while one is visible.
-            if pending != nil && scope != .observe {
-                return GrantRefusal("approval_prompt_visible",
-                    "Control is paused while an approval prompt is visible",
-                    requiredScope: scope)
-            }
-            if let delegatedScopes {
-                return delegatedScopes.contains(scope) ? nil : GrantRefusal("desktop_trust_scope_denied", "This session has no authority for the requested scope")
-            }
-            guard let current = activeGrant else {
-                return GrantRefusal("approval_required",
-                    "No active grant; request one with grant.request",
-                    requiredScope: scope)
-            }
-            guard current.scopes.contains(scope) else {
-                return GrantRefusal("approval_required",
-                    "The active grant does not include \(scope.rawValue)",
-                    requiredScope: scope)
-            }
+            guard journal?.errorCode == nil else { return GrantRefusal("audit_storage_unavailable", "Audit storage unavailable") }
             return nil
         }
     }
-
     func admissionAuthority(scopes: Set<GrantScope>) -> String? {
-        if journal?.errorCode != nil { return "audit_storage_unavailable" }
-        if !scopes.allSatisfy(scopeAvailable) { return "desktop_locked_browser_only" }
-        if policy.grantMode == .standing { return nil }
-        if !scopes.isDisjoint(with:restorationBlockedScopes) { return "access_temporarily_unavailable" }
-        guard let grant = activeGrant, scopes.isSubset(of:grant.scopes) else { return "approval_required" }
-        return nil
+        journal?.errorCode == nil ? nil : "audit_storage_unavailable"
     }
-
-    /// Returns an existing grant that already covers the request.
-    func covering(_ request: GrantRequest) -> Grant? {
-        guard let current = activeGrant, request.scopes.isSubset(of: current.scopes),
-              request.scopes.allSatisfy(scopeAvailable) else {
-            return nil
-        }
-        return current
-    }
-
-    func beginPending(_ request: GrantRequest) -> GrantRefusal? {
-        guard pending == nil else {
-            return GrantRefusal("approval_pending", "Another grant request is awaiting a decision")
-        }
-        guard journal?.event("access.requested") != false else { return GrantRefusal("audit_storage_unavailable", "Audit storage unavailable") }
-        pending = request
-        notify()
-        return nil
-    }
-
-    /// Applies a decision to the pending request and returns the new grant.
-    func finishPending(_ decision: GrantDecision, approver: String) -> Grant? {
-        guard let request = pending else { return nil }
-        pending = nil
-        defer { notify() }
-        guard case let .approved(scopes, duration) = decision else {
-            journal?.event(decision == .timedOut ? "access.approval_timeout" : "access.denied", accepted: false)
-            return nil
-        }
-        let narrowed = scopes.intersection(request.scopes)
-        guard !narrowed.isEmpty else { return nil }
-        let issued = issue(scopes: narrowed,
-                     durationSeconds: min(duration, request.durationSeconds),
-                     reason: request.reason, requester: request.caller.summary,
-                     approver: approver)
-        return journal?.errorCode == nil ? issued : nil
-    }
-
-    @discardableResult
-    func issue(scopes: Set<GrantScope>, durationSeconds: Int, reason: String,
-               requester: String, approver: String, origin: GrantOrigin = .request) -> Grant {
-        restorationBlockedScopes.removeAll()
-        let clamped = min(max(durationSeconds, GrantRequest.durationRange.lowerBound),
-                          GrantRequest.durationRange.upperBound)
-        let issued = now()
-        let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
-                         issuedAt: issued,
-                         expiresAt: issued.addingTimeInterval(TimeInterval(clamped)),
-                         reason: reason, requester: requester, approver: approver,
-                         origin: origin)
-        guard journal?.event("access.enabled") != false else {
-            lastEnded = ("audit_storage_unavailable", now()); notify(); return next
-        }
-        grant = next
-        lastEnded = nil
-        notify()
-        return next
-    }
-
-    /// The local operator can explicitly arm access without a timer. Agent
-    /// requests still receive bounded grants through finishPending. This
-    /// grant stays in memory and uses the same Stop/session revocation path.
-    @discardableResult
-    func issueUntilStopped(scopes: Set<GrantScope>, reason: String,
-                           requester: String, approver: String) -> Grant {
-        restorationBlockedScopes.removeAll()
-        let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
-                         issuedAt: now(), expiresAt: nil,
-                         reason: reason, requester: requester, approver: approver,
-                         origin: .person)
-        guard journal?.event("access.enabled") != false else {
-            lastEnded = ("audit_storage_unavailable", now()); notify(); return next
-        }
-        grant = next
-        lastEnded = nil
-        notify()
-        return next
-    }
-
-    /// Restore only the remaining consent lifetime; never clamp it up to the
-    /// minimum duration of a new approval request.
-    @discardableResult
-    func restoreConsent(scopes: Set<GrantScope>, remainingSeconds: Int?) -> Grant? {
-        guard !scopes.isEmpty, remainingSeconds == nil || (1...28800).contains(remainingSeconds!) else { return nil }
-        let issued = now()
-        let next = Grant(id: UUID().uuidString.lowercased(), scopes:scopes, issuedAt:issued,
-            expiresAt:remainingSeconds.map { issued.addingTimeInterval(Double($0)) },
-            reason:"Restored local operator consent", requester:"local operator", approver:"local_consent",
-            origin:.person)
-        guard journal?.event("access.restored") != false else { return nil }
-        grant = next; lastEnded = nil; notify()
-        return next
-    }
-
     func revoke(reason: String, consent: ConsentDisposition = .retain) {
-        end(reason: reason, consent: consent)
+        fence(); admission.stop(reason); lastEnded = (reason, now())
+        journal?.event("access." + DesktopJournal.token(reason)); notify()
     }
-
-    /// Local authority ends before protected cleanup or durable writes wait.
     func fence() {
-        if grant != nil { fenced = grant }
-        grant = nil
+        desktopConsentID = UUID().uuidString; browserConsentID = UUID().uuidString
+        authorityChanged?()
     }
-    /// The grant a fence cleared, so its end can still see its origin.
-    private var fenced: Grant?
-
-    /// The person's own controls; only these always clear saved consent.
-    static let personStopReasons: Set<String> = ["stopped_from_menu", "stopped_by_hotkey", "stopped_by_person"]
-
-    /// Saved consent is the person's arming. An agent's revoke or the end of
-    /// an agent-request grant must not clear it; the person's Stop always does.
     static func clearsConsent(reason: String, ending: GrantOrigin?, consent: ConsentDisposition = .retain) -> Bool {
-        if personStopReasons.contains(reason) { return true }
-        return consent == .invalidate
+        personStopReasons.contains(reason) || consent == .invalidate
     }
-
-    private func end(reason: String, consent: ConsentDisposition = .retain) {
-        let ending = grant ?? fenced
-        grant = nil
-        fenced = nil
-        restorationBlockedScopes.removeAll()
-        journal?.event("access." + DesktopJournal.token(reason))
-        if Self.clearsConsent(reason: reason, ending: ending?.origin, consent: consent) {
-            do { try consentStore?.disable() } catch { consentStorageError = String(describing:error) }
-        }
-        admission.stop(reason)
-        lastEnded = (reason, now())
-        notify()
+    func record(operation: String, accepted: Bool, errorCode: String?, caller: CallerIdentity,
+                claimID: String?, detail: String? = nil) {
+        audit.append(AuditEntry(at: now(), operation: operation, accepted: accepted, errorCode: errorCode,
+            caller: caller.summary, claimID: claimID, detail: detail))
+        if audit.count > 100 { audit.removeFirst(audit.count - 100) }
     }
-
-    func record(operation: String, accepted: Bool, errorCode: String?,
-                caller: CallerIdentity, claimID: String?, detail: String? = nil) {
-        audit.append(AuditEntry(at: now(), operation: operation, accepted: accepted,
-                                errorCode: errorCode, caller: caller.summary,
-                                claimID: claimID, detail: detail))
-        if audit.count > auditLimit { audit.removeFirst(audit.count - auditLimit) }
-    }
-
     var statusJSON: [String: Any] {
-        let current = now()
-        var value: [String: Any] = [
-            "policy": policy.json,
-            "grant": activeGrant.map { $0.json(now: current) as Any } ?? NSNull(),
-            "pendingRequest": pending.map { request -> Any in
-                ["requestId": request.id,
-                 "scopes": request.scopes.sorted().map(\.rawValue),
-                 "durationSeconds": request.durationSeconds,
-                 "caller": request.caller.summary]
-            } ?? NSNull(),
-            "lastEnded": lastEnded.map { ended -> Any in
-                ["reason": ended.reason,
-                 "at": ISO8601DateFormatter().string(from: ended.at)]
-            } ?? NSNull(),
-            "consentStorageError":consentStorageError as Any? ?? NSNull(),
-            "restorationBlockedScopes":restorationBlockedScopes.sorted().map(\.rawValue),
-            "browserOnlyWhileLocked": browserOnlyWhileLocked,
-            "effectiveScopes": (policy.grantMode == .standing ? Set(GrantScope.allCases) : activeGrant?.scopes ?? [])
-                .filter(allows).sorted().map(\.rawValue),
-            "availability": ["paused": !admission.blocks("desktop").isEmpty,
-                "blockingReasons": admission.blocks("desktop")],
-        ]
-        if policy.grantMode == .standing {
-            value["standingScopes"] = GrantScope.allCases.map(\.rawValue)
-        }
-        return value
+        ["policy": ["preset": policy.preset, "grantMode": "surface_modes",
+                    "protectedAdministration": policy.protectedOperations && policy.grantMode == .standing],
+         "grant": NSNull(), "pendingRequest": NSNull(),
+         "lastEnded": lastEnded.map { ["reason": $0.reason] as Any } ?? NSNull(),
+         "browserOnlyWhileLocked": browserOnlyWhileLocked,
+         "effectiveScopes": GrantScope.allCases.filter {
+             admission.enabled(Self.browserScopes.contains($0) ? "browser" : "desktop")
+         }.map(\.rawValue),
+         "availability": ["paused": !admission.blocks("desktop").isEmpty,
+                          "blockingReasons": admission.blocks("desktop")]]
     }
 }

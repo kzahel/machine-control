@@ -2,6 +2,7 @@
   "bundle": {
     "resources": {
       "native/mc-cli/": "mc-cli/",
+      "native/shared-policy/": "shared-policy/",
       "native/mc-sudo": "mc-sudo",
       "native/mc-sudo-askpass": "mc-sudo-askpass",
       "native/mc-session-probe": "mc-session-probe",

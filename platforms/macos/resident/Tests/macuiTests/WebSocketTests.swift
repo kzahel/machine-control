@@ -69,36 +69,4 @@ final class DevToolsBridgeTests: XCTestCase {
         WebSocketUpgrade(path: path, query: ["token": token], key: "k", origin: origin, host: "127.0.0.1")
     }
 
-    func testTokenAndOriginGateAcceptance() {
-        let broker = GrantBroker(policy: .workstation(issue: nil))
-        let relay = BrowserRelay(service: ResidentService(), broker: broker)
-        let bridge = BrowserDevToolsBridge(broker: broker, relay: relay)
-        bridge.setTokenForTesting("secret")
-
-        XCTAssertNil(bridge.acceptedTab(upgrade(token: "secret")))
-
-        broker.issue(scopes: [.devtools], durationSeconds: 600, reason: "r", requester: "x",
-                     approver: "test")
-        XCTAssertEqual(bridge.acceptedTab(upgrade(token: "secret")), 7)
-        XCTAssertEqual(bridge.acceptedTab(upgrade(path: "/devtools/browser", token: "secret")), 0)
-        XCTAssertNil(bridge.acceptedTab(upgrade(path: "/devtools/browser", token: "wrong")))
-        XCTAssertNil(bridge.acceptedTab(upgrade(path: "/devtools/browser", token: "secret", origin: "")))
-        XCTAssertNil(bridge.acceptedTab(upgrade(path: "/devtools/page/0", token: "secret")))
-        XCTAssertNil(bridge.acceptedTab(upgrade(token: "wrong")))
-        XCTAssertNil(bridge.acceptedTab(upgrade(token: "secret", origin: "https://evil.example")))
-        XCTAssertNil(bridge.acceptedTab(upgrade(path: "/other/7", token: "secret")))
-
-        broker.revoke(reason: "stop")
-        XCTAssertNil(bridge.acceptedTab(upgrade(token: "secret")))
-        XCTAssertNil(bridge.reconcile())
-    }
-
-    func testStandingPolicyKeepsAToken() {
-        let broker = GrantBroker(policy: DeploymentPolicy(preset: "appliance", grantMode: .standing,
-            protectedOperations: true, source: "policy_file", issue: nil))
-        let bridge = BrowserDevToolsBridge(broker: broker,
-            relay: BrowserRelay(service: ResidentService(), broker: broker))
-        bridge.setTokenForTesting("t")
-        XCTAssertEqual(bridge.acceptedTab(upgrade(token: "t")), 7)
-    }
 }

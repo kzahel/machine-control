@@ -5,10 +5,10 @@ import time
 import machine_control as mc
 from control_session import ControlSession
 
-# Explicitly separate legacy outer-recovery protocol. It cannot silently serve
-# as a fallback for the v2 resident surface contract during desktop migration.
-SCHEMA = "machine-control-admission/v1"
-CHANNEL_SCHEMA = "machine-control-admission-channel/v1"
+# Outer recovery uses the shared surface protocol and keeps its separate,
+# explicitly borrowed disruptive-claim binding.
+SCHEMA = "machine-control-admission/v2"
+CHANNEL_SCHEMA = "machine-control-admission-channel/v2"
 
 
 class OuterSession(ControlSession):
@@ -27,7 +27,7 @@ class OuterSession(ControlSession):
         self._start_transport(host, "channel", CHANNEL_SCHEMA, "control.cancel")
         try:
             self.view = self._validate_view(self._rpc(dict(operation="control.open", schema=SCHEMA,
-                scopes=["observe", "control"], reason=reason, waitSeconds=wait,
+                surfaces=["desktop"], reason=reason, waitSeconds=wait,
                 durationSeconds=duration, outerRecovery=binding), timeout=10))
             if self.view.get("outerRecovery") != "borrowed_exact_claim/v1":
                 raise mc.ClientError("outer_admission_unsupported", "Native borrowed-claim admission is required")

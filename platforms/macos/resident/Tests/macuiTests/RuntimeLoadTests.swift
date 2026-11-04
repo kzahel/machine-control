@@ -26,7 +26,7 @@ final class RuntimeLoadTests: XCTestCase {
         service.sessionObservation = BackgroundObservation(label:"test.load.session", timeout:0.05,
             unknown:{ console }, read:{ sessionStarted.fulfill(); releaseSession.wait(); return console })
         let value = try ResidentRuntime(socketPath:root.appendingPathComponent("control.sock").path,
-            policy:.workstation(issue:nil), journal:nil, service:service)
+            policy:.workstation(issue:nil), journal:nil, service:service, policyDirectory:try testPolicyRoot())
         try value.start(); defer { value.stop() }
         value.server.refreshAdmission()
         wait(for:[helperStarted, sessionStarted], timeout:1)
@@ -42,8 +42,8 @@ final class RuntimeLoadTests: XCTestCase {
             })
         wait(for:[providerStarted], timeout:1)
         value.server.grantConsoleObservation = { console }
-        value.server.broker.issue(scopes:[.observe,.control], durationSeconds:60,
-            reason:"fixture", requester:"fixture", approver:"fixture")
+        value.server.approvalDesktopUnlocked = { true }
+        try value.server.configureSurface("desktop", mode:"automatic", seconds:60)
         XCTAssertNotNil(value.server.broker.grant)
         var ticks = 0
         let timer = DispatchSource.makeTimerSource(queue:.main)

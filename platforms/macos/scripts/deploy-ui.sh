@@ -69,7 +69,9 @@ source_digest="$(
     cd "$MACVM_REPO_DIR"
     for file in resident/Sources/macui/*.swift resident/app/* \
             resident/policies/*.json resident/scripts/build-app.sh \
-            resident/scripts/install-user.sh guests/macos/unlock/Probe.m \
+            resident/scripts/install-user.sh resident/scripts/prepare-policy.py \
+            ../../runtime/src/*.ts ../../runtime/node/*.ts ../../runtime/toolchains.json \
+            ../../runtime/scripts/package.py ../../runtime/pnpm-lock.yaml guests/macos/unlock/Probe.m \
             guests/macos/unlock/Session.h guests/macos/ui/machine-control; do
         printf '%s\n' "$file"
         /bin/cat "$file"

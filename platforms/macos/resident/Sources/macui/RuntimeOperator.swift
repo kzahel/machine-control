@@ -47,22 +47,24 @@ extension ResidentRuntime {
             })
             return
         }
-        guard command["method"] as? String == "resume" else {
+        let method = command["method"] as? String
+        let resumeDesktop = ["surface.resume", "resume_surface"].contains(method ?? "") && command["surface"] as? String == "desktop"
+        guard method == "resume" || resumeDesktop else {
             completion(operatorCommand(command)); return
         }
         guard !updating else { completion(["ok":false, "error":"Finish updating before resuming"]); return }
         let observation = server.service.observedConsoleSession
-        let revision = server.broker.admission.revision
+        let revision = server.broker.admission.availabilityRevision
         let grant = server.broker.grant?.id
         let read = resumeHelper
         operatorDependency.perform(work:{ cancelled in try read(observation, cancelled) },
             commit:{ [weak self] in
                 guard let self, self.running else { throw MacUIError.action("resident_stopping") }
-                guard self.server.broker.admission.revision == revision,
+                guard self.server.broker.admission.availabilityRevision == revision,
                       self.server.broker.grant?.id == grant else {
                     throw MacUIError.action("control_generation_changed")
                 }
-                try self.server.broker.resume()
+                try self.server.broker.resume(surface:resumeDesktop ? "desktop" : "all")
             }, completion:completion)
     }
     /// In-process operator authority; never registered on the agent socket.
@@ -83,7 +85,7 @@ extension ResidentRuntime {
                 case "state":
                     let setup = currentSetupState(browserConnected: server.browser.connected, probeScreen: false)
                     var state: [String: Any] = ["deployment": server.broker.statusJSON,
-                        "accessChoices":server.broker.consentStore?.accessChoices as Any? ?? NSNull(),
+                        "accessChoices":NSNull(),
                         "permissions": ["accessibility": setup.accessibility, "screenRecording": setup.screen == .allowed],
                         "browser": server.browser.statusJSON, "activity": server.broker.audit.reversed().prefix(30).map(\.json),
                         "logging": server.broker.journal?.health ?? [:],
@@ -91,7 +93,8 @@ extension ResidentRuntime {
                         "manualUntilStoppedSupported": true,
                         "pauseSupported": true,
                         "admission": server.admissionPresentation,
-                        "controlPolicy": ["supported":true, "mode":server.activity.respectRecentActivity ? "when_idle" : "announce", "noticeSeconds":server.noticeSeconds],
+                        "accessPolicy":server.admissionPresentation,
+                        "controlPolicy": ["supported":true, "mode":"announce", "noticeSeconds":server.noticeSeconds],
                         "physicalActivity": server.activity.status,
                         "observations": ["session":server.service.sessionObservation.metadata,
                                          "helper":server.service.helperObservation.metadata],
@@ -144,7 +147,6 @@ extension ResidentRuntime {
                     } else { server.callerTrust.remove() }
                     server.broker.refreshAvailability()
                     server.service.invalidateReferences()
-                    server.browser.closeAllSessions(reason:"desktop_trust_changed")
                 case "finish_exit": server.broker.journal?.finishRuntime()
                 case "prepare_exit":
                     operatorDependency.cancel("operator_quit")
@@ -154,19 +156,19 @@ extension ResidentRuntime {
                     try server.broker.pause(seconds: command["duration"] as? Int)
                 case "resume":
                     throw MacUIError.action("Resume requires asynchronous operator dispatch")
-                case "control_policy":
-                    guard let mode = command["mode"] as? String, ["when_idle", "announce"].contains(mode),
-                          let notice = command["noticeSeconds"] as? Int, (5...60).contains(notice),
-                          (server.broker.admission.status["active"] as? Int ?? 0) == 0 else { throw MacUIError.usage("Choose a supported control policy while no agent is active") }
-                    UserDefaults.standard.set(mode, forKey:"machineControl.admissionPolicy")
+                case "control_policy", "control_notice":
+                    guard let notice = command["noticeSeconds"] as? Int, (0...60).contains(notice) else {
+                        throw MacUIError.usage("Choose a warning from 0 to 60 seconds")
+                    }
                     UserDefaults.standard.set(notice, forKey:"machineControl.admissionNoticeSeconds")
-                    server.activity.respectRecentActivity = mode == "when_idle"; server.noticeSeconds = Double(notice)
+                    server.noticeSeconds = Double(notice)
                 case "start_control":
                     try server.startNow(command["intentId"] as? String ?? "")
-                case "defer_control":
-                    try server.broker.pause(reason:"operator_deferral", seconds:60)
+                case "defer_control", "pause_request":
+                    try server.broker.admission.deferRequest(command["intentId"] as? String ?? "",
+                        seconds:command["duration"] as? Int)
                 case "cancel_control":
-                    try server.cancelFromOperator(command["intentId"] as? String ?? "")
+                    try server.broker.admission.deny(command["intentId"] as? String ?? "")
                 case "locked_use":
                     guard !updating, let enabled = command["enabled"] as? Bool else {
                         throw MacUIError.usage("Choose whether locked use is enabled")
@@ -177,41 +179,36 @@ extension ResidentRuntime {
                         throw MacUIError.usage("Choose whether approved browser access continues while locked")
                     }
                     try server.configureBrowserWhileLocked(enabled:enabled)
-                case "decision":
-                    if command["allow"] as? Bool == true, server.broker.journal?.event("access.approve.intent") == false { throw MacUIError.action("Audit storage unavailable") }
-                    try approver.decide(id: command["id"] as? String ?? "", scopes: command["scopes"] as? [String] ?? [],
-                        duration: command["duration"] as? Int ?? 0, allow: command["allow"] as? Bool == true)
-                case "arm":
-                    guard server.broker.journal?.event("access.arm.intent") != false else { throw MacUIError.action("Audit storage unavailable") }
-                    guard !updating, server.broker.policy.grantMode == .approval, server.broker.pending == nil,
-                          let names = command["scopes"] as? [String], !names.isEmpty,
-                          names.allSatisfy({ GrantScope(rawValue: $0) != nil }) else {
-                        throw MacUIError.usage("Choose access and duration while no approval is pending")
+                case "surface.configure":
+                    guard !updating, let surface = command["surface"] as? String,
+                          let mode = command["mode"] as? String,
+                          let lifetime = command["lifetime"] as? String,
+                          ["timed", "until_stopped"].contains(lifetime) else {
+                        throw MacUIError.usage("Choose a surface, mode and lifetime")
                     }
-                    let scopes = Set(names.compactMap(GrantScope.init(rawValue:)))
-                    let lifetime = command["lifetime"] as? String ?? "timed"
-                    if lifetime == "until_stopped" {
-                        server.broker.issueUntilStopped(scopes: scopes,
-                            reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri")
-                    } else {
-                        guard lifetime == "timed", let duration = command["duration"] as? Int,
-                              GrantRequest.durationRange.contains(duration) else {
-                            throw MacUIError.usage("Choose a supported access duration")
-                        }
-                        server.broker.issue(scopes: scopes, durationSeconds: duration,
-                            reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri",
-                            origin: .person)
+                    let seconds = lifetime == "until_stopped" ? nil : command["duration"] as? Int
+                    if lifetime == "timed" && seconds == nil { throw MacUIError.usage("Choose an access duration") }
+                    try server.configureSurface(surface, mode:mode, seconds:seconds,
+                        profiles:command["browserProfileIds"] as? [String] ?? [])
+                case "surface.pause", "pause_surface":
+                    guard let surface = command["surface"] as? String, ["desktop", "browser"].contains(surface) else {
+                        throw MacUIError.usage("Choose a surface")
                     }
-                    guard server.broker.journal?.errorCode == nil else { throw MacUIError.action("Audit storage unavailable") }
-                    do {
-                        guard server.broker.consentStorageError == nil else { throw MacUIError.action("consent_storage_unavailable") }
-                        try server.broker.consentStore?.enable(scopes:scopes,
-                            duration:lifetime == "until_stopped" ? nil : command["duration"] as? Int,
-                            console:server.service.observedConsoleSession)
-                    } catch { server.revoke(reason:"consent_storage_unavailable"); throw error }
+                    try server.broker.pause(seconds:command["duration"] as? Int, surface:surface)
+                case "surface.resume", "resume_surface":
+                    guard let surface = command["surface"] as? String, ["desktop", "browser"].contains(surface) else {
+                        throw MacUIError.usage("Choose a surface")
+                    }
+                    try server.broker.resume(surface:surface)
+                case "approve_control":
+                    try server.broker.admission.approve(command["intentId"] as? String ?? "")
+                case "deny_control":
+                    try server.broker.admission.deny(command["intentId"] as? String ?? "")
+                case "decision", "arm":
+                    throw MacUIError.action("legacy_grant_request_unsupported")
                 case "prepare_update":
                     guard !updating, server.broker.policy.grantMode == .approval,
-                          server.broker.grant == nil, server.broker.pending == nil,
+                          !server.broker.admission.enabled("desktop"), !server.broker.admission.enabled("browser"),
                           server.lockedUse.setupState == "idle", !server.lockedUse.isCovered,
                           server.lockedUse.lease == nil, !operatorDependency.busy else {
                         throw MacUIError.action("Stop access and finish any approval before installing an update")

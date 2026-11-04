@@ -566,7 +566,7 @@ function App() {
         )}
         {page === "access" && (state?.accessPolicy?.schema === "machine-control-admission/v2" ?
           <SurfaceAccess policy={state.accessPolicy} profiles={state.browser.profiles ?? []}
-            requests={state.admission?.requests ?? []} busy={!!busy} act={act} protectedAccess={state.lockedUse} /> :
+            requests={state.admission?.requests ?? []} busy={!!busy} act={act} protectedAccess={state.lockedUse} lockedBrowser={state.browserWhileLocked} /> :
           <>
             {state && <p role="status" className="note">This platform uses the legacy control model while unified surface permissions are being migrated.</p>}
             <div className="access-status">

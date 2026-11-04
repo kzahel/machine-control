@@ -13,7 +13,7 @@ final class ResidentRuntimeTests: XCTestCase {
     override func tearDownWithError() throws { try? FileManager.default.removeItem(at:directory) }
     private func runtime() throws -> ResidentRuntime {
         try ResidentRuntime(socketPath:directory.appendingPathComponent("control.sock").path,
-            policy:.workstation(issue:nil), journal:nil)
+            policy:.workstation(issue:nil), journal:nil, policyDirectory:try testPolicyRoot())
     }
     func testSecondRuntimeCannotReplaceLiveEndpoint() throws {
         _ = NSApplication.shared

@@ -1,7 +1,8 @@
 # Private native host inlet
 
 Status: **v2 Windows/reference broad review and bounded native candidate
-qualification passed; macOS/Linux adoption pending**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+qualification passed; macOS ordinary packaged slice passed, stream/protected
+gates open; Linux adoption pending**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records current evidence and its unsigned ARM64 VM limits.
 This private inlet is not an agent API or an independently installed service.
 The language/deployment decision and migration gates live in
@@ -16,7 +17,7 @@ environment overrides. There is no TCP listener, approval URL or reusable
 approval bearer. Each direction uses the bounded framing in `node/framing.ts`:
 four-byte little-endian UTF-8 JSON length and a bounded write backlog of twice
 the selected frame limit. The original fixture defaults to 1 MiB; the Windows
-private channel uses the 16 MiB limit described below. Diagnostics must never
+and macOS private channels use the 16 MiB limit described below. Diagnostics must never
 share stdout.
 
 The parent authenticates operator decisions and provider peers before invoking

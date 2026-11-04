@@ -10,6 +10,7 @@ def sign(app, identity):
     resources = app / "Contents/Resources"
     nested = [(app / "Contents/Frameworks/MCResident.framework", None),
               (resources / "mc-session-probe", None),
+              (resources / "shared-policy/node", None),
               (resources / "mc-sudo", "org.machine-control.sudo"),
               (resources / "mc-sudo-askpass", "org.machine-control.sudo.askpass")]
     nested.extend((resources / "unlock" / name, None) for name in
@@ -22,15 +23,30 @@ def sign(app, identity):
         if magic in {b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca"}:
             nested.append((path, None))
     for path, identifier in nested:
-        command = ["codesign", "--force", "--timestamp", "--options", "runtime", "--sign", identity]
+        command = ["codesign", "--force", "--options", "runtime", "--sign", identity]
+        if identity != "-":
+            command += ["--timestamp"]
+        if path == resources / "shared-policy/node":
+            entitlements = Path(__file__).resolve().parents[2] / 'platforms/macos/resident/app/node-entitlements.plist'
+            command += ["--entitlements", str(entitlements)]
         if identifier:
             command += ["--identifier", identifier]
         subprocess.run([*command, str(path)], check=True, stdout=subprocess.DEVNULL)
+    policy_script = Path(__file__).resolve().parents[2] / 'platforms/macos/resident/scripts/prepare-policy.py'
+    spec = importlib.util.spec_from_file_location("prepare_policy", policy_script)
+    policy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(policy)
+    policy.seal(resources / 'shared-policy')
     spec = importlib.util.spec_from_file_location("prepare_cli", Path(__file__).with_name("prepare-cli.py"))
     helper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helper)
     helper.inventory(resources / "mc-cli")
-    subprocess.run(["codesign", "--force", "--timestamp", "--options", "runtime", "--sign", identity, str(app)], check=True)
+    command = ["codesign", "--force", "--options", "runtime", "--sign", identity]
+    if identity == "-":
+        command += ["--identifier", "org.machine-control.app", "--requirements", '=designated => identifier "org.machine-control.app"']
+    else:
+        command += ["--timestamp"]
+    subprocess.run([*command, str(app)], check=True)
     subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
 
 

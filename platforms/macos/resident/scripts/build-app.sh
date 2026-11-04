@@ -36,6 +36,7 @@ contents="$app/Contents"
     -Wno-unused-function -framework Foundation -framework IOKit \
     -o "$contents/Resources/mc-session-probe" \
     "$MACOS_DIR/guests/macos/unlock/Probe.m"
+python3 "$PACKAGE_DIR/scripts/prepare-policy.py" --arch "$arch" --output "$contents/Resources/shared-policy"
 /bin/cp "$PACKAGE_DIR/app/Info.plist" "$contents/Info.plist"
 /bin/cp "$PACKAGE_DIR/app/org.machine-control.resident.plist.in" "$contents/Resources/"
 /bin/cp -R "$PACKAGE_DIR/policies" "$contents/Resources/policies"
@@ -47,6 +48,11 @@ MC_UNLOCK_ARCH="$arch" "$MACOS_DIR/guests/macos/unlock/build.sh" "$contents/Reso
 /usr/bin/plutil -replace MCSourceCheckout -string "$(cd "$MACOS_DIR/../.." && pwd)" \
     "$contents/Info.plist"
 /usr/bin/plutil -lint "$contents/Info.plist" >/dev/null
+
+/usr/bin/codesign --force --sign - --options runtime \
+    --entitlements "$PACKAGE_DIR/app/node-entitlements.plist" "$contents/Resources/shared-policy/node"
+python3 "$PACKAGE_DIR/scripts/prepare-policy.py" --seal --output "$contents/Resources/shared-policy"
+python3 "$contents/Resources/shared-policy/verify.py" "$contents/Resources/shared-policy" >/dev/null
 
 # Development builds are ad-hoc signed with a pinned identifier so macOS
 # consent survives rebuilds. Release builds need a Developer ID requirement.

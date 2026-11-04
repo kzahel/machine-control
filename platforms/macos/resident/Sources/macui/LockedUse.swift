@@ -205,6 +205,9 @@ final class LockedUseSafety {
         return true
     }
     static func physical(sourcePID: Int64) -> Bool { sourcePID <= 0 }
+    static func deliberate(_ type: CGEventType) -> Bool {
+        [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel].contains(type)
+    }
 }
 
 private func lockedUseEventTap(_ proxy: CGEventTapProxy, _ type: CGEventType,
@@ -215,10 +218,11 @@ private func lockedUseEventTap(_ proxy: CGEventTapProxy, _ type: CGEventType,
         guardObject.interrupt("input_guard_unavailable")
         return Unmanaged.passUnretained(event)
     }
-    if LockedUseSafety.physical(sourcePID: event.getIntegerValueField(.eventSourceUnixProcessID)) { guardObject.activity?() }
-    if guardObject.safety.blocksPhysicalInput,
-       LockedUseSafety.physical(sourcePID: event.getIntegerValueField(.eventSourceUnixProcessID)) {
-        guardObject.interrupt("physical_presence")
+    let physical = LockedUseSafety.physical(sourcePID: event.getIntegerValueField(.eventSourceUnixProcessID))
+    if physical && LockedUseSafety.deliberate(type) { guardObject.activity?() }
+    if guardObject.safety.blocksPhysicalInput && physical {
+        if LockedUseSafety.deliberate(type) { guardObject.interrupt("physical_presence") }
+        // Motion and releases are swallowed while covered, but never takeover.
         // Swallow the entire physical sequence until the OS lock is observed.
         // Our synthesized events carry a nonzero source process ID.
         return nil
@@ -544,7 +548,7 @@ final class MacLockedUse {
             "remainingSeconds":lease.map { max(0, Int($0.deadline - ProcessInfo.processInfo.systemUptime)) as Any } ?? NSNull(),
             "coveredDisplays":coveredWindowIDs.count, "closedLidSupported":false,
             "provider":"macos-native", "activeSessionRequired":true,
-            "binding":"approved_target_wide_access_and_live_owner_connection",
+            "binding":"desktop_surface_consent_and_live_owner_connection",
             "lastEndedReason":endReason.map { $0 as Any } ?? NSNull(),
             "lastGuardianDiagnostic":lastGuardianDiagnostic?.json as Any? ?? NSNull(),
             "lastStartupFailure":lastStartupFailure as Any? ?? NSNull()]
@@ -736,7 +740,8 @@ final class MacLockedUse {
             if shouldForceRelock { ConsoleRelock.request(for:lease?.session) }
         } else { finishAfterLock() }
         if reason == "physical_presence" {
-            try? broker.pause(reason: "physical_activity", seconds: 30)
+            broker.admission.input("desktop", kind:"key")
+            try? broker.pause(reason:"covered_takeover", surface:"desktop")
         }
         // The finite session and its references end here. The root watchdog
         // separately fences protected reactivation until safe recovery. Neither

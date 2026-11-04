@@ -207,13 +207,14 @@ final class LockedUseTests: XCTestCase {
         XCTAssertNil(use.lease)
     }
 
-    func testASettingCannotAuthorizeControl() {
+    func testASettingCannotAuthorizeControl() throws {
         let broker = GrantBroker(policy:.workstation(issue:nil))
-        XCTAssertEqual(broker.authorize("session.control")?.code, "approval_required")
+        XCTAssertEqual(broker.authorize("session.control")?.code, "surface_disabled")
         XCTAssertEqual(broker.authorize("session.unlock")?.code, "operation_not_permitted_by_policy")
         XCTAssertNil(broker.authorize("session.control.end")) // Stop-only, no authority.
-        broker.issue(scopes:[.observe], durationSeconds:300, reason:"View", requester:"test", approver:"local")
-        XCTAssertEqual(broker.authorize("session.control")?.code, "approval_required")
+        try bindPolicy(broker)
+        try broker.configureSurface("desktop", mode:"automatic", seconds:300, profiles:[])
+        XCTAssertEqual(broker.authorize("session.control")?.code, "control_session_required")
     }
 
     func testLeaseEndsOnRealAuthorityOrIdentityChanges() {
@@ -265,9 +266,11 @@ final class LockedUseTests: XCTestCase {
         }
     }
 
-    func testUntilStoppedAccessStillHasAFiniteControlLease() {
+    func testUntilStoppedAccessStillHasAFiniteControlLease() throws {
         let broker = GrantBroker(policy:.workstation(issue:nil))
-        let grant = broker.issueUntilStopped(scopes:[.control,.observe], reason:"test", requester:"local", approver:"local")
+        try bindPolicy(broker)
+        try broker.configureSurface("desktop", mode:"automatic", seconds:nil, profiles:[])
+        let grant = try XCTUnwrap(broker.activeGrant)
         let lease = ControlSessionLease(id:"session", grantID:grant.id, session:session,
             deadline:900, heartbeatDeadline:1000)
         XCTAssertNil(grant.expiresAt)

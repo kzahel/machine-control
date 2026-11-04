@@ -60,6 +60,10 @@ with tempfile.TemporaryDirectory(prefix='mc-verify-') as tmp:
     if tuple(map(int, manifest['version'].split('.'))) >= (0, 5, 3):
         if info.get('MCClientProtocol') != 1 or info.get('MCNativeSudoVersion') != 1:
             raise SystemExit('Required installed CLI or native sudo identity missing')
+    if info.get('MCResidentPolicyProtocol') == 2:
+        policy = app / 'Contents/Resources/shared-policy'
+        subprocess.run([sys.executable, str(policy / 'verify.py'), str(policy)], check=True)
+        subprocess.run(['codesign','--verify','--strict','-R',f'=anchor apple generic and certificate leaf[subject.OU] = "{args.team_id}"',str(policy / 'node')],check=True)
     sudo_resources = [app/'Contents/Resources'/name for name in ['mc-sudo', 'mc-sudo-askpass']]
     # Older release archives legitimately predate native sudo support.
     if info.get('MCNativeSudoVersion') == 1 or any(path.exists() for path in sudo_resources):

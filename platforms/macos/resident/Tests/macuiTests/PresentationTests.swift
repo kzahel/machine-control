@@ -49,12 +49,13 @@ final class PresentationTests: XCTestCase {
         let socket = directory.appendingPathComponent("control.sock").path
         try store.save(.appliance)
         let runtime = try ResidentRuntime(socketPath:socket, policy:.workstation(issue:nil), journal:nil,
-            presentationOverride:.minimal)
+            presentationOverride:.minimal, policyDirectory:try testPolicyRoot())
         XCTAssertEqual(runtime.presentation.profile, .minimal)
         XCTAssertEqual(store.load().profile, .appliance)
         XCTAssertEqual(runtime.server.broker.policy.grantMode, .approval)
         XCTAssertNil(runtime.server.broker.grant)
-        runtime.server.broker.issue(scopes:[.observe], durationSeconds:60, reason:"test", requester:"fixture", approver:"fixture")
+        runtime.server.broker.operatorReady = { true }
+        try runtime.server.broker.configureSurface("desktop", mode:"automatic", seconds:nil, profiles:[])
         let before = runtime.server.broker.statusJSON
         let saved = expectation(description:"presentation saved")
         try runtime.configurePresentation(.personal) { XCTAssertTrue($0); saved.fulfill() }
@@ -67,13 +68,13 @@ final class PresentationTests: XCTestCase {
     func testStandingPolicyStopFencesEffectsWithoutChangingPolicy() throws {
         let policy = DeploymentPolicy.parse(["schema":DeploymentPolicy.schema, "preset":"appliance"])!
         let runtime = try ResidentRuntime(socketPath:directory.appendingPathComponent("control.sock").path,
-            policy:policy, journal:nil, presentationOverride:.appliance)
-        XCTAssertNil(runtime.server.broker.authorize("action"))
+            policy:policy, journal:nil, presentationOverride:.appliance, policyDirectory:try testPolicyRoot())
+        XCTAssertEqual(runtime.server.broker.authorize("action")?.code, "control_session_required")
         runtime.stopAccess()
         XCTAssertNotNil(runtime.server.broker.authorize("action"))
         XCTAssertEqual(runtime.server.broker.policy, policy)
         try runtime.server.broker.resume()
-        XCTAssertNil(runtime.server.broker.authorize("action"))
+        XCTAssertNotNil(runtime.server.broker.authorize("action"), "Resume cannot re-arm stopped consent")
     }
 
 }

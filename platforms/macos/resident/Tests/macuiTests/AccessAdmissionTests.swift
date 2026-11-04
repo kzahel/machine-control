@@ -2,131 +2,82 @@ import XCTest
 @testable import macui
 
 final class AccessAdmissionTests: XCTestCase {
-    func testRenewalKeepsOwnerAndGenerationAndCannotReviveExpiredAuthority() throws {
-        var clock = 0.0
-        var denied: String?
-        let arbiter = AccessAdmission(); arbiter.now = { clock }; arbiter.register("desktop")
-        let submitted = try arbiter.submit(owner:"a", requestID:"renew", resources:["desktop"],
-            wait:300, duration:60, reason:"Fixture", authority:{ denied })
-        let id = submitted["intentId"] as! String
-        let active = try arbiter.accept(owner:"a", id:id, generation:submitted["offerGeneration"] as! Int)
-        let session = active["sessionId"] as! String, generations = active["resourceGenerations"] as! [String:Int]
-        clock = 4
-        var acknowledged: Double?
-        let renewed = try arbiter.renew(owner:"a", id:id, session:session, generations:generations, seconds:120) { acknowledged = $0 }
-        XCTAssertEqual(acknowledged, 124)
-        XCTAssertEqual(renewed["sessionId"] as? String, session)
-        XCTAssertEqual(renewed["resourceGenerations"] as? [String:Int], generations)
-        XCTAssertEqual(renewed["activeRemainingSeconds"] as? Double, 120)
-        XCTAssertThrowsError(try arbiter.renew(owner:"b", id:id, session:session, generations:generations, seconds:120))
-        XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:session, generations:["desktop":999], seconds:120))
-        denied = "access_ended"
-        XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:session, generations:generations, seconds:120))
-        denied = nil
-        XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:session, generations:generations, seconds:120))
-        XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["state"] as? String, "ended")
+    func testSharedOwnerCannotBorrowSessionAndPauseNeedsFreshOffer() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission
+        try admission.configure("desktop",mode:"automatic",seconds:nil)
+        let offer = try admission.submit(owner:"one",requestID:"first",resources:["desktop"],wait:120,duration:60,reason:"Fixture",authority:{ nil })
+        let id = try XCTUnwrap(offer["intentId"] as? String)
+        let active = try admission.accept(owner:"one",id:id,generation:try XCTUnwrap(offer["offerGeneration"] as? Int))
+        let session = try XCTUnwrap(active["sessionId"] as? String), generations = try XCTUnwrap(active["resourceGenerations"] as? [String:Int])
+        XCTAssertNil(admission.authorize(owner:"one",id:id,session:session,generations:generations))
+        XCTAssertNotNil(admission.authorize(owner:"other",id:id,session:session,generations:generations))
+        var endings = 0
+        admission.sessionEnded = { _,_,_ in endings += 1 }
+        try admission.pause("desktop",reason:"manual")
+        XCTAssertNotNil(admission.authorize(owner:"one",id:id,session:session,generations:generations))
+        admission.resume("desktop",reason:"manual")
+        let next = try admission.inspect(owner:"one",id:id)
+        let fresh = try admission.accept(owner:"one",id:id,generation:try XCTUnwrap(next["offerGeneration"] as? Int))
+        XCTAssertNotEqual(fresh["sessionId"] as? String,session)
+        let before = endings
+        admission.receive(["type":"access.event", "event":"yielded", "intentId":id, "sessionId":session])
+        XCTAssertEqual(endings,before,"A queued old event cannot end the newly accepted native owner")
     }
-    func testFailedRenewalAcknowledgementAndLateHandshakeEndTheOwner() throws {
-        for late in [false, true] {
-            var clock = 0.0
-            let arbiter = AccessAdmission(); arbiter.now = { clock }; arbiter.register("desktop")
-            let submitted = try arbiter.submit(owner:"a", requestID:"renew", resources:["desktop"],
-                wait:300, duration:60, reason:"Fixture", authority:{ nil })
-            let id = submitted["intentId"] as! String
-            let active = try arbiter.accept(owner:"a", id:id, generation:submitted["offerGeneration"] as! Int)
-            XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:active["sessionId"] as! String,
-                generations:active["resourceGenerations"] as! [String:Int], seconds:120) { _ in
-                    if late { clock = 61 } else { throw MacUIError.action("renewal_unacknowledged") }
-                })
-            XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["state"] as? String, "ended")
-        }
+    func testAskFirstApprovalIsSpecificAndStopDoesNotRearm() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission
+        try admission.configure("desktop",mode:"ask",seconds:nil)
+        let value = try admission.submit(owner:"one",requestID:"ask",resources:["desktop"],wait:120,duration:60,reason:"Fixture",authority:{ nil })
+        let id = try XCTUnwrap(value["intentId"] as? String)
+        XCTAssertEqual(value["state"] as? String,"waiting_for_approval")
+        XCTAssertThrowsError(try admission.startNow(id))
+        try admission.approve(id)
+        XCTAssertEqual(try admission.inspect(owner:"one",id:id)["state"] as? String,"offered")
+        admission.stop("operator_stop")
+        admission.resume("all",reason:"manual")
+        XCTAssertFalse(admission.enabled("desktop"))
     }
-    func testComposedPauseAndFreshSession() throws {
-        var clock = 0.0
-        let admission = AccessAdmission(); admission.now = { clock }; admission.register("desktop")
-        let intent = try admission.submit(owner: "a", requestID: "one", resources: ["desktop"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { nil })
-        let id = intent["intentId"] as! String
-        let active = try admission.accept(owner: "a", id: id, generation: intent["offerGeneration"] as! Int)
-        let session = active["sessionId"] as! String, generations = active["resourceGenerations"] as! [String: Int]
-        XCTAssertNil(admission.authorize(owner: "a", id: id, session: session, generations: generations))
-        try admission.pause("desktop", reason: "manual"); try admission.pause("desktop", reason: "activity", seconds: 30)
-        admission.resume("desktop", reason: "manual")
-        XCTAssertEqual(admission.blocks("desktop"), ["activity"])
-        XCTAssertEqual(admission.authorize(owner: "a", id: id, session: session, generations: generations), "stale_control_session")
-        var renewalAcknowledged = false
-        XCTAssertThrowsError(try admission.renew(owner:"a", id:id, session:session,
-            generations:generations, seconds:120) { _ in renewalAcknowledged = true })
-        XCTAssertFalse(renewalAcknowledged, "A paused owner must not extend protected deadlines")
-        clock = 30
-        let offer = try admission.inspect(owner: "a", id: id, heartbeat: true)
-        let resumed = try admission.accept(owner: "a", id: id, generation: offer["offerGeneration"] as! Int)
-        XCTAssertNotEqual(resumed["sessionId"] as? String, session)
-        XCTAssertThrowsError(try admission.renew(owner:"a", id:id, session:session,
-            generations:generations, seconds:120))
-        XCTAssertThrowsError(try admission.cancel(owner: "b", id: id))
-        clock = 35
-        XCTAssertEqual(try admission.inspect(owner: "a", id: id, heartbeat: true)["terminalReason"] as? String, "owner_disconnected")
+    func testNativeRevocationCancelsTheSharedOwner() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission
+        try admission.configure("desktop",mode:"automatic",seconds:nil)
+        var refusal:String?
+        let value = try admission.submit(owner:"one",requestID:"native",resources:["desktop"],wait:120,duration:60,reason:"Fixture",authority:{ refusal })
+        let id = try XCTUnwrap(value["intentId"] as? String)
+        refusal = "console_session_changed"
+        XCTAssertEqual(try admission.inspect(owner:"one",id:id)["state"] as? String,"ended")
+        refusal = nil
+        XCTAssertThrowsError(try admission.accept(owner:"one",id:id,generation:value["offerGeneration"] as? Int ?? 0))
     }
-    func testCompleteResourceSetsAndYield() throws {
-        let admission = AccessAdmission()
-        ["host", "vm-a", "vm-b"].forEach { admission.register($0) }
-        let first = try admission.submit(owner: "a", requestID: "one", resources: ["host", "vm-a"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { nil })
-        let second = try admission.submit(owner: "b", requestID: "two", resources: ["host", "vm-b"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { nil })
-        XCTAssertEqual(second["state"] as? String, "waiting_for_resource")
-        let inner = try admission.submit(owner: "c", requestID: "inner", resources: ["vm-b"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { nil })
-        XCTAssertEqual(inner["state"] as? String, "offered")
-        XCTAssertEqual(try admission.submit(owner: "a", requestID: "one", resources: ["vm-a", "host"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { nil })["intentId"] as? String, first["intentId"] as? String)
-        XCTAssertThrowsError(try admission.submit(owner: "a", requestID: "one", resources: ["host"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { nil }))
+    func testNativeRenewalAcknowledgesClampedConsentAndFailureEndsOwner() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission
+        try admission.configure("desktop",mode:"automatic",seconds:120)
+        let value = try admission.submit(owner:"one",requestID:"renew",resources:["desktop"],wait:120,duration:60,reason:"Fixture",authority:{ nil })
+        let id = try XCTUnwrap(value["intentId"] as? String)
+        let active = try admission.accept(owner:"one",id:id,generation:try XCTUnwrap(value["offerGeneration"] as? Int))
+        let session = try XCTUnwrap(active["sessionId"] as? String), generations = try XCTUnwrap(active["resourceGenerations"] as? [String:Int])
+        let now = admission.now()
+        var deadline = 0.0
+        let extended = try admission.renew(owner:"one",id:id,session:session,generations:generations,seconds:900) { deadline = $0 }
+        XCTAssertLessThanOrEqual(deadline - now,120.1)
+        XCTAssertEqual(extended["sessionId"] as? String,session)
+        XCTAssertLessThanOrEqual((extended["activeRemainingSeconds"] as? Double) ?? 901,120)
+        // A separate task exercises refusal before an unacknowledged extension.
+        try admission.cancel(owner:"one",id:id)
+        let next = try admission.submit(owner:"one",requestID:"failed",resources:["desktop"],wait:120,duration:1,reason:"Fixture",authority:{ nil })
+        let nextID = try XCTUnwrap(next["intentId"] as? String)
+        let nextActive = try admission.accept(owner:"one",id:nextID,generation:try XCTUnwrap(next["offerGeneration"] as? Int))
+        XCTAssertThrowsError(try admission.renew(owner:"one",id:nextID,session:try XCTUnwrap(nextActive["sessionId"] as? String),generations:try XCTUnwrap(nextActive["resourceGenerations"] as? [String:Int]),seconds:60) { _ in throw MacUIError.action("helper_unacknowledged") })
+        XCTAssertEqual(try admission.inspect(owner:"one",id:nextID)["state"] as? String,"ended")
     }
-    func testIndependentDeadlinesAndNoticeInvalidation() throws {
-        var clock = 0.0
-        let admission = AccessAdmission(); admission.now = { clock }; admission.register("desktop")
-        try admission.pause("desktop", reason: "manual")
-        var denied: String?
-        let intent = try admission.submit(owner: "a", requestID: "one", resources: ["desktop"],
-            wait: 10, duration: 120, reason: "Fixture", authority: { denied })
-        let id = intent["intentId"] as! String
-        clock = 9; _ = try admission.inspect(owner: "a", id: id, heartbeat: true)
-        clock = 10
-        XCTAssertEqual(try admission.inspect(owner: "a", id: id)["terminalReason"] as? String, "wait_deadline_exceeded")
-        let other = try admission.submit(owner: "a", requestID: "two", resources: ["desktop"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { denied })
-        denied = "authorization_expired"
-        XCTAssertEqual(try admission.inspect(owner: "a", id: other["intentId"] as! String)["terminalReason"] as? String, denied)
-        denied = nil; admission.resume("desktop", reason: "manual")
-        let notice = try admission.submit(owner: "a", requestID: "notice", resources: ["desktop"],
-            wait: 300, duration: 120, reason: "Fixture", authority: { nil }, notice: 10)
-        XCTAssertEqual(notice["state"] as? String, "announcing")
-        try admission.pause("desktop", reason: "activity", seconds: 30)
-        clock = 20
-        XCTAssertEqual(try admission.inspect(owner: "a", id: notice["intentId"] as! String)["state"] as? String, "paused")
-        admission.disconnect("a")
-        XCTAssertThrowsError(try admission.accept(owner: "a", id: notice["intentId"] as! String, generation: notice["offerGeneration"] as! Int))
-        XCTAssertThrowsError(try admission.pause("desktop", reason: "bad", seconds: .nan))
+    func testBrowserConfigurationDoesNotFenceDesktopReferences() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission
+        try admission.configure("desktop",mode:"automatic",seconds:nil)
+        _ = admission.status
+        let revision = admission.availabilityRevision
+        try admission.configure("browser",mode:"ask",seconds:nil,profiles:["profile-one"])
+        XCTAssertEqual(admission.availabilityRevision,revision)
+        try admission.pause("browser",reason:"manual")
+        XCTAssertEqual(admission.availabilityRevision,revision)
+        try admission.pause("desktop",reason:"manual")
+        XCTAssertGreaterThan(admission.availabilityRevision,revision)
     }
-    func testNoticeChangesFenceOffersAndNeverReplaceActiveControl() throws {
-        var clock = 0.0
-        let arbiter = AccessAdmission(); arbiter.now = { clock }; arbiter.register("desktop")
-        let intent = try arbiter.submit(owner:"a", requestID:"notice", resources:["desktop"],
-            wait:100, duration:60, reason:"Fixture", authority:{ nil }, notice:10)
-        let id = intent["intentId"] as! String
-        clock = 9
-        arbiter.reconfigureNotice(30)
-        XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["noticeRemainingSeconds"] as? Double, 30)
-        arbiter.reconfigureNotice(0)
-        let offer = try arbiter.inspect(owner:"a", id:id)
-        _ = try arbiter.accept(owner:"a", id:id, generation:offer["offerGeneration"] as! Int)
-        XCTAssertThrowsError(try arbiter.startNow(id))
-        arbiter.reconfigureNotice(10)
-        XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["state"] as? String, "active")
-        XCTAssertEqual(try arbiter.submit(owner:"a", requestID:"notice", resources:["desktop"],
-            wait:100, duration:60, reason:"Fixture", authority:{ nil }, notice:10)["intentId"] as? String, id)
-    }
-
 }

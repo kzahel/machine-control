@@ -1,12 +1,14 @@
 import XCTest
+import CoreGraphics
 @testable import macui
 final class PhysicalAvailabilityTests: XCTestCase {
-    func testUnknownAndClockReversalRefuseAndQuietBoundaryIsExact() {
-        XCTAssertEqual(PhysicalAvailability.reason(healthy:false, physicalAt:10, now:100), "activity_unknown")
-        XCTAssertEqual(PhysicalAvailability.reason(healthy:true, physicalAt:nil, now:100), "activity_unknown")
-        XCTAssertEqual(PhysicalAvailability.reason(healthy:true, physicalAt:10, now:9), "activity_unknown")
-        XCTAssertEqual(PhysicalAvailability.reason(healthy:true, physicalAt:10, now:39.999), "physical_activity")
-        XCTAssertNil(PhysicalAvailability.reason(healthy:true, physicalAt:10, now:40))
+    func testPointerMotionIsNotDeliberateTakeover() {
+        for type in [CGEventType.mouseMoved, .leftMouseDragged, .rightMouseUp, .keyUp] {
+            XCTAssertFalse(LockedUseSafety.deliberate(type))
+        }
+        for type in [CGEventType.keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel] {
+            XCTAssertTrue(LockedUseSafety.deliberate(type))
+        }
     }
     func testPhysicalInputDuringDispatchIsVisibleWithoutMainQueueTick() {
         let activity = PhysicalAvailability(); activity.enable()

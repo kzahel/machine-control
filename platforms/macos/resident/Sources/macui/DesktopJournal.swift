@@ -165,6 +165,16 @@ final class DesktopJournal {
     @discardableResult func event(_ operation: String, accepted: Bool = true) -> Bool {
         append("audit", ["phase": "event", "operation": Self.token(operation), "accepted": accepted])
     }
+    @discardableResult func admission(_ value:[String:Any]) -> Bool {
+        let events = Set("requested approved deferred start_now takeover pause resume configured stopped yielded rejected renewed waiting_for_resource waiting_for_approval paused announcing offered active ended".split(separator:" ").map(String.init))
+        guard let event = value["event"] as? String, events.contains(event) else { return false }
+        var fields:[String:Any] = ["phase":"event", "operation":"control." + event]
+        if let surface = value["surface"] as? String, ["desktop","browser","all"].contains(surface) { fields["surface"] = surface }
+        for key in ["intentId", "sessionId"] { if value[key] != nil { fields[key] = Self.correlation(value[key]) } }
+        // Reasons originate in the private closed policy, never task payloads.
+        if let reason = value["reason"] { fields["errorCode"] = Self.token(reason) }
+        return append("audit",fields)
+    }
     @discardableResult func diagnostic(_ operation: String, code: String) -> Bool {
         append("diagnostics", ["phase": "event", "operation": Self.token(operation), "errorCode": Self.token(code)])
     }

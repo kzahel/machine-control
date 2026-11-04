@@ -121,14 +121,13 @@ final class ResidentServer {
     var presentationStatus: () -> [String:Any] = { [:] }
     let nativeProvider: NativeProviderExecutor
     func referencedProcess(_ reference: String) -> pid_t? { nativeProvider.referenceOwners[reference] }
-    var noticeSeconds = 10.0
+    var noticeSeconds = 10.0 { didSet { broker.admission.reconfigureNotice(noticeSeconds) } }
     var coveredActivation: ((AdmissionChannel, [String:Any]) throws -> Void)?
     var controlledProvider: (([String:Any]) -> [String:Any])?
     var outerRecoveryFactory: (OuterClaimBinding) -> OuterRecovery = {
         OuterRecovery(binding:$0, input:OuterRecovery.emitNative)
     }
     private var channels: [Int32:AdmissionChannel] = [:]
-    private var noticePolicyState = ""
     var notice: AdmissionNotice?
     private var handshakes: [Int32:RequestHandshake] = [:]
     private var replies: [UUID:SocketReply] = [:]
@@ -153,8 +152,8 @@ final class ResidentServer {
         return status
     }
     func startNow(_ intent: String) throws {
-        try broker.admission.startNow(intent)
         activity.acknowledgeCurrentActivity()
+        try broker.admission.startNow(intent)
         refreshAdmission()
     }
     func cancelFromOperator(_ intent: String) throws {
@@ -206,7 +205,7 @@ final class ResidentServer {
             outer.fence = { [weak self, weak channel] in
                 guard let self, let channel else { throw MacUIError.action("owner_disconnected") }
                 self.refreshAdmission()
-                if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID, session:session, generations:generations) { throw MacUIError.action(refusal) }
+                if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID, session:session, generations:generations, operation:operation) { throw MacUIError.action(refusal) }
                 if let refusal = self.service.inputCancellation() { throw MacUIError.action(refusal) }
             }
             do {
@@ -241,7 +240,7 @@ final class ResidentServer {
         if let refusal = lockedUse.refusal(action) {
             completion(service.refusal(action, code:refusal.code, message:refusal.message)); return
         }
-        if let refusal = guardRequest?(action) {
+        if let refusal = screenedRequest(action) {
             completion(service.refusal(action, code:refusal.code, message:refusal.message)); return
         }
         guard broker.journal?.begin(action, caller:channel.caller) != false else {
@@ -252,7 +251,7 @@ final class ResidentServer {
             var result = original
             self.refreshAdmission()
             if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
-                session:session, generations:generations) {
+                session:session, generations:generations, operation:operation) {
                 result["errorCode"] = refusal; result["accepted"] = false
                 result["uncertainty"] = "interrupted_after_possible_dispatch"; result["retrySafety"] = "unsafe"
             }
@@ -263,7 +262,16 @@ final class ResidentServer {
             completion(result)
         }
         if [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
-            if let refusal = browser.forward(-1, action, caller:channel.caller, claimID:nil, completion:finish) { finish(refusal) }
+            let authority = BrowserRelay.Authority(ownerSession:channel.owner + ":" + session,
+                profileIDs:channel.profileIDs, validate:{ [weak self, weak channel] in
+                    guard let self, let channel else { return "owner_disconnected" }
+                    if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
+                        session:session, generations:generations, operation:operation) { return refusal }
+                    return self.broker.authorize(operation, controlled:true,
+                        delegatedScopes:channel.delegation == nil ? nil : channel.scopes)?.code
+                })
+            if let refusal = browser.forward(-1, action, caller:channel.caller, claimID:nil,
+                authority:authority, completion:finish) { finish(refusal) }
         } else {
             if lockedUse.isCovered { action["provider"] = "macos-native" }
             let request = action
@@ -274,9 +282,9 @@ final class ResidentServer {
                 }, authorize:{ [weak self, weak channel] in
                     guard let self, let channel else { return GrantRefusal("owner_disconnected", "Owner disconnected") }
                     if let code = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
-                        session:session, generations:generations) { return GrantRefusal(code, "Control owner changed") }
+                        session:session, generations:generations, operation:operation) { return GrantRefusal(code, "Control owner changed") }
                     return self.broker.authorize(operation, controlled:true, delegatedScopes:channel.delegation == nil ? nil : channel.scopes)
-                        ?? self.lockedUse.refusal(request) ?? self.guardRequest?(request)
+                        ?? self.lockedUse.refusal(request) ?? self.screenedRequest(request)
                 }, custom:controlledProvider, completion:finish)
         }
     }
@@ -285,19 +293,23 @@ final class ResidentServer {
     /// at the resident's own interface.
     var guardRequest: (([String: Any]) -> GrantRefusal?)?
 
+    private func screenedRequest(_ request:[String:Any]) -> GrantRefusal? {
+        switch operationClass(request["operation"] as? String ?? "") {
+        case .discovery, .grantManagement, .lifecycle, .providerRegistration,
+             .scoped(.browser), .scoped(.devtools): return nil
+        default: return guardRequest?(request)
+        }
+    }
+
     private var listener: Int32 = -1
     private var acceptSource: DispatchSourceRead?
     private var ticker: DispatchSourceTimer?
-    private var pendingClient: Int32 = -1
-    private var pendingRequest: [String: Any]?
-    private var pendingTimeout: DispatchWorkItem?
     private var grantConsoleBinding: GrantConsoleBinding?
-    private var restoringConsoleConsent = false
-    private var restoredScopeRestriction = false
     private var observedGrantID: String?
+    private var browserConsoleBinding: GrantConsoleBinding?
+    private var observedBrowserConsentID: String?
 
     let browser: BrowserRelay
-    let devtools: BrowserDevToolsBridge
     lazy var lockedUse = MacLockedUse(broker: broker, service: service,
         automaticMaintenance:socketPath == defaultResidentSocket)
     // Tests provide a desktop observation without relying on host lock state.
@@ -329,7 +341,7 @@ final class ResidentServer {
     }
 
     init(socketPath: String, service: ResidentService, broker: GrantBroker,
-         preferences: UserDefaults = .standard) {
+         preferences: UserDefaults = .standard, policyDirectory: URL? = nil) {
         self.preferences = preferences
         self.socketPath = socketPath
         callerTrust = DesktopCallerTrust(directory:(socketPath as NSString).deletingLastPathComponent)
@@ -338,9 +350,12 @@ final class ResidentServer {
         service.referencesInvalidated = { [weak nativeProvider] in nativeProvider?.invalidate() }
         self.broker = broker
         approvalDesktopUnlocked = { service.observedDesktopState == "unlocked" }
+        activity.lockedObservation = {
+            switch service.observedDesktopState { case "locked": return true; case "unlocked": return false; default: return nil }
+        }
         grantConsoleObservation = { service.observedConsoleSession }
-        browser = BrowserRelay(service: service, broker: broker)
-        devtools = BrowserDevToolsBridge(broker: broker, relay: browser)
+        browser = BrowserRelay(service: service, broker: broker, policyDirectory:policyDirectory,
+            policyExecutable:policyDirectory?.appendingPathComponent("node"))
         browser.respond = { [weak self] client, request, response, caller, claimID in
             self?.respond(client, request, response, caller: caller, claimID: claimID)
         }
@@ -356,11 +371,19 @@ final class ResidentServer {
         broker.availabilityChanged = { [weak self] in
             guard let self else { return }
             self.service.invalidateReferences()
-            self.browser.closeAllSessions(reason:"control_generation_changed")
             let reasons = self.broker.admission.blocks("desktop")
             if !reasons.isEmpty {
                 self.lockedUse.end(reasons.contains("physical_activity") ? "physical_presence" : "operator_paused")
             }
+        }
+        broker.operatorReady = { [weak self] in
+            guard let self else { return false }
+            let observation = self.grantConsoleObservation()
+            return self.approvalDesktopUnlocked() && completeConsoleIdentity(observation) &&
+                (observation["uid"] as? NSNumber)?.uint32Value == getuid()
+        }
+        if broker.policy.grantMode == .standing {
+            try? broker.admission.configure("desktop", mode:"automatic", seconds:nil)
         }
         bindApprovedConsole()
         // Initialize the lazy coordinator before installing the callback. Each
@@ -376,7 +399,7 @@ final class ResidentServer {
         replies.removeAll()
         nativeProvider.stop()
         service.stopObservations()
-        devtools.stop()
+        browser.stop()
         ticker?.cancel(); ticker = nil
         acceptSource?.cancel(); acceptSource = nil
         for channel in Array(channels.values) { channel.close() }
@@ -388,36 +411,30 @@ final class ResidentServer {
     }
     deinit { stop() }
 
-    func restoreOperatorConsent() {
-        guard broker.policy.grantMode == .approval, broker.grant == nil || restoredScopeRestriction, broker.pending == nil,
-              let store = broker.consentStore, broker.consentStorageError == nil, broker.journal?.errorCode == nil else { return }
+    private func bindApprovedConsole() {
         let observation = grantConsoleObservation()
-        guard let (scopes, duration) = store.consent(console:observation) else { return }
-        let helper = service.displayedUnlockStatus
-        // Browser-while-locked is independent of covered-unlock preparation and
-        // its fault pause. A broken helper must not prevent this restoration.
-        let helperEligible = helperAllowsConsentRestoration(helper, recoveryPending:lockedUse.recoveryFence.pending)
-        let available = restorableConsentScopes(scopes, state:observation["desktopState"] as? String ?? "unknown",
-            browserEnabled:browserWhileLockedEnabled, lockedUseEnabled:lockedUse.enabled,
-            helperEligible:helperEligible, desktopPermissions:AXIsProcessTrusted() && CGPreflightScreenCaptureAccess() && CGPreflightPostEventAccess())
-        guard !available.isEmpty, broker.grant?.scopes != available else { return }
-        restoringConsoleConsent = true
-        defer { restoringConsoleConsent = false }
-        if broker.grant != nil { broker.revoke(reason:"scope_upgrade") }
-        guard let fresh = broker.restoreConsent(scopes:available, remainingSeconds:duration) else { return }
-        broker.restorationBlockedScopes = scopes.subtracting(available)
-        restoredScopeRestriction = available != scopes
-        grantConsoleBinding = GrantConsoleBinding(grantID:fresh.id, observation:observation, restoring:true)
+        if observedGrantID != broker.desktopConsentID {
+            observedGrantID = broker.desktopConsentID
+            grantConsoleBinding = broker.admission.enabled("desktop") ?
+                GrantConsoleBinding(grantID:broker.desktopConsentID, observation:observation) : nil
+        }
+        if observedBrowserConsentID != broker.browserConsentID {
+            observedBrowserConsentID = broker.browserConsentID
+            browserConsoleBinding = broker.admission.enabled("browser") ?
+                GrantConsoleBinding(grantID:broker.browserConsentID, observation:observation) : nil
+        }
     }
 
-    private func bindApprovedConsole() {
-        let id = broker.grant?.id
-        guard observedGrantID != id else { return }
-        observedGrantID = id; grantConsoleBinding = nil
-        if !restoringConsoleConsent { restoredScopeRestriction = false }
-        guard broker.policy.grantMode == .approval, let id else { return }
+    func configureSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String] = []) throws {
         service.refreshSession()
-        grantConsoleBinding = GrantConsoleBinding(grantID:id, observation:grantConsoleObservation(), restoring:restoringConsoleConsent)
+        try broker.validateSurface(surface, mode:mode, seconds:seconds, profiles:profiles)
+        if surface == "browser" {
+            try browser.configure(profiles: profiles, seconds: seconds, enabled: mode != "off")
+        }
+        do { try broker.configureSurface(surface, mode: mode, seconds: seconds, profiles: profiles) }
+        catch { if surface == "browser" { browser.stopAccess() }; throw error }
+        bindApprovedConsole()
+        reconcileObservedSession()
     }
 
     func start() throws {
@@ -454,38 +471,32 @@ final class ResidentServer {
     }
 
     private func reconcileObservedSession() {
-        do { try broker.consentStore?.invalidateReplacedConsole(grantConsoleObservation()) }
-        catch { broker.consentStorageError = String(describing:error) }
-        restoreOperatorConsent()
         let observation = grantConsoleObservation()
         let state = observation["desktopState"] as? String ?? "unknown"
-        let coveredRetention = state == "locked" && lockedUse.preservesGrantAcrossLock
-        let browserRetention = state == "locked" && browserWhileLockedEnabled &&
-            broker.activeGrant?.scopes.isDisjoint(with:GrantBroker.browserScopes) == false
-        broker.browserOnlyWhileLocked = broker.policy.grantMode == .approval && browserRetention && !coveredRetention
-        let noticeState = "\(state):\(lockedUse.isCovered):\(noticeSeconds)"
-        if noticeState != noticePolicyState {
-            noticePolicyState = noticeState
-            broker.admission.reconfigureNotice(state == "locked" || lockedUse.isCovered ? 0 : noticeSeconds)
-        }
-        if broker.policy.grantMode == .approval, let grant = broker.activeGrant {
-            let reason: String?
-            if grantConsoleBinding?.matches(grantID:grant.id, observation:observation) != true {
-                reason = "console_session_changed"
-            } else if state != "unlocked" && !coveredRetention && !browserRetention {
-                reason = "desktop_\(state)"
-            } else { reason = nil }
-            if let reason {
-                let replaced = grantConsoleBinding.map { consoleSessionReplaced($0.session, observation) } ?? false
-                broker.revoke(reason:reason, consent:replaced ? .invalidate : .retain); grantConsoleBinding = nil
+        let managed = broker.policy.grantMode == .standing
+        if !managed {
+            let replaced = [grantConsoleBinding, browserConsoleBinding].compactMap { $0 }.contains {
+                consoleSessionReplaced($0.session, observation)
+            }
+            if replaced {
+                broker.revoke(reason:"console_session_changed"); browser.stopAccess()
+                grantConsoleBinding = nil; browserConsoleBinding = nil
                 service.invalidateReferences()
             }
-        } else {
-            grantConsoleBinding = nil
         }
+        let desktopBound = managed || grantConsoleBinding?.matches(grantID:broker.desktopConsentID, observation:observation) == true
+        let browserBound = managed || browserConsoleBinding?.matches(grantID:broker.browserConsentID, observation:observation) == true
+        let unlocked = state == "unlocked"
+        let prepared = state == "locked" && lockedUse.enabled
+        broker.desktopRouteReady = desktopBound && (unlocked || prepared)
+        broker.browserRouteReady = browserBound && (unlocked || state == "locked" && browserWhileLockedEnabled)
+        broker.browserOnlyWhileLocked = !broker.desktopRouteReady && broker.browserRouteReady && state == "locked"
+        broker.admission.setReady("desktop", broker.desktopRouteReady, noticeVisible:unlocked && !lockedUse.isCovered)
+        broker.admission.setReady("browser", broker.browserRouteReady, noticeVisible:unlocked && !lockedUse.isCovered)
         lockedUse.tick()
         if activity.enabled { activity.tick(broker, helper:service.displayedUnlockStatus) }
         broker.refreshAvailability()
+        browser.synchronizeSafety()
         for channel in Array(channels.values) { channel.tick() }
         notice?.update()
     }
@@ -640,7 +651,7 @@ final class ResidentServer {
             return
         }
         if broker.policy.grantMode == .approval, case let .scoped(scope) = operationClass(operation),
-           scope != .observe, let refusal = guardRequest?(request) {
+           scope != .observe, let refusal = screenedRequest(request) {
             respond(client, request, refused(request, refusal), caller: caller, claimID: claimID)
             return
         }
@@ -658,15 +669,7 @@ final class ResidentServer {
             ]), caller: caller, claimID: claimID)
             return
         }
-        if operation == "browser.endpoint" {
-            var data = browser.statusJSON
-            data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
-            data["browserEndpoint"] = devtools.browserEndpoint ?? NSNull()
-            respond(client, request, service.acceptance(request, data: data),
-                    caller: caller, claimID: claimID)
-            return
-        }
-        if [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
+        if operation == "browser.profiles" || [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
             if let refusal = browser.forward(client, request, caller: caller, claimID: claimID) {
                 respond(client, request, refusal, caller: caller, claimID: claimID)
             } else {
@@ -681,7 +684,7 @@ final class ResidentServer {
                 self?.service.applySessionObservation(observation); self?.reconcileObservedSession()
             }, authorize:{ [weak self] in
                 guard let self else { return GrantRefusal("resident_stopping", "Resident is stopping") }
-                return self.broker.authorize(operation) ?? self.lockedUse.refusal(request) ?? self.guardRequest?(request)
+                return self.broker.authorize(operation) ?? self.lockedUse.refusal(request) ?? self.screenedRequest(request)
             }, credentialSocket:operation == "authorization.submit" ? client : nil,
             completion:{ [weak self] original in
                 defer { Darwin.close(client) }
@@ -695,9 +698,7 @@ final class ResidentServer {
                     data["physicalActivity"] = self.activity.status
                     data["admission"] = self.broker.admission.status
                     data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
-                    var browser = self.browser.statusJSON
-                    browser["devtoolsEndpoint"] = self.devtools.endpoint ?? NSNull()
-                    browser["browserEndpoint"] = self.devtools.browserEndpoint ?? NSNull()
+                    let browser = self.browser.statusJSON
                     data["browser"] = browser
                     if self.updates.request(check:false) != nil {
                         data["updateDiscovery"] = ["operations":["update.check", "update.status"], "route":"desktop.native-updater", "installation":"local_operator_only"]
@@ -716,70 +717,15 @@ final class ResidentServer {
     /// decision.
     private func handleGrant(_ request: [String: Any], operation: String,
                              caller: CallerIdentity, client: Int32) -> [String: Any]? {
-        switch operation {
-        case "grant.status":
-            return service.acceptance(request, data: broker.statusJSON)
-        case "grant.revoke":
-            // Callers end only access an agent requested. Access the person
-            // armed stays on, along with its saved consent and caller trust;
-            // succeed so cleanup code does not retry or work around it.
-            guard let current = broker.activeGrant else {
-                var data = broker.statusJSON
-                data["revoked"] = false
-                return service.acceptance(request, data: data)
-            }
-            if current.origin == .person {
-                broker.journal?.event("access.revoke_retained")
-                var data = broker.statusJSON
-                data["revoked"] = false
-                data["retained"] = "person_armed"
-                return service.acceptance(request, data: data)
-            }
-            broker.revoke(reason: "revoked_by_caller")
-            service.invalidateReferences()
+        if operation == "grant.status" { return service.acceptance(request, data: broker.statusJSON) }
+        if operation == "grant.revoke" {
             var data = broker.statusJSON
-            data["revoked"] = true
+            data["revoked"] = false
+            data["retained"] = "person_armed"
             return service.acceptance(request, data: data)
-        case "grant.request":
-            if broker.policy.grantMode == .standing {
-                var data = broker.statusJSON
-                data["decision"] = "standing"
-                data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
-                return service.acceptance(request, data: data)
-            }
-            let parsed: GrantRequest
-            switch GrantRequest.parse(request, caller: caller) {
-            case let .success(value): parsed = value
-            case let .failure(refusal): return refused(request, refusal)
-            }
-            if let current = broker.covering(parsed) {
-                var data = broker.statusJSON
-                data["decision"] = "existing_grant"
-                data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
-                data["grant"] = current.json(now: broker.now())
-                return service.acceptance(request, data: data)
-            }
-            if lockedUse.isCovered || !approvalDesktopUnlocked() {
-                return refused(request, GrantRefusal("approval_unavailable_while_locked",
-                    "Approve new access while unlocked; previously approved browser access can continue if enabled in Settings"))
-            }
-            guard let approver else {
-                return refused(request, GrantRefusal("approval_unavailable",
-                    "No approval surface is running for this resident"))
-            }
-            if let refusal = broker.beginPending(parsed) { return refused(request, refusal) }
-            pendingClient = client
-            pendingRequest = request
-            let timeout = DispatchWorkItem { [weak self] in self?.decide(.timedOut) }
-            pendingTimeout = timeout
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(parsed.timeoutSeconds),
-                                          execute: timeout)
-            approver.present(parsed) { [weak self] decision in self?.decide(decision) }
-            return nil
-        default:
-            return refused(request, GrantRefusal("unsupported_operation",
-                "Unsupported operation: \(operation)"))
         }
+        return service.refusal(request, code: "legacy_grant_request_unsupported",
+            message: "Configure a surface access mode and open one live control task")
     }
 
     /// Ends the grant from a trusted local surface such as the menu.
@@ -789,43 +735,24 @@ final class ResidentServer {
         if GrantBroker.personStopReasons.contains(reason) { callerTrust.stop() }
         lockedUse.end(reason)
         broker.revoke(reason: reason)
+        browser.stopAccess()
         service.invalidateReferences()
-    }
-
-    private func decide(_ decision: GrantDecision) {
-        guard let request = pendingRequest, let pending = broker.pending else { return }
-        pendingTimeout?.cancel()
-        pendingTimeout = nil
-        approver?.dismiss(requestID: pending.id)
-        let client = pendingClient
-        pendingClient = -1
-        pendingRequest = nil
-        let grant = broker.finishPending(decision, approver: approver?.kind ?? "unknown")
-        let response: [String: Any]
-        if let grant {
-            var data = broker.statusJSON
-            data["decision"] = "approved"
-            data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
-            data["grant"] = grant.json(now: broker.now())
-            response = service.acceptance(request, data: data)
-        } else if decision == .timedOut {
-            response = refused(request, GrantRefusal("approval_timeout",
-                "No decision was made before the request timed out"))
-        } else {
-            response = refused(request, GrantRefusal("approval_denied",
-                "The request was denied"))
-        }
-        respond(client, request, response, caller: pending.caller, claimID: pending.claimID)
-        Darwin.close(client)
     }
 
     private func refused(_ request: [String: Any], _ refusal: GrantRefusal) -> [String: Any] {
         var data = broker.statusJSON
         if let scope = refusal.requiredScope {
             data["requiredScope"] = scope.rawValue
-            data["requestOperation"] = "grant.request"
+            data["requiredSurface"] = GrantBroker.browserScopes.contains(scope) ? "browser" : "desktop"
+            if refusal.code == "control_session_required" {
+                data["requestOperation"] = "control.open"
+                data["controlSession"] = ["schema":AccessAdmission.schema,
+                    "surface":GrantBroker.browserScopes.contains(scope) ? "browser" : "desktop", "profileSelection":"exact"]
+            }
         }
-        return service.refusal(request, code: refusal.code, message: refusal.message, data: data)
+        var result = service.refusal(request, code: refusal.code, message: refusal.message, data: data)
+        result["retrySafety"] = "safe_not_dispatched"
+        return result
     }
 
     private func respond(_ client: Int32, _ request: [String: Any], _ originalResponse: [String: Any],
@@ -946,16 +873,10 @@ func runResident(socketPath: String) throws -> Never {
             }
         }
     }
-    menu.onArm = { [weak server] duration in
-        guard let server else { return }
-        guard server.broker.consentStorageError == nil else { throw MacUIError.action("consent_storage_unavailable") }
-        try server.broker.consentStore?.enable(scopes:Set(GrantScope.allCases), duration:duration,
-            console:server.grantConsoleObservation())
-        if let duration { server.broker.issue(scopes:Set(GrantScope.allCases), durationSeconds:duration,
-            reason:"Armed from the menu bar", requester:"local operator", approver:"menu", origin:.person) }
-        else { server.broker.issueUntilStopped(scopes:Set(GrantScope.allCases),
-            reason:"Armed from the menu bar", requester:"local operator", approver:"menu") }
-        if server.broker.journal?.errorCode != nil { server.revoke(reason:"audit_storage_unavailable") }
+    menu.browserProfiles = { [weak server] in server?.browser.profiles ?? [] }
+    menu.onConfigure = { [weak server] surface, mode, seconds, profiles in
+        guard let server else { throw MacUIError.action("resident_stopping") }
+        try server.configureSurface(surface, mode:mode, seconds:seconds, profiles:profiles)
     }
 
     broker.observe { [weak menu] in menu?.updateIcon() }

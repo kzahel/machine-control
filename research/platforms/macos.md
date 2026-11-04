@@ -3,6 +3,20 @@
 Status: full logged-in Aqua software-testing composition is adopted and
 live-tested in a prepared Tart appliance; login and preboot planes remain open.
 
+## Shared ordinary permissions
+
+**Current (2026-11-04), `built` and bounded `live-tested`:** the unreleased
+Swift adapter delegates ordinary Desktop/Browser admission, profiles and CDP
+coordination to the same pinned TypeScript/Node child as Windows/reference.
+A local ad-hoc ARM64 packaged trial passes 17 real Settings/notice/owner/profile
+checks. Two Chrome for Testing profiles remain connected; the selected Work
+profile has one independently recorded effect and Personal has none. Original
+app/policy/native operator preferences and owned-process cleanup are verified. This does not
+qualify physical HID, Intel, signed publication, streaming or the new protected
+owner composition. Earlier protected evidence below belongs to its recorded
+implementation. [Tactical 154](../../docs/tactical/154-macos-shared-surface-adoption.md)
+owns the current migration gates.
+
 ## Native foundation
 
 **Current (2026-10-25), bounded `live-tested` placement finding:** direct

@@ -50,6 +50,7 @@ jobs:
           CANDIDATE_VERSION: ${{ inputs.version }}
         run: python3 release/changelog.py desktop/CHANGELOG.md "$CANDIDATE_VERSION"
       - run: pnpm --dir desktop install --frozen-lockfile
+      - run: pnpm --dir runtime install --frozen-lockfile
       - run: pnpm --dir desktop build
       - name: Saved access choices UI regression
         run: |
@@ -95,6 +96,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - run: pnpm --dir desktop install --frozen-lockfile
+      - run: pnpm --dir runtime install --frozen-lockfile
       - name: Set candidate version
         env:
           CANDIDATE_VERSION: ${{ inputs.version }}

@@ -48,14 +48,16 @@ final class BrowserRelayTests: XCTestCase {
         signal(SIGPIPE, SIG_IGN)
         socketPath = "/tmp/mc-browser-\(getpid())-\(Int.random(in: 0..<100_000)).sock"
         broker = GrantBroker(policy: .workstation(issue: nil))
-        server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)
+        server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker, policyDirectory:try testPolicyRoot())
         server.grantConsoleObservation = {
             ["desktopState":"unlocked", "uuid":"test-console", "boot":123, "uid":getuid()]
         }
+        server.approvalDesktopUnlocked = { true }
         try server.start()
     }
 
     override func tearDown() {
+        server.stop()
         unlink(socketPath)
     }
 
@@ -108,99 +110,72 @@ final class BrowserRelayTests: XCTestCase {
         XCTAssertFalse(server.browser.connected)
     }
 
-    func testSameScopeReplacementPublishesANewGrantGeneration() {
-        server.browser.identityCheck = { _ in true }
-        guard let provider = connectProvider() else { return XCTFail("provider did not connect") }
-        let initial = onBackground { provider.next() }?["grantGeneration"] as? String
-        XCTAssertNotNil(initial)
-        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "first",
-                     requester: "fixture", approver: "test")
-        let first = onBackground { provider.next() }
-        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "second",
-                     requester: "fixture", approver: "test")
-        let second = onBackground { provider.next() }
-        XCTAssertEqual(first?["browser"] as? Bool, true)
-        XCTAssertEqual(second?["browser"] as? Bool, true)
-        XCTAssertNotEqual(first?["grantGeneration"] as? String, initial)
-        XCTAssertNotEqual(second?["grantGeneration"] as? String, first?["grantGeneration"] as? String)
+    private func attach(_ name:String, _ suffix:String) throws -> FakeProvider {
+        let path = socketPath
+        let provider = try XCTUnwrap(onBackground { () -> FakeProvider? in
+            guard let provider = FakeProvider(socketPath:path) else { return nil }
+            provider.send(["operation":"browser.provider", "origin":"chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/"])
+            guard provider.next()?["type"] as? String == "registered" else { return nil }
+            provider.send(["type":"hello", "protocolVersion":1, "extensionVersion":"fixture",
+                "profile":["protocolVersion":1, "installationId":"00000000-0000-4000-8000-00000000000" + suffix,
+                    "name":name, "enabled":true]])
+            return provider
+        })
+        return provider
     }
-
-    func testDeadlineCancelsProviderAndReportsUnknownWithoutRevokingConsent() throws {
-        server.browser.identityCheck = { _ in true }
-        server.browser.requestTimeout = 0.05
-        let grant = broker.issueUntilStopped(scopes:[.browser], reason:"manual", requester:"local", approver:"local")
-        let provider = try XCTUnwrap(connectProvider())
-        _ = onBackground { provider.next() } // grant state
-        let result = call(["operation":"browser.type", "tabId":1, "text":"fixture"])
-        XCTAssertEqual(result["errorCode"] as? String, "browser_timeout")
-        XCTAssertEqual(result["delivery"] as? String, "unknown")
-        XCTAssertEqual(result["effect"] as? String, "unknown")
-        let request = try XCTUnwrap(onBackground { provider.next() })
-        let cancel = try XCTUnwrap(onBackground { provider.next() })
-        XCTAssertEqual(cancel["type"] as? String, "cancel")
-        XCTAssertEqual(cancel["id"] as? String, request["id"] as? String)
-        XCTAssertEqual(broker.activeGrant?.id, grant.id)
-        XCTAssertEqual(server.browser.statusJSON["health"] as? String, "degraded")
-        // A provider reply after expiry cannot turn the completed call into success.
-        provider.send(["type":"response", "id":request["id"]!, "ok":true, "data":[:]])
-        XCTAssertEqual(server.browser.statusJSON["pendingRequests"] as? Int, 0)
+    private func settle(_ predicate:@escaping () -> Bool) {
+        let done = expectation(description:"shared profile projection")
+        let timer = DispatchSource.makeTimerSource(queue:.main)
+        timer.schedule(deadline:.now(), repeating:.milliseconds(10))
+        timer.setEventHandler { if predicate() { timer.cancel(); done.fulfill() } }; timer.resume()
+        wait(for:[done],timeout:3); timer.cancel()
     }
-
-    func testBrowserOperationsNeedGrantAndProvider() {
-        XCTAssertEqual(call(["operation": "browser.tabs"])["errorCode"] as? String, "approval_required")
-        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "r", requester: "x", approver: "test")
-        let unavailable = call(["operation": "browser.tabs"])
-        XCTAssertEqual(unavailable["errorCode"] as? String, "browser_provider_unavailable")
-        XCTAssertEqual(unavailable["actualRoute"] as? String, BrowserRelay.route)
-    }
-
-    func testRelayForwardsAndReportsGrantState() {
+    func testTwoProfilesStayConnectedAndCopiedIdentityIsRefusedWithoutEviction() throws {
         server.browser.identityCheck = { _ in true }
-        guard let provider = connectProvider() else { return XCTFail("provider did not connect") }
-        XCTAssertEqual(onBackground { provider.next() }?["browser"] as? Bool, false)
-
-        broker.issue(scopes: [.observe, .browser], durationSeconds: 600, reason: "r",
-                     requester: "x", approver: "test")
-        XCTAssertEqual(onBackground { provider.next() }?["browser"] as? Bool, true)
-
-        // Answer the next request the way the extension would.
-        let answered = expectation(description: "provider answered")
+        let work = try attach("Work","1"), personal = try attach("Personal","2")
+        settle { self.server.browser.profiles.count == 2 }
+        let copied = try attach("Copied","1")
+        let refusal = onBackground { copied.next() }
+        XCTAssertEqual(refusal?["type"] as? String,"profile.refused")
+        XCTAssertEqual(refusal?["reason"] as? String,"profile_conflict")
+        XCTAssertEqual(server.browser.profiles.filter { $0["connected"] as? Bool == true }.count,2)
+        withExtendedLifetime([work,personal,copied]) {}
+    }
+    func testRealSharedBrowserCallRequiresExactLiveOwnerAndProfile() throws {
+        server.browser.identityCheck = { _ in true }
+        let provider = try attach("Work","1")
+        settle { self.server.browser.profiles.count == 1 }
+        let profile = try XCTUnwrap(server.browser.profiles.first?["profileId"] as? String)
+        try server.configureSurface("browser",mode:"automatic",seconds:nil,profiles:[profile])
+        let admission = broker.admission
+        let intent = try admission.submit(owner:"fixture-owner",requestID:"tabs",resources:["browser"],wait:120,duration:60,reason:"Fixture",authority:{ nil },profileIDs:[profile],operations:["browser.tabs"])
+        let id = try XCTUnwrap(intent["intentId"] as? String)
+        let active = try admission.accept(owner:"fixture-owner",id:id,generation:try XCTUnwrap(intent["offerGeneration"] as? Int))
+        let session = try XCTUnwrap(active["sessionId"] as? String), generations = try XCTUnwrap(active["resourceGenerations"] as? [String:Int])
+        let authority = BrowserRelay.Authority(ownerSession:"fixture-owner:" + session,profileIDs:[profile],validate:{ admission.authorize(owner:"fixture-owner",id:id,session:session,generations:generations,operation:"browser.tabs") })
+        let answered = expectation(description:"real provider response")
         DispatchQueue.global().async {
-            if let request = provider.next(), request["type"] as? String == "request" {
-                XCTAssertEqual(request["operation"] as? String, "browser.capture")
-                XCTAssertEqual((request["params"] as? [String: Any])?["tabId"] as? Int, 7)
-                XCTAssertNil((request["params"] as? [String: Any])?["claimId"])
-                provider.send(["type": "response", "id": request["id"] ?? "", "ok": true,
-                               "data": ["png": Data("png".utf8).base64EncodedString(),
-                                        "tab": ["tabId": 7]]])
+            while let frame = provider.next() {
+                if frame["type"] as? String == "request" {
+                    provider.send(["type":"response", "id":frame["id"]!, "ok":true, "data":["tabs":[["id":1,"title":"Fixture"]]]])
+                    answered.fulfill(); return
+                }
             }
-            answered.fulfill()
+            XCTFail("No routed provider request"); answered.fulfill()
         }
-        let result = call(["operation": "browser.capture", "tabId": 7, "claimId": "c-x"])
-        wait(for: [answered], timeout: 10)
-        XCTAssertEqual(result["accepted"] as? Bool, true, "\(result)")
-        let path = (result["data"] as? [String: Any])?["artifactPath"] as? String
-        XCTAssertEqual(path.flatMap { try? Data(contentsOf: URL(fileURLWithPath: $0)) }, Data("png".utf8))
-        path.map { try? FileManager.default.removeItem(atPath: $0) }
-
-        broker.revoke(reason: "test")
-        XCTAssertEqual(onBackground { provider.next() }?["browser"] as? Bool, false)
-        XCTAssertEqual(call(["operation": "browser.tabs"])["errorCode"] as? String, "approval_required")
+        let completed = expectation(description:"native completion")
+        let refusal = server.browser.forward(-1,["operation":"browser.tabs","requestId":"tabs"],caller:CallerIdentity(uid:getuid(),chain:[]),claimID:nil,authority:authority) { result in
+            XCTAssertEqual(result["accepted"] as? Bool,true)
+            XCTAssertEqual((result["data"] as? [String:Any])?["browserProfileId"] as? String,profile)
+            completed.fulfill()
+        }
+        XCTAssertNil(refusal); wait(for:[answered,completed],timeout:5)
+        try admission.cancel(owner:"fixture-owner",id:id)
+        let stale = server.browser.forward(-1,["operation":"browser.tabs"],caller:CallerIdentity(uid:getuid(),chain:[]),claimID:nil,authority:authority)
+        XCTAssertEqual(stale?["accepted"] as? Bool,false)
     }
-
-    func testProviderDisconnectFailsPendingRequest() {
-        server.browser.identityCheck = { _ in true }
-        var provider = connectProvider()
-        XCTAssertNotNil(provider)
-        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "r", requester: "x", approver: "test")
-        let dropped = expectation(description: "provider dropped")
-        DispatchQueue.global().async {
-            while let message = provider?.next(), message["type"] as? String != "request" {}
-            provider = nil
-            dropped.fulfill()
-        }
-        let result = call(["operation": "browser.tabs"])
-        wait(for: [dropped], timeout: 10)
-        XCTAssertEqual(result["errorCode"] as? String, "browser_provider_disconnected")
+    func testDirectBrowserWorkCannotBorrowOperatorConsent() throws {
+        XCTAssertEqual(call(["operation":"browser.tabs"])["errorCode"] as? String,"surface_disabled")
+        XCTAssertEqual(call(["operation":"browser.profiles"])["accepted"] as? Bool,true)
     }
 }

@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [154 — macOS shared surface adoption](154-macos-shared-surface-adoption.md)
+  (in progress): replace Swift ordinary policy with the same v2 child, preserve
+  native/protected ceilings, and qualify real Settings, profiles and cleanup.
+
 - [153 — Unified permissions and handoff](153-unified-permissions-and-handoff.md)
   (bounded Windows acceptance complete; macOS next): independent Desktop/Browser
   modes, unified Browser/CDP, deliberate takeover and queued handoff; Windows

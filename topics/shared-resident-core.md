@@ -3,8 +3,10 @@
 Topic: `shared-resident-core`
 
 Status: **Windows/reference broad review and bounded native qualification
-passed; macOS adoption next, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+passed; macOS adoption in progress, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the candidate gates and remaining qualification limits.
+[Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md) owns the
+macOS migration and its separate live acceptance gate.
 
 ## Motivation
 
@@ -17,7 +19,9 @@ C# Windows and Python Linux residents at the start of this work. Mac/Windows own
 bridges also had separate implementations; Linux does not have identical
 feature coverage. These were overlapping policy implementations, not three
 equivalent translations of one enforced model. The Windows implementation now delegates ordinary Desktop and Browser policy
-to that shared core; Mac/Linux adoption remains pending.
+to that shared core. The macOS adapter now does the same in the unreleased
+source and passes a bounded ordinary packaged slice; protected/stream adoption
+gates remain open. Linux adoption remains pending.
 
 The product already shares its Python client, TypeScript settings UI,
 JavaScript Chrome extension, common result vocabulary and some conformance

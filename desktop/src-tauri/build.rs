@@ -155,7 +155,7 @@ fn main() {
         });
         assert!(revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()));
         fs::create_dir_all(&native).unwrap();
-        fs::write(native.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>MCSourceRevision</key><string>{revision}</string><key>MCNativeSudoVersion</key><integer>1</integer><key>MCClientProtocol</key><integer>1</integer></dict></plist>")).unwrap();
+        fs::write(native.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>MCSourceRevision</key><string>{revision}</string><key>MCNativeSudoVersion</key><integer>1</integer><key>MCClientProtocol</key><integer>1</integer><key>MCResidentPolicyProtocol</key><integer>2</integer></dict></plist>")).unwrap();
         println!("cargo:rerun-if-env-changed=GITHUB_SHA");
 
         fs::create_dir_all(&framework).unwrap();
@@ -164,6 +164,24 @@ fn main() {
         } else {
             "x86_64"
         };
+        for directory in [
+            "runtime/src",
+            "runtime/node",
+            "runtime/toolchains.json",
+            "runtime/pnpm-lock.yaml",
+            "platforms/macos/resident/app/node-entitlements.plist",
+            "runtime/scripts/package.py",
+            "platforms/macos/resident/scripts/prepare-policy.py",
+        ] {
+            println!(
+                "cargo:rerun-if-changed={}",
+                repository.join(directory).display()
+            );
+        }
+        run(Command::new(&python)
+            .arg(repository.join("platforms/macos/resident/scripts/prepare-policy.py"))
+            .args(["--arch", arch, "--output"])
+            .arg(native.join("shared-policy")));
         let target = format!("{arch}-apple-macos13.0");
         let unlock = root.join("../../platforms/macos/guests/macos/unlock");
         for file in [

@@ -10,7 +10,7 @@ remaining = 60
 resumed_polls = 0
 activations = 0
 mode = os.environ.get("MC_ADMISSION_FIXTURE", "ready")
-version = "v1" if (mode.startswith("outer") or mode == "legacy-ready") else "v2"
+version = "v1" if mode == "legacy-v1" else "v2"
 schema = "machine-control-admission/" + version
 channel_schema = "machine-control-admission-channel/" + version
 record = Path(os.environ["MC_ADMISSION_RECORD"])

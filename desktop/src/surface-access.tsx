@@ -34,9 +34,10 @@ function choices(): Choices {
   return { desktop: "automatic", browser: "automatic", duration: 0, profileIds: [] };
 }
 
-export function SurfaceAccess({ policy, profiles, requests, busy, act, protectedAccess }: {
+export function SurfaceAccess({ policy, profiles, requests, busy, act, protectedAccess, lockedBrowser }: {
   policy: SurfacePolicy; profiles: Profile[]; requests: Request[]; busy: boolean;
   act: (command: Record<string, unknown>) => Promise<unknown>;
+  lockedBrowser?: { supported: boolean; enabled: boolean };
   protectedAccess?: { supported: boolean; enabled: boolean; permissionReady: boolean; credentialSource?: string; controlSessionId: string | null; setupState: string; setupError: string | null };
 }) {
   const [saved, setSaved] = useState(choices);
@@ -142,11 +143,16 @@ export function SurfaceAccess({ policy, profiles, requests, busy, act, protected
       <label className="scope"><input type="checkbox" checked={protectedAccess.enabled}
         disabled={busy || !protectedAccess.supported || !protectedAccess.permissionReady || !!protectedAccess.controlSessionId}
         onChange={event => void act({ method: "locked_use", enabled: event.target.checked })} />Allow prepared tasks behind an opaque cover</label>
-      <p className="note">Windows relocks when the task ends. Changing this setting turns access off. Browser-only work can stay locked using its separate setting.</p>
-      {(!protectedAccess.permissionReady || protectedAccess.credentialSource !== "service_enrolled_password") &&
+      <p className="note">The computer relocks when the task ends. Changing this setting turns access off. Browser-only work can stay locked using its separate setting.</p>
+      {(!protectedAccess.permissionReady || (protectedAccess.credentialSource !== undefined && protectedAccess.credentialSource !== "service_enrolled_password")) &&
         <button disabled={busy || !!protectedAccess.controlSessionId || !["idle", "approval"].includes(protectedAccess.setupState)}
           onClick={() => void act({ method: "permission", permission: "lockedUse" })}>Set up covered desktop access</button>}
       {protectedAccess.setupError && <p role="alert" className="note">{protectedAccess.setupError}</p>}
+    </section>}
+    {lockedBrowser?.supported && <section className="group surface-access" aria-label="Browser while locked">
+      <label className="scope"><input type="checkbox" checked={lockedBrowser.enabled} disabled={busy}
+        onChange={event => void act({ method: "browser_while_locked", enabled: event.target.checked })} />Allow approved Browser work while locked</label>
+      <p className="note">Keeps the computer locked. This setting grants no access by itself; Browser mode, exact profiles and a live task still apply.</p>
     </section>}
     {requests.length > 0 && <section className="group requests" aria-label="Agent requests">
       {requests.slice(0, 8).map(request => <div className="control-request" key={request.intentId}>
