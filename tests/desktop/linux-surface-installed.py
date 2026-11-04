@@ -131,6 +131,7 @@ def main():
                         found.append(Path(os.fsdecode(command[0])).parent)
             return found[0] if len(found)==1 else None
         child_root=poll(policy_child,'owned packaged policy child')
+        (args.output/'running-policy.private.json').write_text(json.dumps(dict(root=str(child_root),revision=args.revision)))
         check('actual child uses installed usr share policy',child_root.parts[-4:]==('usr','share','machine-control','shared-policy'))
         check('actual running policy matches complete pinned receipt',all(
             hashlib.sha256((child_root/entry['path']).read_bytes()).hexdigest()==entry['sha256'] for entry in receipt['policyFiles']))
