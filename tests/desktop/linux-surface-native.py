@@ -58,7 +58,13 @@ def main():
     def operator(method,**fields):
         child.stdin.write(json.dumps(dict(method=method,**fields))+'\n');child.stdin.flush()
         assert select.select([child.stdout],[],[],10)[0],'Private operator deadline'
-        reply=json.loads(child.stdout.readline());assert reply['ok'],reply
+        line=child.stdout.readline()
+        # Quit can close the inherited pipe after cleanup before its daemon
+        # writer sends the final reply. This is success only after exit zero.
+        if not line and method=='quit':
+            assert child.wait(10)==0,'Native quit failed'
+            return {'ok':True,'closed':True}
+        reply=json.loads(line);assert reply['ok'],reply
         return reply
     def state():return operator('state')['state']
     def plain(operation,**fields):

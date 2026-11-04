@@ -49,7 +49,13 @@ def main():
     def operator(method,**fields):
         child.stdin.write(json.dumps(dict(method=method,**fields))+'\n');child.stdin.flush()
         assert select.select([child.stdout],[],[],10)[0],'Private operator deadline'
-        reply=json.loads(child.stdout.readline());assert reply['ok'],reply
+        line=child.stdout.readline()
+        # Quit can close the inherited pipe after cleanup before its daemon
+        # writer sends the final reply. This is success only after exit zero.
+        if not line and method=='quit':
+            assert child.wait(10)==0,'Native quit failed'
+            return {'ok':True,'closed':True}
+        reply=json.loads(line);assert reply['ok'],reply
         return reply
     def state():return operator('state')['state']
     def owner(profiles,operations=None):
@@ -221,7 +227,7 @@ def main():
             check('withdrawing locked opt-in leaves OS locked',locked())
             retained.close();owners.remove(retained);operator('stop')
             check('locked Stop ends both surface permissions',all(s['mode']=='off' for s in state()['accessPolicy']['surfaces'].values()) and locked())
-        operator('quit');child.wait(10);check('shared child exits cleanly',child.returncode==0)
+        operator('quit');child.wait(10);check('shared child exits cleanly',child.returncode==0 and not endpoint.exists())
     except BaseException as error:
         failure=type(error).__name__+': '+str(error)
         with contextlib.suppress(Exception):print(json.dumps(state()),file=log,flush=True)
