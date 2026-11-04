@@ -8,6 +8,8 @@ use tauri::{
     Emitter, Manager,
 };
 use tauri_plugin_updater::UpdaterExt;
+#[cfg(any(target_os = "windows", test))]
+mod companion_resolution;
 mod diagnostics;
 #[cfg(target_os = "linux")]
 mod linux;

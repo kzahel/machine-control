@@ -194,18 +194,20 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| e.to_string())?;
-    let until = std::time::Instant::now() + Duration::from_secs(3);
-    while resolver.try_wait().map_err(|e| e.to_string())?.is_none() {
-        if EXITING.load(Ordering::Acquire) || std::time::Instant::now() >= until {
-            let _ = resolver.kill();
-            let _ = resolver.wait();
-            return Err("Companion resolution timed out or was cancelled".into());
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+        .map_err(|e| {
+            crate::diagnostics::record("companion.resolve_failed");
+            e.to_string()
+        })?;
+    crate::companion_resolution::wait(&mut resolver, crate::companion_resolution::TIMEOUT, || {
+        EXITING.load(Ordering::Acquire)
+    })
+    .map_err(|failure| {
+        crate::diagnostics::record(failure.code());
+        "Companion verification did not complete; restart Machine Control".to_string()
+    })?;
     let resolved = resolver.wait_with_output().map_err(|e| e.to_string())?;
     if !resolved.status.success() {
+        crate::diagnostics::record("companion.resolve_failed");
         return Err("Could not verify the UAC companion installation".into());
     }
     let executable = std::path::PathBuf::from(
@@ -213,7 +215,10 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?
             .trim(),
     );
-    let job = create_job()?;
+    let job = create_job().map_err(|error| {
+        crate::diagnostics::record("companion.job_failed");
+        error
+    })?;
     // Publish before creating a child; exit can cancel an incomplete startup.
     {
         let mut owner = JOB.lock().map_err(|e| e.to_string())?;
@@ -236,11 +241,15 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            crate::diagnostics::record("companion.launch_failed");
+            e.to_string()
+        })?;
     // The child waits for our anonymous handshake before starting its agent
     // endpoint/provider. Job assignment therefore precedes all control.
     if unsafe { AssignProcessToJobObject(job.0, child.as_raw_handle() as HANDLE) } == 0 {
         let error = std::io::Error::last_os_error().to_string();
+        crate::diagnostics::record("companion.job_failed");
         let _ = child.kill();
         let _ = child.wait();
         return Err(error);

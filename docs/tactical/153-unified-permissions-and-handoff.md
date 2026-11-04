@@ -347,3 +347,34 @@ correction retains consent under exact logon identity while readiness continues
 to deny effects; a different or unavailable logon identity still revokes it.
 The regression fails before and passes after the correction. Full native
 contracts and ARM64/x64 publishes pass; fresh candidate qualification follows.
+
+### Companion verification before Settings startup
+
+**Current (2026-11-04):** `0779cac` passes actual Windows formatting,
+native/unlock contracts, 26 handoff checks, four Rust operator tests and the
+production build. Its ordinary actor passes 42 checks, including policy-child
+termination and Off restart, then times out starting Settings. Actor cleanup
+is verified. The protected helper and enrollment remain unchanged; this is
+not full ordinary or protected acceptance.
+
+Settings had a separate three-second `uac-resolve` cutoff before its longer
+resident handshake. That command checks the protected helper and hashes both
+executables. A limited interactive diagnostic on the same ARM64 VM measures
+successful verification at 7.80 seconds, followed by 1.48 and 1.40 seconds;
+this is three bounded samples, not a performance benchmark. The failed app
+reported unavailable about three seconds after startup. The timing and source
+identify a real premature cutoff; the earlier generic diagnostic does not
+independently identify every possible startup failure.
+
+Companion verification now has a separate finite fifteen-second budget.
+Cancellation and timeout kill and reap the exact owned resolver. A four-second
+process fixture fails with the old budget and passes with the new one; bounded
+cancellation/timeout tests also pass. Closed verification, launch and job-setup
+codes retain stage evidence without recording raw errors or paths. The native
+Windows gate now includes these process tests alongside its operator tests.
+Fresh product qualification is required before proceeding to locked/covered
+acceptance or adopting the model on Mac.
+
+The expired test window was not extended in place: after the failed actor's
+verified cleanup, the controller restored Off and released its claim, then
+acquired a fresh bounded scope on the same appliance. No VM was created.
