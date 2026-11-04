@@ -140,3 +140,17 @@ explicit read-only observer setup. A bounded local relay and continuously
 claimed SSH desktop channel preserve the unchanged Python client's live
 protocol. This is source implementation evidence, not installed Linux
 acceptance or a claim of physical takeover qualification.
+
+
+**Current — first integrated handoff findings:** real GTK approval, Start now,
+AT-SPI snapshot/action with an independent fixture effect, task deferral,
+Resume with a new session, stale-reference refusal, independent Browser pause
+and native denial pass. The first subsequent Automatic request exposes a
+presentability bug: treating the idle hidden window as an unavailable notice
+lets Core skip its warning. Native facts now distinguish presentability from
+an actual mapped task window; a pending task with an unmapped window floors
+readiness until GTK acknowledges it. The fresh-request Automatic warning is
+an explicit native acceptance check. Global pause also has its own native
+Resume control, preserving independent surface pauses. Full acceptance remains
+in progress. An isolated fixture must run outside the operator's descendant
+tree, which the production provider intentionally protects.

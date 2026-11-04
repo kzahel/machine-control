@@ -68,7 +68,7 @@ def update(value):
     if state=='paused':text=('Retry in '+str(math.ceil(cooldown))+' seconds, with a fresh warning.' if cooldown else 'A fresh warning appears before access resumes.')
     if state=='waiting_for_availability':text='Check permissions and provider availability in Settings. This request remains queued.'
     countdown.set_text(text)
-    key=(identifier,state,tuple(surfaces))
+    key=(identifier,state,tuple(surfaces),bool(value.get('globalPauses')))
     if key!=binding:
         binding=key
         for child in buttons.get_children():buttons.remove(child);child.destroy()
@@ -81,6 +81,7 @@ def update(value):
             button('Pause 1 minute','intent.defer',intentId=identifier,duration=60)
             button('Pause until Resume','intent.defer',intentId=identifier,duration=None)
         if state=='paused':
+            if value.get('globalPauses'):button('Resume global pause','resume')
             for surface in surfaces:button('Resume '+surface,'surface.resume',surface=surface)
         button('Stop all access','stop')
         button('Open Settings…','settings')

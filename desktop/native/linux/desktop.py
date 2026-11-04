@@ -182,11 +182,15 @@ class Desktop:
         self.grants.fact('input',known and self.activity.healthy(self.session_identity))
         notice_health=self.safety_available and time.monotonic()-self.safety_observed<=2
         healthy=notice_health and self.journal.health['available'] and not self.grants.updating
+        # Presentability is true before the first request; a hidden idle window
+        # must not make Core skip its warning. Once a task exists, an actually
+        # unmapped notice is a readiness floor until GTK acknowledges it.
+        notice_ready=not self.unlocked or not state.get('requests') or self.notice_visible
         for surface in ('desktop','browser'):
             bound=known and self.configuration_sessions[surface]==self.session_identity
-            ready=healthy and bound and (self.unlocked or surface=='browser' and self.locked and self.browser_preference.enabled)
+            ready=healthy and notice_ready and bound and (self.unlocked or surface=='browser' and self.locked and self.browser_preference.enabled)
             if surface=='desktop' and self.portal.state=='pending':ready=False
-            self.grants.fact(surface,(bool(ready),bool(self.unlocked and notice_health and self.notice_visible)))
+            self.grants.fact(surface,(bool(ready),bool(self.unlocked and notice_health)))
         self.browser.sync()
 
     def apply_session(self,unlocked,locked,identity):
