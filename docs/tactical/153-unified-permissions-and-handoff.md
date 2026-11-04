@@ -4,8 +4,8 @@ Owning topics: [access admission and pause](../../topics/access-admission-and-pa
 [shared resident core](../../topics/shared-resident-core.md),
 [browser profiles](../../topics/browser-profiles.md).
 
-Status: **Windows broad review complete; final locked/protected corrections
-under qualification before macOS and Linux adoption**.
+Status: **Windows broad review and bounded native qualification complete;
+macOS adoption next, followed by Linux**.
 
 ## Motivation and objective
 
@@ -488,3 +488,42 @@ codes provide evidence if the interruption recurs after unlock. Portable
 contracts, formatting and ARM64/x64 publishes pass. Actual protected acceptance
 must establish this composition; reduced I/O alone does not prove the earlier
 intermittent failure's cause.
+
+
+### Accepted Windows checkpoint
+
+**Current — bounded acceptance:** clean source commit 40a4d16 passes native
+format, ordinary/unlock contracts, 26 native handoff checks, seven Rust
+process/operator checks and the production Tauri build. The actual candidate
+then passes all 48 ordinary Browser/Settings checks, all 35 locked Browser
+checks, seven matching-installed-companion startup checks after cold boot, and
+all 33 enrolled Desktop checks. Each actor reports cleanup.
+
+The protected actor confirms unchanged console/account/logon identity,
+Browser configuration independence, Cua fixture semantics and accessibility
+invocation, and independent counter effects. Native PrintWindow captures show
+the intended application with counters 1 and 2; private image inspection
+confirms the underlying fixture is visible. Both owner completion and Stop
+independently relock before cleanup. Guardian diagnostics record normal
+authority withdrawal for both sessions, with no callback failure. The API's
+reported invocation effect remains unverifiable; the fixture's separate
+counter readback supplies the acceptance oracle.
+
+Original helper bytes, ACLs, service and protected preferences are restored.
+The canonical stored credential remains owner-only, nonempty and verified.
+Owned staging, test-browser payload/registration and 64 scheduled test tasks
+are removed, with zero owned processes remaining; normal native audit remains.
+A controller preflight refusal initially prevents normal shutdown. A fresh
+exact-target claim completes normal shutdown, independently verifies the
+original Off state and releases successfully. The earlier claim was also
+released. No force-stop or new VM is used.
+
+This accepts the Windows/reference slice for its declared unsigned ARM64
+appliance scope. It does not qualify real physical HID/takeover, native x64
+execution, signed installation/publication, multiple-display privacy or
+prolonged load. The original pre-credential cancellation's exact cause remains
+unestablished; it did not recur in the accepted two-task actor. The buffered
+JSON correction has a deterministic framing regression and actual composed
+acceptance, not a general latency guarantee. macOS and Linux have not adopted
+the model yet. The one requested broad review and corrections are complete;
+the next work is macOS adoption, then Linux, without a Python client rewrite.

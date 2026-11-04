@@ -53,7 +53,8 @@ no YA coordinator, private inventory owner or public approval endpoint.
 accepted original Browser slice. [Tactical 153](docs/tactical/153-unified-permissions-and-handoff.md)
 owns the subsequent [unified permission/handoff model](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract),
 completed broad review and bounded Windows qualification. Ordinary and locked
-Browser acceptance has passed; protected Desktop qualification remains open.
+Browser, matching-companion startup and enrolled Desktop acceptance have passed
+on the bounded unsigned Windows ARM64 candidate.
 Native provider/credential/cover/relock proof is separate from shared-policy
 conformance. Mac/Linux integration may be temporarily unsupported while
 converging. Optional legacy adapters are isolated migration tools with deletion

@@ -2,9 +2,8 @@
 
 Topic: `shared-resident-core`
 
-Status: **Windows/reference broad review complete; corrected ordinary and
-locked Browser paths qualified, protected Desktop qualification open before
-Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+Status: **Windows/reference broad review and bounded native qualification
+passed; macOS adoption next, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the candidate gates and remaining qualification limits.
 
 ## Motivation
@@ -288,11 +287,13 @@ foreground behavior or protected control.
 [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) owns
 its implementation and qualification. Broad review is complete and corrections
 are implemented. An unsigned ARM64 Windows candidate passes 48 ordinary
-Browser/Settings checks, 35 locked Browser checks and seven matching-installed
-companion startup checks after cold boot. Protected Desktop preparation still
-fails before credential delivery; effects, capture and relock remain an open
-gate. These results do not qualify live x64, physical HID or signed release
-installation.
+Browser/Settings checks, 35 locked Browser checks, seven matching-installed
+companion startup checks after cold boot and 33 enrolled Desktop checks. Cua
+semantics/actions, independent counter effects, native underlying-window capture
+and both owner-completion/Stop relock pass. Original protected helper, ACLs,
+service and preferences are restored. These results do not qualify live x64,
+physical HID or signed release installation; the tactical records remaining
+failure-cause and coverage limits.
 The user accepts temporarily broken/disabled Mac integration and Linux migration
 gaps in development. Preserving every old client, flag, protocol or platform
 behavior is not a gate. An explicit isolated legacy route is optional, with

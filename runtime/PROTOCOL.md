@@ -1,7 +1,7 @@
 # Private native host inlet
 
-Status: **v2 surface-policy Windows candidate conformance passed; broad review
-complete, corrections undergoing final native qualification**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+Status: **v2 Windows/reference broad review and bounded native candidate
+qualification passed; macOS/Linux adoption pending**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records current evidence and its unsigned ARM64 VM limits.
 This private inlet is not an agent API or an independently installed service.
 The language/deployment decision and migration gates live in

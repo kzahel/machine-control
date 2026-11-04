@@ -32,7 +32,8 @@ Chromebooks, Android devices, and more.
   supported control sessions, stop access, and inspect activity.
 
 The [unified Desktop/Browser permissions experience](topics/access-admission-and-pause.md)
-is being qualified on Windows first, followed by macOS and Linux.
+is implemented in the unreleased Windows/shared-core candidate; macOS and Linux
+adoption follow. The linked topic records bounded acceptance and remaining limits.
 
 Available controls depend on the platform and selected permissions. Machine
 Control combines native UI information with screenshots and input, so agents
@@ -139,14 +140,15 @@ from observed effects. See [architecture](topics/architecture.md),
 [inner-first routing](topics/inner-first-routing.md), and
 [capabilities and results](topics/capabilities-and-results.md).
 
-**Decision, next development milestone:** settle and implement independent
-Desktop/Browser Off, Ask first and Automatic modes with predictable takeover
-warnings, deliberate-input interruption and queued retry. Browser includes
-supported CDP and page JavaScript. Windows and the shared reference/synthetic
-clients lead; temporary Mac/Linux integration gaps are acceptable during this
-migration. The [permissions and handoff contract](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
-and [Windows implementation plan](docs/tactical/153-unified-permissions-and-handoff.md)
-own this direction. These new modes are not yet implemented or released.
+**Current, unreleased Windows/reference implementation:** independent Desktop
+and Browser Off, Ask first and Automatic modes share one permission/handoff
+engine, including takeover warnings, deliberate-input interruption and queued
+retry. Browser includes supported CDP and page JavaScript. Broad review and
+bounded unsigned Windows ARM64 candidate acceptance have passed. macOS and Linux
+adoption follow; temporary integration gaps remain acceptable during migration.
+The [permissions and handoff contract](topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+and [implementation record](docs/tactical/153-unified-permissions-and-handoff.md)
+own the contract, evidence and limits. These modes have not been published.
 
 ## Documentation and development
 

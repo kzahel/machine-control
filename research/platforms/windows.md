@@ -177,14 +177,16 @@ physical/GPU or native x64 execution. The [extension dossier](../providers/chrom
 owns capability evidence; [Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md)
 owns exact source, verified appliance cleanup and remaining limits.
 
-**Decision, next investigation and adoption:** the [unified permission/handoff
-contract](../../topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
-supersedes legacy quiet-first activation and separate user-facing scripts/CDP
-permissions. Source-reviewed admission/client/notice gaps are recorded there;
-new behavior is not yet implemented or live-tested. [Tactical 153](../../docs/tactical/153-unified-permissions-and-handoff.md)
-proves the shared policy/reference/synthetic-client model on Windows before
-Mac/Linux migration. Existing browser acceptance is not evidence of this new
-active-user experience.
+**Current — bounded conformance-tested unified permission/handoff adoption:**
+the [shared surface contract](../../topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
+supersedes quiet-first ordinary activation and separate user-facing scripts/CDP
+permissions in the unreleased Windows implementation. Clean unsigned ARM64
+candidate acceptance covers native handoff notices, real Settings lifecycle,
+independent named-profile and locked Browser effects, and enrolled Desktop
+semantics/action/capture with owner-completion and Stop relock. The shared
+reference/synthetic clients execute the same policy. [Tactical 153](../../docs/tactical/153-unified-permissions-and-handoff.md)
+owns exact source, broad review, cleanup and limits. This does not qualify
+physical HID, live x64, signed installation or Mac/Linux adoption.
 
 ## Candidate matrix
 

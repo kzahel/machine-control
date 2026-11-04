@@ -72,6 +72,17 @@ and signed execution evidence. The upstream
 and [token contract](https://github.com/trycua/cua/blob/d21e3447f9b08c761c090946648d5aca5e6c9cf1/libs/cua-driver/rust/crates/cua-driver-core/src/element_token.rs)
 were source-reviewed; this does not change the MIT packaging boundary.
 
+**Current — bounded Windows covered-control composition:** the unreleased
+shared-surface candidate retains Cua at Medium integrity for an exact fixture
+window behind an independently maintained cover. Snapshot and accessibility
+invocation pass, with separate counter readback proving effects. Native
+PrintWindow captures observe that fixture; the SYSTEM guardian owns covers
+and independently verified relock on owner completion and Stop. Cua does not
+run in the protected helper or deliver credentials. [Tactical 153](../../docs/tactical/153-unified-permissions-and-handoff.md)
+owns the unsigned ARM64 candidate, native callback correction and coverage
+limits. This evidence adds no claim about protected Cua semantics, physical HID,
+signed installation or other platforms.
+
 ## Adjacent Cua sandbox scope
 
 **Current — source-reviewed:** Windows workstation preview packaging verifies

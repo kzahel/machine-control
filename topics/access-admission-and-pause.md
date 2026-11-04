@@ -2,8 +2,8 @@
 
 Topic: `access-admission-and-pause`
 
-Status: **Windows/reference broad review complete; corrections are
-implemented and undergoing fresh native qualification before Mac/Linux adoption**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+Status: **Windows/reference broad review and bounded native qualification
+passed; macOS adoption next, then Linux**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records the current candidate and its limits. Earlier platform admission
 evidence below does not qualify the new experience on Mac or Linux.
 
@@ -31,7 +31,8 @@ policy.
 **Decision (2026-11-03):** configure **Desktop** and **Browser** independently
 with the same three modes. This supersedes the earlier idle-first default,
 movement-as-takeover rule and requirement to preserve legacy desktop behavior
-throughout migration. It is an agreed destination, not current product support.
+throughout migration. It is implemented in the unreleased Windows/shared-reference candidate;
+Mac/Linux adoption and publication remain separate gates.
 [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md) owns the
 Windows/shared-core/reference-target implementation and acceptance gates.
 
