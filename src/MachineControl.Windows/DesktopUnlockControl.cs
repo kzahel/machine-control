@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace MachineControl.Windows;
 
-internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, uint session) : IAsyncDisposable
+internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, uint session, Action<int> exited) : IAsyncDisposable
 {
     private readonly CancellationTokenSource _end = new();
     private readonly CancellationTokenSource _watchStop = new();
@@ -17,13 +17,13 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
     internal string Binding => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
         System.Text.Encoding.UTF8.GetBytes(guardPipe + ":" + residentPid.ToString(System.Globalization.CultureInfo.InvariantCulture)))).ToLowerInvariant();
 
-    internal static async Task<DesktopUnlockControl> CreateAsync(NamedPipeServerStream caller, UnlockHello hello, CancellationToken stop)
+    internal static async Task<DesktopUnlockControl> CreateAsync(NamedPipeServerStream caller, UnlockHello hello, CancellationToken stop, Action<int> exited)
     {
         if (hello.ResidentPid is not > 0 || hello.GuardPipe is null ||
             !Regex.IsMatch(hello.GuardPipe, "\\Amachine-control-locked-guard-[a-f0-9]{32}\\z"))
             throw new UnauthorizedAccessException("desktop_unlock_preparation_required");
         var peer = await DesktopUacNative.RequireResidentAsync(caller, stop, hello.ResidentPid);
-        var control = new DesktopUnlockControl(hello.GuardPipe, peer.Pid, peer.Session);
+        var control = new DesktopUnlockControl(hello.GuardPipe, peer.Pid, peer.Session, exited);
         try { if (!await control.QueryAsync(stop, attemptStarted: true)) throw new UnauthorizedAccessException("desktop_unlock_authority_refused"); }
         catch { await control.DisposeAsync(); throw; }
         return control;
@@ -112,7 +112,9 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
             {
                 using var wait = new CancellationTokenSource(TimeSpan.FromSeconds(12));
                 await _process.WaitForExitAsync(wait.Token);
-                if (_process.ExitCode == 0) _ = await QueryAsync(CancellationToken.None, complete: true);
+                var exitCode = _process.ExitCode;
+                exited(exitCode);
+                if (RelockExit.Relocked(exitCode)) _ = await QueryAsync(CancellationToken.None, complete: true);
             }
             catch (Exception error) when (error is OperationCanceledException or IOException or UnauthorizedAccessException or InvalidOperationException) { }
             _process.Dispose();

@@ -35,6 +35,13 @@ static void Refuses(Action action, string message)
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
 await RetainedPipeProxyFixtures.RunAsync();
 CompanionBinaryIdentityFixtures.Run();
+for (var cause = 0; cause <= 11; ++cause)
+{
+    Assert(RelockExit.Relocked(RelockExit.Encode(0, cause)), "Observed relock retains first ending cause");
+    Assert(!RelockExit.Relocked(RelockExit.Encode(1, cause)), "Console identity loss never acknowledges relock");
+}
+Assert(!RelockExit.Relocked(-1) && !RelockExit.Relocked(12 << 8), "Unknown guardian exit cannot acknowledge cleanup");
+Assert(RelockExit.Reason(8 << 8) == "heartbeat_timeout", "Guardian heartbeat failure remains distinguishable");
 JournalAclFixtures.Run();
 var journalRoot = Path.Combine(Path.GetTempPath(), "mc-journal-" + Guid.NewGuid().ToString("n"));
 try

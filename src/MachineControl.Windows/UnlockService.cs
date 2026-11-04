@@ -48,6 +48,7 @@ internal sealed class UnlockProgress
     public bool UnlockConfirmed { get; set; }
     public string? WorkerFailure { get; set; }
     public int? NativeError { get; set; }
+    public int? GuardianExitCode { get; set; }
 }
 
 internal sealed class UnlockService(string instance)
@@ -107,6 +108,8 @@ internal sealed class UnlockService(string instance)
                         phase = progress.Phase,
                         errorType = error.GetType().Name,
                         workerFailure = progress.WorkerFailure,
+                        guardianExitCode = progress.GuardianExitCode,
+                        guardianEndReason = progress.GuardianExitCode is { } code ? RelockExit.Reason(code) : null,
                         nativeError = progress.NativeError ?? (error as Win32Exception)?.NativeErrorCode,
                         credentialRead = progress.CredentialRead,
                         delivery = progress.ForwardAttempted ? "unknown" : "not_sent",
@@ -164,7 +167,7 @@ internal sealed class UnlockService(string instance)
     private async Task HandleUnlockAsync(NamedPipeServerStream pipe, UnlockHello hello, UnlockProgress progress, CancellationToken stop)
     {
         var desktop = instance == DesktopLockedUse.Instance;
-        await using var control = desktop ? await DesktopUnlockControl.CreateAsync(pipe, hello, stop) : null;
+        await using var control = desktop ? await DesktopUnlockControl.CreateAsync(pipe, hello, stop, code => progress.GuardianExitCode = code) : null;
         UnlockGrant grant;
         try { grant = UnlockPolicy.Read(instance); }
         catch (Exception)

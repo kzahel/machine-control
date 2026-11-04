@@ -442,3 +442,22 @@ callers receive task-negotiation guidance before availability waits. Capability
 metadata also names surface/task ownership instead of retired target-wide
 grants. Native contracts, formatting and ARM64/x64 publishes pass; fresh live
 qualification must establish the corrected facade composition.
+
+**Current, protected qualification checkpoint:** `97fccfc` passes the clean
+Windows native gates, seven Rust process/operator checks, all 48 ordinary
+Browser/Settings checks and all 35 locked Browser checks, with actor cleanup.
+A matching installed companion also passes seven startup checks after an actual
+cold boot. Enrolled Desktop then fails before credential delivery during
+protected preparation. The service reports cancellation with `credentialRead:
+false` and `delivery: not_sent`; the journal's first ownership interruption is
+`relock_pending`, followed by the stale-session refusal. This does not establish
+what ended the guardian. The original helper, ACLs, service and two protected
+preferences are restored and verified. Enrollment is unchanged.
+
+A bounded diagnostic now preserves the guardian's first implementation-owned
+ending cause alongside its independently observed relock status. Unknown or
+crashed exit codes cannot acknowledge cleanup. Refusal evidence includes only
+that closed reason and exit code, with no input or credential values. This
+instrumentation does not qualify protected effects; the Windows gate remains
+open until preparation, native effect, capture and owner/Stop relock pass.
+Portable contracts, formatting and ARM64/x64 publishes pass for the diagnostic.

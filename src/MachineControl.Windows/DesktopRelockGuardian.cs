@@ -28,6 +28,14 @@ internal static class DesktopRelockGuardian
         var result = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var prepared = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var ending = 0;
+        // First cause wins; only implementation-owned integer codes leave the
+        // guardian. The low byte remains the independently observed relock.
+        var cause = 0;
+        void End(int reason)
+        {
+            Interlocked.CompareExchange(ref cause, reason, 0);
+            Interlocked.Exchange(ref ending, 1);
+        }
         var physical = 0;
         var heartbeat = Stopwatch.GetTimestamp();
         var monitorTick = heartbeat;
@@ -47,7 +55,7 @@ internal static class DesktopRelockGuardian
                     if (DesktopActivityPolicy.Physical(keyboard, flags))
                     {
                         if (DesktopActivityPolicy.Deliberate(keyboard, message.ToInt64()))
-                        { Interlocked.Exchange(ref physical, 1); Interlocked.Exchange(ref ending, 1); }
+                        { Interlocked.Exchange(ref physical, 1); End(1); }
                         // Motion alone is not takeover. Still swallow it and
                         // releases so no physical input reaches a hidden app.
                         // Swallow the entire physical sequence until relock;
@@ -59,21 +67,21 @@ internal static class DesktopRelockGuardian
             };
             var keyboardHook = SetWindowsHookEx(13, callback, GetModuleHandle(null), 0);
             var mouseHook = SetWindowsHookEx(14, callback, GetModuleHandle(null), 0);
-            if (keyboardHook == IntPtr.Zero || mouseHook == IntPtr.Zero) Interlocked.Exchange(ref ending, 1);
+            if (keyboardHook == IntPtr.Zero || mouseHook == IntPtr.Zero) End(2);
             try
             {
                 covers.Install();
                 prepared.TrySetResult(keyboardHook != IntPtr.Zero && mouseHook != IntPtr.Zero && covers.Healthy);
             }
-            catch (Exception) { prepared.TrySetResult(false); Interlocked.Exchange(ref ending, 1); }
+            catch (Exception) { prepared.TrySetResult(false); End(3); }
             timer.Tick += (_, _) =>
             {
                 Interlocked.Exchange(ref monitorTick, Stopwatch.GetTimestamp());
-                if (!covers.Maintain()) Interlocked.Exchange(ref ending, 1);
+                if (!covers.Maintain()) End(4);
                 if (result.Task.IsCompleted) context.ExitThread();
             };
             try { timer.Start(); Forms.Application.Run(context); }
-            catch (Exception) { Interlocked.Exchange(ref ending, 1); }
+            catch (Exception) { End(5); }
             finally
             {
                 if (keyboardHook != IntPtr.Zero) UnhookWindowsHookEx(keyboardHook);
@@ -81,7 +89,7 @@ internal static class DesktopRelockGuardian
                 GC.KeepAlive(callback);
                 // The independent watchdog must still lock if this message
                 // loop exits unexpectedly after admitting credential delivery.
-                Interlocked.Exchange(ref ending, 1);
+                End(6);
                 // Keep the native windows alive even if the message loop dies.
                 // The independent watchdog must observe lock before disposal.
                 if (prepared.Task.IsCompletedSuccessfully && prepared.Task.Result)
@@ -98,10 +106,9 @@ internal static class DesktopRelockGuardian
             while (!result.Task.IsCompleted)
             {
                 if (!SameConsole(start)) { result.TrySetResult(1); break; }
-                if (clock.Elapsed.TotalSeconds >= 900 ||
-                    Stopwatch.GetElapsedTime(Volatile.Read(ref heartbeat)).TotalSeconds >= 3 ||
-                    Stopwatch.GetElapsedTime(Volatile.Read(ref monitorTick)).TotalSeconds >= 2)
-                    Interlocked.Exchange(ref ending, 1);
+                if (clock.Elapsed.TotalSeconds >= 900) End(7);
+                if (Stopwatch.GetElapsedTime(Volatile.Read(ref heartbeat)).TotalSeconds >= 3) End(8);
+                if (Stopwatch.GetElapsedTime(Volatile.Read(ref monitorTick)).TotalSeconds >= 2) End(9);
                 if (Volatile.Read(ref ending) != 0)
                 {
                     if (SessionStateInspector.IsLocked(start.SessionId) == true) { result.TrySetResult(0); break; }
@@ -119,20 +126,20 @@ internal static class DesktopRelockGuardian
                     using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
                     deadline.CancelAfter(TimeSpan.FromSeconds(3));
                     using var pulse = JsonDocument.Parse(await UnlockWire.ReadLineAsync(pipe, deadline.Token));
-                    if (!pulse.RootElement.GetProperty("allowed").GetBoolean()) Interlocked.Exchange(ref ending, 1);
+                    if (!pulse.RootElement.GetProperty("allowed").GetBoolean()) End(10);
                     Interlocked.Exchange(ref heartbeat, Stopwatch.GetTimestamp());
                     await UnlockWire.WriteAsync(pipe, new { physicalTakeover = Volatile.Read(ref physical) != 0 }, deadline.Token);
                 }
             }
             catch (Exception error) when (error is IOException or JsonException or OperationCanceledException or InvalidOperationException) { }
-            finally { Interlocked.Exchange(ref ending, 1); }
+            finally { End(11); }
         });
         var exit = await result.Task;
         await watchdog;
         stop.Cancel();
         await pulses;
         thread.Join(TimeSpan.FromSeconds(2));
-        return exit;
+        return RelockExit.Encode(exit, Volatile.Read(ref cause));
     }
 
     private static bool SameConsole(RelockStart start)
