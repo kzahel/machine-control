@@ -38,15 +38,15 @@ transport. Do not translate shared policy into Python. Protected login/unlock
 is not claimed for the ordinary Linux desktop profile. Portal sharing remains
 an explicit compositor permission and closes on lock/session loss.
 
-**Proposal:** a separate, explicitly installed read-only native activity
-observer may be needed on GNOME Wayland, which supplies no existing qualified
+**Decision:** use a separate, explicitly installed read-only native activity
+observer on this GNOME Wayland profile, which supplies no existing qualified
 ordinary-user global physical-input feed here. It must expose only bounded
 health/generation/activity facts for the active local console, discard key and
 pointer content, reject virtual injection sources, and fail unknown on loss or
 overflow. It must never grab devices, inject input, provide root execution or
 silently select the appliance input broker. Qualify this boundary before
-reporting human input as ready; prefer an existing native route if investigation
-proves an equally complete ordinary-user observation facility.
+reporting human input as ready. An equally complete ordinary-user native feed
+can replace it later without changing shared policy.
 
 No new VM, outer console automation, private endpoint in Git, publication,
 primary-browser temporary profile, CLI language rewrite or parallel policy
@@ -100,3 +100,27 @@ independently ready under an exclusive claim, with outer UI prohibited. Its
 ordinary user cannot read any input event node; no physical-input readiness is
 claimed from the old semantic/input APIs. Native build tools will be staged
 for this task on the existing appliance. No VM or clone is created.
+
+
+**Current — native observation prototype:** six portable event/liveness/boundary checks
+prove that motion, releases and tool-presence events do not signal takeover,
+while deliberate keys/buttons/wheels do. Stream loss or `SYN_DROPPED` makes
+observation unknown and rotates its generation. The receipt-owned root service
+exposes only active-console-bound health and opaque coalesced activity tokens;
+it never grabs/injects input or returns keys, coordinates or exact event counts.
+Physical device coverage excludes the kernel's virtual-input subtree. Its
+actual ARM64 appliance probe becomes healthy under `DevicePolicy=closed` and
+`NoNewPrivileges=yes`, rejects a real foreign-UID peer and then restores original helper absence. An initial probe
+finds that this `loginctl` requires repeated property selectors rather than a
+comma-joined name; the corrected native read is verified. This does not yet
+qualify real physical takeover, GUI helper authorization or the integrated
+companion. The native activity adapter is not a second permission engine.
+
+
+The observer publishes a kernel-sampling boundary time, distinct from input
+event timing. A new activation can wait for a boundary after its offer, process
+that token before becoming active, and avoid interpreting a pre-handoff click
+as a late takeover. Tests reject a pre-offer in-flight sample and a new receipt
+containing an old boundary. Silence has a finite last-positive ceiling; a
+current negative or endpoint loss invalidates immediately. The updated actual
+ARM64 probe/foreign-UID refusal and original-absence restoration pass again.

@@ -64,6 +64,7 @@ jobs:
           python3 release/changelog.py desktop/CHANGELOG.md "$CANDIDATE_VERSION"
           pnpm --dir runtime install --frozen-lockfile
           python3 -m unittest discover -s tests/desktop -p test_linux_policy.py
+          python3 -m unittest discover -s tests/desktop -p test_linux_activity.py
           python3 tests/desktop/linux-grants.py
           python3 tests/desktop/linux-startup.py
           platforms/linux/tests/smoke.sh --static

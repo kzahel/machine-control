@@ -47,7 +47,11 @@ executes OS effects, retains protected guards and audit/artifact storage, and
 projects those facts into the child. The deterministic reference target executes
 the same policy with modeled effects. The unreleased Mac adapter now uses this
 policy with bounded ordinary, streamed-CDP and protected packaged acceptance.
-Linux has not adopted this model.
+Linux adoption is in progress. Its new native read-only activity observer
+belongs to Machine Control and exposes active-console-bound health/activity
+facts only. It has no input or command API; ordinary desktop effects retain
+AT-SPI/portal and never fall back to the appliance root input broker. Integrated
+Linux qualification is tracked in [Tactical 155](docs/tactical/155-linux-shared-surface-adoption.md).
 The Python CLI/client remains the common agent-facing facade; this introduces
 no YA coordinator, private inventory owner or public approval endpoint.
 

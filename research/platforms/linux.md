@@ -42,6 +42,28 @@ unknown authority. Other compositors, X11, physical systems and sleep remain
 unqualified. [Tactical 131](../../docs/tactical/131-windows-linux-browser-while-locked.md)
 owns the execution record and portable contract tests.
 
+## Shared policy and physical activity observation
+
+**Current (2026-11-04), `built` and bounded `live-tested`:** the Python process
+adapter hosts the actual pinned v2 authority with bounded framing, queues,
+deadlines and reaping; six portable tests pass. The ordinary companion has not
+yet cut over. On the accepted ARM64 GNOME Wayland appliance its ordinary user
+cannot read input event devices, so AT-SPI/portal availability is not treated
+as physical-input coverage. A separate, explicitly installed read-only service
+supplies active-console-bound health and opaque coalesced activity tokens.
+Its native probe passes under a closed device policy and no-new-privileges;
+a foreign-UID peer is refused and receipt-owned uninstall restores original
+absence. Six event/liveness/boundary tests cover
+motion/release exclusion, deliberate keys/buttons/wheels and unknown-on-loss /
+overflow, bounded silence and immediate negative reports. Native key contents/coordinates/counts are not returned or retained;
+virtual-input sources are excluded and there is no injection/grab/command API.
+The [kernel event ABI](https://cdn.kernel.org/doc/html/latest/input/event-codes.html)
+defines event kinds and overflow behavior. This is owned adapter code over the
+kernel interface, not imported provider code. Physical HID, compositor variants,
+GUI privilege approval and integrated new desktop qualification remain open.
+[Tactical 155](../../docs/tactical/155-linux-shared-surface-adoption.md) owns
+execution and remaining gates.
+
 ## Native foundation
 
 AT-SPI is the semantic foundation in the active user D-Bus session. X11

@@ -9,6 +9,17 @@ remains. ARM64 portal/browser/lifecycle acceptance remains separate. The unpubli
 runtime/presentation candidate passes bounded x64 native acceptance in
 [Tactical 111](../docs/tactical/111-linux-runtime-presentation.md).
 
+**Current, in progress (2026-11-04):** after bounded Windows and Mac gates,
+[Tactical 155](../docs/tactical/155-linux-shared-surface-adoption.md) replaces the
+ordinary companion's grant/admission/browser coordination with the same pinned
+TypeScript child. Python retains GTK, AT-SPI, portal, native peers and session
+facts. Transport tests and an independently installed/removed read-only native
+activity observer pass; integrated v2 UI/profile/owner qualification remains
+open. The observer supplies only active-console-bound health and opaque,
+coalesced activity facts. It has no input/command API and does not replace
+ordinary-user portal effects with appliance root virtual HID. Without a healthy
+qualified feed, disruptive admission stays unavailable.
+
 **Current, unreleased (2026-10-17):** The shared Settings option retains
 previously approved browser access while the same console stays locked. It
 defaults off, grants no authority itself, preserves expiry and separate
