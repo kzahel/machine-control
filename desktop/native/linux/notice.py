@@ -13,8 +13,7 @@ import time
 import gi
 
 gi.require_version('Gtk','3.0')
-gi.require_version('GdkWayland','3.0')
-from gi.repository import GLib,Gtk,Gdk,Gio,GdkWayland
+from gi.repository import GLib,Gtk,Gdk,Gio
 from notification_state import Notification,primary_request,other_announcements
 
 parent=os.getppid()
@@ -23,6 +22,14 @@ if ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)!=0 or os.getppid()!=parent:
 GLib.set_prgname('machine-control-safety');Gtk.init([])
 if Gdk.Display.get_default().__gtype__.name!='GdkWaylandDisplay':
     raise SystemExit('Native Wayland controls unavailable')
+# GTK 3 ships this public Wayland API without an introspection namespace.
+# Obtain the default display from the same loaded GDK library; never derive
+# a native pointer from a Python object's address or accept one from IPC.
+gdk=ctypes.CDLL('libgdk-3.so.0')
+gdk.gdk_display_get_default.argtypes=[]
+gdk.gdk_display_get_default.restype=ctypes.c_void_p
+gdk.gdk_wayland_display_set_startup_notification_id.argtypes=[ctypes.c_void_p,ctypes.c_char_p]
+gdk.gdk_wayland_display_set_startup_notification_id.restype=None
 window=Gtk.Window(title='Machine Control — Agent access')
 window.set_default_size(450,120);window.set_border_width(14)
 window.set_keep_above(True)
@@ -70,7 +77,7 @@ def show():
     global panel_requested,activation
     if current is None:return
     if activation and activation[0]==notification.identifier:
-        GdkWayland.WaylandDisplay.set_startup_notification_id(Gdk.Display.get_default(),activation[1])
+        gdk.gdk_wayland_display_set_startup_notification_id(gdk.gdk_display_get_default(),activation[1].encode('utf-8'))
     activation=None
     panel_requested=True;window.show_all();window.present();alive()
 notification=Notification(owner,notify,close,intent,show)
