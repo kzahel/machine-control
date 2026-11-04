@@ -21,7 +21,6 @@
           "python3-gi",
           "gir1.2-gtk-3.0",
           "gir1.2-atspi-2.0",
-          "xwayland",
           "gir1.2-gst-plugins-base-1.0",
           "gstreamer1.0-pipewire",
           "gstreamer1.0-plugins-good",

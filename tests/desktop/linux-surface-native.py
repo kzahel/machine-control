@@ -76,10 +76,18 @@ def main():
         app=linuxui.choose_application(linuxui.desktop(),name);app.clear_cache()
         return list(linuxui.walk(app,25,2000))
     def press(label):
-        def button():
-            found=[n for n,i in nodes('machine-control-safety') if i['name']==label and i['role']=='push button' and 'showing' in i['states']]
-            return found[0] if len(found)==1 else None
-        check('native notice '+label,poll(button,label).do_action(0))
+        import linux_notice_ui
+        control=poll(lambda:linux_notice_ui.find(linuxui,label),label)
+        check('native notice '+label,linux_notice_ui.press(linuxui,control,fixture_operator))
+    def foreground():
+        active=[]
+        for application in linuxui.application_roots(linuxui.desktop()):
+            application.clear_cache()
+            for _,window in linuxui.children(application):
+                window.clear_cache()
+                if 'active' in linuxui.state_names(window):
+                    active.append(dict(name=linuxui.safe(application.get_name,''),pid=linuxui.safe(application.get_process_id,0)))
+        return active
     def owner():
         value=actor.Owner(endpoint,'fixture',['desktop']);owners.append(value);return value
     def waiting(value,wanted):return poll(lambda:(v if (v:=value.status())['state']==wanted else None),wanted)
@@ -120,10 +128,13 @@ def main():
         poll(lambda:state()['activityObserver']['healthy'],'actual read-only observer')
         first=owner();waiting(first,'waiting_for_approval')
         press('Allow this task');waiting(first,'announcing')
-        check('native warning does not take keyboard focus',not any('active' in info['states'] for _,info in nodes('machine-control-safety') if info['role']=='frame'))
+        check('native warning does not take keyboard focus',any(row['pid']==json.loads(oracle.read_text())['pid'] for row in foreground()))
         press('Start now');first.wait()
         check('Ask first yields a live owner',first.view['state']=='active')
         reference=effect(first);original=first.view['sessionId']
+        press('Open task controls');poll(lambda:any('active' in info['states'] for _,info in nodes('machine-control-safety') if info['role']=='frame'),'explicit full native controls')
+        check('full native controls open only on user action',True)
+        press('Hide task controls')
         operator('pause_surface',surface='browser',duration=30)
         check('Browser pause preserves Desktop owner',first.status()['sessionId']==original)
         press('Pause 30 seconds');waiting(first,'paused')
@@ -153,15 +164,6 @@ def main():
         snapshot=automatic.call('snapshot',target='machine-control-fixture',maxDepth=16)
         entry=next(row for row in snapshot['data']['elements'] if row['label']=='Fixture Text')
         check('ordinary native focus',automatic.call('focus',reference=entry['reference'])['accepted'])
-        def foreground():
-            active=[]
-            for application in linuxui.application_roots(linuxui.desktop()):
-                application.clear_cache()
-                for _,window in linuxui.children(application):
-                    window.clear_cache()
-                    if 'active' in linuxui.state_names(window):
-                        active.append(dict(name=linuxui.safe(application.get_name,''),pid=linuxui.safe(application.get_process_id,0)))
-            return active
         fixture_pid=json.loads(oracle.read_text())['pid']
         for _ in range(3):
             if any(row['pid']==fixture_pid for row in foreground()):break

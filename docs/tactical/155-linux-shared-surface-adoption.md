@@ -19,7 +19,7 @@ AT-SPI effects, compositor-mediated sharing and inherited operator authority.
   browser profiles and streamed CDP lifetime. Replaced Python engines are gone.
 - The production Unix peer and live owner channels authenticate their actual
   OS peer, enforce ordering and generations, and terminate on transport loss.
-- The real Settings and native GTK notice expose independent Off/Ask first/
+- The real Settings, native notification and explicit GTK controls expose independent Off/Ask first/
   Automatic modes, exact profile choices, warning, approval, deferral, Resume
   and Stop. Restart restores no live authority.
 - Native physical-input facts are honest. Movement alone is not takeover;
@@ -48,6 +48,13 @@ silently select the appliance input broker. Qualify this boundary before
 reporting human input as ready. An equally complete ordinary-user native feed
 can replace it later without changing shared policy.
 
+**Decision:** on the qualified GNOME Wayland profile, the desktop notification
+service owns the nonactivating warning and its immediate actions. GTK task
+controls open only after the user selects the notification. Require persistent
+body/actions support, enabled global/application banners and a bound service
+owner; loss floors availability. This supersedes the Xwayland experiments
+recorded below. There is no Xwayland requirement for the new notice.
+
 No new VM, outer console automation, private endpoint in Git, publication,
 primary-browser temporary profile, CLI language rewrite or parallel policy
 implementation is included.
@@ -72,7 +79,7 @@ fallback or effect replay.
 
 Authenticate concurrent native-host peers, transport them into the shared
 profile registry, route exact approved IDs and retain stream authority checks.
-Use shared Settings and native GTK prompts for the same handoff model.
+Use shared Settings, native notifications and explicit GTK controls for the same handoff model.
 
 ### 4 — qualify the packaged Linux composition
 
@@ -254,3 +261,25 @@ Stop. Report its actual window route. The renderer harness now optionally
 requires independent GNOME screenshot pixels in the owned native rectangle,
 so valid offscreen contents alone cannot pass. Integrated keyboard-focus and
 portal-effect acceptance is still required after this provider change.
+
+
+**Current — native notification cutover, awaiting final qualification:** paired
+captures expose intermittent black Xwayland contents even after managed-window
+and image-surface changes. Own-window pixels and one successful capture do not
+qualify that composition. Replace it with GNOME's existing desktop notification
+service, whose real persistent action controls are independently visible in
+native accessibility. The [desktop notification protocol](https://specifications.freedesktop.org/notification/latest/protocol.html)
+provides replacement IDs, actions, closure and service capabilities.
+
+The adapter binds the actual D-Bus owner, current notification and opaque task
+action generation; stale decisions and duplicate approvals do not replay. Stop
+remains available after another decision. Native dismissal defers the exact
+task for one minute. Countdowns replace the same notification; opening the full
+Wayland GTK controls grants no authority. They stay hidden until explicitly
+selected. Banner settings and service loss floor availability. Normal EOF,
+termination and owner shutdown withdraw the notification and reap the child.
+The renderer gate now observes actual GNOME controls and composed action pixels,
+not X11 backing-buffer contents; it requires a real GNOME session rather than
+pretending Xvfb qualifies notifications. Five portable callback tests, all 43
+Linux desktop tests (one native-kernel skip on macOS), TypeScript checking and
+frontend construction pass. Full native/package/locked acceptance remains open.

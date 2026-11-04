@@ -72,7 +72,11 @@ def main():
         found=[n for n,i in nodes(safety) if i['name']==label and i['role']==role]
         return found[0] if len(found)==1 else None
     def press(label,safety=False):
-        node=poll(lambda:widget(label,safety=safety),'native UI '+label)
+        if safety:
+            import linux_notice_ui
+            control=poll(lambda:linux_notice_ui.find(linuxui,label),'native notice '+label)
+            check('native UI '+label,linux_notice_ui.press(linuxui,control,observer));return
+        node=poll(lambda:widget(label),'native UI '+label)
         check('native UI '+label,node.do_action(0))
     def observer(operation,**fields):
         # This explicitly separate appliance provider acts as the human-side
@@ -116,6 +120,21 @@ def main():
         app=subprocess.Popen([str(args.app)],env=env,stdout=log,stderr=log,start_new_session=True)
         poll(lambda:plain('status')['data'].get('ready'),'packaged companion')
         check('exact packaged runtime source',plain('status')['data']['sourceRevision']==args.revision)
+        receipt=json.loads((args.runtime/'desktop-runtime.json').read_text())
+        def policy_child():
+            found=[]
+            for process in Path('/proc').iterdir():
+                if not process.name.isdecimal() or not owned_pid(int(process.name)):continue
+                with contextlib.suppress(OSError,ValueError):
+                    command=(process/'cmdline').read_bytes().split(b'\0')
+                    if command and command[0].endswith(b'/shared-policy/node'):
+                        found.append(Path(os.fsdecode(command[0])).parent)
+            return found[0] if len(found)==1 else None
+        child_root=poll(policy_child,'owned packaged policy child')
+        check('actual child uses installed usr share policy',child_root.parts[-4:]==('usr','share','machine-control','shared-policy'))
+        check('actual running policy matches complete pinned receipt',all(
+            hashlib.sha256((child_root/entry['path']).read_bytes()).hexdigest()==entry['sha256'] for entry in receipt['policyFiles']))
+
         check('packaged app starts both surfaces Off',all(s['mode']=='off' for s in policy()['surfaces'].values()))
         poll(lambda:widget('Desktop access mode','combo box'),'shared Settings modes')
         check('real Settings exposes independent modes',widget('Browser access mode','combo box') is not None)

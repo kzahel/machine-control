@@ -92,7 +92,7 @@ type State = {
     keyboard: boolean;
   };
   activityObserver?: { installed: boolean; healthy: boolean; setupState: string; setupError: string | null };
-  nativeNotice?: { available: boolean; requiresXwayland: boolean };
+  nativeNotice?: { available: boolean; requiresNotificationActions: boolean };
   browser: { connected: boolean; available?: boolean; profileSelectionSupported?: boolean; approvedProfiles?: string[]; problems?: {reason: string}[];
     profiles?: { profileId: string; name: string; connected: boolean; enabled: boolean }[] };
   pending?: {
@@ -1090,7 +1090,7 @@ function App() {
               )}
               {linux && (
                 <>
-                  {state?.nativeNotice?.available === false && <p role="alert" className="note">Native safety controls are unavailable. Check that Xwayland is installed, then restart Machine Control before enabling access.</p>}
+                  {state?.nativeNotice?.available === false && <p role="alert" className="note">Native safety notifications are unavailable. Enable notification banners and actions in your GNOME session, then restart Machine Control before enabling access.</p>}
                   <div className="setting-row">
                     <span className="row-label">Accessibility</span>
                     <span className="row-status">

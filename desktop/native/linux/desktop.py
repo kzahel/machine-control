@@ -249,7 +249,7 @@ class Desktop:
             stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health)
 
     def notice_capability(self):
-        return dict(route='gtk3_xwayland_window',requiresXwayland=True,
+        return dict(route='freedesktop_notifications_wayland_controls',requiresNotificationActions=True,
             available=self.safety_available and time.monotonic()-self.safety_observed<=2)
 
     def operator(self, command):
@@ -500,7 +500,7 @@ class Desktop:
                             self.safety_available = True;self.safety_observed=time.monotonic()
                             self.monitor()
                         elif method=="alive":
-                            self.safety_observed=time.monotonic();self.notice_visible=value.get("visible") is True
+                            self.safety_observed=time.monotonic();self.safety_available=value.get("available") is True;self.notice_visible=value.get("visible") is True
                             self.refresh_availability()
                         elif method in {"stop", "pause", "resume", "surface.pause", "surface.resume", "intent.approve", "intent.start", "intent.deny", "intent.defer"}:
                             try:
@@ -737,6 +737,9 @@ class Desktop:
             self.safety_condition.notify_all()
         if self.safety.poll() is None:
             self.safety.terminate()
+        try:self.safety.wait(timeout=4)
+        except subprocess.TimeoutExpired:
+            self.safety.kill();self.safety.wait(timeout=1)
         self.loop.quit()
 
 

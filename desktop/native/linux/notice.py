@@ -3,6 +3,7 @@
 import ctypes
 import json
 import math
+import html
 import os
 import signal
 import sys
@@ -10,50 +11,89 @@ import threading
 import gi
 
 gi.require_version('Gtk','3.0')
-from gi.repository import GLib,Gtk,Gdk
+from gi.repository import GLib,Gtk,Gdk,Gio
+from notification_state import Notification
 
 parent=os.getppid()
 if ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)!=0 or os.getppid()!=parent:
     raise SystemExit('Safety owner unavailable')
 GLib.set_prgname('machine-control-safety');Gtk.init([])
-if Gdk.Display.get_default().__gtype__.name!='GdkX11Display':
-    raise SystemExit('Nonactivating Xwayland window provider unavailable')
+if Gdk.Display.get_default().__gtype__.name!='GdkWaylandDisplay':
+    raise SystemExit('Native Wayland controls unavailable')
 window=Gtk.Window(title='Machine Control — Agent access')
 window.set_default_size(450,120);window.set_border_width(14)
-window.set_accept_focus(False);window.set_focus_on_map(False);window.set_keep_above(True)
-window.set_type_hint(Gdk.WindowTypeHint.NORMAL)
+window.set_keep_above(True)
 box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8);window.add(box)
 heading=Gtk.Label(xalign=0);heading.set_line_wrap(True);box.pack_start(heading,False,False,0)
 reason=Gtk.Label(xalign=0);reason.set_line_wrap(True);box.pack_start(reason,False,False,0)
 caller=Gtk.Label(xalign=0);caller.set_line_wrap(True);box.pack_start(caller,False,False,0)
 countdown=Gtk.Label(xalign=0);countdown.set_line_wrap(True);box.pack_start(countdown,False,False,0)
 buttons=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5);box.pack_start(buttons,False,False,0)
-binding=None;current=None
+binding=None;current=None;panel_requested=False;choices=[]
 
 
 def intent(method,**fields):print(json.dumps(dict(method=method,**fields)),flush=True)
 
 
+def hide_controls():
+    global panel_requested
+    panel_requested=False;window.hide();alive()
+
 def button(label,method,**fields):
     value=Gtk.Button(label=label)
-    value.connect('clicked',lambda *_:intent(method,**fields))
-    buttons.pack_start(value,False,False,0)
+    value.connect('clicked',lambda *_:hide_controls() if method=='panel.hide' else intent(method,**fields))
+    buttons.pack_start(value,False,False,0);choices.append((label,method,fields))
 
+
+bus=Gio.bus_get_sync(Gio.BusType.SESSION,None)
+service='org.freedesktop.Notifications';path='/org/freedesktop/Notifications'
+owner=bus.call_sync('org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus','GetNameOwner',
+    GLib.Variant('(s)',(service,)),None,Gio.DBusCallFlags.NONE,1500,None).unpack()[0]
+def call(method,parameters=None):
+    return bus.call_sync(owner,path,service,method,parameters,None,Gio.DBusCallFlags.NONE,1500,None).unpack()
+capabilities=call('GetCapabilities')[0]
+if not {'body','actions','persistence'}<=set(capabilities):raise SystemExit('Persistent notification actions unavailable')
+settings=Gio.Settings.new('org.gnome.desktop.notifications')
+application=Gio.Settings.new_with_path('org.gnome.desktop.notifications.application',
+    '/org/gnome/desktop/notifications/application/machine-control/')
+def permitted():return (settings.get_boolean('show-banners') and application.get_boolean('enable') and application.get_boolean('show-banners'))
+def notify(identifier,summary,body,actions):
+    return call('Notify',GLib.Variant('(susssasa{sv}i)',('Machine Control',identifier,
+        'preferences-desktop-remote-desktop',summary,body,actions,
+        {'urgency':GLib.Variant('y',2),'resident':GLib.Variant('b',True),
+         'suppress-sound':GLib.Variant('b',True),'desktop-entry':GLib.Variant('s','Machine Control')},0)))[0]
+def close(identifier):call('CloseNotification',GLib.Variant('(u)',(identifier,)))
+def show():
+    global panel_requested
+    if current is None:return
+    panel_requested=True;window.show_all();window.present();alive()
+notification=Notification(owner,notify,close,intent,show)
+def signal_received(_bus,sender,_path,_interface,signal,parameters):
+    values=parameters.unpack()
+    if signal=='ActionInvoked':notification.action(sender,*values)
+    elif signal=='NotificationClosed':notification.closed(sender,*values)
+# Bind to the actual service owner, never a replacement or a claimed sender.
+bus.signal_subscribe(owner,service,None,path,None,Gio.DBusSignalFlags.NONE,signal_received)
+def owner_changed(_bus,_sender,_path,_interface,_signal,parameters):
+    if parameters.unpack()[2]!=owner:Gtk.main_quit()
+bus.signal_subscribe('org.freedesktop.DBus','org.freedesktop.DBus','NameOwnerChanged',
+    '/org/freedesktop/DBus',service,Gio.DBusSignalFlags.NONE,owner_changed)
+bus.connect('closed',lambda *_:Gtk.main_quit())
 
 def alive():
-    intent('alive',visible=window.get_mapped())
+    intent('alive',available=permitted(),visible=bool(notification.identifier) or window.get_mapped())
     return True
 
 
 def update(value):
-    global binding,current
+    global binding,current,panel_requested,choices
     requests=value.get('requests',[])
     priority={'waiting_for_approval':0,'announcing':1,'active':2,'paused':3,
               'waiting_for_availability':4,'waiting_for_resource':5,'offered':6}
     row=min(requests,key=lambda row:priority.get(row.get('state'),9)) if requests else None
     current=row
     if row is None:
-        window.hide();binding=None;alive();return False
+        window.hide();panel_requested=False;binding=None;notification.withdraw();alive();return False
     state=row.get('state');identifier=row.get('intentId');surfaces=row.get('surfaces',[])
     title={'waiting_for_approval':'An agent wants to use this computer',
            'announcing':'An agent will start using this computer',
@@ -72,7 +112,7 @@ def update(value):
     countdown.set_text(text)
     key=(identifier,state,tuple(surfaces),bool(value.get('globalPauses')))
     if key!=binding:
-        binding=key
+        binding=key;choices=[]
         for child in buttons.get_children():buttons.remove(child);child.destroy()
         if state=='waiting_for_approval':
             button('Allow this task','intent.approve',intentId=identifier)
@@ -87,7 +127,16 @@ def update(value):
             for surface in surfaces:button('Resume '+surface,'surface.resume',surface=surface)
         button('Stop all access','stop')
         button('Open Settings…','settings')
-    window.show_all();alive();return False
+        button('Hide task controls','panel.hide')
+    # The compositor owns the nonactivating banner. The full GTK panel is
+    # mapped only after an explicit native notification action by the user.
+    primary=[choice for choice in choices if choice[1] not in ('stop','settings','panel.hide')][:2]
+    primary.extend(choice for choice in choices if choice[1]=='stop')
+    body='\n'.join(html.escape(text) for text in (reason.get_text(),caller.get_text(),countdown.get_text()) if text)
+    try:notification.update(key,'Machine Control — '+heading.get_text(),body,primary,identifier,state)
+    except (GLib.Error,ValueError):Gtk.main_quit();return False
+    if panel_requested:window.show_all()
+    alive();return False
 
 
 window.connect('delete-event',lambda *_:(intent('stop'),True)[1])
@@ -102,4 +151,10 @@ def reader():
 
 threading.Thread(target=reader,daemon=True).start()
 GLib.timeout_add(500,alive)
-intent('ready');Gtk.main()
+signal.signal(signal.SIGTERM,lambda *_:GLib.idle_add(Gtk.main_quit))
+signal.signal(signal.SIGINT,lambda *_:GLib.idle_add(Gtk.main_quit))
+intent('ready')
+try:Gtk.main()
+finally:
+    try:notification.withdraw()
+    except GLib.Error:pass
