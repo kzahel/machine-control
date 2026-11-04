@@ -83,6 +83,15 @@ class AccessTests(unittest.TestCase):
         with self.assertRaises(PolicyError):self.access.accept('one',offered['offerGeneration']+1)
         self.assertEqual(self.access.accept('one',offered['offerGeneration'])['state'],'active')
 
+    def test_pending_approval_projection_does_not_revoke_other_surface_owner(self):
+        active=self.active()
+        self.access.configure('browser','ask',None,['work'])
+        pending=self.submit('other','browser',['browser.tabs'])
+        self.assertEqual(self.access.pending['intentId'],pending['intentId'])
+        self.assertIsNone(self.refusal(active))
+        self.access.send('approve',intentId=pending['intentId'])
+        self.assertIsNone(self.access.pending);self.assertIsNone(self.refusal(active))
+
     def test_dead_policy_stays_off_and_does_not_replay(self):
         self.active();self.host.stop();self.access.stop()
         self.assertFalse(self.access.state()['available'])

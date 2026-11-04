@@ -417,7 +417,8 @@ class Desktop:
                 browser=self.browser.state(),capture=dict(route='user/linux.portal-pipewire',state=self.portal.state,scope='shared_screen'),
                 input=dict(route='user/linux.portal-notify',authorization='portal_consent',coordinateSpace='portal_shared_screen'),
                 physicalActivity=self.activity.state(self.session_identity),nativeNotice=self.notice_capability(),
-                protectedDesktop=False,hostInterference='none')
+                protectedDesktop=False,hostInterference='none',
+                operatorProtection=dict(processTree=True,approvalPrompt='physical_input_and_gnome_shell_semantics_withheld_while_pending'))
         return result
 
     def handle(self,request,caller,complete,caller_pid=None):

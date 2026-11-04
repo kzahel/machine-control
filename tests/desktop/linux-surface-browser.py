@@ -145,6 +145,18 @@ def main():
         finally:stream.close()
         check('Stop turns both surfaces Off',all(s['mode']=='off' for s in state()['accessPolicy']['surfaces'].values()))
         work.close();owners.remove(work)
+        operator('surface.configure',surface='desktop',mode='automatic',lifetime='until_stopped',duration=0)
+        operator('surface.configure',surface='browser',mode='ask',lifetime='until_stopped',duration=0,browserProfileIds=[ids['Work']])
+        desktop=actor.Owner(endpoint,'fixture',['desktop']);owners.append(desktop);desktop.wait()
+        pending=actor.Owner(endpoint,'fixture',['browser'],profiles=[ids['Work']],operations=['browser.tabs']);owners.append(pending)
+        poll(lambda:pending.status()['state']=='waiting_for_approval','independent Browser approval')
+        session=desktop.view['sessionId']
+        refused=desktop.call('snapshot',target='gnome-shell',maxDepth=4)
+        check('ordinary Shell semantics cannot answer native approval',not refused['accepted'] and refused['errorCode']=='operator_protected')
+        refused=desktop.call('input.key',key='enter')
+        check('ordinary physical input cannot answer native approval',not refused['accepted'] and refused['errorCode']=='approval_prompt_visible')
+        check('native approval interlock preserves independent Desktop owner',desktop.status()['state']=='active' and desktop.view['sessionId']==session and pending.status()['state']=='waiting_for_approval')
+        pending.close();owners.remove(pending);desktop.close();owners.remove(desktop);operator('stop')
         if args.locked:
             from gi.repository import Gio,GLib
             bus=Gio.bus_get_sync(Gio.BusType.SESSION,None);system=Gio.bus_get_sync(Gio.BusType.SYSTEM,None)

@@ -47,6 +47,19 @@ class NotificationTests(unittest.TestCase):
         self.assertNotEqual(old,self.notice.identifier)
         self.notice.closed(':1.42',old,2)
         self.assertEqual(self.events,[]);self.assertEqual(self.closed,[old])
+    def test_dismissing_paused_status_keeps_timed_retry_presentable(self):
+        self.notice.update('paused','Machine Control','Paused',self.choices,'task','paused')
+        self.notice.closed(':1.42',self.notice.identifier,2)
+        self.assertTrue(self.notice.acknowledged());self.assertEqual(self.events,[])
+        self.notice.update('retry','Machine Control','Warning',self.choices,'task','announcing')
+        self.assertTrue(self.notice.identifier);self.assertTrue(self.notice.acknowledged())
+        self.notice.withdraw();self.assertFalse(self.notice.acknowledged())
+    def test_visible_open_controls_action_grants_no_authority(self):
+        self.notice.update('active','Machine Control','Reason',[
+            ('Open task controls','panel.show',{}),('Stop all access','stop',{})],
+            'task','active')
+        self.notice.action(':1.42',self.notice.identifier,self.token())
+        self.assertEqual(self.shown,[True]);self.assertEqual(self.events,[])
     def test_countdown_replaces_without_rotating_callback_binding(self):
         token=self.token();self.update(body='Starting in nine seconds')
         self.assertEqual(self.token(),token);self.assertEqual(self.sent[-1][0],7)

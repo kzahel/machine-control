@@ -78,7 +78,9 @@ def main():
     def press(label):
         import linux_notice_ui
         control=poll(lambda:linux_notice_ui.find(linuxui,label),label)
-        check('native notice '+label,linux_notice_ui.press(linuxui,control,fixture_operator))
+        delivered=linux_notice_ui.press(linuxui,control,fixture_operator)
+        (args.output/'last-notice-action.private.json').write_text(json.dumps(control[1]))
+        check('native notice '+label,delivered)
     def foreground():
         active=[]
         for application in linuxui.application_roots(linuxui.desktop()):
@@ -191,6 +193,8 @@ def main():
         operator('quit');child.wait(10);check('owned policy and native UI exit',child.returncode==0)
     except BaseException as error:
         failure=type(error).__name__+': '+str(error)
+        with contextlib.suppress(Exception):(args.output/'failure-safety-ui.private.json').write_text(json.dumps([i for _,i in nodes('machine-control-safety')]))
+        with contextlib.suppress(Exception):(args.output/'failure-ui.private.json').write_text(json.dumps([i for _,i in nodes('gnome-shell') if 'showing' in i['states'] and (i['name'].startswith('Machine Control') or i['name'] in ['Start now','Allow this task','Stop all access','Pause 30 seconds'])]))
         with contextlib.suppress(Exception):(args.output/'failure-state.private.json').write_text(json.dumps(dict(native=state(),owners=[owner.status() for owner in owners])))
         raise
     finally:

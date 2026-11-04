@@ -13,7 +13,8 @@ import time
 import gi
 
 gi.require_version('Gtk','3.0')
-from gi.repository import GLib,Gtk,Gdk,Gio
+gi.require_version('GdkWayland','3.0')
+from gi.repository import GLib,Gtk,Gdk,Gio,GdkWayland
 from notification_state import Notification,primary_request,other_announcements
 
 parent=os.getppid()
@@ -31,7 +32,7 @@ reason=Gtk.Label(xalign=0);reason.set_line_wrap(True);box.pack_start(reason,Fals
 caller=Gtk.Label(xalign=0);caller.set_line_wrap(True);box.pack_start(caller,False,False,0)
 countdown=Gtk.Label(xalign=0);countdown.set_line_wrap(True);box.pack_start(countdown,False,False,0)
 buttons=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5);box.pack_start(buttons,False,False,0)
-binding=None;current=None;panel_requested=False;choices=[];caption_binding=None;caption_body=''
+binding=None;current=None;panel_requested=False;choices=[];caption_binding=None;caption_body='';activation=None
 
 
 def intent(method,**fields):print(json.dumps(dict(method=method,**fields)),flush=True)
@@ -62,18 +63,26 @@ def permitted():return (settings.get_boolean('show-banners') and application.get
 def notify(identifier,summary,body,actions):
     return call('Notify',GLib.Variant('(susssasa{sv}i)',('Machine Control',identifier,
         'preferences-desktop-remote-desktop',summary,body,actions,
-        {'urgency':GLib.Variant('y',2),'resident':GLib.Variant('b',True),
+        {'urgency':GLib.Variant('y',1 if current and current.get('state')=='paused' else 2),'resident':GLib.Variant('b',True),
          'suppress-sound':GLib.Variant('b',True),'desktop-entry':GLib.Variant('s','Machine Control')},0)))[0]
 def close(identifier):call('CloseNotification',GLib.Variant('(u)',(identifier,)))
 def show():
-    global panel_requested
+    global panel_requested,activation
     if current is None:return
+    if activation and activation[0]==notification.identifier:
+        GdkWayland.WaylandDisplay.set_startup_notification_id(Gdk.Display.get_default(),activation[1])
+    activation=None
     panel_requested=True;window.show_all();window.present();alive()
 notification=Notification(owner,notify,close,intent,show)
 def signal_received(_bus,sender,_path,_interface,signal,parameters,*_data):
+    global activation
     values=parameters.unpack()
     if signal=='ActionInvoked':notification.action(sender,*values)
     elif signal=='NotificationClosed':notification.closed(sender,*values)
+    elif signal=='ActivationToken':
+        identifier,token=values
+        if sender==owner and notification.identifier and identifier==notification.identifier and isinstance(token,str) and 0<len(token)<=4096:
+            activation=(identifier,token)
 # Bind to the actual service owner, never a replacement or a claimed sender.
 bus.signal_subscribe(owner,service,None,path,None,Gio.DBusSignalFlags.NONE,signal_received)
 def owner_changed(_bus,_sender,_path,_interface,_signal,parameters,*_data):
@@ -83,7 +92,7 @@ bus.signal_subscribe('org.freedesktop.DBus','org.freedesktop.DBus','NameOwnerCha
 bus.connect('closed',lambda *_:Gtk.main_quit())
 
 def alive():
-    intent('alive',available=permitted(),visible=bool(notification.identifier) or window.get_mapped())
+    intent('alive',available=permitted(),visible=notification.acknowledged() or window.get_mapped())
     return True
 
 
@@ -138,7 +147,9 @@ def update(value):
     # mapped only after an explicit native notification action by the user.
     primary=[choice for choice in choices if choice[1] not in ('stop','settings','panel.hide')][:2]
     primary.extend(choice for choice in choices if choice[1]=='stop')
-    if others:primary=[('Pause all 30 seconds','pause',{'duration':30}),('Stop all access','stop',{})]
+    if state in ('active','offered','paused','waiting_for_availability','waiting_for_resource'):
+        primary=[*[choice for choice in primary if choice[1]!='stop'][:1],('Open task controls','panel.show',{}),('Stop all access','stop',{})]
+    if others:primary=[('Pause all 30 seconds','pause',{'duration':30}),('Open task controls','panel.show',{}),('Stop all access','stop',{})]
     announcing=[task for task in requests if task.get('state')=='announcing']
     context=(key,tuple(task['intentId'] for task in announcing),json.dumps(primary,sort_keys=True),reason.get_text(),caller.get_text())
     if context!=caption_binding:

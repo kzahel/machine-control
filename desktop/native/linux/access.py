@@ -124,7 +124,8 @@ class Access:
             expires=None if remaining is None else time.monotonic()+remaining)
 
     @property
-    def pending(self):return None
+    def pending(self):
+        return next((row for row in self.view.get('requests',[]) if row.get('state')=='waiting_for_approval'),None)
     @property
     def paused(self):return bool(self.view.get('surfaces',{}).get('desktop',{}).get('pauses'))
     @property

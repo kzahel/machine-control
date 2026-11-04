@@ -34,6 +34,7 @@ class Notification:
         if selected is None:return
         # One decision per published binding. Late/double actions never replay.
         method,fields=selected
+        if method=='panel.show':self.opened=True;self.show();return
         if method=='stop':
             if not self.stopped:self.stopped=True;self.emit(method,**fields)
             return
@@ -45,6 +46,11 @@ class Notification:
         self.identifier=0;self.message=None;self.dismissed=self.binding
         if reason in (1,2) and not self.acted and not self.opened and self.intent and self.state!='paused':
             self.acted=True;self.emit('intent.defer',intentId=self.intent,duration=60)
+
+    def acknowledged(self):
+        # Dismissing an already-paused status must not block the next timed
+        # retry. A new announcing binding still requires a new native post.
+        return bool(self.identifier or self.state=='paused' and self.binding is not None and self.dismissed==self.binding)
 
     def withdraw(self):
         identifier=self.identifier

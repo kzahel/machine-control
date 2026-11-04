@@ -47,7 +47,7 @@ class Provider(linuxcontrol.Resident):
                 ancestor = int(Path(f"/proc/{ancestor}/stat").read_text().rsplit(")", 1)[1].split()[1])
             except (OSError, ValueError, IndexError):
                 raise linuxcontrol.ControlFailure("target_unavailable", "Application identity changed")
-        if owned or name.startswith("xdg-desktop-portal"):
+        if owned or name.startswith("xdg-desktop-portal") or name=="gnome-shell" and self.owner.grants.pending:
             raise linuxcontrol.ControlFailure("operator_protected", "The operator and permission dialogs are protected")
         if role == "password text":
             raise linuxcontrol.ControlFailure("protected_surface", "Password fields are unavailable")

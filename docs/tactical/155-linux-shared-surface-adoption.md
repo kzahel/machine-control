@@ -331,3 +331,30 @@ captions retain an absolute warning end time while the task and action context
 are unchanged, avoiding per-second action replacement; explicit GTK controls
 continue to display the live shared-policy countdown. Exact profile labels
 include ID suffixes so duplicate friendly names remain distinguishable.
+
+**Current — explicit controls and native UI boundaries:** GNOME 46 limits a
+notification to [three action buttons](https://github.com/GNOME/gnome-shell/blob/46.0/js/ui/calendar.js#L757)
+and its banner body is not keyboard-focusable. Active/paused notifications now
+provide an explicit Open task controls action beside pause/Resume and Stop.
+The controls consume the current notification's activation token through GTK's
+Wayland API, only after that user action. Opening them grants no authority.
+A dismissed paused-status notification remains presentable for the next timed
+retry; it does not turn a timed pause into an indefinite availability block.
+Paused status uses normal urgency, while requests and imminent handoffs retain
+critical urgency.
+
+Moving approval into GNOME Shell requires retaining own-interface protection
+outside the companion's PID tree. A read-only projection of the authoritative
+pending approval now withholds physical input and GNOME Shell semantics while
+an approval is pending. It preserves other surface owners and does not create
+a second approval engine. Capabilities report that native limitation. Portable
+coverage checks the projection and native presentation/closure state; a live
+Browser fixture now also checks those refusal paths with concurrent owners.
+
+The native action finder visits showing actors instead of Shell's entire
+hidden overview/history. This avoids spending a warning/offer lifetime on UI
+inspection. It requires an advertised semantic action or the configured native
+focus shortcut, then an independently observed focused control before Enter.
+Full native state and the last action route are retained privately on failure.
+All 50 desktop tests pass (one kernel-only skip on macOS); full integrated and
+packaged acceptance remains open.
