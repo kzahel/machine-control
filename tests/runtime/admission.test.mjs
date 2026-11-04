@@ -246,6 +246,7 @@ test("changing clients or surfaces cannot bypass a disruptive resource deferral"
   assert.equal(f.request("browser", { disruptive: true }, other).state, "paused");
   assert.equal(f.request("browser", { profileIds: ["personal"] }, other).state, "offered", "independent background work remains available");
   assert.equal(f.policy.status().deferrals.find(pause => pause.resource === "human-input").remainingSeconds, 30);
+  assert.deepEqual(f.policy.status().deferrals.find(pause => pause.resource === "human-input").surfaces, ["desktop"]);
   f.policy.resume("desktop", "operator_deferral");
   assert.equal(f.inspect(first).state, "announcing");
 });
@@ -258,6 +259,7 @@ test("deliberate takeover cooldown spans disruptive surfaces and preserves backg
   assert.equal(f.policy.authorize(f.owner, background), null);
   assert.equal(f.request("browser", { disruptive: true }).state, "paused");
   assert.equal(f.policy.status().handoffCooldownRemainingSeconds, 60);
+  assert.deepEqual(f.policy.status().handoffCooldownSurfaces, ["desktop"]);
 });
 
 test("an explicitly ready locked route skips an invisible warning but keeps impact reservations and Ask", () => {

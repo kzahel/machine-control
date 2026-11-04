@@ -5,9 +5,11 @@ type Mode = "off" | "ask" | "automatic";
 export type SurfacePolicy = {
   schema: string;
   available?: boolean;
+  humanInputReady?: boolean;
+  handoffCooldownSurfaces?: Surface[];
   handoffCooldownRemainingSeconds?: number;
   globalPauses?: { reason: string; remainingSeconds: number | null }[];
-  deferrals?: { resource: string; remainingSeconds: number | null }[];
+  deferrals?: { resource: string; surfaces: Surface[]; remainingSeconds: number | null }[];
   noticeSeconds: number;
   surfaces: Record<Surface, {
     mode: Mode;
@@ -63,6 +65,8 @@ export function SurfaceAccess({ policy, profiles, requests, busy, act, protected
       </div>
       {!!policy.globalPauses?.length && <p className="note">Global pause overrides both surfaces. Resuming it preserves independent surface pauses.</p>}
     </section>
+    {policy.humanInputReady === false && Object.values(policy.surfaces).some(surface => surface.mode !== "off" && !surface.expired) &&
+      <p role="status" className="note">Disruptive control waits for native input observation to recover. Background browser tasks can continue.</p>}
     {(policy.handoffCooldownRemainingSeconds ?? 0) > 0 && <p role="status" className="note">
       Disruptive work waits {Math.ceil(policy.handoffCooldownRemainingSeconds!)}s before a fresh warning. Background browser work can continue.
     </p>}
@@ -119,7 +123,7 @@ export function SurfaceAccess({ policy, profiles, requests, busy, act, protected
             <button disabled={busy} onClick={() => void act({ method: "pause_surface", surface, duration: 60 })}>Pause {label.toLowerCase()} 1m</button>
             <button disabled={busy} onClick={() => void act({ method: "pause_surface", surface })}>Pause {label.toLowerCase()} until Resume</button>
           </>}
-          {(state.pauses.length > 0 || (policy.handoffCooldownRemainingSeconds ?? 0) > 0 || policy.deferrals?.some(pause => pause.resource === "human-input" || pause.resource === surface || pause.resource.startsWith(`${surface}:`))) && <button disabled={busy} onClick={() => void act({ method: "resume_surface", surface })}>Resume {label.toLowerCase()}</button>}
+          {(state.pauses.some(pause => pause.scope !== "all") || policy.handoffCooldownSurfaces?.includes(surface) || policy.deferrals?.some(pause => pause.surfaces.includes(surface))) && <button disabled={busy} onClick={() => void act({ method: "resume_surface", surface })}>Resume {label.toLowerCase()}</button>}
         </div>
       </section>;
     })}

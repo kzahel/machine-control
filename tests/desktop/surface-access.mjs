@@ -76,11 +76,16 @@ try {
   let commands = await page.evaluate(() => window.commands);
   assert.deepEqual(commands.filter(command => command.method === "surface.configure").map(command => [command.surface, command.mode, command.browserProfileIds]),
     [["desktop", "ask", []], ["browser", "automatic", ["fixture:work"]]]);
+  await page.evaluate(() => { window.fixtureState.accessPolicy.humanInputReady = false; });
+  await page.getByText(/Disruptive control waits for native input observation/).waitFor();
+  await page.evaluate(() => { window.fixtureState.accessPolicy.humanInputReady = true; });
   await page.getByRole("button", { name: "Pause desktop 30s", exact: true }).click();
   assert.equal(await page.getByRole("combobox", { name: "Browser access mode" }).inputValue(), "automatic");
   await page.getByRole("button", { name: "Resume desktop", exact: true }).click();
   await page.getByRole("button", { name: "Pause desktop until Resume", exact: true }).click();
   await page.getByRole("button", { name: "Pause all 30s", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Resume browser", exact: true }).count(), 0,
+    "A global pause exposes its global Resume instead of an ineffective surface Resume");
   await page.getByRole("button", { name: "Resume global pause", exact: true }).click();
   assert.deepEqual(await page.evaluate(() => Object.values(window.fixtureState.accessPolicy.surfaces).map(surface => surface.pauses.length)), [1, 0],
     "Global Resume preserves an independently paused Desktop");
