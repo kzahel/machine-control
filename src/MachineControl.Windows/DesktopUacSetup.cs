@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Security.AccessControl;
-using System.Security.Cryptography;
 using System.Security.Principal;
 
 namespace MachineControl.Windows;
@@ -12,10 +11,8 @@ internal static class DesktopUacSetup
     {
         var bundled = Environment.ProcessPath!;
         if (!DesktopUacNative.Installed()) return bundled;
-        using var installed = File.OpenRead(DesktopUacNative.Executable);
-        using var source = File.OpenRead(bundled);
         // A product update must not run an old installed companion silently.
-        return SHA256.HashData(installed).SequenceEqual(SHA256.HashData(source)) ? DesktopUacNative.Executable : bundled;
+        return CompanionBinaryIdentity.Matches(DesktopUacNative.Executable, bundled) ? DesktopUacNative.Executable : bundled;
     }
     internal static int Request(bool remove)
     {

@@ -378,3 +378,32 @@ acceptance or adopting the model on Mac.
 The expired test window was not extended in place: after the failed actor's
 verified cleanup, the controller restored Off and released its claim, then
 acquired a fresh bounded scope on the same appliance. No VM was created.
+
+### Bound verification I/O as well as its process lifetime
+
+**Current (2026-11-04):** `030f3d2` passes native/unlock contracts, 26 handoff
+checks, all seven Windows process/operator tests and the production build.
+Its ordinary actor again reaches 42 checks, then times out at Settings startup;
+cleanup succeeds. The new diagnostic identifies `companion.resolve_timeout`
+at the fifteen-second verification cutoff. The earlier timing correction alone
+therefore does not establish successful Settings startup.
+
+A standalone Rust process comparison, with and without concurrent stdout drain,
+finishes both variants; it does not reproduce a pipe deadlock. Observation of
+the actual app's resolver instead shows continuing image reads and a page-in
+wait: about 140 MB has been read at fifteen seconds. The two executable images
+are approximately 172 MB each and differ in length by 20,480 bytes. Their size
+already proves that the old helper cannot be this candidate; hashing both full
+images unnecessarily competes with GUI startup for disk reads.
+
+The native identity matcher now rejects unequal lengths before reading image
+contents and uses buffered sequential reads for the full SHA-256 comparison
+when lengths match. It still requires complete equality before selecting the
+installed companion, after the existing protected-path verification. A metadata-
+only stream regression fails with the previous hashing algorithm and passes
+with the cheap rejection. Identical, same-size-but-different and truncated
+file fixtures pass. Full native contracts, format verification and ARM64/x64
+publishes pass. The resolver's fifteen-second bound remains unchanged.
+Fresh ordinary qualification and a matching-installed-helper startup check
+are required; neither the standalone probe nor source checks qualify that
+composed startup. No protected helper or enrollment has been changed yet.

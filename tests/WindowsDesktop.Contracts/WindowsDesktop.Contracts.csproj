@@ -13,6 +13,7 @@
     <Compile Include="../../src/MachineControl.Windows/PointerGeometry.cs" Link="PointerGeometry.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopActivityPolicy.cs" Link="DesktopActivityPolicy.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopJournal.cs" Link="DesktopJournal.cs" />
+    <Compile Include="../../src/MachineControl.Windows/CompanionBinaryIdentity.cs" Link="CompanionBinaryIdentity.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopGrants.cs" Link="DesktopGrants.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopUacPolicy.cs" Link="DesktopUacPolicy.cs" />
     <Compile Include="../../src/MachineControl.Windows/AdmissionChannel.cs" Link="AdmissionChannel.cs" />
