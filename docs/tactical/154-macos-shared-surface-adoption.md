@@ -78,7 +78,7 @@ Keep raw UI, target identity, endpoints and diagnostic evidence private.
 
 ## Execution record
 
-**Current — source/build evidence:** 224 Swift tests pass, including six real
+**Current — source/build evidence:** 227 Swift tests pass, including six real
 child-process framing/environment/deadline/reaping checks, real shared-policy
 adapter checks, concurrent profile/copy refusal, native session/identity and
 protected-helper regressions. The production Tauri shell builds with bundled
@@ -138,3 +138,23 @@ Controlled capability/profile discovery also uses the same projection as plain
 discovery, preserving the shipped Python client's exact-profile negotiation
 without broadening a task's operation set. All 227 Swift tests and native
 static smoke pass. Actual protected effects/relock remain an open gate.
+
+**Current — acceptance transport follow-up:** after the required native source
+redeploy, the independent observer also uses v2 ownership. The live actor now
+multiplexes replies so provider calls and rapid UI work cannot starve its
+heartbeat. A socket-level regression holds a dispatch until two heartbeats
+arrive and verifies strict request ordering. Failed checks are not replayed.
+The private runner keeps backups in persistent guest storage and exports the
+baseline to the controller; reboot-cleared temporary staging is insufficient.
+Unix observer sockets use short owned paths independently of backup location.
+The restored baseline for subsequent trials is the explicitly deployed source
+appliance; it is not represented as recoverable pre-migration app bytes.
+
+**Current — shipped client checkpoint:** the unchanged clean 966f17c runtime
+passes all 20 packaged checks with the corrected observer transport, including
+exact-profile capability negotiation and tab access through the shipped Python
+SDK. The fixture records Work = 1 and Personal = 0. App bytes, appliance
+policy and native operator preferences restore successfully; owned observer and
+browser processes are reaped. A subsequent protected trial remains its own
+gate. The re-enable action uses the real Settings button, avoiding reliance on
+an already-Off dropdown selection to trigger a change event.

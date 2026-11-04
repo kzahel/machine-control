@@ -36,6 +36,7 @@ def main():
     root=args.report.parent
     checks=[]
     fixture=None
+    observer_owner=None
 
     def check(label,condition=True):
         assert condition,label
@@ -51,7 +52,15 @@ def main():
         result=exchange(endpoint,'status');assert result.get('accepted'),result.get('errorCode');return result['data']
 
     def observe(operation,**fields):
-        result=exchange(args.observer_socket,operation,provider='macos-native',**fields)
+        nonlocal observer_owner
+        if observer_owner is None:
+            result=exchange(args.observer_socket,operation,provider='macos-native',**fields)
+            if result.get('errorCode')!='control_session_required':
+                assert result.get('accepted'),result.get('errorCode');return result.get('data',{})
+            assert result.get('delivery')=='refused' and result.get('uncertainty')=='none'
+            observer_owner=actor.Owner(args.observer_socket,args.claim,['desktop'],duration=900)
+        if observer_owner.status()['state']!='active':observer_owner.wait()
+        result=observer_owner.call(operation,provider='macos-native',**fields)
         assert result.get('accepted'),result.get('errorCode');return result.get('data',{})
 
     pid=status()['processId']
@@ -69,7 +78,7 @@ def main():
 
     def choose(label,index):
         observe('application.activate',target=str(pid));press(label,'AXPopUpButton')
-        for key in ['up']*5+['down']*index+['enter']:
+        for key in {0:['home','enter'],1:['home','down','enter'],2:['end','enter']}[index]:
             observe('input.key',key=key)
         time.sleep(.3)
 
@@ -184,6 +193,7 @@ def main():
             args.report.with_name('covered-failure-tree.json').write_text(json.dumps(tree(''))+'\n')
         raise
     finally:
+        if observer_owner is not None:observer_owner.close()
         if fixture:
             fixture.terminate()
             try:fixture.wait(timeout=10)

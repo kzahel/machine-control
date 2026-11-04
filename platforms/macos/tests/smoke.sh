@@ -104,6 +104,7 @@ done
     ../../tests/macos/keyboard-apps-guest.py \
     ../../tests/macos/keyboard-authorization.py
 /usr/bin/python3 -m unittest discover -s ../../tests/macos -p test_keyboard_layouts.py
+/usr/bin/python3 -m unittest discover -s ../../tests/macos -p test_surface_owner.py
 
 /usr/bin/python3 -m json.tool \
     guests/macos/electron-fixture/package.json >/dev/null

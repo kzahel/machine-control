@@ -3,7 +3,8 @@
 Topic: `browser-profiles`
 
 Status: **Windows named-profile browser cutover accepted in an unsigned ARM64
-candidate; unified permissions/handoff precedes Mac/Linux adoption**.
+candidate; Mac ordinary/streamed packaged slice passed, protected gate open;
+Linux adoption follows**.
 
 ## Scope and current evidence
 
@@ -22,14 +23,14 @@ provider, private inventory or coordination owner is introduced.
 
 ## Product behavior
 
-**Decision, implemented on Windows:** each extension installation has an editable local label such as
+**Decision, implemented on Windows and in the unreleased Mac adapter:** each extension installation has an editable local label such as
 **Work** or **Personal**, a persistent opaque identity and an **Enable this
 profile** switch. Fresh and upgraded installations begin unavailable for
 control until explicitly enabled. Disabled installations may announce bounded
 connection metadata, but cannot enumerate tabs, attach debuggers or execute
 browser work. This permits setup and profile discovery without page access.
 
-The Windows Access surface lists known profiles with connected, enabled and
+The Windows and unreleased Mac Access surfaces list known profiles with connected, enabled and
 approved states, plus protocol/conflict repair guidance. Access controls and native approval prompts name
 the profiles being approved. Connection, availability and approval are distinct
 states. The extension can withdraw its own availability; enabling it cannot
@@ -70,7 +71,7 @@ machine-control browser endpoint --profile Work
 ```
 
 These commands require a profile-aware resident. The Python client checks that
-capability before forwarding an explicit selector; legacy Mac/Linux residents
+capability before forwarding an explicit selector; pre-cutover Linux and older Mac residents
 refuse it. Existing target and claim arguments still apply. The endpoint still requires the platform's
 retained DevTools authority. Labels in examples are fictional.
 

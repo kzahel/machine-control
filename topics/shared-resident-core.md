@@ -138,7 +138,10 @@ not through parallel policy engines or another open-ended language comparison.
 
 **Current Windows source:** one shared authority owns ordinary Desktop and
 Browser consent, admission and handoff. Native/package execution is qualified
-separately. Mac and Linux have not adopted it.
+separately. The unreleased Mac adapter now adopts that same authority; its
+ordinary and streamed-CDP packaged slices pass, with protected composition
+still open in [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md).
+Linux adoption remains pending.
 
 | Responsibility | Owner after adoption |
 | --- | --- |

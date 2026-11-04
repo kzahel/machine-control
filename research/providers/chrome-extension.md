@@ -72,7 +72,7 @@ and exact installed product evidence.
 
 ## Multiple-profile limit
 
-**Current (2026-11-02), source-reviewed:** the worker hello carries protocol,
+**Historical (2026-11-02), source-reviewed before adoption:** the worker hello carried protocol,
 extension version and user agent, with no persistent profile identity. The
 macOS resident's `BrowserRelay.register` disconnects the current provider on
 every trusted registration; Linux's `Browser.register` likewise disconnects
@@ -87,7 +87,9 @@ At that reviewed revision, Windows also had a singleton provider, with
 macOS/Linux replacement-loop mechanism was not evidence of identical Windows
 oscillation. The unreleased Windows source now replaces that path with
 concurrent authenticated transports into the shared TypeScript coordinator.
-Mac/Linux residents still lack explicit profile selection.
+The unreleased Mac source now uses concurrent authenticated transports and
+exact profile selection as well. Linux retains the singleton path until its
+sequential adoption.
 
 **Decision:** [named browser profiles](../../topics/browser-profiles.md) owns
 the full registry/selection/authority direction; no interim singleton fix is
@@ -108,8 +110,19 @@ Sandboxed software-rendered fixture execution, exact source and verified cleanup
 are recorded in [Tactical 152](../../docs/tactical/152-shared-runtime-windows-adoption.md).
 An earlier fake-peer composition also passes five-minute owner continuity.
 This does not establish signed installation, store delivery, physical/GPU/native
-x64 or Mac/Linux multi-profile execution. Existing Mac/Linux residents retain
-their legacy behavior until adoption.
+x64 or Mac/Linux multi-profile execution. Later Mac evidence is scoped below;
+Linux retains its legacy behavior until adoption.
+
+**Current (2026-11-04), bounded Mac ARM64 `conformance-tested`:** the real
+packaged Swift resident hosts the same pinned TypeScript authority. Twenty
+ad-hoc appliance checks exercise native Settings/announcements, two Chrome for
+Testing profiles, exact Work-only consent, independent Work effect with zero
+Personal effects, independent pauses, Stop, an actual selected-profile CDP
+stream, revocation of that open stream and the shipped Python SDK. Native app/policy/preferences and
+owned processes are restored. This establishes neither physical input,
+Intel execution, signed publication nor protected-helper composition.
+[Tactical 154](../../docs/tactical/154-macos-shared-surface-adoption.md) owns
+remaining acceptance and cleanup.
 
 **Current (2026-11-02), bounded Mac ARM64 `live-tested`:** a Node-hosted adapter
 consumes the unchanged worker protocol through real Chrome native messaging,

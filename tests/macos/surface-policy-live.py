@@ -36,33 +36,61 @@ def poll(function, label, timeout=30):
 
 
 class Owner:
-    def __init__(self, endpoint, claim, surfaces, *, profiles=(), operations=None):
+    def __init__(self, endpoint, claim, surfaces, *, profiles=(), operations=None, duration=180):
         self.socket = socket.socket(socket.AF_UNIX)
         self.socket.settimeout(20)
         self.socket.connect(str(endpoint))
+        self.socket.settimeout(None)
         self.file = self.socket.makefile('rb')
-        self.lock = threading.RLock()
+        self.lock = threading.Lock()
+        self.pending = {}
         self.sequence = 0
         self.stopped = threading.Event()
         self.failure = None
+        self.reader = threading.Thread(target=self.receive, daemon=True)
+        self.reader.start()
         request = dict(operation='control.open', schema='machine-control-admission/v2',
                        claimId=claim, surfaces=surfaces, profileIds=list(profiles),
-                       waitSeconds=180, durationSeconds=180, reason='Verify unified surface handoff')
+                       waitSeconds=180, durationSeconds=duration, reason='Verify unified surface handoff')
         if operations is not None:
             request['operations'] = operations
         self.view = self.rpc(**request)
         self.thread = threading.Thread(target=self.keepalive, daemon=True)
         self.thread.start()
 
+    def receive(self):
+        try:
+            while True:
+                line = self.file.readline(16 * 1024 * 1024)
+                if not line:
+                    break
+                reply = json.loads(line)
+                with self.lock:
+                    pending = self.pending.pop(reply.get('requestId'), None)
+                assert pending is not None, 'Unexpected control reply'
+                event, box = pending
+                box.append(reply)
+                event.set()
+        finally:
+            with self.lock:
+                self.failure = 'owner_connection_closed'
+                for event, _ in self.pending.values():
+                    event.set()
+                self.pending.clear()
+
     def rpc(self, **request):
+        event, box = threading.Event(), []
         with self.lock:
+            assert self.failure is None, self.failure
             self.sequence += 1
             request.update(requestId=uuid.uuid4().hex, requestSequence=self.sequence)
+            self.pending[request['requestId']] = (event, box)
             self.socket.sendall(json.dumps(request).encode() + b'\n')
-            reply = json.loads(self.file.readline(16 * 1024 * 1024))
-            assert reply.get('requestId') == request['requestId']
-            assert reply.get('accepted'), reply.get('errorCode')
-            return reply.get('data', {})
+        assert event.wait(25), 'Control reply deadline'
+        assert box, self.failure
+        reply = box[0]
+        assert reply.get('accepted'), reply.get('errorCode')
+        return reply.get('data', {})
 
     def keepalive(self):
         while not self.stopped.wait(1.5):
@@ -96,6 +124,9 @@ class Owner:
             self.thread.join(3)
         with contextlib.suppress(Exception):
             self.rpc(operation='control.cancel')
+        with contextlib.suppress(OSError):
+            self.socket.shutdown(socket.SHUT_RDWR)
+        self.reader.join(3)
         self.file.close()
         self.socket.close()
 
@@ -118,6 +149,7 @@ def main():
     resident = Path.home() / 'Applications/Machine Control.app/Contents/MacOS/macui'
     checks = []
     children = []
+    observer_owner = None
     counters = {'Work': 0, 'Personal': 0}
 
     def check(label, condition=True):
@@ -138,9 +170,21 @@ def main():
         return result['data']
 
     def observe(operation, **fields):
-        result = exchange(args.observer_socket, operation, provider='macos-native', **fields)
-        assert result.get('accepted'), result.get('errorCode')
-        return result.get('data', {})
+        nonlocal observer_owner
+        if observer_owner is None:
+            result = exchange(args.observer_socket, operation, provider='macos-native', **fields)
+            if result.get('errorCode') != 'control_session_required':
+                assert result.get('accepted'),result.get('errorCode')
+                return result.get('data',{})
+            assert result.get('delivery')=='refused' and result.get('uncertainty')=='none'
+            observer_owner=Owner(args.observer_socket,args.claim,['desktop'],duration=900)
+        if observer_owner.status()['state']!='active':
+            observer_owner.wait()
+        result=observer_owner.call(operation,provider='macos-native',**fields)
+        if not result.get('accepted'):
+            args.report.with_name('observer-refusal.json').write_text(json.dumps(dict(operation=operation, result=result, owner=observer_owner.status(), native=exchange(args.observer_socket,'status'))))
+        assert result.get('accepted'),result.get('errorCode')
+        return result.get('data',{})
 
     pid = status()['processId']
 
@@ -163,7 +207,7 @@ def main():
     def choose(label, index):
         observe('application.activate', target=str(pid))
         press(label, 'AXPopUpButton')
-        for key in ['up'] * 5 + ['down'] * index + ['enter']:
+        for key in {0: ['home', 'enter'], 1: ['home', 'down', 'enter'], 2: ['end', 'enter']}[index]:
             observe('input.key', key=key)
         time.sleep(.3)
 
@@ -355,7 +399,7 @@ def main():
         from control_session import ControlSession
         target=dict(platform='macos',command=[str(runtime/'python/bin/python3'),'-I','-B',
             str(runtime/'platforms/macos/host/machost.py')],_claimId=args.claim)
-        choose('Browser access mode',2)
+        press('Enable Automatic for browser')
         poll(lambda:surface('browser')['mode']=='automatic','Browser for shipped SDK')
         with ControlSession(target,reason='Verify shipped Python profile negotiation',surfaces=['browser'],
                             profile_ids=[ids['Work']],operations=['browser.tabs'],duration=60,wait=120) as sdk:
@@ -371,6 +415,7 @@ def main():
             args.report.with_name('failure-tree.json').write_text(json.dumps(tree(''))+'\n')
         raise
     finally:
+        if observer_owner is not None:observer_owner.close()
         for child in reversed(children):
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(child.pid,signal.SIGTERM)

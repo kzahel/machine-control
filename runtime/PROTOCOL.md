@@ -1,8 +1,8 @@
 # Private native host inlet
 
 Status: **v2 Windows/reference broad review and bounded native candidate
-qualification passed; macOS ordinary packaged slice passed, stream/protected
-gates open; Linux adoption pending**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
+qualification passed; macOS ordinary and streamed-CDP packaged slices passed, protected
+gate open; Linux adoption pending**. [Tactical 153](../docs/tactical/153-unified-permissions-and-handoff.md#windows-candidate-qualification)
 records current evidence and its unsigned ARM64 VM limits.
 This private inlet is not an agent API or an independently installed service.
 The language/deployment decision and migration gates live in
