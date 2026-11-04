@@ -102,7 +102,10 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (_ready != ready || _consoleIdentity != consoleIdentity)
             { _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n"); }
             _ready = ready; _lockedConsole = lockedConsole; _consoleIdentity = consoleIdentity;
-            if (_browserConsentConsole is not null && (consoleIdentity != _browserConsentConsole || !ready && !lockedConsole)) Stop("console_session_changed");
+            // Input-desktop readiness can change before the WTS lock flag.
+            // Keep same-logon consent while unavailable; PublishReady denies
+            // effects until a positively observed route is ready again.
+            if (_browserConsentConsole is not null && consoleIdentity != _browserConsentConsole) Stop("console_session_changed");
             PublishReady();
         }
     }

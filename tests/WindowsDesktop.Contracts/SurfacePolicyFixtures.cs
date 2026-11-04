@@ -52,6 +52,14 @@ internal static class SurfacePolicyFixtures
         Require(grants.Authorize("type") == "surface_disabled", "Pause cannot extend finite consent");
         grants.ConfigureSurface("desktop", "automatic", 300, "timed");
         grants.ConfigureBrowserWhileLocked(true);
+        // Input-desktop and WTS lock observations need not settle in the same
+        // poll. Unavailability blocks effects without deleting same-logon consent.
+        grants.SetReady(false, false, "fixture-logon");
+        Require(grants.Admission.Enabled("desktop") && grants.Admission.Enabled("browser"),
+            "A same-logon lock transition retains both independent consents");
+        Require(grants.Authorize("browser.eval", controlled: true) is not null &&
+            grants.Authorize("type", controlled: true) is not null,
+            "Unknown transition readiness cannot authorize either provider");
         grants.SetReady(false, true, "fixture-logon");
         Require(grants.BrowserOnlyWhileLocked && grants.Authorize("browser.eval", controlled: true) is null, "Full Browser surface retains same-logon locked opt-in");
         grants.ConfigureBrowserWhileLocked(false);

@@ -4,8 +4,8 @@ Owning topics: [access admission and pause](../../topics/access-admission-and-pa
 [shared resident core](../../topics/shared-resident-core.md),
 [browser profiles](../../topics/browser-profiles.md).
 
-Status: **Windows candidate conformance passed; broad review pending,
-then macOS and Linux adoption**.
+Status: **Windows broad review complete; final locked/protected corrections
+under qualification before macOS and Linux adoption**.
 
 ## Motivation and objective
 
@@ -336,3 +336,14 @@ owner completion and Stop. Its provenance is separate from product source
 `94db085`; no product files changed between those revisions. Helper staging
 must restore original executable bytes, ACLs, service state and presentation
 preferences without copying or replaying the credential vault.
+
+The clean `94db085` candidate passes the complete 48-check ordinary
+Browser/Settings run with cleanup. Its locked-Browser actor then independently
+observes lock but refuses a fresh owner because exact selection was cleared.
+The native audit records `console_session_changed` during the transition.
+A same-logon unavailable/not-yet-locked native fixture reproduces consent loss:
+input-desktop and WTS observations need not settle in the same poll. The
+correction retains consent under exact logon identity while readiness continues
+to deny effects; a different or unavailable logon identity still revokes it.
+The regression fails before and passes after the correction. Full native
+contracts and ARM64/x64 publishes pass; fresh candidate qualification follows.
