@@ -249,7 +249,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                     profile = "workstation",
                     operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke", "session.unlock.prepare", "session.unlock", .. (updates is null ? Array.Empty<string>() : new[] { "update.check", "update.status" })],
                     browser = browser?.State,
-                    authorization = grants is null ? "component_owner" : "native_target_wide_grants",
+                    authorization = grants is null ? "component_owner" : "surface_task_ownership",
                     controlSession = grants is null ? null : new { schema = AccessAdmission.Schema, required = true },
                     providers = ProviderRouter.DescribeUser(),
                     serviceOperations = Array.Empty<string>(),
@@ -276,6 +276,15 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 return Envelope(request) with { ErrorCode = denied, Data = DesktopGrants.RefusalData(request.Operation, denied) };
             return await browser.ExecuteAsync(request, Envelope(request), cancellationToken, ownership is not null);
         }
+        // Report disabled access or required task negotiation before physical
+        // unavailability. The worker rechecks the same authority before effects.
+        if (grants?.Authorize(request, admittedGeneration) is { } accessDenied)
+            return result with
+            {
+                ErrorCode = accessDenied,
+                Message = "Desktop access refused before dispatch",
+                Data = DesktopGrants.RefusalData(request.Operation, accessDenied)
+            };
         if (!ready)
             return result with { ErrorCode = "desktop_unavailable", Message = "The active unlocked user desktop is unavailable" };
         return await _providerWork.RunAsync(request, admittedGeneration, async token =>

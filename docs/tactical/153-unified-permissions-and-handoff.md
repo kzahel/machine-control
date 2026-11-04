@@ -422,3 +422,23 @@ A failed termination remains a failed run, and no page action is replayed.
 Real-child tests distinguish clean exit, forced recovery and cleanup failure.
 The subsequent run uses the same product bytes with separately pinned actor
 source; this harness correction is not a product acceptance claim.
+
+**Current, subsequent same-product run:** `670d235` passes all 48 ordinary
+Browser/Settings checks with cleanup using actor `6911df3`. All three recorded
+fixture-browser shutdowns complete within their grace windows without a forced
+termination request. Settings starts and survives the required close/recreate/
+restart sequence, qualifying the cheap identity-mismatch correction in that
+composition.
+
+Locked Browser then passes 32 checks: real named-profile effects, capture,
+ordinary/root/streamed CDP, Pause, fresh Resume ownership and Stop all occur
+while Windows remains locked. Its next negative assertion fails because an
+unowned Desktop snapshot is correctly refused but reports `desktop_unavailable`
+instead of `surface_disabled`. Cleanup succeeds. No protected staging occurs.
+The native facade checked physical readiness before ordinary access for Desktop
+operations, unlike its Browser path. It now checks access first and retains the
+worker's final authorization before effects. Off reports disabled; enabled
+callers receive task-negotiation guidance before availability waits. Capability
+metadata also names surface/task ownership instead of retired target-wide
+grants. Native contracts, formatting and ARM64/x64 publishes pass; fresh live
+qualification must establish the corrected facade composition.
