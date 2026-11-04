@@ -54,7 +54,7 @@ internal sealed class DesktopActivityPolicy(DesktopGrants grants, TimeProvider? 
         }
     }
 
-    internal void Tick(bool healthy, bool? locked, double? idleSeconds, bool active = false)
+    internal void Tick(bool healthy, bool? locked, double? idleSeconds, bool activeDesktop = false)
     {
         lock (grants.Gate)
         {
@@ -67,7 +67,8 @@ internal sealed class DesktopActivityPolicy(DesktopGrants grants, TimeProvider? 
             // Session idle is an admission observation, not a human detector.
             // Stock unlock preparation injects wake/navigation events while
             // still locked; those must not interrupt an already accepted task.
-            var checkLockedIdle = locked == true && !active;
+            var checkLockedIdle = locked == true && !activeDesktop;
+            grants.Admission.SetInputReady(known && (!checkLockedIdle || knownIdle));
             Publish("activity_unknown", !known || checkLockedIdle && !knownIdle);
             // Ordinary unlocked activity does not precede or reset a warning.
             // Retain the conservative secure-desktop preparation guard.

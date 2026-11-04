@@ -10,7 +10,7 @@ internal static class DesktopActivityFixtures
         grants.Admission.Notice(10);
         var policy = grants.Activity;
         bool? locked = false; double? idle = 0; bool healthy = true;
-        grants.Admission.RefreshAvailability = () => policy.Tick(healthy, locked, idle, grants.Admission.HasActiveSession);
+        grants.Admission.RefreshAvailability = () => policy.Tick(healthy, locked, idle, grants.Admission.HasActiveDesktopSession);
         JsonElement View(object value) => JsonSerializer.SerializeToElement(value, Contract.Json);
         bool Block(string reason) => grants.Admission.Blocks("desktop").Contains(reason);
         Require(!Block("physical_activity"), "Recent unlocked activity does not block a warning");
@@ -58,6 +58,25 @@ internal static class DesktopActivityFixtures
         Require(Block("local_use_episode"), "Covered local use does not auto-clear while unlocked");
         locked = true; idle = 30;
         Require(!Block("local_use_episode") && !Block("physical_takeover"), "Protected relock plus quiet permits new ownership");
+        grants.Stop("fixture_reset");
+        locked = false; idle = 100;
+        grants.SetReady(true, consoleIdentity: "fixture-console");
+        grants.ConfigureBrowserWhileLocked(true);
+        grants.PrepareConsole(true);
+        grants.ConfigureSurface("browser", "automatic", 900, "timed", ["fixture-profile"]);
+        grants.ConfigureSurface("desktop", "automatic", 900, "timed");
+        var browser = View(grants.Admission.Submit("owner", "background", ["browser"], 300, 120, "Background fixture",
+            ["fixture-profile"], ["browser.tabs"]));
+        grants.Admission.Accept("owner", browser.GetProperty("intentId").GetString()!, browser.GetProperty("offerGeneration").GetInt64());
+        locked = true; idle = 5;
+        grants.SetReady(false, lockedConsole: true, consoleIdentity: "fixture-console");
+        var protectedTask = View(grants.Admission.Submit("protected", "quiet", ["desktop"], 300, 120, "Protected fixture"));
+        Require(protectedTask.GetProperty("state").GetString() == "paused" && Block("physical_activity"),
+            "A background Browser owner cannot bypass the locked Desktop quiet guard");
+        healthy = false;
+        grants.Admission.Refresh();
+        var background = View(grants.Admission.Inspect("owner", browser.GetProperty("intentId").GetString()!));
+        Require(background.GetProperty("state").GetString() == "active", "Unknown human observation preserves narrowed background Browser");
         grants.Stop("fixture_stop");
         grants.Admission.Disconnect("owner");
         Console.WriteLine("Windows deliberate activity and protected guard contracts passed");

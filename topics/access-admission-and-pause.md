@@ -51,6 +51,11 @@ Neither surface inherits the other's approval, pause or automatic permission.
 Global Pause and Stop override both; surface-specific controls affect only their
 surface. Off need not disconnect an extension: bounded setup/status discovery
 can remain available, without querying page contents or executing browser work.
+Unknown human-input observation blocks the shared disruptive-input resource,
+including full Browser work; narrowed background Browser work remains
+independent. Only an active Desktop owner can suppress the locked-screen
+preparation quiet guard. Global and surface pauses retain separate state;
+resuming Browser cannot clear Desktop takeover or request deferral.
 Unknown activity/readiness or another owner's reservation remains a separate
 eligibility condition, never permission supplied by a countdown.
 

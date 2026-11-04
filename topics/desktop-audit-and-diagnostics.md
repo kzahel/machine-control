@@ -36,6 +36,12 @@ A failure after dispatch preserves delivery/effect and reports
 `audit_result_not_persisted` with unsafe retry advice. Recovery never creates a
 grant. Logging health and known malformed/partial-record gaps are visible.
 
+**Current, Windows v2 source:** the shared admission engine emits task request,
+approval, warning, offer, ownership, yield, deferral, cancellation, expiry and
+scoped operator transitions. The native journal retains closed codes and hashed
+task/session correlations, without task reasons, page data or profile names.
+The bounded native event queue fails audit health on overflow.
+
 **Current:** Access transitions, resident lifecycle, operation refusals, and
 failures are recorded. Structured supervisor/update diagnostics use closed
 codes; companion stderr is drained without retaining its raw contents.

@@ -221,7 +221,7 @@ internal sealed class SharedBrowserHost : IDisposable
                         catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException) { }
                     });
                 }
-                else if (type == "provider.send" || type == "provider.close")
+                else if (type is "provider.send" or "provider.close" or "access.event")
                 {
                     var bytes = (long)frame.ToJsonString().Length * 3;
                     frame["queueBytes"] = bytes;

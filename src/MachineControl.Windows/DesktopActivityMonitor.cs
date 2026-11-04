@@ -36,7 +36,7 @@ internal sealed class DesktopActivityMonitor : IDisposable
         var locked = same ? SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) : null;
         var physical = Volatile.Read(ref _physical);
         if (physical != 0) _grants.Activity.ObservePhysical((double)physical / Stopwatch.Frequency);
-        _grants.Activity.Tick(Healthy, locked, IdleSeconds(), _grants.Admission.HasActiveSession);
+        _grants.Activity.Tick(Healthy, locked, IdleSeconds(), _grants.Admission.HasActiveDesktopSession);
     }
 
     internal bool Healthy => Volatile.Read(ref _installed) != 0 &&

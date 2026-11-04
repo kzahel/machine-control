@@ -35,6 +35,14 @@ try
     var journal = new DesktopJournal(journalRoot, segmentBytes: 1000, auditBytes: 5000);
     Assert(journal.Begin("input.text", "SENTINEL", callerPid: 123), "Durable intent");
     Assert(journal.Record(new Result { RequestId = "SENTINEL", Operation = "input.text", Accepted = true, Data = "SENTINEL", Message = "SENTINEL" }), "Durable result");
+    journal.QueueAdmission(new System.Text.Json.Nodes.JsonObject
+    { ["event"] = "approved", ["intentId"] = "PRIVATE-INTENT", ["sessionId"] = "PRIVATE-SESSION", ["reason"] = "PRIVATE-TASK", ["surface"] = "browser" });
+    var auditDeadline = System.Diagnostics.Stopwatch.StartNew();
+    while (!JsonSerializer.Serialize(journal.Preview(), Contract.Json).Contains("admission.approved"))
+    { if (auditDeadline.Elapsed.TotalSeconds > 5) throw new Exception("Admission audit not drained"); await Task.Delay(10); }
+    var admissionAudit = JsonSerializer.Serialize(journal.Preview(), Contract.Json);
+    Assert(!admissionAudit.Contains("PRIVATE-"), "Admission audit hashes correlations and rejects arbitrary reason text");
+    Assert(admissionAudit.Contains("surface.browser"), "Scoped admission event retained");
     var recovered = new DesktopJournal(journalRoot);
     var preview = JsonSerializer.Serialize(recovered.Preview(), Contract.Json);
     Assert(!preview.Contains("SENTINEL"), "Payload and raw request ID excluded");

@@ -201,6 +201,7 @@ internal static class BrowserDevToolsFixtures
             Require(timer.Elapsed < TimeSpan.FromSeconds(4), "sync reply must not require a free pool worker");
             var admission = new AccessAdmission();
             admission.Register("desktop", true);
+            admission.SetInputReady(true);
             admission.Bind(frame => host.Call(frame));
             admission.Configure("desktop", "automatic", 60, []);
             admission.Notice(0);

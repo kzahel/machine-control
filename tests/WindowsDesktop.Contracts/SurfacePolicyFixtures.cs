@@ -39,6 +39,8 @@ internal static class SurfacePolicyFixtures
         Require(grants.Authorize("type") == "access_paused", "Desktop surface pause applies");
         Require(grants.Authorize("browser.eval") is null && grants.BrowserGeneration == browserGeneration, "Desktop pause preserves browser consent and generation");
         grants.Resume();
+        Require(grants.Authorize("type") == "access_paused", "Global Resume preserves an independent surface pause");
+        grants.ResumeSurface("desktop");
         clock.Advance(86400 * 365);
         Require(grants.Authorize("type") is null, "Explicit until-off consent has no deadline");
         grants.ConfigureSurface("desktop", "automatic", 60, "timed");

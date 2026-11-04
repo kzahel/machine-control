@@ -70,7 +70,7 @@ export class PolicyHost {
 
   constructor(send: (frame: NativeFrame) => void, admissionClock: Clock = { now: () => Math.floor(performance.now()) }) {
     this.#send = send;
-    this.access = new AccessAdmission(admissionClock);
+    this.access = new AccessAdmission(admissionClock, event => this.#send({ type: "access.event", ...event }));
   }
 
   receive(frame: NativeFrame): void {
@@ -457,6 +457,7 @@ export class PolicyHost {
   #access(frame: NativeFrame): unknown {
     const method = frame.method;
     if (method === "access.state") return this.access.status();
+    if (method === "access.query") return this.access.query();
     if (method === "access.configure") {
       this.access.configure(string(frame.surface) as Surface, object(frame.configuration) as unknown as SurfaceConfiguration);
     } else if (method === "access.notice") this.access.notice(integer(frame.milliseconds));
@@ -464,6 +465,9 @@ export class PolicyHost {
       if (typeof frame.ready !== "boolean") throw new Error("invalid_host_request");
       if (frame.noticeVisible !== undefined && typeof frame.noticeVisible !== "boolean") throw new Error("invalid_host_request");
       this.access.ready(string(frame.surface) as Surface, frame.ready, frame.noticeVisible as boolean | undefined);
+    } else if (method === "access.input-ready") {
+      if (typeof frame.ready !== "boolean") throw new Error("invalid_host_request");
+      this.access.inputReady(frame.ready);
     } else if (method === "access.pause") this.access.pause(string(frame.surface) as Surface | "all", string(frame.reason), frame.milliseconds === null ? null : integer(frame.milliseconds));
     else if (method === "access.resume") this.access.resume(string(frame.surface) as Surface | "all", string(frame.reason));
     else if (method === "access.input") this.access.input(string(frame.surface) as Surface, string(frame.kind) as HumanInput);
@@ -486,16 +490,16 @@ export class PolicyHost {
           const narrowed = request.operations ?? undefined;
           if (narrowed !== undefined && (!Array.isArray(narrowed) || narrowed.length < 1 || narrowed.length > 64)) throw new Error("invalid_host_request");
           const operations = (narrowed as unknown[] | undefined)?.map(string);
-          return this.access.submit(owner, { ...request, disruptive: !backgroundOperations(operations) } as unknown as AdmissionRequest);
+          return this.access.submit(owner, { ...request, operations, disruptive: !backgroundOperations(operations) } as unknown as AdmissionRequest);
         }
         else if (method === "access.inspect") return this.access.inspect(owner, string(frame.intentId), frame.heartbeat === true);
         else if (method === "access.accept") return this.access.accept(owner, string(frame.intentId), integer(frame.offerGeneration));
-        else if (method === "access.authorize") return { refusal: this.access.authorize(owner, object(frame.fence) as unknown as SessionFence) };
+        else if (method === "access.authorize") return { refusal: this.access.authorize(owner, object(frame.fence) as unknown as SessionFence, frame.operation == null ? undefined : string(frame.operation)) };
         else if (method === "access.cancel") this.access.cancel(owner, string(frame.intentId));
         else throw new Error("unknown_host_method");
       }
     }
-    return this.access.status();
+    return ["access.input", "access.input-ready", "access.ready"].includes(method as string) ? this.access.query() : this.access.status();
   }
 
   #consume(effects: readonly Effect[]): void {

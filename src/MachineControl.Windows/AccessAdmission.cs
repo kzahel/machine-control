@@ -15,6 +15,7 @@ internal sealed class AccessAdmission(object? gate = null)
     private readonly Dictionary<(string, string), double?> _pauses = new();
     private readonly HashSet<string> _owners = [];
     private bool _refreshing;
+    private bool _inputReady;
     internal Action? RefreshAvailability { get; set; }
     internal event Action<string[]>? OwnershipChanged;
     private readonly Dictionary<string, (string Session, string[] Surfaces)> _sessions = new();
@@ -34,6 +35,7 @@ internal sealed class AccessAdmission(object? gate = null)
         {
             if (_invoke is not null) throw new InvalidOperationException("control_policy_already_bound");
             _invoke = invoke;
+            Call("input-ready", new() { ["ready"] = _inputReady });
             foreach (var (surface, ready) in _ready) Call("ready", new() { ["surface"] = surface, ["ready"] = ready.Ready, ["noticeVisible"] = ready.NoticeVisible });
             foreach (var ((surface, reason), seconds) in _pauses) SendPause(surface, reason, seconds);
         }
@@ -60,6 +62,15 @@ internal sealed class AccessAdmission(object? gate = null)
                 ["profileIds"] = JsonSerializer.SerializeToNode(profiles)
             }
         });
+    internal void SetInputReady(bool ready)
+    {
+        lock (Gate)
+        {
+            if (_inputReady == ready) return;
+            _inputReady = ready;
+            if (_invoke is not null) Call("input-ready", new() { ["ready"] = ready });
+        }
+    }
     internal void Notice(int seconds) => Call("notice", new() { ["milliseconds"] = seconds * 1000 });
     internal void Input(string surface, string kind) { lock (Gate) { if (_invoke is not null) Call("input", new() { ["surface"] = surface, ["kind"] = kind }); } }
     internal void Pause(string surface, string reason, double? seconds = null)
@@ -87,12 +98,12 @@ internal sealed class AccessAdmission(object? gate = null)
         {
             Refresh();
             if (_invoke is null) return ["control_policy_unavailable"];
-            var state = ((JsonObject)Status())["surfaces"]?[surface];
+            var state = Query()["surfaces"]?[surface];
             var pauses = (state?["pauses"] as JsonArray)?.Select(value => value!["reason"]!.GetValue<string>()) ?? [];
             return pauses.Concat(state?["ready"]?.GetValue<bool>() == true ? [] : new[] { "resource_unavailable" }).Order().ToArray();
         }
     }
-    internal JsonObject Surface(string surface) => (JsonObject)((JsonObject)Status())["surfaces"]![surface]!.DeepClone();
+    internal JsonObject Surface(string surface) => (JsonObject)Query()["surfaces"]![surface]!.DeepClone();
     internal bool Enabled(string surface)
     {
         lock (Gate)
@@ -138,7 +149,7 @@ internal sealed class AccessAdmission(object? gate = null)
             return Call("accept", new() { ["owner"] = owner, ["intentId"] = id, ["offerGeneration"] = offerGeneration });
         }
     }
-    internal string? Authorize(string owner, string id, string sessionId, IReadOnlyDictionary<string, long> generations)
+    internal string? Authorize(string owner, string id, string sessionId, IReadOnlyDictionary<string, long> generations, string? operation = null)
     {
         lock (Gate)
         {
@@ -150,6 +161,7 @@ internal sealed class AccessAdmission(object? gate = null)
                 return Call("authorize", new()
                 {
                     ["owner"] = owner,
+                    ["operation"] = operation,
                     ["fence"] = new JsonObject
                     { ["intentId"] = id, ["sessionId"] = sessionId, ["resourceGenerations"] = JsonSerializer.SerializeToNode(generations) }
                 })["refusal"]?.GetValue<string>();
@@ -202,8 +214,19 @@ internal sealed class AccessAdmission(object? gate = null)
         surfaces = new[] { "desktop", "browser" }.ToDictionary(surface => surface, _ => new
         { mode = "off", expired = false, consentRemainingSeconds = (int?)0, profileIds = Array.Empty<string>(), ready = false, pauses = Array.Empty<object>() })
     })!;
-    internal bool HasActiveSession => ((JsonObject)Status())["active"]?.GetValue<int>() > 0;
-    internal bool Reserved => (((JsonObject)Status())["requests"] as JsonArray)?.Any(value => value?["state"]?.GetValue<string>() is "active" or "offered" or "announcing") == true;
+    private JsonObject Query()
+    {
+        lock (Gate)
+        {
+            if (_invoke is not null)
+                try { return Call("query"); }
+                catch (Exception ex) when (PolicyLoss(ex)) { }
+            return Unavailable();
+        }
+    }
+    internal bool HasActiveSession => Query()["active"]?.GetValue<int>() > 0;
+    internal bool HasActiveDesktopSession => Query()["activeDesktop"]?.GetValue<bool>() == true;
+    internal bool Reserved => (Query()["requests"] as JsonArray)?.Any(value => value?["state"]?.GetValue<string>() is "active" or "offered" or "announcing") == true;
     private static bool PolicyLoss(Exception error) => error is IOException or TimeoutException or OperationCanceledException;
     private JsonObject Call(string method, JsonObject? fields = null)
     {

@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace MachineControl.Windows;
@@ -23,16 +24,18 @@ internal sealed class DesktopJournal
     private bool _historyGap;
     private bool _diagnosticsAvailable = true;
     private DateTimeOffset _debugUntil;
-    private readonly System.Threading.Channels.Channel<(string Operation, bool Accepted)> _events =
-        System.Threading.Channels.Channel.CreateBounded<(string, bool)>(32);
+    private readonly System.Threading.Channels.Channel<Dictionary<string, object?>> _events =
+        System.Threading.Channels.Channel.CreateBounded<Dictionary<string, object?>>(32);
     private int _writingEvents;
     private volatile bool _eventGap;
     /// Operator transitions cannot wait for disk. One bounded writer drains
     /// events; overflow becomes an explicit audit-health failure and prevents
     /// new access. Required action intents still persist before dispatch.
     internal void QueueEvent(string operation, bool accepted = true)
+        => Queue(new() { ["phase"] = "event", ["operation"] = Token(operation), ["accepted"] = accepted });
+    private void Queue(Dictionary<string, object?> value)
     {
-        if (!_events.Writer.TryWrite((operation, accepted)))
+        if (!_events.Writer.TryWrite(value))
         {
             _eventGap = true;
             return;
@@ -42,10 +45,32 @@ internal sealed class DesktopJournal
         {
             do
             {
-                while (_events.Reader.TryRead(out var item)) Event(item.Operation, item.Accepted);
+                while (_events.Reader.TryRead(out var item)) Append("audit", item);
                 Interlocked.Exchange(ref _writingEvents, 0);
             } while (_events.Reader.TryPeek(out _) && Interlocked.CompareExchange(ref _writingEvents, 1, 0) == 0);
         });
+    }
+    private static readonly HashSet<string> AdmissionEvents = new(
+        "requested approved deferred start_now takeover pause resume configured stopped yielded rejected waiting_for_resource waiting_for_approval paused announcing offered active ended".Split(' '));
+    private static readonly HashSet<string> AdmissionReasons = new(
+        "manual physical_takeover operator_deferral activity_unknown physical_activity local_use_episode resource_unavailable paused stale_control_session stale_generation operation_not_permitted_by_control_channel owner_disconnected consent_replaced surface_disabled consent_expired profile_not_approved queue_lease_expired duration_expired wait_deadline_exceeded activation_offer_expired cancelled denied_by_person stopped".Split(' '));
+    internal void QueueAdmission(JsonObject value)
+    {
+        var name = value["event"]?.GetValue<string>();
+        if (name is null || !AdmissionEvents.Contains(name)) return;
+        var reason = value["reason"]?.GetValue<string>();
+        var surface = value["surface"]?.GetValue<string>();
+        var row = new Dictionary<string, object?>
+        {
+            ["phase"] = "event",
+            ["operation"] = "admission." + name,
+            ["accepted"] = name != "rejected",
+            ["actualRoute"] = surface is "desktop" or "browser" or "all" ? "surface." + surface : "surface.unknown",
+            ["errorCode"] = reason is null ? null : AdmissionReasons.Contains(reason) ? reason : "unknown"
+        };
+        if (value["intentId"]?.GetValue<string>() is { } intent) row["requestId"] = Correlation(intent);
+        if (value["sessionId"]?.GetValue<string>() is { } session) row["generation"] = Correlation(session);
+        Queue(row);
     }
     internal bool Available => _error is null && !_eventGap;
     internal void Debug(bool enabled) { _debugUntil = enabled ? DateTimeOffset.UtcNow.AddMinutes(15) : DateTimeOffset.MinValue; Event(enabled ? "diagnostics.debug.enabled" : "diagnostics.debug.disabled"); }

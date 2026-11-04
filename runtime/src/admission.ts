@@ -4,7 +4,7 @@ export const admissionSchema = "machine-control-admission/v2";
 export type Surface = "desktop" | "browser";
 export type AccessMode = "off" | "ask" | "automatic";
 export type HumanInput = "movement" | "key" | "button" | "scroll";
-/** Common conservative impact rule; adapters enforce the narrowed operation set. */
+/** Common conservative impact rule, coupled to the enforced operation set. */
 export function backgroundOperations(operations: readonly string[] | undefined): boolean {
   return operations !== undefined && operations.length > 0 && operations.every(operation =>
     ["browser.tabs", "browser.snapshot", "browser.capture", "browser.wait", "browser.release"].includes(operation));
@@ -19,11 +19,21 @@ export interface AdmissionRequest {
   readonly requestId: string;
   readonly surfaces: readonly Surface[];
   readonly profileIds?: readonly string[];
+  readonly operations?: readonly string[];
   /** Supplied by the trusted operation router, never by an agent assertion. */
   readonly disruptive: boolean;
   readonly reason: string;
   readonly waitMs: number;
   readonly durationMs: number;
+}
+export interface AdmissionEvent {
+  readonly event: "requested" | "approved" | "deferred" | "start_now" | "takeover" |
+    "pause" | "resume" | "configured" | "stopped" | "yielded" | "rejected" |
+    "waiting_for_resource" | "waiting_for_approval" | "paused" | "announcing" | "offered" | "active" | "ended";
+  readonly surface?: Surface | "all";
+  readonly intentId?: string;
+  readonly sessionId?: string;
+  readonly reason?: string;
 }
 export interface AdmissionOwner { readonly channel: number }
 export interface SessionFence {
@@ -84,15 +94,18 @@ export class AccessAdmission {
   readonly #configuration = new Map<Surface, Configuration>();
   readonly #availability = new Map<Surface, Availability>();
   readonly #resourceGenerations = new Map<string, number>();
-  readonly #deferrals = new Map<string, number>();
-  readonly #ended: { owner: AdmissionOwner; sessionId: string; reason: string }[] = [];
+  readonly #deferrals = new Map<string, Map<Surface, number>>();
+  readonly #globalPauses = new Map<string, number>();
+  readonly #takeoverSurfaces = new Set<Surface>();
+  #inputReady = false;
+  readonly #event: (event: AdmissionEvent) => void;
   #sequence = 0;
   #revision = 0;
   #noticeMs = 10_000;
   #humanCooldownUntil = 0;
 
-  constructor(clock: Clock) {
-    this.#clock = clock;
+  constructor(clock: Clock, event: (event: AdmissionEvent) => void = () => {}) {
+    this.#clock = clock; this.#event = event;
     for (const surface of surfaces) {
       this.#configuration.set(surface, { mode: "off", expiresAt: 0, profiles: new Set(), generation: 0 });
       this.#availability.set(surface, { ready: false, noticeVisible: false, pauses: new Map() });
@@ -134,6 +147,7 @@ export class AccessAdmission {
     }
     ++current.generation;
     ++this.#revision;
+    this.#event({ event: "configured", surface });
     this.tick();
   }
   notice(milliseconds: number): void {
@@ -145,18 +159,30 @@ export class AccessAdmission {
     this.#available(surface).noticeVisible = noticeVisible;
     this.tick();
   }
+  inputReady(ready: boolean): void {
+    this.#inputReady = ready;
+    this.tick();
+  }
   pause(surface: Surface | "all", reason: string, milliseconds: number | null): void {
     identifier(reason);
     if (milliseconds !== null) duration(milliseconds, 1, 28_800_000);
-    for (const name of surface === "all" ? surfaces : [surface])
-      this.#available(name).pauses.set(reason, milliseconds === null ? Infinity : this.#now + milliseconds);
+    const pauses = surface === "all" ? this.#globalPauses : this.#available(surface).pauses;
+    pauses.set(reason, milliseconds === null ? Infinity : this.#now + milliseconds);
+    this.#event({ event: "pause", surface, reason });
     this.tick();
   }
   resume(surface: Surface | "all", reason: string): void {
-    for (const name of surface === "all" ? surfaces : [surface]) this.#available(name).pauses.delete(reason);
-    if (reason === "physical_takeover") this.#humanCooldownUntil = 0;
-    if (reason === "operator_deferral") for (const resource of this.#deferrals.keys())
-      if (surface === "all" || resource === "human-input" || resource === surface || resource.startsWith(`${surface}:`)) this.#deferrals.delete(resource);
+    const pauses = surface === "all" ? this.#globalPauses : this.#available(surface).pauses;
+    pauses.delete(reason);
+    if (reason === "physical_takeover") {
+      if (surface === "all") this.#takeoverSurfaces.clear(); else this.#takeoverSurfaces.delete(surface);
+      if (this.#takeoverSurfaces.size === 0) this.#humanCooldownUntil = 0;
+    }
+    if (reason === "operator_deferral") for (const [resource, origins] of this.#deferrals) {
+      if (surface === "all") origins.clear(); else origins.delete(surface);
+      if (!origins.size) this.#deferrals.delete(resource);
+    }
+    this.#event({ event: "resume", surface, reason });
     this.tick();
   }
   input(surface: Surface, kind: HumanInput): void {
@@ -166,7 +192,12 @@ export class AccessAdmission {
     // Input during a warning acknowledges no takeover and changes no deadline.
     // A cooldown is attached to the surface, so a new caller cannot bypass it.
     if (!this.#intents.some(i => i.session && i.request.disruptive && i.request.surfaces.includes(surface))) return;
-    if (this.#humanCooldownUntil <= this.#now) this.#humanCooldownUntil = this.#now + 60_000;
+    if (this.#humanCooldownUntil <= this.#now) {
+      this.#humanCooldownUntil = this.#now + 60_000;
+      this.#takeoverSurfaces.clear();
+    }
+    this.#takeoverSurfaces.add(surface);
+    this.#event({ event: "takeover", surface, reason: "physical_takeover" });
     this.tick();
   }
   submit(owner: AdmissionOwner, request: AdmissionRequest) {
@@ -186,8 +217,17 @@ export class AccessAdmission {
         (request.surfaces.includes("browser") ? profiles.length === 0 : profiles.length > 0))
       throw new Error("invalid_profile_selection");
     for (const profile of profiles) identifier(profile);
+    const operations = request.operations === undefined ? undefined : [...request.operations];
+    if (operations !== undefined) {
+      if (!Array.isArray(request.operations) || operations.length < 1 || operations.length > 64 ||
+          new Set(operations).size !== operations.length) throw new Error("invalid_admission_request");
+      for (const operation of operations) identifier(operation);
+      operations.sort();
+      if (!request.disruptive && !backgroundOperations(operations)) throw new Error("invalid_admission_impact");
+    }
     const copy = Object.freeze({ requestId: request.requestId, surfaces: Object.freeze([...request.surfaces].sort()),
       profileIds: Object.freeze(profiles), disruptive: request.disruptive, reason: request.reason,
+      ...(operations === undefined ? {} : { operations: Object.freeze(operations) }),
       waitMs: request.waitMs, durationMs: request.durationMs });
     const identity = JSON.stringify(copy);
     const duplicate = this.#intents.find(i => i.owner === owner && i.request.requestId === request.requestId);
@@ -207,6 +247,7 @@ export class AccessAdmission {
       activeDeadline: 0, generations: {},
     };
     this.#intents.push(intent);
+    this.#emit(intent, "requested");
     this.tick();
     return this.#view(intent);
   }
@@ -230,14 +271,21 @@ export class AccessAdmission {
       intent.generations[resource] = generation;
     }
     ++this.#revision;
+    this.#emit(intent, "active");
     return this.#view(intent);
   }
-  authorize(owner: AdmissionOwner, fence: SessionFence): string | null {
+  authorize(owner: AdmissionOwner, fence: SessionFence, operation?: string): string | null {
     this.tick();
     const intent = this.#owned(owner, fence.intentId);
-    if (!intent.session || intent.session !== fence.sessionId || intent.state !== "active") return "stale_control_session";
+    const refuse = (reason: string) => { this.#emit(intent, "rejected", reason); return reason; };
+    if (!intent.session || intent.session !== fence.sessionId || intent.state !== "active") return refuse("stale_control_session");
     if (Object.keys(fence.resourceGenerations).length !== intent.resources.length ||
-        intent.resources.some(resource => fence.resourceGenerations[resource] !== intent.generations[resource])) return "stale_generation";
+        intent.resources.some(resource => fence.resourceGenerations[resource] !== intent.generations[resource])) return refuse("stale_generation");
+    if (operation !== undefined && !["capabilities", "browser.profiles"].includes(operation)) {
+      if (intent.request.operations && !intent.request.operations.includes(operation)) return refuse("operation_not_permitted_by_control_channel");
+      if (!intent.request.surfaces.includes(operation.startsWith("browser.") ? "browser" : "desktop"))
+        return refuse("operation_not_permitted_by_control_channel");
+    }
     return null;
   }
   /** Operator approval is task-specific and stays within the original ceiling. */
@@ -248,6 +296,7 @@ export class AccessAdmission {
       const config = this.#config(surface);
       if (config.mode === "ask") intent.approvals.set(surface, config.generation);
     }
+    this.#emit(intent, "approved");
     this.tick();
   }
   startNow(id: string): void {
@@ -260,7 +309,7 @@ export class AccessAdmission {
         this.#blocks(intent).every(block => block === "physical_takeover") &&
         intent.request.surfaces.every(surface => {
           const available = this.#available(surface), config = this.#config(surface);
-          return available.ready && available.pauses.size === 0 &&
+          return this.#inputReady && this.#globalPauses.size === 0 && available.ready && available.pauses.size === 0 &&
             (config.mode !== "ask" || intent.approvals.get(surface) === config.generation);
         })) {
       this.#humanCooldownUntil = 0;
@@ -269,6 +318,7 @@ export class AccessAdmission {
     if (intent.state === "offered" || intent.state === "active") return;
     if (intent.state !== "announcing") throw new Error("stale_activation_notice");
     intent.noticeDeadline = this.#now;
+    this.#emit(intent, "start_now");
     // Adapter drains/acknowledges the operator input before calling this method.
     this.tick();
   }
@@ -287,18 +337,30 @@ export class AccessAdmission {
     this.tick();
     if (milliseconds !== null) duration(milliseconds, 1, 28_800_000);
     const intent = this.#live(id);
-    for (const resource of intent.resources) this.#deferrals.set(resource, milliseconds === null ? Infinity : this.#now + milliseconds);
+    for (const resource of intent.resources) {
+      const origins = this.#deferrals.get(resource) ?? new Map<Surface, number>();
+      for (const surface of intent.request.surfaces)
+        origins.set(surface, milliseconds === null ? Infinity : this.#now + milliseconds);
+      this.#deferrals.set(resource, origins);
+    }
+    this.#emit(intent, "deferred");
     this.tick();
   }
   stop(reason = "stopped"): void {
     for (const intent of this.#intents) if (!intent.terminal) this.#finish(intent, reason);
     for (const config of this.#configuration.values()) { config.mode = "off"; config.expiresAt = 0; ++config.generation; }
+    this.#deferrals.clear(); this.#takeoverSurfaces.clear(); this.#humanCooldownUntil = 0;
     ++this.#revision;
+    this.#event({ event: "stopped" });
   }
   tick(): void {
     const now = this.#now;
     const yielded: Intent[] = [];
-    for (const [resource, deadline] of this.#deferrals) if (now >= deadline) this.#deferrals.delete(resource);
+    for (const [resource, origins] of this.#deferrals) {
+      for (const [surface, deadline] of origins) if (now >= deadline) origins.delete(surface);
+      if (!origins.size) this.#deferrals.delete(resource);
+    }
+    for (const [reason, deadline] of this.#globalPauses) if (now >= deadline) this.#globalPauses.delete(reason);
     for (const availability of this.#availability.values())
       for (const [reason, deadline] of availability.pauses)
         if (now >= deadline) availability.pauses.delete(reason);
@@ -316,6 +378,7 @@ export class AccessAdmission {
         intent.deadline = Math.min(intent.taskDeadline, now + Math.max(intent.request.waitMs,
           Math.max(0, this.#humanCooldownUntil - now) + this.#noticeMs + 15_000));
         intent.state = "paused";
+        this.#emit(intent, "paused");
         yielded.push(intent);
       }
       if (!intent.session && now >= intent.deadline) { this.#finish(intent, "wait_deadline_exceeded"); continue; }
@@ -331,7 +394,7 @@ export class AccessAdmission {
         intent.resources.some(resource => reserved.has(resource)) ? "waiting_for_resource" :
         approval ? "waiting_for_approval" : null;
       if (state) {
-        if (intent.state !== state) { intent.state = state; intent.offer = 0; ++this.#revision; }
+        if (intent.state !== state) { intent.state = state; intent.offer = 0; ++this.#revision; this.#emit(intent, state); }
         // Waiting for permission owns nothing. In particular Desktop Ask must
         // not prevent an independently automatic Browser task from warning.
         // Native presenters coalesce approval notices without reserving work.
@@ -343,11 +406,13 @@ export class AccessAdmission {
         intent.announced ||= intent.noticeDeadline > now;
         intent.state = "announcing";
         ++this.#revision;
+        this.#emit(intent, "announcing");
       }
       if (intent.state === "announcing" && now >= intent.noticeDeadline) {
         intent.state = "offered";
         intent.offerDeadline = now + 15_000;
         intent.offer = ++this.#revision;
+        this.#emit(intent, "offered");
       }
     }
     const terminal = this.#intents.filter(i => i.terminal);
@@ -357,7 +422,8 @@ export class AccessAdmission {
   nextDeadline(): number | null {
     this.tick();
     const deadlines: number[] = [];
-    deadlines.push(...this.#deferrals.values());
+    for (const origins of this.#deferrals.values()) deadlines.push(...origins.values());
+    deadlines.push(...this.#globalPauses.values());
     if (this.#humanCooldownUntil > this.#now) deadlines.push(this.#humanCooldownUntil);
     for (const config of this.#configuration.values()) if (config.expiresAt > this.#now) deadlines.push(config.expiresAt);
     for (const availability of this.#availability.values()) deadlines.push(...availability.pauses.values());
@@ -370,26 +436,40 @@ export class AccessAdmission {
     const finite = deadlines.filter(Number.isFinite);
     return finite.length ? Math.min(...finite) : null;
   }
-  drainEnded() { return this.#ended.splice(0); }
   status() {
     this.tick();
     return {
       schema: admissionSchema, available: true, revision: this.#revision, ownerBinding: "admitted_channel", noticeSeconds: this.#noticeMs / 1000,
       handoffCooldownRemainingSeconds: Math.max(0, this.#humanCooldownUntil - this.#now) / 1000,
-      deferrals: [...this.#deferrals].map(([resource, until]) => ({ resource, remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
-      surfaces: Object.fromEntries(surfaces.map(surface => {
+      humanInputReady: this.#inputReady,
+      globalPauses: [...this.#globalPauses].map(([reason, until]) => ({ reason, remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
+      deferrals: [...this.#deferrals].map(([resource, origins]) => { const until = Math.max(...origins.values()); return ({ resource, remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null }); }),
+      surfaces: this.#surfaceViews(),
+      waiting: this.#intents.filter(i => !i.terminal && !i.session).length,
+      active: this.#intents.filter(i => i.session).length,
+      requests: this.#intents.filter(i => !i.terminal).map(i => this.#view(i)),
+    };
+  }
+  /** Native dispatch/observation facts without task text or full intent views. */
+  query() {
+    this.tick();
+    const requests = this.#intents.filter(i => !i.terminal);
+    return { schema: admissionSchema, available: true, revision: this.#revision,
+      humanInputReady: this.#inputReady, surfaces: this.#surfaceViews(),
+      active: requests.filter(i => i.session).length,
+      activeDesktop: requests.some(i => i.session && i.request.surfaces.includes("desktop")),
+      requests: requests.map(i => ({ intentId: i.id, sessionId: i.session, state: i.state, surfaces: [...i.request.surfaces] })) };
+  }
+  #surfaceViews() {
+    return Object.fromEntries(surfaces.map(surface => {
         const config = this.#config(surface), available = this.#available(surface);
         return [surface, {
           mode: config.mode, expired: config.mode !== "off" && this.#now >= config.expiresAt,
           consentRemainingSeconds: Number.isFinite(config.expiresAt) ? Math.max(0, config.expiresAt - this.#now) / 1000 : null,
           profileIds: [...config.profiles].sort(), ready: available.ready, noticeVisible: available.noticeVisible,
-          pauses: [...available.pauses].map(([reason, until]) => ({ reason, remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
+          pauses: [...available.pauses, ...this.#globalPauses].map(([reason, until]) => ({ reason, remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
         }];
-      })),
-      waiting: this.#intents.filter(i => !i.terminal && !i.session).length,
-      active: this.#intents.filter(i => i.session).length,
-      requests: this.#intents.filter(i => !i.terminal).map(i => this.#view(i)),
-    };
+      }));
   }
   get #now(): number { return this.#clock.now(); }
   #config(surface: Surface): Configuration {
@@ -429,14 +509,12 @@ export class AccessAdmission {
     return [...new Set([...intent.request.surfaces.flatMap(surface => {
       const available = this.#available(surface);
       return [...available.pauses.keys(), ...(available.ready ? [] : ["resource_unavailable"])];
-    }), ...(intent.request.disruptive && this.#humanCooldownUntil > this.#now ? ["physical_takeover"] : []),
+    }), ...this.#globalPauses.keys(), ...(intent.request.disruptive && !this.#inputReady ? ["activity_unknown"] : []), ...(intent.request.disruptive && this.#humanCooldownUntil > this.#now ? ["physical_takeover"] : []),
       ...(intent.resources.some(resource => this.#deferrals.has(resource)) ? ["operator_deferral"] : [])])].sort();
   }
   #release(intent: Intent, reason: string): void {
     if (!intent.session) return;
-    this.#ended.push({ owner: intent.owner, sessionId: intent.session, reason });
-    // Revocations are a bounded mailbox; native adapters must drain each turn.
-    if (this.#ended.length > 1024) this.#ended.shift();
+    this.#emit(intent, "yielded", reason);
     for (const resource of intent.resources) this.#resourceGenerations.set(resource, (this.#resourceGenerations.get(resource) ?? 0) + 1);
     intent.session = null;
     intent.generations = {};
@@ -448,6 +526,11 @@ export class AccessAdmission {
     intent.terminal = reason;
     intent.state = "ended";
     ++this.#revision;
+    this.#emit(intent, "ended", reason);
+  }
+  #emit(intent: Intent, event: AdmissionEvent["event"], reason?: string): void {
+    this.#event({ event, surface: intent.request.surfaces.length === 2 ? "all" : intent.request.surfaces[0]!, intentId: intent.id,
+      ...(intent.session ? { sessionId: intent.session } : {}), ...(reason === undefined ? {} : { reason }) });
   }
   #view(intent: Intent) {
     return {

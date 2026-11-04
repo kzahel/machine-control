@@ -8,7 +8,7 @@ function fixture(desktop = "automatic", browser = "automatic") {
   const policy = new AccessAdmission({ now: () => now });
   policy.configure("desktop", { mode: desktop, durationMs: null });
   policy.configure("browser", { mode: browser, durationMs: null, profileIds: ["work", "personal"] });
-  policy.ready("desktop", true); policy.ready("browser", true);
+  policy.ready("desktop", true); policy.ready("browser", true); policy.inputReady(true);
   const owner = policy.open();
   const request = (surface = "desktop", extras = {}, client = owner) => policy.submit(client, {
     requestId: `request:${++sequence}`, surfaces: [surface], profileIds: surface === "browser" ? ["work"] : [],
@@ -154,6 +154,8 @@ test("surface pauses and Off leave unrelated background browser work available",
   f.policy.pause("all", "manual", null);
   assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
   f.policy.resume("browser", "manual");
+  assert.equal(f.inspect(browser).state, "paused", "surface Resume cannot clear a global Pause");
+  f.policy.resume("all", "manual");
   assert.equal(f.inspect(browser).state, "offered");
 });
 
@@ -197,7 +199,6 @@ test("exact profile sets, object owner binding, idempotency and generation fence
   assert.equal(f.policy.authorize(f.owner, { ...active, resourceGenerations: {} }), "stale_generation");
   f.policy.close(f.owner);
   assert.throws(() => f.policy.authorize(f.owner, active), /owner_mismatch/);
-  assert.equal(f.policy.drainEnded().length, 1);
 });
 
 test("provider work completing after takeover cannot publish success or replay an effect", () => {
@@ -281,6 +282,7 @@ test("production process inlet carries independent owners and negotiates v2 with
     await call("configure", { surface: "desktop", configuration: { mode: "ask", durationMs: null } });
     await call("configure", { surface: "browser", configuration: { mode: "automatic", durationMs: null, profileIds: ["work"] } });
     for (const surface of ["desktop", "browser"]) await call("ready", { surface, ready: true });
+    await call("input-ready", { ready: true });
     for (const owner of ["one", "two"]) await call("open", { owner });
     const request = { requestId: "task", surfaces: ["desktop"], disruptive: true, reason: "Process fixture", waitMs: 30_000, durationMs: 30_000 };
     const desktop = await call("submit", { owner: "one", request });
@@ -295,4 +297,65 @@ test("production process inlet carries independent owners and negotiates v2 with
     await call("stop");
     assert.equal((await call("state")).surfaces.desktop.mode, "off");
   } finally { await process.close(); }
+});
+
+test("unknown human-input observation fences disruptive Browser but preserves background work", () => {
+  const f = fixture();
+  const active = f.activate(f.request("browser", { disruptive: true }));
+  const background = f.activate(f.request("browser", { profileIds: ["personal"] }));
+  f.policy.inputReady(false);
+  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+  assert.equal(f.policy.authorize(f.owner, background), null);
+  const request = f.request("desktop");
+  assert.ok(request.blockingReasons.includes("activity_unknown"));
+  f.policy.inputReady(true);
+  assert.equal(f.inspect(request).state, "waiting_for_resource", "restored readiness preserves resource arbitration");
+  f.policy.cancel(f.owner, active.intentId);
+  assert.equal(f.inspect(request).state, "announcing");
+});
+
+test("common authority enforces narrowed operations and surfaces", () => {
+  const f = fixture(), active = f.activate(f.request("browser", { operations: ["browser.tabs"] }));
+  assert.equal(f.policy.authorize(f.owner, active, "browser.tabs"), null);
+  assert.equal(f.policy.authorize(f.owner, active, "browser.eval"), "operation_not_permitted_by_control_channel");
+  assert.equal(f.policy.authorize(f.owner, active, "click"), "operation_not_permitted_by_control_channel");
+  assert.equal(f.policy.authorize(f.owner, active, "capabilities"), null);
+  assert.throws(() => f.request("browser", { operations: ["browser.eval"] }), /invalid_admission_impact/);
+});
+
+test("global and surface pauses, deferrals and cooldowns keep their own resume scope", () => {
+  const f = fixture(), first = f.request();
+  f.policy.pause("desktop", "manual", null);
+  f.policy.pause("all", "manual", null);
+  f.policy.resume("all", "manual");
+  assert.equal(f.inspect(first).state, "paused", "global Resume preserves the independent surface pause");
+  f.policy.resume("desktop", "manual");
+  f.activate(first);
+  f.policy.input("desktop", "key");
+  f.policy.resume("browser", "physical_takeover");
+  assert.equal(f.inspect(first).state, "paused", "Browser Resume cannot clear Desktop takeover");
+  f.policy.defer(first.intentId, null);
+  f.policy.resume("browser", "operator_deferral");
+  f.policy.resume("desktop", "physical_takeover");
+  assert.equal(f.inspect(first).state, "paused", "Browser Resume cannot clear Desktop deferral");
+  f.policy.stop();
+  f.policy.configure("desktop", { mode: "automatic", durationMs: null });
+  assert.equal(f.request().state, "announcing", "Stop clears task deferrals before fresh consent");
+});
+
+test("admission emits closed transition metadata without request or page text", () => {
+  const events = [], policy = new AccessAdmission({ now: () => 0 }, event => events.push(event));
+  policy.configure("desktop", { mode: "ask", durationMs: null });
+  policy.ready("desktop", true); policy.inputReady(true);
+  const owner = policy.open(), intent = policy.submit(owner, { requestId: "private-request-id", surfaces: ["desktop"],
+    disruptive: true, reason: "PRIVATE TASK AND PAGE CONTENT", waitMs: 300_000, durationMs: 120_000 });
+  policy.approve(intent.intentId); policy.startNow(intent.intentId);
+  const offer = policy.inspect(owner, intent.intentId), active = policy.accept(owner, intent.intentId, offer.offerGeneration);
+  policy.input("desktop", "key"); policy.authorize(owner, active); policy.cancel(owner, intent.intentId);
+  const names = events.map(event => event.event);
+  for (const expected of ["requested", "waiting_for_approval", "approved", "announcing", "start_now", "offered", "active", "takeover", "yielded", "paused", "rejected", "ended"])
+    assert.ok(names.includes(expected), expected);
+  assert.equal(events.findLast(event => event.event === "ended").reason, "cancelled");
+  assert.ok(!JSON.stringify(events).includes("PRIVATE"));
+  assert.ok(!JSON.stringify(events).includes("private-request-id"));
 });

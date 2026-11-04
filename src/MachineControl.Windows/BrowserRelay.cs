@@ -203,6 +203,8 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     }
     private void Receive(JsonObject message)
     {
+        if (message["type"]?.GetValue<string>() == "access.event")
+        { _grants.Journal?.QueueAdmission(message); return; }
         var peer = message["transportTag"]?.GetValue<string>() is { } tag ? _peers.GetValueOrDefault(tag) :
             _peers.Values.FirstOrDefault(value => value.ConnectionId == message["connectionId"]?.GetValue<string>());
         if (peer is null) return;
@@ -253,7 +255,8 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         if (!_authorities.TryGetValue(authorityId, out var authority)) return false;
         lock (_grants.Gate)
         {
-            var allowed = _stopped == 0 && _grants.AuthorizeNative(authority.Request with { Operation = "browser.cdp" }, authority.Generation) is null;
+            var allowed = _stopped == 0 && _grants.AuthorizeNative(authority.Request, authority.Generation) is null &&
+                _grants.AuthorizeNative("browser.cdp", authority.Generation, controlled: true) is null;
             var phase = frame["phase"]?.GetValue<string>();
             var auditId = frame["auditId"]?.GetValue<string>() ?? "";
             if (phase == "check") return allowed;

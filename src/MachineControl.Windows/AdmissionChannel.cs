@@ -114,9 +114,9 @@ internal static class AdmissionChannel
                             if (actions.Count >= 128) throw new InvalidOperationException("control_response_capacity");
                             var fence = new ControlOwnership(owner, intentId, Required(request, "sessionId").GetValue<string>(),
                                 Required(request, "resourceGenerations").Deserialize<Dictionary<string, long>>()!, startedLocked);
-                            var denied = admission.Authorize(owner, intentId, fence.Session, fence.Generations);
-                            if (denied is not null) throw new InvalidOperationException(denied);
                             var effect = Contract.ParseRequest(Required(request, "request").ToJsonString()) with { RequestId = id };
+                            var denied = admission.Authorize(owner, intentId, fence.Session, fence.Generations, effect.Operation);
+                            if (denied is not null) throw new InvalidOperationException(denied);
                             var scope = DesktopGrants.ScopeFor(effect.Operation);
                             if (effect.Operation is not ("capabilities" or "browser.profiles") && (scope is null || !scopes.Contains(scope))) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
                             if (operations is not null && effect.Operation is not ("capabilities" or "browser.profiles") && !operations.Contains(effect.Operation)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");

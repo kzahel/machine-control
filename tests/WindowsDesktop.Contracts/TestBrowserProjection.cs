@@ -15,7 +15,7 @@ internal sealed class TestBrowserProjection : IBrowserPolicy
         var grants = new DesktopGrants(time, journal) { BrowserPolicy = projection };
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
         start.ArgumentList.Add(Path.GetFullPath("runtime/testing/admission-host.ts"));
-        var host = new SharedBrowserHost(start, _ => { }, _ => false, () => { });
+        var host = new SharedBrowserHost(start, frame => { if (frame["type"]?.GetValue<string>() == "access.event") journal?.QueueAdmission(frame); }, _ => false, () => { });
         Hosts.Add(host);
         time ??= TimeProvider.System;
         var origin = time.GetTimestamp();
@@ -26,6 +26,7 @@ internal sealed class TestBrowserProjection : IBrowserPolicy
             host.Call(new JsonObject { ["method"] = "fixture.time", ["milliseconds"] = milliseconds });
             return host.Call(frame);
         });
+        grants.Admission.SetInputReady(true);
         grants.Admission.Notice(0);
         return grants;
     }

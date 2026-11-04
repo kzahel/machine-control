@@ -146,7 +146,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (!Admission.Enabled(surface)) return "surface_disabled";
             // A paused/busy caller still negotiates one live waiting intent.
             if (request.ControlOwnership is not { } owner) return "control_session_required";
-            if (Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is { } denied) return denied;
+            if (Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations, request.Operation) is { } denied) return denied;
             return Authorize(request.Operation, expectedGeneration, controlled: true, nativeOnly: nativeOnly);
         }
     }
