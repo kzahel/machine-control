@@ -124,9 +124,14 @@ def main():
                     'failureDetails': {key: result.get(key) for key in ['message','delivery','effect','uncertainty','actualRoute']}
                         if result and not result.get('accepted') else None}) + '\n')
                 trace.flush()
-        if generation is None:
-            generation = result['generation']
-        assert result.get('generation') == generation, 'Resident restarted during smoke'
+        # Browser results name the relay generation, which changes on native
+        # host reconnect. Resident/native results name the runtime generation.
+        # Keep those fences distinct; stale browser references are tested at
+        # their actual reconnect boundary below.
+        if not operation.startswith('browser.'):
+            if generation is None:
+                generation = result['generation']
+            assert result.get('generation') == generation, 'Resident restarted during smoke'
         return result
 
     def call(operation, **fields):

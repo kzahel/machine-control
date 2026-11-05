@@ -147,3 +147,11 @@ never reopen after uncertain dispatch. Protected renewal uses that same
 combined owner, and post-completion browser readback opens its separate phase
 only after the previous owner has ended. Pure fixture coverage checks shared
 binding and exactly-once closure; real development qualification continues.
+
+The hybrid native trial reaches Browser operations and exposes a generation
+assertion comparing relay results to the resident runtime ID. Keep the relay
+and runtime fences distinct; native/runtime stability and reconnect stale-
+reference checks remain. With that correction the development trial passes
+actual native approval, browser input/capture, Settings recreation, download/
+upload byte effects, cancellation and overwrite observation. Recovery checks
+continue; this is not release acceptance.
