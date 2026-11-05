@@ -1,6 +1,11 @@
 name: Windows desktop
 run-name: Windows desktop ${{ inputs.version || github.sha }}
 on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'runtime/**', 'tests/runtime/**', 'tests/release/**', 'tests/windows/**', 'tests/WindowsDesktop.Contracts/**', 'src/MachineControl.Windows/**', '.github/workflows/windows-desktop.yml']
+  pull_request:
+    paths: ['desktop/**', 'runtime/**', 'tests/runtime/**', 'tests/release/**', 'tests/windows/**', 'tests/WindowsDesktop.Contracts/**', 'src/MachineControl.Windows/**', '.github/workflows/windows-desktop.yml']
   workflow_dispatch:
     inputs:
       version:
@@ -63,7 +68,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows Rust checks failed' }
   signed:
     needs: check
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')
     runs-on: ${{ matrix.runner }}
     defaults:
       run:

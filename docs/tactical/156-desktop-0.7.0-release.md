@@ -105,3 +105,11 @@ Install shared dependencies before native/portable checks in both Windows
 release jobs. Mac source paths and its pure fixture test invocation now include
 the shared runtime and all Mac acceptance helpers. Extension bytes are unchanged;
 its immutable submission is not repeated when rebuilding the desktop candidate.
+
+The replacement source again passes all source workflows. Candidate
+`41977322135` clears Windows native contracts, then its Windows-only Rust
+Clippy gate rejects a side-effect-only `map_err`. Use `inspect_err` while
+preserving the diagnostic and original error. Add the unsigned Windows desktop
+check to main/PR source CI; signed jobs remain dispatch-only on main. This
+moves Windows Rust verification ahead of candidate construction. The failed
+candidate is canceled before appliance acceptance; no VM has been created.

@@ -215,9 +215,8 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?
             .trim(),
     );
-    let job = create_job().map_err(|error| {
+    let job = create_job().inspect_err(|_| {
         crate::diagnostics::record("companion.job_failed");
-        error
     })?;
     // Publish before creating a child; exit can cancel an incomplete startup.
     {
