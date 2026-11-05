@@ -143,6 +143,7 @@ class SurfaceFixtureTests(unittest.TestCase):
         self.assertEqual(process.poll(),1)
         output,_=process.communicate()
         self.assertIn(b'"accepted": false',output)
+        self.assertIn(b'fixture_refused',output)
         self.assertEqual(calls.count('snapshot'),1)
 
     def test_pending_first_read_cannot_claim_completion_or_retarget(self):

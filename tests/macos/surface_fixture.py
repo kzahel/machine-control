@@ -206,7 +206,7 @@ class SDKOwnerProcess:
     observes actual SDK/native endings; it never creates or retries an owner.
     """
     def __init__(self,rig,duration,target,status):
-        self.rig=rig;self.status=status;self.control_id=None;self.returncode=None
+        self.rig=rig;self.status=status;self.control_id=None;self.returncode=None;self.first_reply=None
         rig.close_owners()
         surfaces=['desktop','browser'] if rig.profiles else ['desktop']
         self.session=rig.sdk(rig.target,reason='Qualify finite protected owner',surfaces=surfaces,profile_ids=rig.profiles,duration=duration,wait=180,renew=False)
@@ -215,6 +215,9 @@ class SDKOwnerProcess:
         def begin():
             self.session.wait()
             reply=self.session.call(dict(operation='snapshot',provider='macos-native',target=str(target),maxDepth=8,maxElements=500))
+            self.first_reply=reply
+            if not reply.get('accepted'):
+                print('COVERED_FIRST_READ_REFUSAL '+json.dumps({k:reply.get(k) for k in ['errorCode','delivery','effect','uncertainty','retrySafety','actualRoute']}),flush=True)
             assert reply.get('accepted'),reply.get('errorCode')
             return reply
         self.future=self.pool.submit(begin)
@@ -236,7 +239,10 @@ class SDKOwnerProcess:
         poll(lambda:self.poll() is not None,'finite SDK owner ending',timeout)
         current=self.status()['lockedUse']
         result=dict(accepted=self.returncode==0,data=dict(reason=current.get('lastEndedReason')))
-        if self.returncode and self.future.done():result['errorCode']=type(self.future.exception()).__name__
+        if self.returncode and self.future.done():
+            error=self.future.exception()
+            result['errorCode']=(self.first_reply or {}).get('errorCode') or getattr(error,'code',type(error).__name__)
+            if self.first_reply is not None:result['firstRead']={k:self.first_reply.get(k) for k in ['delivery','effect','uncertainty','retrySafety','actualRoute']}
         self.terminate()
         return json.dumps(result).encode(),b''
 

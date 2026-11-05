@@ -214,3 +214,11 @@ request and assert it remains pending after status observation before testing
 second-action refusal. Keep actual unknown-delivery timeout and no-replay
 checks. All 95 release tests pass (one platform skip); native repetition
 continues rather than treating an expired window as concurrency evidence.
+
+The corrected busy-action trial passes 58 checks and the real unarmed
+startup-cancellation cell. Its next protected owner becomes active, but the
+first native read refuses. The process-shaped SDK fixture retains only the
+exception class, which loses the native reason. Retain and report the closed
+first-read error/delivery/effect/uncertainty fields without replay, owner
+replacement or fabricated success. All 16 Mac fixture and 95 release tests
+pass, including exact refusal-code retention. Native diagnosis continues.
