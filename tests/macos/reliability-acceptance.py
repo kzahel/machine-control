@@ -146,6 +146,7 @@ def main():
                 archive.extractall(extracted,filter='data')
             app = Path(extracted)/'candidate/Machine Control.app'
             subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)
+            surface_modes = (app/'Contents/Resources/shared-policy/payload.json').is_file()
             run_claimed(mc+['--provision-run',journal,'--target',a.target,'run','--intent','isolated',
                 '--duration','30m','--reason','Verify exact candidate saved choices and boot-bound consent',
                 '--claimant-authority',a.claimant_authority,'--claimant-id',a.claimant_id,'--',
@@ -155,7 +156,7 @@ def main():
         boot = json.loads((a.output/'reboot/reboot-choices.json').read_text())
         assert boot['actualReboot'] is True and boot['authorizationRestored'] is False
         assert boot['stopCleanRelaunch'] is True and boot['rememberedDuration'] == 0
-        if (app/'Contents/Resources/shared-policy/payload.json').is_file():
+        if surface_modes:
             assert boot['rememberedSurfaces']==2 and boot['protectedStopNative'] is True
         else:
             assert boot['rememberedScopes']==4

@@ -113,3 +113,9 @@ preserving the diagnostic and original error. Add the unsigned Windows desktop
 check to main/PR source CI; signed jobs remain dispatch-only on main. This
 moves Windows Rust verification ahead of candidate construction. The failed
 candidate is canceled before appliance acceptance; no VM has been created.
+
+Controller review also catches a temporary-directory lifetime bug: the final
+boot validator reads the extracted app's surface-contract marker after its
+directory has been removed. Capture that marker while the verified archive is
+still extracted; cleanup then cannot misclassify the current app as legacy.
+No candidate or appliance execution is needed to reproduce this path error.
