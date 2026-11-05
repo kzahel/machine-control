@@ -10,6 +10,17 @@ fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_root_pause_requires_explicit_healthy_bounded_automatic_recovery(self):
+        spec=importlib.util.spec_from_file_location('covered_recovery',Path(__file__).with_name('covered-recovery.py'))
+        recovery=importlib.util.module_from_spec(spec);spec.loader.exec_module(recovery)
+        value=dict(phase='paused',helperHealthy=True,pauseReason='watchdog_interrupted',
+            pausedUntilManualUnlock=False,recoveryCondition='same_console_locked_healthy_and_quiet',recoveryDelaySeconds=30)
+        self.assertTrue(recovery.recoverable_root_pause(value))
+        for key,changed in [('helperHealthy',False),('pauseReason','physical_presence'),
+                ('pausedUntilManualUnlock',True),('recoveryCondition',None),('recoveryDelaySeconds',900)]:
+            with self.subTest(key=key):
+                self.assertFalse(recovery.recoverable_root_pause({**value,key:changed}))
+
     def test_observer_metadata_and_typed_authorization_do_not_use_action_channel(self):
         rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
         rig.observer='managed-fixture';rig.observer_owner=object();calls=[]

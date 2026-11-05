@@ -17,6 +17,15 @@ import time
 import uuid
 
 
+def recoverable_root_pause(value):
+    return (value.get('phase')=='paused' and value.get('helperHealthy') is True
+        and value.get('pauseReason')=='watchdog_interrupted'
+        and value.get('pausedUntilManualUnlock') is False
+        and value.get('recoveryCondition')=='same_console_locked_healthy_and_quiet'
+        and type(value.get('recoveryDelaySeconds')) is int
+        and value['recoveryDelaySeconds'] in {30,60,120,240,300})
+
+
 def native_fixture(c, phase):
     call, poll, check = (c[k] for k in ['call', 'poll', 'check'])
     target = str(c['fixture'].pid)
@@ -735,15 +744,15 @@ def run(c):
         def settled_recovery():
             observed = fresh_status()
             value = state(observed)
-            return observed if value['phase'] in {'recovering', 'ready'} else None
+            return observed if value['phase'] in {'recovering', 'ready'} or recoverable_root_pause(value) else None
         observed = poll(settled_recovery, 'fresh pending or completed recovery')
         current = observed['lockedUse']
-        if current['phase'] == 'recovering':
+        if current['phase'] in {'recovering','paused'}:
             refusal = (c['rig'].exchange(c['rig'].endpoint,'snapshot',target=str(c['fixture'].pid),provider='macos-native') if c.get('rig') is not None else raw('snapshot',target=str(c['fixture'].pid),provider='macos-native'))
             # The unowned native ingress must remain fenced during recovery.
             observed = poll(settled_recovery, 'recovery state after desktop probe')
             current = observed['lockedUse']
-            if current['phase'] == 'recovering':
+            if current['phase'] in {'recovering','paused'}:
                 # Grant restoration can temporarily publish browser scopes
                 # before the local recovery fence is consulted. Both layers
                 # must refuse desktop dispatch under the retained consent.

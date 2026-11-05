@@ -248,3 +248,13 @@ Stage the driver separately, assert its import origin, and record SDK origin
 in evidence. Release mode refuses this option before target work and always
 uses the exact bundled SDK. All 95 release and 16 Mac fixture tests pass;
 source-SDK development qualification is underway.
+
+The source-SDK run passes 100 native checks, including the independent
+root-only relock proof. Its resulting state is a healthy `paused` phase with
+the explicit same-console/locked/quiet automatic recovery condition, a
+30-second cooldown and no manual-unlock requirement. The legacy fixture
+accepts only `recovering` or `ready` and times out before that ceiling clears.
+Recognize only this typed, healthy, bounded watchdog pause; retain independent
+lock, dispatch refusal, minimum cooldown and eventual readiness requirements.
+Manual, unhealthy, physical-input and unbounded pauses remain failures. All
+17 Mac fixture and 95 release tests pass; native repetition continues.
