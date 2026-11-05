@@ -258,3 +258,13 @@ Recognize only this typed, healthy, bounded watchdog pause; retain independent
 lock, dispatch refusal, minimum cooldown and eventual readiness requirements.
 Manual, unhealthy, physical-input and unbounded pauses remain failures. All
 17 Mac fixture and 95 release tests pass; native repetition continues.
+
+The next trial passes 103 checks before a deliberately stopped protected
+helper blocks the SDK's first Browser capability negotiation. That request
+never dispatches the intended Browser action. Establish both native and
+exact-profile Browser reads under the same owner before injecting an outage;
+the fault cell then measures an established route. Fresh profile negotiation
+during a helper outage remains explicitly open in the browser-profile topic
+and Mac platform report. Retire the known owner before independent cleanup
+lock observation, preserving the original error rather than querying the
+occupied native executor. All 18 Mac fixture and 95 release tests pass.

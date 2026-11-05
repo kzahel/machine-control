@@ -116,16 +116,17 @@ class SurfaceFixtureTests(unittest.TestCase):
         value['nativeSemanticState']='unavailable'
         with self.assertRaises(AssertionError):fixture.require_managed_observer(value)
 
-    def process(self,*,failure=False,blocked=False):
+    def process(self,*,failure=False,blocked=False,profiles=()):
         calls=[];ready=threading.Event()
         if not blocked:ready.set()
         class Session:
             def wait(self):calls.append('wait');return {'state':'active'}
             def call(self,request):
                 calls.append(request['operation']);ready.wait(3)
-                return {'accepted':not failure,'errorCode':'fixture_refused' if failure else None}
+                return {'accepted':not failure,'errorCode':'fixture_refused' if failure else None,
+                    'data':{'tabs':[{'tabId':1}]} if request['operation']=='browser.tabs' else {}}
             def close(self):calls.append('close');ready.set()
-        rig=SimpleNamespace(sdk=lambda *a,**k:Session(),target={},owners={},profiles=[])
+        rig=SimpleNamespace(sdk=lambda *a,**k:Session(),target={},owners={},profiles=list(profiles))
         rig.close_owners=lambda:rig.owners.clear()
         rig.bind_owner=lambda owner,surfaces:rig.owners.update({s:owner for s in surfaces})
         native={'phase':'active','controlSessionId':'native-one','lastEndedReason':None}
@@ -159,11 +160,18 @@ class SurfaceFixtureTests(unittest.TestCase):
 
     def test_pending_first_read_cannot_claim_completion_or_retarget(self):
         process,_,native,_,ready=self.process(blocked=True)
-        self.assertFalse(process.first_read_finished)
+        self.assertFalse(process.activation_reads_finished)
         self.assertIsNone(process.poll())
-        ready.set();process.future.result(3);self.assertTrue(process.first_read_finished);self.assertIsNone(process.poll())
+        ready.set();process.future.result(3);self.assertTrue(process.activation_reads_finished);self.assertIsNone(process.poll())
         native['controlSessionId']='replacement-owner'
         with self.assertRaisesRegex(AssertionError,'changed without a new task'):process.poll()
+
+    def test_hybrid_activation_proves_both_routes_before_fault_injection(self):
+        process,rig,_,calls,_=self.process(profiles=['fixture-profile'])
+        process.future.result(3)
+        self.assertTrue(process.activation_reads_finished)
+        self.assertEqual(calls,['wait','snapshot','browser.tabs'])
+        self.assertIs(rig.owners['desktop'],rig.owners['browser'])
 
     def test_unknown_delivery_never_retries_an_operator_action(self):
         rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)

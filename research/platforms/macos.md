@@ -21,6 +21,19 @@ privacy remain separate. One preparation reply timeout remains unexplained;
 later successful setup does not qualify reliable first-attempt cold setup.
 Earlier physical/protected evidence below belongs to its recorded revisions.
 
+**Current (2026-11-05), bounded negative `live-tested` development evidence:**
+the profile-aware signed 0.7.0 candidate's native app and packaged adapter,
+driven by the current source SDK in a disposable ARM64 Tart workspace, pass
+103 checks through root-only relock/recovery. After a verified protected-helper
+PID is deliberately stopped, the first Browser action on its hybrid owner
+times out in the preceding full-native capability negotiation; the Browser
+action is not dispatched. This does not establish a Browser relay failure or
+fresh-profile discovery during helper outage. The
+[profile topic](../../topics/browser-profiles.md#delivery-and-next-work) owns the
+resulting metadata-isolation gap, and
+[Tactical 156](../../docs/tactical/156-desktop-0.7.0-release.md) owns continuing
+release qualification. This partial development run cannot qualify publication.
+
 ## Native foundation
 
 **Current (2026-10-25), bounded `live-tested` placement finding:** direct

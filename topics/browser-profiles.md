@@ -154,6 +154,15 @@ and generations under the existing private retention policy.
 
 ## Delivery and next work
 
+**Open, bounded Mac fault-campaign observation:** first SDK profile negotiation
+uses full native capabilities. That metadata request timed out after the
+protected Desktop helper was deliberately stopped; the intended Browser
+action was never dispatched. Established-owner continuity and first-time
+negotiation are distinct qualification cases. Prove both hybrid routes before
+fault injection, and separate profile capability discovery from Desktop/helper
+liveness in follow-up work. [Tactical 156](../docs/tactical/156-desktop-0.7.0-release.md)
+owns the current campaign; fresh negotiation during helper outage is unqualified.
+
 **Decision for incremental adoption:** retain native-messaging frame protocol
 v1 and negotiate the additional profile protocol v1 through `hello.profile`
 and `profile.accepted`. Migrated desktop residents require persistent

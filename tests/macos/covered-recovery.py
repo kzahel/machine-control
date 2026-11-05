@@ -371,7 +371,7 @@ def run(c):
             # The initial snapshot itself prepares and observes native
             # activation. A parallel full status read uses the same native
             # executor and can cause a provably undispatched busy refusal.
-            if c.get('rig') is not None and not owner.first_read_finished:
+            if c.get('rig') is not None and not owner.activation_reads_finished:
                 return None
             current = state()
             if owner.poll() is not None:
@@ -974,6 +974,12 @@ def run(c):
     finally:
         if suspended:
             os.kill(suspended, signal.SIGCONT)
+        if c.get('rig') is not None and owner and not c.get('check_stop_lock'):
+            # No fresh provider query is needed to retire this known SDK
+            # owner, including after a deliberate helper outage. Preserve the
+            # original failure and independently observe OS lock instead.
+            owner.terminate();owner=None
+            poll(c['locked'],'SDK cleanup independently relocks',timeout=45)
         if not c.get('check_stop_lock') and owner and owner.poll() is None:
             try:
                 current = state()

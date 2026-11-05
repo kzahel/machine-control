@@ -213,7 +213,7 @@ class SDKOwnerProcess:
     observes actual SDK/native endings; it never creates or retries an owner.
     """
     def __init__(self,rig,duration,target,status):
-        self.rig=rig;self.status=status;self.control_id=None;self.returncode=None;self.first_reply=None
+        self.rig=rig;self.status=status;self.control_id=None;self.returncode=None;self.first_reply=None;self.browser_reply=None
         rig.close_owners()
         surfaces=['desktop','browser'] if rig.profiles else ['desktop']
         self.session=rig.sdk(rig.target,reason='Qualify finite protected owner',surfaces=surfaces,profile_ids=rig.profiles,duration=duration,wait=180,renew=False)
@@ -226,11 +226,17 @@ class SDKOwnerProcess:
             if not reply.get('accepted'):
                 print('COVERED_FIRST_READ_REFUSAL '+json.dumps({k:reply.get(k) for k in ['errorCode','delivery','effect','uncertainty','retrySafety','actualRoute']}),flush=True)
             assert reply.get('accepted'),reply.get('errorCode')
+            if 'browser' in surfaces:
+                self.browser_reply=self.session.call(dict(operation='browser.tabs'))
+                if not self.browser_reply.get('accepted'):
+                    print('COVERED_BROWSER_PREFLIGHT_REFUSAL '+json.dumps({k:self.browser_reply.get(k) for k in ['errorCode','delivery','effect','uncertainty','retrySafety','actualRoute']}),flush=True)
+                assert self.browser_reply.get('accepted'),self.browser_reply.get('errorCode')
+                assert self.browser_reply.get('data',{}).get('tabs'),'Hybrid owner needs an established exact-profile Browser route before faults'
             return reply
         self.future=self.pool.submit(begin)
 
     @property
-    def first_read_finished(self):
+    def activation_reads_finished(self):
         return self.future.done()
 
     def poll(self):
@@ -252,8 +258,9 @@ class SDKOwnerProcess:
         result=dict(accepted=self.returncode==0,data=dict(reason=current.get('lastEndedReason')))
         if self.returncode and self.future.done():
             error=self.future.exception()
-            result['errorCode']=(self.first_reply or {}).get('errorCode') or getattr(error,'code',type(error).__name__)
-            if self.first_reply is not None:result['firstRead']={k:self.first_reply.get(k) for k in ['delivery','effect','uncertainty','retrySafety','actualRoute']}
+            refused=next((r for r in [self.first_reply,self.browser_reply] if r is not None and not r.get('accepted')),None)
+            result['errorCode']=(refused or {}).get('errorCode') or getattr(error,'code',type(error).__name__)
+            if refused is not None:result['firstRead']={k:refused.get(k) for k in ['delivery','effect','uncertainty','retrySafety','actualRoute']}
         self.terminate()
         return json.dumps(result).encode(),b''
 
