@@ -146,6 +146,11 @@ The Mac retained `control.dispatch` channel admits one action at a time;
 status remains available during a pending action. Issue dialog recovery
 actions sequentially on that channel.
 
+`--development --source-sdk` stages the current Python client for a diagnostic
+driver while keeping the signed native app and its packaged adapter intact.
+Evidence records the SDK origin. Source-SDK mode is refused for release
+qualification; final acceptance always imports the exact bundled SDK.
+
 No CI runner currently reaches the prepared VM. This is maintainer/controller
 attestation of execution, not a claim that hosted CI ran the GUI or independently
 attested the machine. The receipt contains only closed coverage, source/version,

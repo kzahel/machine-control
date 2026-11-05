@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--covered-renewal-seconds', type=int, default=0)
     parser.add_argument('--model-only', action='store_true')
     parser.add_argument('--dialog-probe', action='store_true')
+    parser.add_argument('--source-sdk', action='store_true')
     parser.add_argument('--trace', type=Path,
                         help='New private operation timeline; includes failure metadata but excludes request fields and response data')
     parser.add_argument('--report', type=Path, help='New private machine-readable summary')
@@ -222,7 +223,7 @@ def main():
     assert initial['deployment']['policy']['grantMode'] == ('surface_modes' if surface_model else args.expected_policy)
     if surface_model:
         from surface_fixture import SurfaceFixture
-        rig=SurfaceFixture(args.source_root,resident,endpoint,args.observer_socket,args.claim)
+        rig=SurfaceFixture(args.source_root,resident,endpoint,args.observer_socket,args.claim,source_sdk=args.source_sdk)
     assert initial['desktopState'] == 'unlocked'
     pid = initial['processId']
     layout_state = None

@@ -238,3 +238,13 @@ observation or protected effects; its failure still fails qualification. The
 expected interrupted read in the unarmed startup-injection cell remains a
 failure receipt, checked independently by that fault oracle. All 16 Mac fixture
 and 95 release tests pass. No read retry or owner replacement is introduced.
+
+A full development trial reaches 93 checks, including renewal, transport loss,
+expiry and guardian cooldown recovery, then encounters the old packaged SDK
+capability message again. Its current error-preservation fix is not present
+in those older signed bytes. Add explicit `--development --source-sdk` for
+fast diagnosis against the unchanged signed native app and packaged adapter.
+Stage the driver separately, assert its import origin, and record SDK origin
+in evidence. Release mode refuses this option before target work and always
+uses the exact bundled SDK. All 95 release and 16 Mac fixture tests pass;
+source-SDK development qualification is underway.

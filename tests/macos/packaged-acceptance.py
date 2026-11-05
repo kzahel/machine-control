@@ -40,9 +40,12 @@ def main():
     p.add_argument('--covered-renewal-seconds', type=int, default=0)
     p.add_argument('--model-only', action='store_true')
     p.add_argument('--dialog-probe', action='store_true')
+    p.add_argument('--source-sdk', action='store_true')
     p.add_argument('--covered-probe', action='store_true')
     p.add_argument('--admin-secret-file', type=Path, help='Owner-only canonical VM credential; one-shot native sheet transport only')
     a = p.parse_args()
+    if a.source_sdk and not a.development:
+        p.error('Source SDK is development-only and cannot qualify a release')
     if a.dialog_probe and (not a.development or a.faults or a.remote_arming or a.covered_recovery or a.model_only or a.covered_probe):
         p.error('Dialog probe is development-only and cannot run a release or protected campaign')
     repo = Path(__file__).resolve().parents[2]
@@ -127,6 +130,9 @@ def main():
                          'platforms/macos/guests/macos/unlock/Relock.h', 'platforms/chromeos/cdp.py']:
                 archive.add(repo / name, arcname='source/' + name)
             archive.add(repo / 'platforms/macos/resident/scripts/install-user.sh', arcname='install-user.sh')
+            if a.source_sdk:
+                for file in sorted((repo/'client').glob('*.py')):
+                    archive.add(file,arcname='source/client/'+file.name)
         try:
             call('target', 'up')
             assert json.loads(call('target', 'doctor'))['ready'], 'Guest doctor is not ready'
@@ -143,6 +149,8 @@ def main():
                 argv += ['--model-only']
             if a.dialog_probe:
                 argv += ['--dialog-probe']
+            if a.source_sdk:
+                argv += ['--source-sdk']
             if a.covered_probe:
                 argv += ['--covered-probe']
             if a.remote_arming:
@@ -207,7 +215,7 @@ def main():
                     call('target', 'shutdown')
         # Development output is deliberately ineligible as release evidence.
         (a.output / 'identity.json').write_text(json.dumps({'development': a.development,
-            'build': manifest, 'seed': a.seed}) + '\n')
+            'build': manifest, 'seed': a.seed, 'sdkOrigin':'source' if a.source_sdk else 'packaged'}) + '\n')
         subprocess.run(mc + ['usage', 'note', '--kind', 'summary', '--goal', 'Packaged desktop acceptance'],
             input=('Packaged suite passed ' + str(summary['checks']) + ' checks with seed ' + str(a.seed) +
                    '; app, policy and operator files restored; ' +

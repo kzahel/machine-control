@@ -30,6 +30,7 @@ def main():
     p.add_argument('--covered-renewal-seconds', type=int, default=0)
     p.add_argument('--model-only', action='store_true')
     p.add_argument('--dialog-probe', action='store_true')
+    p.add_argument('--source-sdk', action='store_true')
     p.add_argument('--covered-probe', action='store_true')
     a = p.parse_args()
     assert not a.covered_recovery or (a.remote_arming and a.disposable_workspace)
@@ -163,6 +164,8 @@ def main():
             argv += ['--model-only']
         if a.dialog_probe:
             argv += ['--dialog-probe']
+        if a.source_sdk:
+            argv += ['--source-sdk']
         if a.covered_probe:
             argv += ['--covered-probe']
         if a.remote_arming:

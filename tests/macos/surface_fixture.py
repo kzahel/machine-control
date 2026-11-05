@@ -44,15 +44,17 @@ def generation_bound_status(observe):
 
 
 class SurfaceFixture:
-    def __init__(self, source, resident, endpoint, observer, claim):
+    def __init__(self, source, resident, endpoint, observer, claim,*,source_sdk=False):
         self.source,self.resident,self.endpoint,self.observer,self.claim=Path(source),Path(resident),Path(endpoint),Path(observer),claim
         self.owners={};self.observer_owner=None;self.profiles=[]
         spec=importlib.util.spec_from_file_location('surface_actor',self.source/'tests/macos/surface-policy-live.py')
         self.actor=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.actor)
         sys.dont_write_bytecode=True
         runtime=self.resident.parents[1]/'Resources/mc-cli'
-        sys.path.insert(0,str(runtime/'client'))
+        sdk_root=self.source/'client' if source_sdk else runtime/'client'
+        sys.path.insert(0,str(sdk_root))
         from control_session import ControlSession
+        assert Path(sys.modules[ControlSession.__module__].__file__).resolve().is_relative_to(sdk_root.resolve()),'SDK module origin does not match the selected test mode'
         self.sdk=ControlSession
         self.target=dict(platform='macos',command=[str(runtime/'python/bin/python3'),'-I','-B',str(runtime/'platforms/macos/host/machost.py')],_claimId=claim)
 
