@@ -116,6 +116,7 @@ def main():
             archive.add(app, arcname='candidate/Machine Control.app')
             for name in ['tests/macos/packaged-acceptance-guest.py',
                          'tests/macos/browser-file-dialogs.py', 'tests/macos/remote-arming.py',
+                         'tests/macos/surface_fixture.py', 'tests/macos/surface-policy-live.py', 'tests/macos/surface-covered-live.py',
                          'tests/macos/covered-recovery.py', 'tests/macos/cover-observation.swift', 'tests/macos/kernel-pointer-fixture.m',
                          'tests/macos/guardian-startup-watch.m', 'tests/macos/session-lock.m',
                          'platforms/macos/guests/macos/fixture/MachineControlFixture.swift', 'platforms/macos/guests/macos/unlock/Session.h',

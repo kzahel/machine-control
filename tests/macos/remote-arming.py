@@ -217,9 +217,141 @@ def _run(context):
     check('remembering choices does not rearm after Stop', call('grant.status')['grant'] is None)
 
 
+def _run_surfaces(context):
+    """The v2 campaign never restores authority from saved form choices."""
+    raw,call,check,poll,exchange=(context[k] for k in ['raw','call','check','poll','exchange'])
+    rig=context['rig'];resident=context['resident'];observer=context['observer']
+    tab,url,effects=(context[k] for k in ['tab','url','effects'])
+    from pathlib import Path
+    endpoint=Path.home()/'Library/Application Support/MachineControl/control.sock'
+    rig.stop()
+    context.update(press=rig.press,toggle=lambda label: _toggle_surface(rig,label),tree=rig.tree)
+    covered=None
+    if context['covered_recovery']:
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('covered_recovery',context['source_root']/'tests/macos/covered-recovery.py')
+        covered=importlib.util.module_from_spec(spec);spec.loader.exec_module(covered)
+        context['covered_module']=covered;covered.prepare(context)
+    rig.arm();rig.owner('browser');rig.owner('desktop')
+    check('native operator enables independent indefinite Desktop and exact Browser consent')
+    rig.observe('window.close',target=str(rig.status()['processId']))
+    if covered:
+        covered.native_browser(context,'ordinary')
+        extra=call('browser.navigate',newTab=True,url=url,active=False)['tab']['tabId']
+        context['browser_tab']=extra
+        try:covered.native_browser(context,'ordinary-tab-switch')
+        finally:context.pop('browser_tab',None)
+        covered.launch_fixture(context);covered.native_fixture(context,'ordinary')
+    for clean in [True,False]:
+        before=json.loads(context['fixture_state'].read_text()) if covered else None
+        context['pid']=context['restart'](clean=clean)
+        rig.close_owners()
+        check(('clean quit' if clean else 'crash')+' restores no surface consent or live authority',
+              all(value['mode']=='off' for value in rig.status()['admission']['surfaces'].values()))
+        if covered:
+            after=json.loads(context['fixture_state'].read_text())
+            check('native fixture receives no replay on resident restart',all(after[k]==before[k] for k in ['text','keyEventCount']))
+        rig.arm();rig.owner('browser');rig.owner('desktop')
+        rig.observe('window.close',target=str(rig.status()['processId']))
+        if covered:covered.verify_saved_model(context,'clean quit' if clean else 'crash')
+    rig.settings();rig.press('Settings');_toggle_surface(rig,'Allow approved browser access while locked')
+    poll(lambda:rig.status()['browserWhileLocked']['enabled'],'locked Browser preference')
+    rig.observe('window.close',target=str(rig.status()['processId']))
+    rig.owners.pop('desktop').close()
+    lock_binary=context['root']/'session-lock'
+    subprocess.run(['xcrun','clang','-fobjc-arc','-framework','Foundation','-framework','IOKit',str(context['source_root']/'tests/macos/session-lock.m'),'-o',str(lock_binary)],check=True,capture_output=True)
+    def locked():
+        rows=plistlib.loads(subprocess.check_output(['ioreg','-a','-l','-d','1']))
+        value=(rows[0] if isinstance(rows,list) else rows).get('IOConsoleLocked')
+        assert isinstance(value,bool),'Independent native lock observation unavailable'
+        return value
+    subprocess.run([str(lock_binary),'--lock'],check=True,capture_output=True)
+    poll(locked,'independently observed OS lock')
+    check('exact preapproved Browser owner remains usable while independently locked')
+    # Real beforeunload: sticky activation comes from prior fixture clicks.
+    call('browser.eval', tabId=tab, expression="window.addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = ''; }); true")
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        pending = pool.submit(raw, 'browser.cdp', tabId=tab, method='Page.reload')
+        dialog = poll(lambda: call('browser.dialog', tabId=tab).get('dialog'), 'beforeunload dialog')
+        check('typed dialog identifies beforeunload', dialog['type'] == 'beforeunload')
+        other = call('browser.navigate', newTab=True, url=url, active=False)['tab']['tabId']
+        check('tab discovery progresses despite a page dialog', len(call('browser.tabs')['tabs']) >= 2)
+        before = effects['clicks']
+        call('browser.eval', tabId=other, expression="fetch('/click', {method:'POST'}); true")
+        poll(lambda: effects['clicks'] == before + 1, 'independent second-tab effect')
+        check('another tab has an independent effect while a dialog blocks the first')
+        stale = raw('browser.dialog', tabId=tab, action='dismiss', dialogId='stale')
+        check('stale dialog handling is refused', not stale['accepted'])
+        release = raw('browser.release')
+        check('release refuses before abandoning an observed open dialog',
+              not release['accepted'] and release['errorCode'] == 'dialog_open' and release['delivery'] == 'refused')
+        current = call('browser.dialog', tabId=tab)['dialog']
+        check('refused release preserves the actual dialog attachment', current['id'] == dialog['id'])
+        call('browser.dialog', tabId=tab, action='dismiss', dialogId=current['id'])
+        pending.result(timeout=10)  # Never replay the uncertain reload.
+        call('browser.release')
+        reattached = call('browser.dialog', tabId=tab)
+        check('reattachment reports event readiness after dialog resolution',
+              reattached['observerState'] == 'ready' and reattached['state'] == 'not_observed')
+        stale = raw('browser.dialog', tabId=tab, action='dismiss', dialogId=dialog['id'])
+        check('completed release fences the previous dialog identity', not stale['accepted'])
+        before = effects['clicks']
+        call('browser.eval', tabId=tab, expression="fetch('/click', {method:'POST'}); true", timeoutMs=3000)
+        poll(lambda: effects['clicks'] == before + 1, 'independent effect after preexisting-dialog recovery')
+        check('recovered original tab has a fresh independent effect')
+    check('dialog recovery retains exact Browser consent', rig.status()['admission']['surfaces']['browser']['profileIds']==rig.profiles)
+
+    # A truly unresolved CDP promise exercises the extension deadline rather
+    # than relying on dialog behavior to reproduce the old queue wedge.
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        pending = pool.submit(raw, 'browser.eval', tabId=other, expression='new Promise(() => {})', timeoutMs=1500)
+        time.sleep(.2)
+        queued = pool.submit(raw, 'browser.eval', tabId=other,
+                             expression="fetch('/click', {method:'POST'}); true", timeoutMs=1500)
+        check('recovery discovery progresses during an unresolved command', bool(call('browser.tabs')['tabs']))
+        outcome = pending.result(timeout=10)
+        check('dispatched timeout reports unknown delivery', not outcome['accepted'] and outcome['delivery'] == 'unknown')
+        queued_outcome = queued.result(timeout=10)
+        check('abandoned queued command is refused', not queued_outcome['accepted'])
+    before = effects['clicks']
+    call('browser.release')
+    time.sleep(.3)
+    check('release does not replay abandoned work', effects['clicks'] == before)
+    call('browser.eval', tabId=other, expression="fetch('/click', {method:'POST'}); true")
+    poll(lambda: effects['clicks'] == before + 1, 'fresh post-release effect')
+    check('browser control recovers under unchanged surface consent',rig.status()['admission']['surfaces']['browser']['profileIds']==rig.profiles)
+    check('browser recovery leaves the OS locked', locked())
+
+    if covered:
+        context.update(locked=locked,browser_tab=other)
+        covered.run(context)
+    else:
+        check('browser-only qualification leaves the disposable OS locked',locked())
+        return
+    # The active-resident crash correctly ended all ordinary consent. Stop is
+    # still available; active protected Stop is independently exercised in the
+    # fresh visible-controls/cold-boot workspace.
+    check('protected resident crash leaves both surfaces Off',all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values()))
+    check('crashed protected owner independently relocks',locked())
+    context['check_stop_lock']=False
+    context['pid']=context['restart'](clean=True,use_lifecycle=True)
+    rig.close_owners()
+    check('clean relaunch after protected loss cannot restore authority',all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values()))
+
+
+def _toggle_surface(rig,label):
+    row=poll_surface(lambda:rig.find(label,'AXCheckBox'),'operator checkbox '+label)
+    if str(row.get('value','')).lower() not in {'1','true'}:rig.observe('action',reference=row['reference'],action='press')
+
+
+def poll_surface(function,label):
+    from surface_fixture import poll
+    return poll(function,label)
+
+
 def run(context):
     try:
-        _run(context)
+        (_run_surfaces if context.get('rig') is not None else _run)(context)
         if context.get('check_stop_lock'):
             context['poll'](context['locked'], 'operator Stop independently relocks', timeout=45)
             context['check']('operator Stop ends covered use and independently relocks')

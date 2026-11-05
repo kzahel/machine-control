@@ -1,0 +1,251 @@
+"""Native operator and shipped-SDK composition for dedicated Mac fixtures.
+
+This is test infrastructure, never an operator endpoint or policy authority.
+All arming goes through actual Settings; all effects use retained SDK owners.
+"""
+import concurrent.futures
+import contextlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import time
+
+
+def poll(function, label, timeout=45):
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+        value=function()
+        if value:return value
+        time.sleep(.15)
+    raise AssertionError('Timed out: '+label)
+
+
+class SurfaceFixture:
+    def __init__(self, source, resident, endpoint, observer, claim):
+        self.source,self.resident,self.endpoint,self.observer,self.claim=Path(source),Path(resident),Path(endpoint),Path(observer),claim
+        self.owners={};self.observer_owner=None;self.profiles=[]
+        spec=importlib.util.spec_from_file_location('surface_actor',self.source/'tests/macos/surface-policy-live.py')
+        self.actor=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.actor)
+        sys.dont_write_bytecode=True
+        runtime=self.resident.parents[1]/'Resources/mc-cli'
+        sys.path.insert(0,str(runtime/'client'))
+        from control_session import ControlSession
+        self.sdk=ControlSession
+        self.target=dict(platform='macos',command=[str(runtime/'python/bin/python3'),'-I','-B',str(runtime/'platforms/macos/host/machost.py')],_claimId=claim)
+
+    def exchange(self,path,operation,**fields):
+        with socket.socket(socket.AF_UNIX) as channel:
+            channel.settimeout(35);channel.connect(str(path))
+            channel.sendall(json.dumps(dict(operation=operation,claimId=self.claim,**fields)).encode()+b'\n')
+            line=channel.makefile('rb').readline(32*1024*1024)
+            if not line:raise ConnectionError('Native fixture transport closed; no replay')
+            return json.loads(line)
+
+    def status(self):
+        result=self.exchange(self.endpoint,'status');assert result.get('accepted'),result.get('errorCode')
+        return result['data']
+
+    def observer_response(self,operation,**fields):
+        if self.observer_owner is None:
+            result=self.exchange(self.observer,operation,provider='macos-native',**fields)
+            if result.get('errorCode')!='control_session_required':
+                return result
+            assert result.get('delivery')=='refused' and result.get('uncertainty')=='none'
+            class RenewingObserver(self.actor.Owner):
+                def keepalive(owner):
+                    while not owner.stopped.wait(1.5):
+                        try:
+                            view=owner.rpc(operation='control.heartbeat')
+                            if view.get('state')=='active' and view.get('renewal')=='owner_connection/v1' and view.get('activeRemainingSeconds',900)<=300:
+                                renewed=owner.rpc(operation='control.renew',durationSeconds=900)
+                                assert renewed['sessionId']==view['sessionId'] and renewed['resourceGenerations']==view['resourceGenerations']
+                        except Exception as error:
+                            owner.failure=type(error).__name__;return
+            self.observer_owner=RenewingObserver(self.observer,self.claim,['desktop'],duration=900)
+            self.observer_owner.wait()
+        result=self.observer_owner.call(operation,provider='macos-native',**fields)
+        return result
+
+    def observe(self,operation,**fields):
+        result=self.observer_response(operation,**fields)
+        assert result.get('accepted'),result.get('errorCode')
+        return result.get('data',{})
+
+    def tree(self,query='',target=None):
+        return self.observe('snapshot',target=str(target or self.status()['processId']),query=query,projection='full',maxDepth=40,maxElements=2000)['elements']
+
+    def find(self,label,role='AXButton',partial=False):
+        rows=[row for row in self.tree(label) if row.get('role')==role and any((label in str(row.get(key,'')) if partial else label==row.get(key)) for key in ['label','title','description'])]
+        rows.sort(key=lambda row:row.get('depth',1000))
+        return rows[0] if rows and (len(rows)==1 or rows[0].get('depth')!=rows[1].get('depth')) else None
+
+    def press(self,label,role='AXButton',partial=False):
+        row=poll(lambda:self.find(label,role,partial),'operator '+label)
+        self.observe('action',reference=row['reference'],action='press')
+
+    def settings(self):
+        subprocess.run([str(self.resident),'serve',str(self.endpoint),'--settings'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
+        self.press('Access')
+
+    def choose(self,label,index):
+        self.observe('application.activate',target=str(self.status()['processId']))
+        self.press(label,'AXPopUpButton')
+        for key in (['end','enter'] if index==2 else ['home']+['down']*index+['enter']):
+            self.observe('input.key',key=key)
+        time.sleep(.3)
+
+    def select_profiles(self,ids):
+        ids=set(ids)
+        profiles=self.status()['browser']['profiles']
+        labels={'Allow profile '+p['name'] for p in profiles if p['profileId'] in ids}
+        assert len(labels)==len(ids), 'Fixture profiles must have unique native labels'
+        for _ in range(70):
+            rows=[r for r in self.tree() if r.get('role')=='AXCheckBox' and str(r.get('label','')).startswith(('Allow profile ','Unavailable profile'))]
+            change=next((r for r in rows if (str(r.get('value','')).lower() in {'1','true'}) != (r.get('label') in labels)),None)
+            if change is None:break
+            self.observe('action',reference=change['reference'],action='press');time.sleep(.1)
+        else:raise AssertionError('Profile selection did not settle')
+        self.profiles=sorted(ids)
+
+    def arm(self,mode='automatic',surfaces=('desktop','browser')):
+        self.close_owners();self.settings()
+        if 'browser' in surfaces:self.select_profiles(self.profiles)
+        self.choose('Access lifetime',0)
+        for surface in surfaces:
+            current=self.status()['admission']['surfaces'][surface]
+            if current['mode']==mode:self.press('Apply '+surface+' choices')
+            elif current['mode']=='off' and self.find('Enable '+('Automatic' if mode=='automatic' else 'Ask first')+' for '+surface):
+                self.press('Enable '+('Automatic' if mode=='automatic' else 'Ask first')+' for '+surface)
+            else:self.choose(surface.title()+' access mode',2 if mode=='automatic' else 1)
+            poll(lambda:self.status()['admission']['surfaces'][surface]['mode']==mode,surface+' '+mode)
+        assert all(self.status()['admission']['surfaces'][name]['consentRemainingSeconds'] is None for name in surfaces)
+
+    def owner(self,surface,duration=900,renew=None):
+        owner=self.sdk(self.target,reason='Qualify exact packaged '+surface+' behavior',surfaces=[surface],profile_ids=self.profiles if surface=='browser' else [],duration=duration,wait=180,renew=renew)
+        self.owners[surface]=owner
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            waiting=pool.submit(owner.wait)
+            while not waiting.done():
+                rows=[r for r in self.tree('Allow') if r.get('role')=='AXButton' and r.get('label')=='Allow']
+                if rows:self.observe('action',reference=rows[0]['reference'],action='press')
+                time.sleep(.2)
+            waiting.result()
+        return owner
+
+    def dispatch(self,operation,**fields):
+        surface='browser' if operation.startswith('browser.') else 'desktop'
+        owner=self.owners.get(surface)
+        assert owner is not None,'Fixture has no retained '+surface+' owner'
+        return owner.call(dict(operation=operation,**fields))
+
+    def stop(self):
+        self.settings()
+        button=poll(lambda:self.find('Stop all access'),'native Stop control')
+        started=time.monotonic()
+        self.observe('action',reference=button['reference'],action='press')
+        poll(lambda:all(v['mode']=='off' for v in self.status()['admission']['surfaces'].values()),'native Stop')
+        acknowledged=time.monotonic()-started
+        self.close_owners()
+        return acknowledged
+
+    def close_owners(self):
+        for owner in self.owners.values():
+            with contextlib.suppress(Exception):owner.close()
+        self.owners.clear()
+
+    def close(self):
+        self.close_owners()
+        if self.observer_owner is not None:self.observer_owner.close();self.observer_owner=None
+
+
+class SDKOwnerProcess:
+    """Process-shaped fixture handle over one real shipped SDK connection.
+
+    The asynchronous first read triggers native protected preparation. Polling
+    observes actual SDK/native endings; it never creates or retries an owner.
+    """
+    def __init__(self,rig,duration,target,status):
+        self.rig=rig;self.status=status;self.control_id=None;self.returncode=None
+        self.session=rig.sdk(rig.target,reason='Qualify finite protected owner',surfaces=['desktop'],duration=duration,wait=180,renew=False)
+        rig.owners['desktop']=self.session
+        self.pool=concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        def begin():
+            self.session.wait()
+            reply=self.session.call(dict(operation='snapshot',provider='macos-native',target=str(target),maxDepth=8,maxElements=500))
+            assert reply.get('accepted'),reply.get('errorCode')
+            return reply
+        self.future=self.pool.submit(begin)
+
+    def poll(self):
+        if self.returncode is not None:return self.returncode
+        if not self.future.done():return None
+        if self.future.exception() is not None:self.returncode=1;return 1
+        current=self.status()['lockedUse']
+        if current['phase']=='active' and current['controlSessionId'] is not None:
+            if self.control_id is None:self.control_id=current['controlSessionId']
+            assert current['controlSessionId']==self.control_id,'Protected owner changed without a new task'
+        elif self.control_id is not None:
+            assert current.get('lastEndedReason'),'Native owner disappeared without an ending reason'
+            self.returncode=0
+        return self.returncode
+
+    def communicate(self,timeout=15):
+        poll(lambda:self.poll() is not None,'finite SDK owner ending',timeout)
+        current=self.status()['lockedUse']
+        result=dict(accepted=self.returncode==0,data=dict(reason=current.get('lastEndedReason')))
+        if self.returncode and self.future.done():result['errorCode']=type(self.future.exception()).__name__
+        self.terminate()
+        return json.dumps(result).encode(),b''
+
+    def terminate(self):
+        self.session.close()
+        if self.rig.owners.get('desktop') is self.session:self.rig.owners.pop('desktop')
+        self.pool.shutdown(wait=False,cancel_futures=True)
+
+
+def launch_profile(rig,root,name='Reboot fixture'):
+    """Enable one isolated real CfT installation through its own panel."""
+    import plistlib
+    import shutil
+    from urllib.request import urlopen
+    spec=importlib.util.spec_from_file_location('fixture_cdp',rig.source/'platforms/chromeos/cdp.py')
+    cdp=importlib.util.module_from_spec(spec);spec.loader.exec_module(cdp)
+    app=Path.home()/'mc-cft/chrome-mac-arm64/Google Chrome for Testing.app'
+    info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
+    assert info['CFBundleIdentifier']=='com.google.chrome.for.testing'
+    profile=root/'reboot-profile';hosts=profile/'NativeMessagingHosts';hosts.mkdir(parents=True)
+    extension=root/'reboot-extension';shutil.copytree(rig.resident.parents[1]/'Resources/chrome-extension',extension)
+    extension_id='ncbfifkjllmnkkjmomjohinigfgdocjc'
+    (hosts/'org.machine_control.browser.json').write_text(json.dumps(dict(name='org.machine_control.browser',description='Owned release fixture',path=str(rig.resident),type='stdio',allowed_origins=['chrome-extension://'+extension_id+'/'])))
+    child=subprocess.Popen([str(app/'Contents/MacOS'/info['CFBundleExecutable']),'--user-data-dir='+str(profile),'--remote-debugging-port=0','--no-first-run','--no-default-browser-check','--use-mock-keychain','--no-proxy-server','--disable-extensions-except='+str(extension),'--load-extension='+str(extension),'about:blank'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+    try:
+        portfile=profile/'DevToolsActivePort';poll(portfile.exists,'isolated profile readiness')
+        port,path=portfile.read_text().splitlines()[:2];connection=cdp.CDP('ws://127.0.0.1:'+port+path)
+        try:
+            for url in ['chrome://extensions/','chrome-extension://'+extension_id+'/panel.html']:
+                pageid=connection.call('Target.createTarget',url=url)['targetId']
+                try:
+                    def page_info():
+                        with urlopen('http://127.0.0.1:'+port+'/json/list',timeout=5) as response:return next((r for r in json.load(response) if r['id']==pageid),None)
+                    page=cdp.CDP(poll(page_info,'native setup page')['webSocketDebuggerUrl'])
+                    try:
+                        if url.startswith('chrome://'):expression='new Promise(r=>chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode:true},r))'
+                        else:
+                            time.sleep(1)
+                            expression="document.getElementById('profile-name').value="+json.dumps(name)+";document.getElementById('profile-enabled').checked=true;document.getElementById('profile-enabled').dispatchEvent(new Event('change'));true"
+                        page.call('Runtime.evaluate',expression=expression,awaitPromise=True)
+                    finally:page.close()
+                finally:connection.call('Target.closeTarget',targetId=pageid)
+        finally:connection.close()
+        profiles=poll(lambda:[p for p in rig.status()['browser']['profiles'] if p['name']==name and p['connected'] and p['enabled']],'enabled named fixture profile')
+        assert len(profiles)==1;rig.profiles=[profiles[0]['profileId']]
+        return child
+    except BaseException:
+        child.terminate()
+        try:child.wait(10)
+        except subprocess.TimeoutExpired:child.kill();child.wait(5)
+        raise

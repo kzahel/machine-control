@@ -17,7 +17,8 @@
   Desktop permissions independent, including browser access while locked.
 - Update Settings and native task controls for the shared permissions model.
   Restart restores access choices but no live control authority; explicitly
-  enable the intended surfaces and browser profiles after upgrading.
+  enable the intended surfaces and browser profiles after upgrading. Named
+  profiles require the matching Chrome extension 0.9.0 or later.
 - Keep the Python CLI and SDK, automatically renewing supported live owners
   under their original consent. Use `--no-renew` for an intentionally finite
   task; Stop, disconnect, claim loss and consent expiry still end access.

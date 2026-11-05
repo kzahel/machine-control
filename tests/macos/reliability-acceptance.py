@@ -154,7 +154,11 @@ def main():
                 a.output/'reboot.log')
         boot = json.loads((a.output/'reboot/reboot-choices.json').read_text())
         assert boot['actualReboot'] is True and boot['authorizationRestored'] is False
-        assert boot['stopCleanRelaunch'] is True and boot['rememberedScopes'] == 4 and boot['rememberedDuration'] == 0
+        assert boot['stopCleanRelaunch'] is True and boot['rememberedDuration'] == 0
+        if (app/'Contents/Resources/shared-policy/payload.json').is_file():
+            assert boot['rememberedSurfaces']==2 and boot['protectedStopNative'] is True
+        else:
+            assert boot['rememberedScopes']==4
         assert boot['browserWhileLockedRemembered'] is True
         outcome = 'ready'
     finally:

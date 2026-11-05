@@ -28,7 +28,7 @@ def wait(fn, label, seconds=60):
     raise AssertionError(label)
 
 
-def guest(stage, claim, verify):
+def guest(stage, claim, verify, protected_stop=False):
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).startswith(b'VirtualMac')
     home = Path.home()
     installed = home / 'Applications/Machine Control.app'
@@ -65,15 +65,17 @@ def guest(stage, claim, verify):
         command('/usr/bin/sudo','-n','/usr/bin/install','-m','644',value,policy)
 
     boot = subprocess.check_output(['sysctl','-n','kern.boottime']).decode().strip()
-    if not verify:
+    saved = None
+    if not verify and not (stage/'Original.app').exists():
         assert wait(status, 'Original resident unavailable')['deployment']['policy']['grantMode'] == 'standing'
         command('/usr/bin/ditto', installed, stage / 'Original.app')
-    else:
+    elif verify:
         saved = json.loads((stage / 'preboot.json').read_text())
         assert boot != saved['boot'], 'No actual guest reboot observed'
         current = wait(status, 'Candidate did not return after reboot')
-        assert current['deployment']['policy']['grantMode'] == 'approval'
-        assert exchange(endpoint, 'grant.status')['grant'] is None, 'Pre-boot approval survived reboot'
+        surface_model=current.get('admission',{}).get('schema')=='machine-control-admission/v2'
+        assert current['deployment']['policy']['grantMode'] == ('surface_modes' if surface_model else 'approval')
+        assert (all(v['mode']=='off' for v in current['admission']['surfaces'].values()) if surface_model else exchange(endpoint,'grant.status')['grant'] is None), 'Pre-boot authority survived reboot'
 
     # The standing appliance observer is independent of the candidate. On the
     # post-boot pass the candidate has already loaded workstation policy; only
@@ -99,7 +101,14 @@ def guest(stage, claim, verify):
                 (endpoint.parent / name).unlink(missing_ok=True)
             command('/bin/bash', stage / 'install-user.sh', '--app', stage / 'candidate/Machine Control.app')
         current = wait(status, 'Candidate unavailable')
-        assert current['deployment']['policy']['grantMode'] == 'approval'
+        surface_model=current.get('admission',{}).get('schema')=='machine-control-admission/v2'
+        assert current['deployment']['policy']['grantMode'] == ('surface_modes' if surface_model else 'approval')
+        if surface_model:
+            sys.path.insert(0,str(stage/'source/tests/macos'))
+            import surface_reboot
+            surface_reboot.run(stage,claim,observer_socket,verify,boot,saved,protected_stop)
+            return
+        assert not protected_stop,'Protected Stop fixture requires the v2 model'
         pid = current['processId']
         command(installed / 'Contents/MacOS/macui', 'serve', endpoint, '--settings')
 
@@ -193,13 +202,14 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--guest-stage', type=Path)
     p.add_argument('--verify', action='store_true')
+    p.add_argument('--protected-stop', action='store_true')
     p.add_argument('--claim')
     p.add_argument('--app', type=Path)
     p.add_argument('--output', type=Path)
     p.add_argument('--admin-secret-file', type=Path)
     a = p.parse_args()
     if a.guest_stage:
-        guest(a.guest_stage, a.claim, a.verify)
+        guest(a.guest_stage, a.claim, a.verify, a.protected_stop)
         return
     if not a.app or not a.output or not a.admin_secret_file or not os.environ.get('MACHINE_CONTROL_WORKSPACE_HANDLE'):
         p.error('--app/--output/--admin-secret-file and an isolated common claim scope are required')
@@ -227,6 +237,8 @@ def main():
             tar.add(__file__,arcname='reboot-choices.py')
             tar.add(repo/'tests/macos/verify-appliance-credential.swift',arcname='verify-credential.swift')
             tar.add(repo/'platforms/macos/resident/scripts/install-user.sh',arcname='install-user.sh')
+            for name in ['tests/macos/surface_fixture.py','tests/macos/surface_reboot.py','tests/macos/surface-policy-live.py','tests/macos/surface-covered-live.py','tests/macos/session-lock.m','tests/macos/cover-observation.swift','platforms/macos/guests/macos/fixture/MachineControlFixture.swift','platforms/macos/guests/macos/unlock/Session.h','platforms/macos/guests/macos/unlock/Relock.h','platforms/chromeos/cdp.py']:
+                tar.add(repo/name,arcname='source/'+name)
         with archive.open('rb') as stream:
             call('testbed','--','exec','-i','tar','-xf','-','-C',remote,stdin=stream)
         tool = remote+'/verify-credential'
@@ -242,18 +254,45 @@ def main():
         assert verified.get('verified') is True, 'Canonical appliance credential verification failed; no retry'
         (a.output/'credential-check.json').write_text(json.dumps(verified))
         args = ['testbed','--','exec','/usr/bin/python3',remote+'/reboot-choices.py','--guest-stage',remote,'--claim',scope['claim']]
+        def reboot_once():
+            before=call('testbed','--','exec','/usr/sbin/sysctl','-n','kern.boottime',capture_output=True).stdout.decode().strip()
+            job='org.machine-control.acceptance-reboot.'+uuid.uuid4().hex
+            call('testbed','--','exec','/bin/launchctl','submit','-l',job,'--','/bin/sh','-c','sleep 3; exec /usr/bin/sudo -n /sbin/shutdown -r now')
+            def returned():
+                result=call('testbed','--','exec','/usr/sbin/sysctl','-n','kern.boottime',check=False,capture_output=True)
+                return result.returncode==0 and result.stdout.decode().strip()!=before
+            wait(returned,'Guest did not return after reboot',seconds=180)
+        surface_model=(a.app/'Contents/Resources/shared-policy/payload.json').is_file()
+        if surface_model:
+            attempted=False
+            process=subprocess.Popen(mc+args+['--protected-stop'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            try:
+                for line in process.stdout:
+                    if line.startswith(b'MC_CREDENTIAL_LEASE '):
+                        import re
+                        lease=json.loads(line[len(b'MC_CREDENTIAL_LEASE '):])
+                        assert not attempted and set(lease)=={'leaseId'} and re.fullmatch(r'[0-9a-fA-F-]{36}:auth:[0-9a-fA-F-]{36}',lease['leaseId'])
+                        marker=a.output/'helper-authorization-attempted'
+                        fd=os.open(marker,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);os.close(fd)
+                        fd=os.open(a.admin_secret_file,os.O_RDONLY|os.O_NOFOLLOW)
+                        with os.fdopen(fd,'rb') as secret:
+                            info=os.fstat(secret.fileno())
+                            assert stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode)==0o600 and info.st_uid==os.getuid() and info.st_nlink==1 and 0<info.st_size<=4096
+                            attempted=True
+                            observer='/tmp/mc-rb-'+remote.rsplit('/',1)[1][-16:]+'/control.sock'
+                            result=call('testbed','--','exec','-i',remote+'/Original.app/Contents/MacOS/macui','credential',observer,lease['leaseId'],stdin=secret,capture_output=True)
+                        reply=json.loads(result.stdout);assert reply.get('accepted') and reply.get('effect')=='confirmed','Credential effect uncertain; no retry'
+                    else:
+                        sys.stdout.buffer.write(line);sys.stdout.flush()
+                assert process.wait()==0,'Protected native Stop fixture failed'
+            finally:
+                if process.poll() is None:process.terminate();process.wait(timeout=30)
+            # Native Stop leaves the actual console locked. A separately
+            # observed normal boot restores the prepared auto-login session;
+            # no ordinary owner is silently rearmed to enable further UI work.
+            reboot_once()
         call(*args)
-        before = json.loads(call('testbed','--','exec','cat',remote+'/preboot.json',capture_output=True).stdout)['boot']
-        # Submit one guest-local one-shot job before losing the transport.
-        # Submission is paired in the journal; changed kernel boot time below
-        # is the independent effect oracle. Never replay an uncertain submit.
-        job = 'org.machine-control.acceptance-reboot.' + uuid.uuid4().hex
-        call('testbed','--','exec','/bin/launchctl','submit','-l',job,'--','/bin/sh','-c',
-             'sleep 3; exec /usr/bin/sudo -n /sbin/shutdown -r now')
-        def returned():
-            result = call('testbed','--','exec','/usr/sbin/sysctl','-n','kern.boottime',check=False,capture_output=True)
-            return result.returncode == 0 and result.stdout.decode().strip() != before
-        wait(returned,'Guest did not return after reboot',seconds=180)
+        reboot_once()
         call(*args,'--verify')
         with (a.output/'reboot-choices.json').open('wb') as stream:
             call('testbed','--','exec','cat',remote+'/reboot-choices.json',stdout=stream)

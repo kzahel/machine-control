@@ -88,8 +88,12 @@ def main():
     blocked = threading.Event()
     unblock = threading.Event()
     planned_restarts = 0
+    rig = None
 
     def exchange(socket_path, operation, **fields):
+        if rig is not None and socket_path == args.observer_socket:
+            fields.pop("provider", None)
+            return rig.observer_response(operation, **fields)
         with socket.socket(socket.AF_UNIX) as channel:
             channel.settimeout(30)
             channel.connect(str(socket_path))
@@ -105,7 +109,13 @@ def main():
         started = time.monotonic()
         result = None
         try:
-            result = exchange(endpoint, operation, **fields)
+            if rig is not None and operation not in {'status','capabilities','browser.profiles','session.control.end','server.stop'} and rig.owners.get('browser' if operation.startswith('browser.') else 'desktop') is not None:
+                result = rig.dispatch(operation, **fields)
+            else:
+                result = exchange(endpoint, operation, **fields)
+                if rig is not None and operation=='session.control.end' and result.get('accepted'):
+                    owner=rig.owners.pop('desktop',None)
+                    if owner is not None:owner.close()
         finally:
             if trace:
                 trace.write(json.dumps({'operation': operation, 'monotonic': started,
@@ -191,7 +201,11 @@ def main():
             self.wfile.write(body)
 
     initial = call('status')
-    assert initial['deployment']['policy']['grantMode'] == args.expected_policy
+    surface_model=initial.get('admission',{}).get('schema')=='machine-control-admission/v2'
+    assert initial['deployment']['policy']['grantMode'] == ('surface_modes' if surface_model else args.expected_policy)
+    if surface_model:
+        from surface_fixture import SurfaceFixture
+        rig=SurfaceFixture(args.source_root,resident,endpoint,args.observer_socket,args.claim)
     assert initial['desktopState'] == 'unlocked'
     pid = initial['processId']
     layout_state = None
@@ -211,6 +225,10 @@ def main():
     workspace = tempfile.TemporaryDirectory(prefix='mc-browser-dialogs-')
     def approve():
         assert args.observer_socket, 'Workstation approval requires an independent observer'
+        if rig is not None:
+            rig.arm('ask');rig.owner('desktop');rig.owner('browser')
+            check('packaged workstation native surface approvals')
+            return
         assert call('grant.status')['grant'] is None, 'Packaged trial must start with access Off'
         with concurrent.futures.ThreadPoolExecutor() as pool:
             pending = pool.submit(call, 'grant.request', scopes=['observe', 'control', 'browser', 'devtools'],
@@ -230,11 +248,14 @@ def main():
 
     try:
         root = Path(workspace.name)
-        if args.expected_policy == 'approval':
+        if args.expected_policy == 'approval' and rig is None:
             approve()
         last_blockers = None
         def available():
             nonlocal last_blockers
+            if rig is not None:
+                current=rig.status()['admission']
+                return current['humanInputReady'] and current['surfaces']['desktop']['ready']
             state = call('grant.status')['availability']
             blockers = state['blockingReasons']
             if blockers != last_blockers:
@@ -285,6 +306,23 @@ def main():
         finally:
             connection.call('Target.closeTarget', targetId=settings_id)
             connection.close()
+        if rig is not None:
+            connection = cdp.CDP(f'ws://127.0.0.1:{port}{path}')
+            profile_panel = connection.call('Target.createTarget',url='chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/panel.html')['targetId']
+            try:
+                with urlopen(f'http://127.0.0.1:{port}/json/list',timeout=5) as response:
+                    panel_info=next(row for row in json.load(response) if row['id']==profile_panel)
+                page=cdp.CDP(panel_info['webSocketDebuggerUrl'])
+                try:
+                    time.sleep(1)
+                    page.call('Runtime.evaluate',expression="document.getElementById('profile-name').value='Release fixture';document.getElementById('profile-enabled').checked=true;document.getElementById('profile-enabled').dispatchEvent(new Event('change'));true")
+                finally:page.close()
+            finally:
+                connection.call('Target.closeTarget',targetId=profile_panel);connection.close()
+            profiles=poll(lambda:[p for p in rig.status()['browser']['profiles'] if p['name']=='Release fixture' and p['enabled'] and p['connected']], 'enabled release profile')
+            assert len(profiles)==1
+            rig.profiles=[profiles[0]['profileId']]
+            approve()
         poll(lambda: call('status')['browser']['connected'], 'extension connected')
         tab = poll(lambda: next((t['tabId'] for t in call('browser.tabs')['tabs'] if t['url'] == url), None), 'fixture tab')
 
@@ -537,11 +575,16 @@ def main():
                 pending = pool.submit(raw, 'browser.navigate', tabId=tab, url=url + 'slow')
                 assert blocked.wait(15), 'Held provider did not reach the fixture'
                 started = time.monotonic()
-                call('grant.revoke')
-                check('Stop remains responsive during blocked browser provider', time.monotonic() - started < 3)
+                stop_seconds=rig.stop() if rig is not None else None
+                if rig is None:call('grant.revoke')
+                check('Stop remains responsive during blocked browser provider', (stop_seconds if rig is not None else time.monotonic()-started)<3)
                 unblock.set()
-                outcome = pending.result(timeout=30)
-                check('revoked blocked request does not report success', not outcome['accepted'])
+                try:
+                    outcome = pending.result(timeout=30)
+                    check('revoked blocked request does not report success', not outcome['accepted'])
+                except Exception as error:
+                    assert rig is not None and type(error).__name__ in {'ClientError','ConnectionError','OSError'},type(error).__name__
+                    check('revoked blocked request loses its owner without replay')
             approve()
             call('browser.navigate', tabId=tab, url=url)
             refused = raw('browser.click', reference=old_ref)
@@ -578,7 +621,7 @@ def main():
             assert state['processId'] != pid
             pid = state['processId']
             call('status')
-            check('forced app exit recovers with access Off', call('grant.status')['grant'] is None)
+            check('forced app exit recovers with access Off', all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values()) if rig is not None else call('grant.status')['grant'] is None)
             lifecycle = Path.home() / 'Library/Logs/MachineControl/audit'
             # Audit API is deliberately minimized. Inspect the private
             # on-disk breadcrumb rather than adding an agent export route.
@@ -637,7 +680,7 @@ def main():
                 browser_pid=browser.pid,
                 root=root, source_root=args.source_root, claim=args.claim,
                 disposable=args.disposable_workspace, covered_recovery=args.covered_recovery, covered_probe=args.covered_probe,
-                covered_duration=args.covered_duration, covered_renewal_seconds=args.covered_renewal_seconds, restart=restart_armed,
+                rig=rig, covered_duration=args.covered_duration, covered_renewal_seconds=args.covered_renewal_seconds, restart=restart_armed,
                 evidence=args.report.parent if args.report else root))
         final = call('status')
         check('resident PID/generation stable outside planned restart', final['processId'] == pid)
@@ -706,6 +749,7 @@ def main():
         server.shutdown()
         server.server_close()
         workspace.cleanup()
+        if rig is not None:rig.close()
         if trace:
             trace.close()
         if layout_state is not None:

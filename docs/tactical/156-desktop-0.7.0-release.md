@@ -52,5 +52,27 @@ infrastructure identities. Finish after successful dispatch.
 
 ## Validation and result
 
-Pending source CI, candidate construction and exact-package acceptance.
-The native adoption evidence in Tacticals 153–155 remains separate.
+All previously uncommitted client changes are included in `24b1b9f`; all 95
+client/session tests pass. CI exposes POSIX-only Linux fixtures on Windows;
+`db1fa68` declares their actual requirements while preserving pure event tests.
+The next Windows run reaches the extension test and exposes its LF-only source
+extractor. `10ae897` accepts actual LF/CRLF delimiters and refuses missing code;
+the real worker lifecycle passes with both original and CRLF source bytes.
+
+The legacy release harness expects grant restoration after crash and old scope
+checkboxes. Its v2 path now uses real Settings, named enabled profiles and the
+shipped Python SDK, retaining exact owners and finite watchdogs. Clean exit,
+crash and boot must restore no authority. Native models, file dialogs, expiry,
+renewal, guardian/root faults and disposal remain required. Active protected
+Stop runs in the fresh sequential reboot workspace, followed by an observed
+normal boot to regain the prepared auto-login session before visible choice
+checks. No locked-console permission is silently rearmed.
+
+The published extension 0.8.4 predates profile negotiation. Prepare 0.9.0 and
+submit it through the existing tag/OIDC workflow before the desktop candidate,
+so the bundled worker and store rollout have honest versions. New workers keep
+older residents compatible; the new resident refuses old unprofiled workers.
+Google review/publication remains distinct from successful submission.
+
+Candidate construction and native qualification of the updated harness are
+pending. The native adoption evidence in Tacticals 153–155 remains separate.

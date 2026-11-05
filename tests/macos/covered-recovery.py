@@ -231,9 +231,9 @@ def prepare(c):
     ready = poll(prepared, 'production helper and capture readiness', timeout=240)
     assert ready['helperHealthy'] and ready['helperApproval'] == 'granted'
     c['check']('native Permissions prepares the production helper without arming ordinary access',
-               call('grant.status')['grant'] is None)
+               all(v['mode']=='off' for v in call('status')['admission']['surfaces'].values()) if c.get('rig') is not None else call('grant.status')['grant'] is None)
     press('Access', 'AXButton')
-    c['toggle']('Also while the screen is locked')
+    c['toggle']('Allow prepared tasks behind an opaque cover' if c.get('rig') is not None else 'Also while the screen is locked')
     poll(lambda: call('status')['lockedUse']['enabled'], 'prepared locked-use preference')
     # The fixture has an independent file oracle. Its executable is built only
     # in the disposable guest, and its exact process is reaped in cleanup.
@@ -341,21 +341,27 @@ def run(c):
             covered = root.get('coveredSession')
             ready = (state(observed)['phase'] == 'ready' and not root.get('lockedUsePaused', True)
                      and isinstance(covered, (bool, int)) and covered == 0
-                     and {'observe', 'control'}.issubset((call('grant.status').get('grant') or {}).get('scopes', [])))
+                     and (observed['admission']['surfaces']['desktop']['mode']=='automatic' if c.get('rig') is not None else {'observe', 'control'}.issubset((call('grant.status').get('grant') or {}).get('scopes', []))))
             if ready:
                 assert raw_time() >= c.get('not_before', 0), 'Root recovered before the advertised cooldown'
             return ready
         poll(recovered,
              'fresh same-console root recovery', timeout=100)
-        owner = subprocess.Popen([str(c['resident']), 'request', str(Path.home() /
-            'Library/Application Support/MachineControl/control.sock'), json.dumps({
-            'operation': 'session.control', 'durationSeconds': duration, 'claimId': c['claim']})],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if c.get('rig') is not None:
+            from surface_fixture import SDKOwnerProcess
+            owner=SDKOwnerProcess(c['rig'],duration,c['fixture'].pid,fresh_status)
+        else:
+            owner = subprocess.Popen([str(c['resident']), 'request', str(Path.home() /
+                'Library/Application Support/MachineControl/control.sock'), json.dumps({
+                'operation': 'session.control', 'durationSeconds': duration, 'claimId': c['claim']})],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         def active():
             current = state()
             if owner.poll() is not None:
                 output, _ = owner.communicate()
                 raise AssertionError('Covered startup ended: ' + output.decode() + ' ' + json.dumps(current))
+            if current['phase']=='active' and c.get('rig') is not None:
+                owner.control_id=current['controlSessionId']
             return current if current['phase'] == 'active' else None
         return poll(active, 'covered activation', timeout=45)
 
@@ -366,17 +372,23 @@ def run(c):
         if owner:
             owner.communicate(timeout=15)
             owner = None
-        grant = call('grant.status').get('grant') or {}
-        consent = Path.home() / 'Library/Application Support/MachineControl/operator-consent.json'
-        check('covered ending retains the original until-stopped operator consent',
-              grant.get('origin') == 'person' and grant.get('lifetime') == 'until_stopped'
-              and hashlib.sha256(consent.read_bytes()).digest() == c['consent_digest'])
-        if not c.get('diagnosing_browser_ending'):
-            verify_saved_model(c,'covered completion')
-        # Scope restoration deliberately issues a fresh generation/ID. Saved
-        # consent and its lifetime are the authority oracle, never a reused ID.
-        c['original_id'] = grant['grantId']
-
+        if c.get('rig') is not None:
+            mode=fresh_status()['admission']['surfaces']
+            check('covered ending retains independent original surface consent',
+                  all(mode[name]['mode']=='automatic' and mode[name]['consentRemainingSeconds'] is None for name in ['desktop','browser'])
+                  and mode['browser']['profileIds']==c['rig'].profiles)
+            if not c.get('diagnosing_browser_ending'):verify_saved_model(c,'covered completion')
+        else:
+            grant = call('grant.status').get('grant') or {}
+            consent = Path.home() / 'Library/Application Support/MachineControl/operator-consent.json'
+            check('covered ending retains the original until-stopped operator consent',
+                  grant.get('origin') == 'person' and grant.get('lifetime') == 'until_stopped'
+                  and hashlib.sha256(consent.read_bytes()).digest() == c['consent_digest'])
+            if not c.get('diagnosing_browser_ending'):
+                verify_saved_model(c,'covered completion')
+            # Scope restoration deliberately issues a fresh generation/ID. Saved
+            # consent and its lifetime are the authority oracle, never a reused ID.
+            c['original_id'] = grant['grantId']
     def effect():
         before = json.loads(c['fixture_state'].read_text())
         assert before['pid'] == c['fixture'].pid
@@ -485,6 +497,10 @@ def run(c):
         with ControlSession(target, reason='Qualify finite owner renewal under existing consent',
                             duration=30, wait=120, renew=True) as session:
             initial = session.wait()
+            if c.get('rig') is not None:
+                c['rig'].owners['desktop']=session
+                first=session.call(dict(operation='snapshot',provider='macos-native',target=str(c['fixture'].pid)))
+                assert first.get('accepted'),first.get('errorCode')
             poll(lambda: state()['phase'] == 'active', 'renewable covered activation', timeout=45)
             control_id = state()['controlSessionId']
             started = time.monotonic()
@@ -556,6 +572,10 @@ def run(c):
         with c['sdk_class'](c['sdk_target'],reason='Qualify renewable owner transport loss',
                             duration=30,wait=120,renew=True) as session:
             initial = session.wait()
+            if c.get('rig') is not None:
+                c['rig'].owners['desktop']=session
+                first=session.call(dict(operation='snapshot',provider='macos-native',target=str(c['fixture'].pid)))
+                assert first.get('accepted'),first.get('errorCode')
             control_id = state()['controlSessionId']
             def renewed_twice():
                 view = session.status()
@@ -586,7 +606,7 @@ def run(c):
                 and not observed['unlock'].get('coveredSession')
                 and not observed['unlock'].get('lockedUsePaused', True)
                 and not deployment.get('browserOnlyWhileLocked', True)
-                and {'observe','control'}.issubset(deployment.get('effectiveScopes', [])))
+                and (observed['admission']['surfaces']['desktop']['mode']=='automatic' if c.get('rig') is not None else {'observe','control'}.issubset(deployment.get('effectiveScopes', []))))
         poll(ready, 'fresh desktop scope readiness before SDK admission', timeout=60)
 
     def independent_pointer():
@@ -702,7 +722,8 @@ def run(c):
         observed = poll(settled_recovery, 'fresh pending or completed recovery')
         current = observed['lockedUse']
         if current['phase'] == 'recovering':
-            refusal = raw('snapshot', target=str(c['fixture'].pid), provider='macos-native')
+            refusal = (c['rig'].exchange(c['rig'].endpoint,'snapshot',target=str(c['fixture'].pid),provider='macos-native') if c.get('rig') is not None else raw('snapshot',target=str(c['fixture'].pid),provider='macos-native'))
+            # The unowned native ingress must remain fenced during recovery.
             observed = poll(settled_recovery, 'recovery state after desktop probe')
             current = observed['lockedUse']
             if current['phase'] == 'recovering':
@@ -711,7 +732,7 @@ def run(c):
                 # must refuse desktop dispatch under the retained consent.
                 assert not refusal['accepted'] and refusal['errorCode'] in {
                     'locked_use_recovery_pending', 'desktop_locked_browser_only',
-                    'access_temporarily_unavailable'}, 'Desktop dispatch must remain fenced'
+                    'access_temporarily_unavailable','control_session_required'}, 'Desktop dispatch must remain fenced'
                 c['desktop_recovery_guard_verified'] = True
                 print('DESKTOP_RECOVERY_GUARD ' + json.dumps({'refusalCode':refusal['errorCode'],
                     'coveredSession':observed['unlock'].get('coveredSession'),
@@ -784,10 +805,14 @@ def run(c):
             assert subprocess.run(['sudo', '-n', '/bin/test', '-e', required], capture_output=True).returncode == 0, 'Independent root state probe unavailable'
         marker = '/var/db/machine-control-unlock/covered-session.plist'
         try:
-            owner = subprocess.Popen([str(c['resident']), 'request', str(Path.home() /
-                'Library/Application Support/MachineControl/control.sock'), json.dumps({
-                'operation':'session.control', 'durationSeconds':120, 'claimId':c['claim']})],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if c.get('rig') is not None:
+                from surface_fixture import SDKOwnerProcess
+                owner=SDKOwnerProcess(c['rig'],120,c['fixture'].pid,fresh_status)
+            else:
+                owner = subprocess.Popen([str(c['resident']), 'request', str(Path.home() /
+                    'Library/Application Support/MachineControl/control.sock'), json.dumps({
+                    'operation':'session.control', 'durationSeconds':120, 'claimId':c['claim']})],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert select.select([observer.stdout], [], [], 35)[0], 'Native guardian watcher timed out'
             line = observer.stdout.readline()
             assert line, 'Native guardian watcher missed startup; cell unqualified'
@@ -876,39 +901,50 @@ def run(c):
         active = start()
         call('session.control.end', controlSessionId=active['controlSessionId']); ended()
         start()
-        consent = Path.home() / 'Library/Application Support/MachineControl/operator-consent.json'
-        digest = hashlib.sha256(consent.read_bytes()).digest()
-        c['pid'] = c['restart']()
-        poll(c['locked'], 'guardian relocks after resident death', timeout=45)
-        if owner:
-            owner.communicate(timeout=15); owner = None
-        marker = poll(pause_marker, 'root fault timestamp after resident restart', timeout=10)
-        assert marker['recoveryDelaySeconds'] == 30
-        c['not_before'] = marker['pausedUptime'] + marker['recoveryDelaySeconds'] - .5
-        restored = poll(lambda: call('grant.status').get('grant'), 'saved browser consent restoration', timeout=20)
-        check('resident death restores independent browser scopes while protected recovery is pending',
-              set(restored['scopes']) == {'browser', 'devtools'} and state()['recoveryCondition'] is not None)
-        refusal = raw('snapshot', target=str(c['fixture'].pid), provider='macos-native')
-        check('temporarily unavailable desktop scopes do not ask for new approval',
-              not refusal['accepted'] and refusal['errorCode'] == 'access_temporarily_unavailable')
-        poll(lambda: raw('browser.tabs').get('accepted'), 'extension reconnect after armed resident crash', timeout=30)
-        before = c['effects']['clicks']
-        call('browser.eval', tabId=c['browser_tab'], expression="fetch('/click', {method:'POST'}); true")
-        poll(lambda: c['effects']['clicks'] == before + 1, 'restored locked-browser effect')
-        def restored_desktop():
-            assert c['locked'](), 'Console unlocked during restart recovery'
-            ready = {'observe', 'control'}.issubset(call('grant.status')['grant']['scopes'])
-            if ready:
-                assert raw_time() >= c['not_before'], 'Desktop scopes restored before fault cooldown'
-            return ready
-        poll(restored_desktop, 'fresh desktop scope upgrade after root recovery', timeout=100)
-        c['original_id'] = call('grant.status')['grant']['grantId']
-        check('recovery upgrades authority with saved operator consent unchanged',
-              hashlib.sha256(consent.read_bytes()).digest() == digest == c['consent_digest'])
-        # Leave a fresh covered lease active so the observer can exercise the
-        # real operator Stop. Stop must terminate it and independently relock.
-        start()
-        c['check_stop_lock'] = True
+        if c.get('rig') is not None:
+            c['pid']=c['restart']()
+            poll(c['locked'],'guardian relocks after resident death',timeout=45)
+            c['rig'].close_owners()
+            if owner is not None:owner.terminate();owner=None
+            observed=fresh_status()
+            check('armed protected resident death restores no authority on either surface',all(v['mode']=='off' for v in observed['admission']['surfaces'].values()))
+            refusal=c['rig'].exchange(c['rig'].endpoint,'snapshot',target=str(c['fixture'].pid),provider='macos-native')
+            check('old protected owner cannot dispatch after resident crash',not refusal.get('accepted'))
+            c['check_stop_lock']=False
+        else:
+            consent = Path.home() / 'Library/Application Support/MachineControl/operator-consent.json'
+            digest = hashlib.sha256(consent.read_bytes()).digest()
+            c['pid'] = c['restart']()
+            poll(c['locked'], 'guardian relocks after resident death', timeout=45)
+            if owner:
+                owner.communicate(timeout=15); owner = None
+            marker = poll(pause_marker, 'root fault timestamp after resident restart', timeout=10)
+            assert marker['recoveryDelaySeconds'] == 30
+            c['not_before'] = marker['pausedUptime'] + marker['recoveryDelaySeconds'] - .5
+            restored = poll(lambda: call('grant.status').get('grant'), 'saved browser consent restoration', timeout=20)
+            check('resident death restores independent browser scopes while protected recovery is pending',
+                  set(restored['scopes']) == {'browser', 'devtools'} and state()['recoveryCondition'] is not None)
+            refusal = raw('snapshot', target=str(c['fixture'].pid), provider='macos-native')
+            check('temporarily unavailable desktop scopes do not ask for new approval',
+                  not refusal['accepted'] and refusal['errorCode'] == 'access_temporarily_unavailable')
+            poll(lambda: raw('browser.tabs').get('accepted'), 'extension reconnect after armed resident crash', timeout=30)
+            before = c['effects']['clicks']
+            call('browser.eval', tabId=c['browser_tab'], expression="fetch('/click', {method:'POST'}); true")
+            poll(lambda: c['effects']['clicks'] == before + 1, 'restored locked-browser effect')
+            def restored_desktop():
+                assert c['locked'](), 'Console unlocked during restart recovery'
+                ready = {'observe', 'control'}.issubset(call('grant.status')['grant']['scopes'])
+                if ready:
+                    assert raw_time() >= c['not_before'], 'Desktop scopes restored before fault cooldown'
+                return ready
+            poll(restored_desktop, 'fresh desktop scope upgrade after root recovery', timeout=100)
+            c['original_id'] = call('grant.status')['grant']['grantId']
+            check('recovery upgrades authority with saved operator consent unchanged',
+                  hashlib.sha256(consent.read_bytes()).digest() == digest == c['consent_digest'])
+            # Leave a fresh covered lease active so the observer can exercise the
+            # real operator Stop. Stop must terminate it and independently relock.
+            start()
+            c['check_stop_lock'] = True
     finally:
         if suspended:
             os.kill(suspended, signal.SIGCONT)

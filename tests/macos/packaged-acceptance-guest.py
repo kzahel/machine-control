@@ -144,7 +144,7 @@ def main():
         presentation.chmod(0o600)
         command('/bin/bash', root / 'install-user.sh', '--app', root / 'candidate/Machine Control.app')
         current = wait(status, 'Installed candidate unavailable')
-        assert current['deployment']['policy']['grantMode'] == 'approval'
+        assert current['deployment']['policy']['grantMode'] == ('surface_modes' if current.get('admission',{}).get('schema')=='machine-control-admission/v2' else 'approval')
         assert current['nativeSemanticState'] == 'ready', 'Signed candidate needs normal Accessibility consent'
         command('/usr/bin/codesign', '--verify', '--deep', '--strict', installed)
         candidate_manifest = manifest(installed)

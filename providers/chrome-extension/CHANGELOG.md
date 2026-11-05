@@ -5,9 +5,12 @@ Store releases are tagged `extension-v<version>`; see
 
 ## Unreleased
 
+## [0.9.0] - 2026-11-05
+
 - Add extension-local profile identity, name, availability and identity reset.
-  Negotiated profile support keeps older Mac/Linux residents compatible;
-  migrated Windows residents require explicit profile selection and approval.
+  Negotiated profile support keeps older published residents compatible;
+  desktop 0.7.0 requires explicit profile availability, selection and approval
+  on Windows, macOS and Linux.
 - Exclude private tabs from ordinary browser discovery and debugger attachment.
 
 - Report the executing operation-code digest and extension identity in tab

@@ -85,6 +85,14 @@ passing complete run emits minimized `acceptance.json`; `--app --development`
 supports local builds but cannot emit a qualifying release receipt. Failed or
 uncertain restoration retains guest backups and fails acceptance.
 
+For 0.7.0 the campaign uses independent Desktop/Browser modes, exact enabled
+profiles and retained owners. Saved form choices do not restore consent after
+clean exit, crash or boot. The fresh sequential visible-controls workspace also
+proves native Stop during active protected control; it observes a normal boot
+after that locked ending before continuing the Settings and final boot checks.
+Extension 0.9.0 is the matching profile-aware worker; submit its backward-
+compatible store update before constructing the final desktop candidate.
+
 For 0.6.11 and later, use the controller wrapper instead of the browser-only
 command. Resolve the canonical credential locator with
 `bin/machine-control inventory credentials macvm`, and begin the private
