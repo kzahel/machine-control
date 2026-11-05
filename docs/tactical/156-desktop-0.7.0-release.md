@@ -356,3 +356,15 @@ claim release. It does not reproduce the intermittent original refusal and
 predates the native continuity repair. The repaired source passes all 231
 Swift, 19 Mac fixture and 95 release tests (one platform skip), and Mac native
 static checks. Keep those evidence boundaries explicit in final qualification.
+
+Cross-platform Mac CI again aborts the existing optimized resource-probe
+fixture with an unlabelled Swift trap; other coordinator/native jobs pass.
+The exact failed oracle is unavailable. Separate error classification from
+its incidental 100-millisecond process-start budget: ordinary error children
+use the existing two-second observation bound, while deliberately hung and
+closed-output children retain the short timeout. Preserve all descriptor,
+child-reaping and cancellation assertions. Emit an explicit fixture line and
+message before failing, including in optimized builds. The 500-success/error/
+deadline/cancellation resource run passes locally without descriptor growth;
+a forced failed oracle emits its label and nonzero exit without SIGTRAP.
+Cancel the now-obsolete candidate before another clean-source build.

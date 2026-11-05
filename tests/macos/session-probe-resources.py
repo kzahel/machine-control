@@ -70,7 +70,9 @@ for _ in 0..<10 {
     for (mode, failure) in [("missing", "launch_failed"), ("nonzero", "nonzero_exit"),
                             ("invalid", "invalid_response"), ("shape", "invalid_response"),
                             ("large", "output_limit"), ("hang", "timeout"), ("closed", "timeout")] {
-        let result = observe(mode, timeout: 0.1)
+        // Error classification is independent of process-start scheduling.
+        // Only deliberately stalled children test the short timeout itself.
+        let result = observe(mode, timeout: ["hang", "closed"].contains(mode) ? 0.1 : 2)
         precondition(result["desktopState"] as? String == "unknown")
         precondition(result["probeFailure"] as? String == failure, "\(mode): \(result)")
         precondition(fds() <= baseline); noChildren()
@@ -152,6 +154,21 @@ with tempfile.TemporaryDirectory(prefix='mc-probe-resources-') as directory:
     (path / 'Contents/MacOS').mkdir(parents=True)
     (path / 'Contents/Resources').mkdir()
     (path / 'Contents/Resources/mc-session-probe').symlink_to(path / 'ok')
-    (path / 'main.swift').write_text('import Foundation\nimport Darwin\n' + observer + fixture)
+    # Optimized Swift preconditions can trap without their diagnostic text.
+    # Keep every oracle active and emit a bounded label before failing, so a
+    # hosted-runner failure identifies its actual resource or timing condition.
+    checks = r'''
+func require(_ condition: @autoclosure () -> Bool,
+             _ message: @autoclosure () -> String = "condition failed",
+             line: UInt = #line) {
+    guard condition() else {
+        fputs("Session probe fixture line \(line): \(message())\n", stderr)
+        fflush(stderr)
+        exit(1)
+    }
+}
+'''
+    (path / 'main.swift').write_text('import Foundation\nimport Darwin\n' + observer + checks +
+                                    fixture.replace('precondition(', 'require('))
     subprocess.run(['xcrun', 'swiftc', '-O', str(path / 'main.swift'), '-o', str(path / 'Contents/MacOS/test')], check=True)
     subprocess.run([str(path / 'Contents/MacOS/test'), str(path), str(args.iterations), 'pooled' if args.caller_pool else 'unpooled'], check=True, timeout=min(7200, max(120, args.iterations)))
