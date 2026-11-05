@@ -28,6 +28,7 @@ const DISCONNECTS = [
 ];
 const tabCache = new Map();
 let state = null;
+let renderGeneration = 0;
 
 document.body.classList.toggle("page", welcome);
 $("welcome").hidden = !welcome;
@@ -62,9 +63,10 @@ function element(tag, className, text) {
   return node;
 }
 
-async function renderTabs(ids) {
+async function renderTabs(ids, generation) {
   const list = $("tabs");
   const tabs = (await Promise.all(ids.map(tabInfo))).filter(Boolean);
+  if (generation !== renderGeneration) return;
   list.replaceChildren(...tabs.map((tab) => {
     const item = element("li");
     const icon = element("img");
@@ -89,7 +91,7 @@ function timeOf(at) {
   return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
-async function renderActivity(entries) {
+async function renderActivity(entries, generation) {
   const list = $("activity");
   const items = await Promise.all(entries.slice(0, 100).map(async (entry) => {
     const item = element("li", entry.ok ? "" : "failed");
@@ -102,12 +104,14 @@ async function renderActivity(entries) {
     item.append(element("span", "dot"), main, element("span", "entry-time", timeOf(entry.at)));
     return item;
   }));
+  if (generation !== renderGeneration) return;
   list.replaceChildren(...items);
   $("no-activity").hidden = items.length > 0;
 }
 
 async function render() {
   if (!state) return;
+  const generation = ++renderGeneration;
   $("profile-card").hidden = !state.profileAware;
   $("profile-problem").hidden = !state.lastDisconnect;
   $("profile-problem").textContent = state.lastDisconnect ? setupReason(state.lastDisconnect) : "";
@@ -131,7 +135,7 @@ async function render() {
   summary.classList.toggle("live", live);
   $("tabs-card").hidden = !state.connected;
   $("activity-card").hidden = !state.connected && !state.activity.length;
-  await Promise.all([renderTabs(state.controlledTabs), renderActivity(state.activity)]);
+  await Promise.all([renderTabs(state.controlledTabs, generation), renderActivity(state.activity, generation)]);
 }
 
 function connect() {

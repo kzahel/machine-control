@@ -76,3 +76,16 @@ Google review/publication remains distinct from successful submission.
 
 Candidate construction and native qualification of the updated harness are
 pending. The native adoption evidence in Tacticals 153–155 remains separate.
+
+The first updated-source real-browser CI gate finds stale controlled-tab UI
+after Stop. A deterministic real-panel test holds old tab metadata, delivers
+a newer cleared state, then releases the old result; the stale render restores
+old tabs. A presentation generation now fences both asynchronous tab and
+activity commits. This changes panel rendering only, not control authority.
+
+Mac CI also exposes a model fixture reading the runner's real console during
+native preflight. The resulting session-generation refusal is correct, but
+cannot qualify the simulated action. Admission-channel tests now bind both
+coordinator and worker observations to their same modeled console. All 17
+admission-channel cases pass. Real console/session behavior remains a native
+candidate gate; it is not inferred from this fixture.

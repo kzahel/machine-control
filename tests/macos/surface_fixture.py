@@ -103,6 +103,7 @@ class SurfaceFixture:
         profiles=self.status()['browser']['profiles']
         labels={'Allow profile '+p['name'] for p in profiles if p['profileId'] in ids}
         assert len(labels)==len(ids), 'Fixture profiles must have unique native labels'
+        for label in sorted(labels):poll(lambda:self.find(label,'AXCheckBox'),'visible '+label)
         for _ in range(70):
             rows=[r for r in self.tree() if r.get('role')=='AXCheckBox' and str(r.get('label','')).startswith(('Allow profile ','Unavailable profile'))]
             change=next((r for r in rows if (str(r.get('value','')).lower() in {'1','true'}) != (r.get('label') in labels)),None)

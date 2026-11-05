@@ -17,6 +17,14 @@ the browser's native-host manifest directory.
 
 ## Architecture and reach
 
+**Current source:** panel rendering binds asynchronous tab/activity metadata to
+its presentation generation. A deterministic real-panel regression releases
+an older metadata read after a newer cleared state and verifies it cannot
+restore stale rows. The separate real-browser fixture checks both panels after
+Stop. This is presentation correctness; the resident remains the authority.
+[Tactical 156](../../docs/tactical/156-desktop-0.7.0-release.md) records the
+release qualification.
+
 **Decision, implemented in unreleased desktop adapters:** the [unified permission model](../../topics/access-admission-and-pause.md#unified-permissions-and-handoff-contract)
 treats Browser as one surface including supported CDP and page JavaScript,
 independent of Desktop's mode. Existing browser/DevTools scope flags and the

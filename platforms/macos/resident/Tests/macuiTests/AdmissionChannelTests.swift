@@ -27,6 +27,15 @@ final class AdmissionChannelTests: XCTestCase {
         }
         broker.admission.setInputReady(true)
         try server.configureSurface("desktop",mode:"automatic",seconds:nil)
+        // This suite models the console and provider effects. Reading the CI
+        // host's real session during preflight can rotate the fixture epoch
+        // between acceptance and dispatch, correctly refusing the test action.
+        let console = server.grantConsoleObservation()
+        server.service.sessionObservation.stop()
+        server.service.sessionObservation = BackgroundObservation(label:"test.admission.session",
+            timeout:1, unknown:{ console }, read:{ console })
+        server.service.applySessionObservation(console)
+        server.nativeProvider.readSession = { console }
         try server.start()
     }
     override func tearDown() {
@@ -381,7 +390,7 @@ final class AdmissionChannelTests: XCTestCase {
             "sessionId":active["sessionId"]!,"resourceGenerations":active["resourceGenerations"]!,"request":["operation":"snapshot"]]))
         DispatchQueue.global().async {
             let reply = (try? readSocket(client)).flatMap { try? JSONSerialization.jsonObject(with:$0) } as? [String:Any]
-            XCTAssertEqual((reply?["data"] as? [String:Any])?["accepted"] as? Bool,true)
+            XCTAssertEqual((reply?["data"] as? [String:Any])?["accepted"] as? Bool,true, "Unexpected native result: \(reply ?? [:])")
             completed.fulfill()
         }
         DispatchQueue.main.asyncAfter(deadline:.now() + .milliseconds(100)) {

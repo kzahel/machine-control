@@ -7,6 +7,9 @@ Store releases are tagged `extension-v<version>`; see
 
 ## [0.9.0] - 2026-11-05
 
+- Keep late tab metadata from repainting controlled tabs or activity after
+  newer Stop or disconnected state has cleared the panel.
+
 - Add extension-local profile identity, name, availability and identity reset.
   Negotiated profile support keeps older published residents compatible;
   desktop 0.7.0 requires explicit profile availability, selection and approval
