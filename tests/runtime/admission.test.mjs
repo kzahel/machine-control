@@ -182,7 +182,7 @@ test("compound work acquires all resources atomically under both modes", () => {
   assert.equal(background.state, "offered", "blocked compound task holds no partial resource");
   f.policy.approve(compound.intentId);
   f.policy.resume("desktop", "manual");
-  assert.equal(f.inspect(compound).state, "announcing");
+  assert.equal(f.inspect(compound).state, "offered", "explicit approval supplies the initial handoff");
   assert.equal(f.inspect(background).state, "waiting_for_resource");
 });
 
@@ -308,6 +308,15 @@ test("production process inlet carries independent owners and negotiates v2 with
     assert.equal((await call("authorize", { owner: "two", fence: fullActive, operation: "input.key" })).refusal, "operation_not_permitted_by_control_channel");
     await call("close", { owner: "two" });
     assert.equal((await call("state")).active, 0);
+    await call("preferences", { preferences: { desktopNoticeSeconds: 0, browserNoticeSeconds: 30, yieldWaitSeconds: 10, yieldReapprove: true } });
+    const options = await call("state");
+    assert.equal(options.experienceVersion, 1); assert.equal(options.surfaces.browser.noticeSeconds, 30);
+    await call("open", { owner: "three" });
+    const held = await call("submit", { owner: "three", request: { ...request, requestId: "held" } });
+    await call("hold", { intentId: held.intentId });
+    assert.equal((await call("inspect", { owner: "three", intentId: held.intentId })).held, true);
+    await call("approve", { intentId: held.intentId, milliseconds: 1000 });
+    assert.equal((await call("inspect", { owner: "three", intentId: held.intentId })).state, "paused");
     await call("stop");
     assert.equal((await call("state")).surfaces.desktop.mode, "off");
   } finally { await process.close(); }
@@ -367,7 +376,7 @@ test("admission emits closed transition metadata without request or page text", 
   const offer = policy.inspect(owner, intent.intentId), active = policy.accept(owner, intent.intentId, offer.offerGeneration);
   policy.input("desktop", "key"); policy.authorize(owner, active); policy.cancel(owner, intent.intentId);
   const names = events.map(event => event.event);
-  for (const expected of ["requested", "waiting_for_approval", "approved", "announcing", "start_now", "offered", "active", "takeover", "yielded", "paused", "rejected", "ended"])
+  for (const expected of ["requested", "waiting_for_approval", "approved", "announcing", "offered", "active", "takeover", "yielded", "paused", "rejected", "ended"])
     assert.ok(names.includes(expected), expected);
   assert.equal(events.findLast(event => event.event === "ended").reason, "cancelled");
   assert.ok(!JSON.stringify(events).includes("PRIVATE"));
@@ -434,4 +443,173 @@ test("holding a full Browser task does not hold Desktop input", () => {
   f.policy.defer(browser.intentId, 30_000);
   assert.equal(f.request("desktop").state, "announcing");
   assert.deepEqual(f.policy.status().deferrals.map(row => row.resource), ["browser:work"]);
+});
+
+
+const settings = (extra = {}) => ({ desktopNoticeSeconds: 10, browserNoticeSeconds: 10, yieldWaitSeconds: 60, yieldReapprove: false, ...extra });
+
+test("independent countdowns include immediate start and compounds use the longest warning", () => {
+  const f = fixture(); f.policy.preferences(settings({ desktopNoticeSeconds: 0, browserNoticeSeconds: 30 }));
+  const immediate = f.request(); assert.equal(immediate.state, "offered");
+  f.policy.cancel(f.owner, immediate.intentId);
+  const browser = f.request("browser", { disruptive: true });
+  assert.equal(browser.noticeRemainingSeconds, 30);
+  f.policy.cancel(f.owner, browser.intentId);
+  const compound = f.request("browser", { disruptive: true, surfaces: ["desktop", "browser"] });
+  assert.equal(compound.noticeRemainingSeconds, 30);
+  assert.equal(f.policy.status().surfaces.desktop.noticeSeconds, 0);
+  assert.throws(() => f.policy.preferences(settings({ yieldWaitSeconds: 0 })), /invalid_access_preferences/);
+  assert.equal(f.policy.status().preferences.yieldWaitSeconds, 60);
+});
+
+test("approval starts without a redundant countdown and can explicitly schedule this task", () => {
+  const f = fixture("ask"), task = f.request();
+  f.policy.approve(task.intentId, 30_000);
+  assert.equal(f.inspect(task).state, "paused");
+  assert.equal(f.inspect(task).scheduledRemainingSeconds, 30);
+  const otherOwner = f.policy.open(), other = f.request("desktop", {}, otherOwner);
+  assert.equal(other.state, "waiting_for_approval", "a scheduled approval reserves nothing");
+  f.advance(29_000); f.inspect(task, f.owner, true);
+  assert.equal(f.inspect(task).state, "paused");
+  f.advance(1000);
+  assert.equal(f.inspect(task).state, "offered");
+  assert.equal(f.inspect(task).noticeRemainingSeconds, null);
+  const active = f.activate(task);
+  assert.equal(f.policy.authorize(f.owner, active), null);
+  assert.equal(f.inspect(other, otherOwner).state, "waiting_for_resource");
+});
+
+test("delayed approval respects wait, task and consent ceilings and cannot revive after Stop", () => {
+  const f = fixture("ask"), task = f.request("desktop", { waitMs: 30_000 });
+  assert.throws(() => f.policy.approve(task.intentId, 30_000), /delay_exceeds_task_lifetime/);
+  assert.equal(f.inspect(task).state, "waiting_for_approval");
+  f.policy.approve(task.intentId, 10_000); f.policy.stop(); f.advance(10_000);
+  assert.equal(f.inspect(task).state, "ended");
+  assert.throws(() => f.policy.approve(task.intentId), /stale_activation_notice/);
+  const g = fixture("ask"), delayed = g.request("desktop", { waitMs: 10_000 });
+  g.policy.approve(delayed.intentId, 5000); g.policy.close(g.owner); g.advance(5000);
+  assert.equal(g.policy.status().active, 0); assert.equal(g.policy.status().requests.length, 0);
+});
+
+test("postponing never approves an unanswered task or holds shared resources", () => {
+  const f = fixture("ask"), task = f.request();
+  f.policy.postpone(task.intentId, 10_000); f.advance(10_000);
+  assert.equal(f.inspect(task).state, "waiting_for_approval");
+  const automatic = fixture(), warning = automatic.request();
+  automatic.policy.postpone(warning.intentId, 30_000);
+  assert.equal(automatic.inspect(warning).state, "paused");
+  assert.equal(automatic.request("browser", { disruptive: true }).state, "announcing");
+});
+
+test("task holds release resources and require approval for replacement tasks", () => {
+  const f = fixture(); const browser = f.activate(f.request("browser", { disruptive: true }));
+  f.policy.hold(browser.intentId);
+  assert.equal(f.inspect(browser).held, true);
+  assert.equal(f.policy.authorize(f.owner, browser), "stale_control_session");
+  assert.equal(f.request().state, "announcing", "a Browser hold is not a Desktop hold");
+  const replacement = f.request("browser", { disruptive: true });
+  assert.equal(replacement.state, "waiting_for_approval");
+  f.policy.cancel(f.owner, browser.intentId);
+  assert.equal(f.inspect(replacement).state, "waiting_for_approval", "cancel and resubmit cannot bypass the hold decision");
+  f.policy.approve(replacement.intentId);
+  const active = f.activate(replacement);
+  assert.equal(f.policy.authorize(f.owner, active), null);
+});
+
+test("manual holds expire under the original wait and cannot be continued later", () => {
+  const f = fixture(), task = f.request("desktop", { waitMs: 10_000 });
+  f.policy.hold(task.intentId); f.advance(10_000);
+  assert.equal(f.inspect(task).terminalReason, "wait_deadline_exceeded");
+  assert.throws(() => f.policy.approve(task.intentId), /stale_activation_notice/);
+});
+
+test("Desktop yield always warns before automatic return even with immediate initial starts", () => {
+  const f = fixture(); f.policy.preferences(settings({ desktopNoticeSeconds: 0, yieldWaitSeconds: 10 }));
+  const task = f.request(), active = f.activate(task);
+  f.policy.input("desktop", "key");
+  assert.equal(f.policy.status().handoffCooldownRemainingSeconds, 10);
+  f.advance(10_000);
+  assert.equal(f.inspect(task).state, "announcing");
+  assert.equal(f.inspect(task).noticeRemainingSeconds, 5);
+  const fresh = f.activate(task);
+  assert.notEqual(fresh.sessionId, active.sessionId);
+  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+});
+
+test("yield reapproval gates the next Desktop task including Automatic and replacement owners", () => {
+  const f = fixture(); f.policy.preferences(settings({ desktopNoticeSeconds: 0, yieldWaitSeconds: 10, yieldReapprove: true }));
+  const task = f.request(), active = f.activate(task);
+  f.policy.input("desktop", "key");
+  const replacement = f.request(); f.advance(10_000);
+  assert.equal(f.inspect(task).state, "waiting_for_approval");
+  assert.equal(f.inspect(replacement).state, "waiting_for_approval");
+  f.policy.approve(task.intentId);
+  f.policy.cancel(f.owner, task.intentId);
+  assert.equal(f.inspect(replacement).state, "waiting_for_approval", "cancel before acceptance does not consume the next-start approval gate");
+  f.policy.approve(replacement.intentId);
+  f.activate(replacement);
+  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+});
+
+
+test("replacement tasks cannot skip the post-yield warning in immediate mode", () => {
+  const f = fixture(); f.policy.preferences(settings({ desktopNoticeSeconds: 0, yieldWaitSeconds: 10 }));
+  const task = f.request(); f.activate(task); f.policy.input("desktop", "button");
+  f.policy.cancel(f.owner, task.intentId); const replacement = f.request();
+  f.advance(10_000);
+  assert.equal(f.inspect(replacement).state, "announcing");
+  assert.equal(f.inspect(replacement).noticeRemainingSeconds, 5);
+});
+
+
+test("approval before a takeover does not waive the later return warning", () => {
+  for (const delay of [0, 20_000]) {
+    const f = fixture("ask"); f.policy.preferences(settings({ desktopNoticeSeconds: 0, yieldWaitSeconds: 10 }));
+    const first = f.request(); f.policy.approve(first.intentId); f.activate(first);
+    const queued = f.request(); f.policy.approve(queued.intentId, delay);
+    f.policy.input("desktop", "key"); f.policy.cancel(f.owner, first.intentId);
+    f.advance(delay || 10_000);
+    assert.equal(f.inspect(queued).state, "announcing");
+    assert.equal(f.inspect(queued).noticeRemainingSeconds, 5);
+  }
+});
+
+test("non-input Desktop acceptance cannot consume another task's return warning", () => {
+  const f = fixture(); f.policy.preferences(settings({ desktopNoticeSeconds: 0, yieldWaitSeconds: 10 }));
+  const first = f.request(); f.activate(first); f.policy.input("desktop", "key"); f.policy.cancel(f.owner, first.intentId);
+  const observed = f.request("desktop", { disruptive: false }); f.activate(observed); f.policy.cancel(f.owner, observed.intentId);
+  const replacement = f.request(); f.advance(10_000);
+  assert.equal(f.inspect(replacement).noticeRemainingSeconds, 5);
+});
+
+test("Continue now acknowledges an immediate-mode yield but cannot bypass protected blocks", () => {
+  const f = fixture(); f.policy.preferences(settings({ desktopNoticeSeconds: 0 }));
+  const task = f.request(); f.activate(task); f.policy.input("desktop", "key");
+  f.policy.pause("desktop", "protected_quiet", null); f.policy.approve(task.intentId);
+  assert.equal(f.inspect(task).state, "paused");
+  f.policy.resume("desktop", "protected_quiet");
+  f.policy.approve(task.intentId);
+  assert.equal(f.inspect(task).state, "offered");
+});
+
+test("late approval is idempotent for an active task and cannot reschedule it", () => {
+  const f = fixture("ask"), task = f.request(); f.policy.approve(task.intentId); const active = f.activate(task);
+  f.policy.approve(task.intentId);
+  assert.throws(() => f.policy.approve(task.intentId, 1000), /task_already_active/);
+  assert.equal(f.policy.authorize(f.owner, active), null);
+  const g = fixture(), warning = g.request("desktop", { waitMs: 30_000 });
+  assert.throws(() => g.policy.postpone(warning.intentId, 29_000), /delay_exceeds_task_lifetime/);
+});
+
+test("held and scheduled work remain bounded by consent and the original task ceiling", () => {
+  for (const held of [false, true]) {
+    const f = fixture("ask"); f.policy.configure("desktop", { mode: "ask", durationMs: 15_000 });
+    const task = f.request(); if (held) f.policy.hold(task.intentId); else f.policy.approve(task.intentId, 10_000);
+    f.advance(15_000); assert.equal(f.inspect(task).terminalReason, "consent_expired");
+  }
+  const f = fixture(), task = f.request("desktop", { waitMs: 10_000, durationMs: 1000 });
+  const active = f.activate(task); f.policy.renew(f.owner, active, 10_000);
+  f.advance(4000); f.inspect(task, f.owner, true); f.advance(4000); f.inspect(task, f.owner, true); f.advance(1000);
+  f.policy.hold(task.intentId); f.advance(2000);
+  assert.equal(f.inspect(task).terminalReason, "duration_expired");
 });

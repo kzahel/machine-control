@@ -14,7 +14,7 @@ import { ExtensionProvider } from "../src/extension-provider.ts";
 import type { NativeFrame } from "../src/extension-provider.ts";
 import { dispatchToProvider } from "../src/provider-dispatch.ts";
 import { AccessAdmission, backgroundOperations } from "../src/admission.ts";
-import type { AdmissionOwner, AdmissionRequest, Surface, SurfaceConfiguration, SessionFence, HumanInput } from "../src/admission.ts";
+import type { AdmissionOwner, AdmissionRequest, Surface, SurfaceConfiguration, SessionFence, HumanInput, AccessPreferences } from "../src/admission.ts";
 
 function string(value: unknown): string {
   if (typeof value !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(value))
@@ -471,7 +471,10 @@ export class PolicyHost {
     } else if (method === "access.pause") this.access.pause(string(frame.surface) as Surface | "all", string(frame.reason), frame.milliseconds === null ? null : integer(frame.milliseconds));
     else if (method === "access.resume") this.access.resume(string(frame.surface) as Surface | "all", string(frame.reason));
     else if (method === "access.input") this.access.input(string(frame.surface) as Surface, string(frame.kind) as HumanInput);
-    else if (method === "access.approve") this.access.approve(string(frame.intentId));
+    else if (method === "access.preferences") this.access.preferences(object(frame.preferences) as unknown as AccessPreferences);
+    else if (method === "access.hold") this.access.hold(string(frame.intentId));
+    else if (method === "access.postpone") this.access.postpone(string(frame.intentId), integer(frame.milliseconds));
+    else if (method === "access.approve") this.access.approve(string(frame.intentId), frame.milliseconds === undefined ? 0 : integer(frame.milliseconds));
     else if (method === "access.start") this.access.startNow(string(frame.intentId));
     else if (method === "access.deny") this.access.deny(string(frame.intentId));
     else if (method === "access.defer") this.access.defer(string(frame.intentId), frame.milliseconds === null ? null : integer(frame.milliseconds));

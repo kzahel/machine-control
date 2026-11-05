@@ -192,3 +192,28 @@ prioritizes warnings/approvals and limits detailed requests to sixteen while
 reporting complete counts and a truncation flag, keeping the native operator
 frame below its 1 MiB bound even with maximal profile selections. This is a
 presentation bound, never a second admission decision.
+
+
+## Access experience options
+
+**Current source, Tactical 157:** the existing admission v2 state remains the
+agent contract. Additive status `experienceVersion: 1` advertises the operator
+experience options; scheduled/held tasks use `paused` with blocking reasons,
+not new agent wire states. Native presenters must acknowledge the operator's
+Allow/Continue input before activation. The operator inlet adds:
+
+- `access.preferences`: validated `preferences` containing per-surface warning
+  seconds, Desktop yield wait and reapproval choice. No access is granted.
+- `access.approve`: optional `milliseconds` explicitly approves this exact task
+  for immediate or delayed eligibility under its original deadlines.
+- `access.postpone`: `intentId`/`milliseconds`, postpones without granting approval.
+- `access.hold`: holds that intent and requires approval for replacement work
+  on its surfaces; Continue uses explicit approval of the selected held task.
+
+Delays/holds never extend owner/task/consent ceilings or survive child restart.
+Automatic Desktop return on a presentable unlocked route gets at least a
+five-second warning unless the operator explicitly chooses Allow/Continue now.
+Invisible protected routes retain their native safeguards. Native protected
+readiness and relock remain independent ceilings. UI controls are shipped only
+with their native adapter support; an additive core field alone is not evidence
+that an older native operator bridge implements the commands.

@@ -275,3 +275,27 @@ interference follow-up. Its focused admission suite passed independently; the
 coordinator's complete runtime suite and strict check also pass. Added the
 reverse Browser-deferral/Desktop-independence assertion and narrowed the input
 monitor copy to Desktop. No native/provider dispatch code changed.
+
+
+### Phase 3 - bounded shared start, delay and yield policy
+
+**Current:** per-surface zero/countdown preferences, explicit approve-and-start,
+intent-local delay/hold and Desktop continuation/reapproval are implemented in
+the existing shared core/operator inlet. Agent wire states remain unchanged.
+Manual holds/reapproval gate replacement starts on the surface until an
+explicitly approved task acquires it. Returning after Desktop yield on a presentable
+unlocked route warns for at least five seconds, even in immediate mode and for a replacement
+task. Original wait/task/consent/owner ceilings remain authoritative.
+
+Fake-clock cases cover independent/compound notice lengths, delayed approval
+versus postponement, expiry/Stop/disconnect, held-task resource release and
+anti-bypass, configurable yield wait, stale sessions and next-start reapproval.
+Native input acknowledgement and presentation integration follow in phase 4;
+this core phase is not packaged/native acceptance.
+
+Phase 3 follow-up Opus review accepted after queued pre-yield approvals and
+non-input Desktop accepts were prevented from bypassing the return warning.
+Continue now respects protected/readiness blocks; stale active approvals are
+idempotent and cannot schedule a running task. Delay checks include notice
+budget. All 96 runtime tests and strict checks pass. Native/UI integration is
+still separate, and scheduled eligibility remains subject to actual readiness.

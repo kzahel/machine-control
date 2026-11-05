@@ -39,6 +39,12 @@ export interface AdmissionEvent {
   readonly sessionId?: string;
   readonly reason?: string;
 }
+export interface AccessPreferences {
+  readonly desktopNoticeSeconds: number;
+  readonly browserNoticeSeconds: number;
+  readonly yieldWaitSeconds: number;
+  readonly yieldReapprove: boolean;
+}
 export interface AdmissionOwner { readonly channel: number }
 export interface SessionFence {
   readonly intentId: string;
@@ -72,6 +78,11 @@ interface Intent {
   offerDeadline: number;
   noticeDeadline: number;
   announced: boolean;
+  notBefore: number;
+  held: boolean;
+  skipNotice: boolean;
+  yielded: boolean;
+  readonly approvalEpochs: Map<Surface, number>;
   session: string | null;
   activeDeadline: number;
   generations: Record<string, number>;
@@ -107,6 +118,10 @@ export class AccessAdmission {
   #revision = 0;
   #noticeMs = 10_000;
   #humanCooldownUntil = 0;
+  #postYieldWarning = false;
+  #preferences: AccessPreferences = { desktopNoticeSeconds: 10, browserNoticeSeconds: 10, yieldWaitSeconds: 60, yieldReapprove: false };
+  readonly #approvalRequired = new Set<Surface>();
+  readonly #approvalEpochs = new Map<Surface, number>([["desktop", 0], ["browser", 0]]);
 
   constructor(clock: Clock, event: (event: AdmissionEvent) => void = () => {}) {
     this.#clock = clock; this.#event = event;
@@ -139,6 +154,7 @@ export class AccessAdmission {
     // Configuration is a new consent ceiling, never an extension of an old task.
     for (const intent of this.#intents)
       if (!intent.terminal && intent.request.surfaces.includes(surface)) this.#finish(intent, "consent_replaced");
+    this.#approvalRequired.delete(surface);
     current.mode = configuration.mode;
     current.expiresAt = configuration.mode === "off" ? 0 :
       configuration.durationMs === null ? Infinity : this.#now + configuration.durationMs;
@@ -157,6 +173,30 @@ export class AccessAdmission {
   notice(milliseconds: number): void {
     duration(milliseconds, 0, 60_000);
     this.#noticeMs = milliseconds;
+    this.#preferences = { ...this.#preferences, desktopNoticeSeconds: milliseconds / 1000, browserNoticeSeconds: milliseconds / 1000 };
+    ++this.#revision;
+  }
+  preferences(value: AccessPreferences): void {
+    duration(value.desktopNoticeSeconds, 0, 60);
+    duration(value.browserNoticeSeconds, 0, 60);
+    if (![10, 30, 60, 300].includes(value.yieldWaitSeconds) || typeof value.yieldReapprove !== "boolean") throw new Error("invalid_access_preferences");
+    this.#preferences = { desktopNoticeSeconds: value.desktopNoticeSeconds, browserNoticeSeconds: value.browserNoticeSeconds,
+      yieldWaitSeconds: value.yieldWaitSeconds, yieldReapprove: value.yieldReapprove };
+    this.#noticeMs = value.desktopNoticeSeconds * 1000;
+    ++this.#revision;
+  }
+  #requireApproval(surface: Surface): void {
+    this.#approvalEpochs.set(surface, this.#approvalEpochs.get(surface)! + 1);
+    this.#approvalRequired.add(surface);
+  }
+  #needsApproval(intent: Intent): boolean {
+    return intent.request.surfaces.some(surface => (this.#config(surface).mode === "ask" || this.#approvalRequired.has(surface)) &&
+      (intent.approvals.get(surface) !== this.#config(surface).generation || intent.approvalEpochs.get(surface) !== this.#approvalEpochs.get(surface)));
+  }
+  #noticeFor(intent: Intent): number {
+    const normal = intent.request.disruptive ? Math.max(0, ...intent.request.surfaces.filter(s => this.#available(s).noticeVisible)
+      .map(s => (s === "desktop" ? this.#preferences.desktopNoticeSeconds : this.#preferences.browserNoticeSeconds) * 1000)) : 0;
+    return intent.skipNotice ? 0 : (intent.yielded || this.#postYieldWarning && yieldsToHuman(intent.request)) && this.#available("desktop").noticeVisible ? Math.max(5000, normal) : normal;
   }
   ready(surface: Surface, ready: boolean, noticeVisible = ready): void {
     this.#available(surface).ready = ready;
@@ -197,9 +237,15 @@ export class AccessAdmission {
     // A cooldown is attached to the surface, so a new caller cannot bypass it.
     if (!this.#intents.some(i => i.session && yieldsToHuman(i.request) && i.request.surfaces.includes(surface))) return;
     if (this.#humanCooldownUntil <= this.#now) {
-      this.#humanCooldownUntil = this.#now + 60_000;
+      this.#humanCooldownUntil = this.#now + this.#preferences.yieldWaitSeconds * 1000;
+      if (this.#preferences.yieldReapprove) this.#requireApproval("desktop");
       this.#takeoverSurfaces.clear();
     }
+    for (const intent of this.#intents) if (!intent.terminal && yieldsToHuman(intent.request)) {
+      if (intent.session) intent.yielded = true;
+      intent.skipNotice = false;
+    }
+    this.#postYieldWarning = true;
     this.#takeoverSurfaces.add(surface);
     this.#event({ event: "takeover", surface, reason: "physical_takeover" });
     this.tick();
@@ -247,7 +293,7 @@ export class AccessAdmission {
       id: `intent:${++this.#sequence}`, owner, request: copy, identity, resources,
       deadline: this.#now + copy.waitMs, taskDeadline: this.#now + copy.waitMs + copy.durationMs,
       approvals: new Map(), heartbeat: this.#now + 60_000, state: "waiting_for_resource",
-      terminal: null, offer: 0, offerDeadline: 0, noticeDeadline: 0, announced: false, session: null,
+      terminal: null, offer: 0, offerDeadline: 0, noticeDeadline: 0, announced: false, notBefore: 0, held: false, skipNotice: false, yielded: false, approvalEpochs: new Map(), session: null,
       activeDeadline: 0, generations: {},
     };
     this.#intents.push(intent);
@@ -267,6 +313,9 @@ export class AccessAdmission {
     if (intent.state !== "offered" || intent.offer !== offer) throw new Error("stale_activation_offer");
     intent.session = `session:${++this.#sequence}`;
     intent.state = "active";
+    for (const surface of intent.request.surfaces) if (intent.approvalEpochs.get(surface) === this.#approvalEpochs.get(surface)) this.#approvalRequired.delete(surface);
+    if (yieldsToHuman(intent.request)) this.#postYieldWarning = false;
+    intent.yielded = false; intent.skipNotice = false;
     intent.activeDeadline = Math.min(this.#now + intent.request.durationMs, intent.taskDeadline);
     intent.heartbeat = this.#now + 5000;
     for (const resource of intent.resources) {
@@ -307,16 +356,44 @@ export class AccessAdmission {
     this.#emit(intent, "renewed");
     return this.#view(intent);
   }
-  /** Operator approval is task-specific and stays within the original ceiling. */
-  approve(id: string): void {
+  /** Explicit approval is task-specific, including an optional bounded delay. */
+  approve(id: string, milliseconds = 0): void {
+    duration(milliseconds, 0, 28_800_000);
     this.tick();
     const intent = this.#live(id);
+    if (intent.session) { if (milliseconds === 0) return; throw new Error("task_already_active"); }
+    this.#delayAllowed(intent, milliseconds);
     for (const surface of intent.request.surfaces) {
-      const config = this.#config(surface);
-      if (config.mode === "ask") intent.approvals.set(surface, config.generation);
+      intent.approvals.set(surface, this.#config(surface).generation);
+      intent.approvalEpochs.set(surface, this.#approvalEpochs.get(surface)!);
     }
+    intent.held = false; intent.notBefore = this.#now + milliseconds; intent.skipNotice = true;
+    // Explicit Allow/Continue now may end only the ordinary input cooldown.
+    // Global/manual/protected/readiness blocks remain authoritative.
+    if (milliseconds === 0 && yieldsToHuman(intent.request) &&
+        this.#blocks(intent).every(reason => reason === "physical_takeover")) this.#humanCooldownUntil = 0;
     this.#emit(intent, "approved");
     this.tick();
+  }
+  #delayAllowed(intent: Intent, milliseconds: number, notice = 0): void {
+    const ceiling = Math.min(intent.deadline, intent.taskDeadline, ...intent.request.surfaces.map(s => this.#config(s).expiresAt));
+    if (this.#now + milliseconds + (milliseconds > 0 ? notice + 1000 : 0) >= ceiling) throw new Error("delay_exceeds_task_lifetime");
+  }
+  postpone(id: string, milliseconds: number): void {
+    duration(milliseconds, 1, 28_800_000);
+    this.tick();
+    const intent = this.#live(id);
+    if (intent.session) throw new Error("task_already_active");
+    this.#delayAllowed(intent, milliseconds, this.#noticeFor(intent));
+    intent.notBefore = this.#now + milliseconds;
+    this.#emit(intent, "deferred"); this.tick();
+  }
+  hold(id: string): void {
+    this.tick();
+    const intent = this.#live(id);
+    intent.held = true; intent.skipNotice = false;
+    for (const surface of intent.request.surfaces) this.#requireApproval(surface);
+    this.#emit(intent, "deferred"); this.tick();
   }
   startNow(id: string): void {
     this.tick();
@@ -327,9 +404,9 @@ export class AccessAdmission {
     if (intent.state === "paused" && intent.announced && this.#humanCooldownUntil > this.#now &&
         this.#blocks(intent).every(block => block === "physical_takeover") &&
         intent.request.surfaces.every(surface => {
-          const available = this.#available(surface), config = this.#config(surface);
+          const available = this.#available(surface);
           return this.#inputReady && this.#globalPauses.size === 0 && available.ready && available.pauses.size === 0 &&
-            (config.mode !== "ask" || intent.approvals.get(surface) === config.generation);
+            !this.#needsApproval(intent);
         })) {
       this.#humanCooldownUntil = 0;
       this.tick();
@@ -368,7 +445,7 @@ export class AccessAdmission {
   stop(reason = "stopped"): void {
     for (const intent of this.#intents) if (!intent.terminal) this.#finish(intent, reason);
     for (const config of this.#configuration.values()) { config.mode = "off"; config.expiresAt = 0; ++config.generation; }
-    this.#deferrals.clear(); this.#takeoverSurfaces.clear(); this.#humanCooldownUntil = 0;
+    this.#deferrals.clear(); this.#takeoverSurfaces.clear(); this.#humanCooldownUntil = 0; this.#postYieldWarning = false; this.#approvalRequired.clear();
     ++this.#revision;
     this.#event({ event: "stopped" });
   }
@@ -395,7 +472,7 @@ export class AccessAdmission {
         // Active work can outlive its original queue wait. Each yield receives
         // a new waiting period, including the handoff, under the task ceiling.
         intent.deadline = Math.min(intent.taskDeadline, now + Math.max(intent.request.waitMs,
-          Math.max(0, this.#humanCooldownUntil - now) + this.#noticeMs + 15_000));
+          Math.max(0, this.#humanCooldownUntil - now) + this.#noticeFor(intent) + 15_000));
         intent.state = "paused";
         this.#emit(intent, "paused");
         yielded.push(intent);
@@ -408,7 +485,7 @@ export class AccessAdmission {
     for (const intent of this.#intents) {
       if (intent.terminal || intent.session) continue;
       const blocks = this.#blocks(intent);
-      const approval = intent.request.surfaces.some(surface => this.#config(surface).mode === "ask" && intent.approvals.get(surface) !== this.#config(surface).generation);
+      const approval = this.#needsApproval(intent);
       const state = blocks.length ? "paused" :
         intent.resources.some(resource => reserved.has(resource)) ? "waiting_for_resource" :
         approval ? "waiting_for_approval" : null;
@@ -421,7 +498,7 @@ export class AccessAdmission {
       }
       for (const resource of intent.resources) reserved.add(resource);
       if (!["announcing", "offered"].includes(intent.state)) {
-        intent.noticeDeadline = now + (intent.request.disruptive && intent.request.surfaces.some(surface => this.#available(surface).noticeVisible) ? this.#noticeMs : 0);
+        intent.noticeDeadline = now + this.#noticeFor(intent);
         intent.announced ||= intent.noticeDeadline > now;
         intent.state = "announcing";
         ++this.#revision;
@@ -449,6 +526,7 @@ export class AccessAdmission {
     for (const intent of this.#intents) {
       if (intent.terminal) continue;
       deadlines.push(intent.heartbeat, intent.taskDeadline, intent.session ? intent.activeDeadline : intent.deadline);
+      if (intent.notBefore > this.#now) deadlines.push(intent.notBefore);
       if (intent.state === "announcing") deadlines.push(intent.noticeDeadline);
       if (intent.state === "offered") deadlines.push(intent.offerDeadline);
     }
@@ -459,6 +537,7 @@ export class AccessAdmission {
     this.tick();
     return {
       schema: admissionSchema, available: true, revision: this.#revision, ownerBinding: "admitted_channel", noticeSeconds: this.#noticeMs / 1000,
+      experienceVersion: 1, preferences: { ...this.#preferences },
       handoffCooldownRemainingSeconds: Math.max(0, this.#humanCooldownUntil - this.#now) / 1000,
       humanInputReady: this.#inputReady,
       handoffCooldownSurfaces: this.#humanCooldownUntil > this.#now ? [...this.#takeoverSurfaces].sort() : [],
@@ -484,7 +563,7 @@ export class AccessAdmission {
     return Object.fromEntries(surfaces.map(surface => {
         const config = this.#config(surface), available = this.#available(surface);
         return [surface, {
-          mode: config.mode, expired: config.mode !== "off" && this.#now >= config.expiresAt,
+          mode: config.mode, noticeSeconds: surface === "desktop" ? this.#preferences.desktopNoticeSeconds : this.#preferences.browserNoticeSeconds, expired: config.mode !== "off" && this.#now >= config.expiresAt,
           consentRemainingSeconds: Number.isFinite(config.expiresAt) ? Math.max(0, config.expiresAt - this.#now) / 1000 : null,
           profileIds: [...config.profiles].sort(), ready: available.ready, noticeVisible: available.noticeVisible,
           pauses: [...available.pauses, ...this.#globalPauses].map(([reason, until], index) => ({ reason, scope: index < available.pauses.size ? surface : "all", remainingSeconds: Number.isFinite(until) ? Math.max(0, until - this.#now) / 1000 : null })),
@@ -529,7 +608,7 @@ export class AccessAdmission {
     return [...new Set([...intent.request.surfaces.flatMap(surface => {
       const available = this.#available(surface);
       return [...available.pauses.keys(), ...(available.ready ? [] : ["resource_unavailable"])];
-    }), ...this.#globalPauses.keys(), ...(yieldsToHuman(intent.request) && !this.#inputReady ? ["activity_unknown"] : []), ...(yieldsToHuman(intent.request) && this.#humanCooldownUntil > this.#now ? ["physical_takeover"] : []),
+    }), ...(intent.held ? ["task_held"] : []), ...(intent.notBefore > this.#now ? ["scheduled"] : []), ...this.#globalPauses.keys(), ...(yieldsToHuman(intent.request) && !this.#inputReady ? ["activity_unknown"] : []), ...(yieldsToHuman(intent.request) && this.#humanCooldownUntil > this.#now ? ["physical_takeover"] : []),
       ...(intent.resources.some(resource => this.#deferrals.has(resource)) ? ["operator_deferral"] : [])])].sort();
   }
   #release(intent: Intent, reason: string): void {
@@ -564,6 +643,9 @@ export class AccessAdmission {
       offerRemainingSeconds: intent.state === "offered" ? Math.max(0, intent.offerDeadline - this.#now) / 1000 : null,
       noticeRemainingSeconds: intent.state === "announcing" ? Math.max(0, intent.noticeDeadline - this.#now) / 1000 : null,
       activeRemainingSeconds: intent.session ? Math.max(0, intent.activeDeadline - this.#now) / 1000 : null,
+      held: intent.held,
+      scheduledRemainingSeconds: Math.max(0, intent.notBefore - this.#now) / 1000,
+      taskRemainingSeconds: Math.max(0, Math.min(intent.deadline, intent.taskDeadline, ...intent.request.surfaces.map(s => this.#config(s).expiresAt)) - this.#now) / 1000,
       reason: intent.request.reason, maximumDurationSeconds: intent.request.durationMs / 1000,
     };
   }
