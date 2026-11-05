@@ -283,3 +283,11 @@ before its renewal after a one-second sleep. Renew immediately and wait past
 the recorded original deadline, retaining the same claim and generation and
 checking the two exact independently recorded frames. The renewed lease has
 scheduling margin; production expiry and renewal behavior are unchanged.
+
+The fresh Stop/boot run passes all 18 protected checks, including actual
+native Stop and independent relock. Its first boot observation hangs across
+guest-agent disappearance until the general command timeout aborts the run.
+Use the existing process-group-bounded command runner for each read-only boot
+probe, within the original boot deadline. Keep a single submitted reboot and
+require a changed kernel boot time; do not replay the lifecycle action. The
+failed scope releases its workspace and claim before a fresh boot trial.

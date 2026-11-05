@@ -261,7 +261,14 @@ def main():
             job='org.machine-control.acceptance-reboot.'+uuid.uuid4().hex
             call('testbed','--','exec','/bin/launchctl','submit','-l',job,'--','/bin/sh','-c','sleep 3; exec /usr/bin/sudo -n /sbin/shutdown -r now')
             def returned():
-                result=call('testbed','--','exec','/usr/sbin/sysctl','-n','kern.boottime',check=False,capture_output=True)
+                # The guest agent can disappear while this observation is in
+                # flight. Bound and reap the complete command group, then
+                # reobserve within the boot deadline; never resubmit reboot.
+                result=subprocess.run([sys.executable,
+                    str(repo/'platforms/macos/scripts/bounded-command.py'),
+                    '--seconds','10','--',*mc,'testbed','--','exec',
+                    '/usr/sbin/sysctl','-n','kern.boottime'],
+                    capture_output=True,timeout=15)
                 return result.returncode==0 and result.stdout.decode().strip()!=before
             wait(returned,'Guest did not return after reboot',seconds=180)
         surface_model=(a.app/'Contents/Resources/shared-policy/payload.json').is_file()
