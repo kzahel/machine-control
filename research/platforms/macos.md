@@ -42,8 +42,13 @@ readiness; the exact shared blocking reason was not retained. Workspace and
 claim disposal pass. A deterministic source regression separately establishes
 that setup-cache unavailability can retire an admitted prepared route. The
 [locked-use topic](../../topics/macos-locked-use.md) owns the bounded continuity
-repair and its still-pending signed qualification. Do not treat the inferred
-connection as proof of the original trigger or this failed run as acceptance.
+repair. [Tactical 156](../../docs/tactical/156-desktop-0.7.0-release.md#final-result-and-limits)
+records successful exact-package qualification of the repaired source in the
+single-display SIP-disabled ARM64 Tart route, including sustained renewal,
+expiry, protected faults, native Stop and boot-bound consent. Do not treat the
+inferred connection as proof of the original trigger or the earlier failed run
+as acceptance. Intel, multiple displays and the new shared route on SIP-enabled
+physical hardware remain separate qualification gaps.
 
 ## Native foundation
 

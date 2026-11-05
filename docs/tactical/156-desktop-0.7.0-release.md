@@ -2,8 +2,9 @@
 
 Topics: `native-distribution`, `shared-resident-core`, `access-admission-and-pause`
 
-Status: **In progress**; committed refactor pushed, source CI and exact signed
-candidate acceptance required before publication.
+Status: **Complete through publication dispatch**. Release-source CI and exact
+signed candidate acceptance passed; hosted publication is queued. Publication
+completion is intentionally not monitored.
 
 ## Objective and motivation
 
@@ -368,3 +369,31 @@ message before failing, including in optimized builds. The 500-success/error/
 deadline/cancellation resource run passes locally without descriptor growth;
 a forced failed oracle emits its label and nonzero exit without SIGTRAP.
 Cancel the now-obsolete candidate before another clean-source build.
+
+## Final result and limits
+
+Release source `9de859495ab3994fc20933e1e0cad200f0b61ac0` passes the required
+source CI and the complete
+[six-target candidate build](https://github.com/kzahel/machine-control/actions/runs/42041062021).
+The exact authenticated Mac ARM64 package and bundled SDK pass 224 campaign
+checks, including 900-second expiry, 966 seconds under one retained owner with
+46 acknowledged root renewals, independent effects, watchdog faults and crash
+Off/no-replay behavior. A fresh sequential workspace passes 18 protected checks,
+native Stop, clean relaunch, actual cold boots and saved choices without
+restored authorization. Both scopes release their exact workspace and claim.
+The wrapper emits its qualifying receipt only after that verified disposal.
+
+The original source appliance is Off, no disposable workspace remains, and
+the canonical owner-only credential file is unchanged and independently
+verified by the final reboot phase. Raw evidence and journals remain private.
+This is a single-display SIP-disabled ARM64 Tart qualification; it does not
+establish Intel execution, multiple displays, physical input/lid behavior or
+SIP-enabled execution of the new shared-policy route. The exact trigger of the
+earlier intermittent startup refusal remains unattributed.
+
+The official three-argument release script runs once, validates the receipt,
+pushes immutable `desktop-v0.7.0` at that source and queues
+[publication](https://github.com/kzahel/machine-control/actions/runs/42057112580)
+from the accepted candidate bytes. CI owns publication; no post-publication
+download, installation or monitoring is performed. Extension 0.9.0 submission
+is complete; store review/rollout remains distinct from submission.
