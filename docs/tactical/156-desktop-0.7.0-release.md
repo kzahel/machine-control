@@ -197,3 +197,12 @@ mislabeling every exception as connection loss. All 96 client/session, 95
 release (one platform skip) and 14 Mac fixture tests pass. Native development
 qualification continues; the original refusal reason was not retained by the
 old client and is not inferred from the upgrade message.
+
+The next full development trial passes 55 checks, including locked dialogs,
+unknown-delivery timeout, second-action refusal and no replay. A protected
+startup fault then exposes fixture UI polling for an Automatic Browser phase
+after lock retired the observer's Desktop fence. Inspect Allow only for an
+actual waiting-for-approval request. Start the explicit unfiltered cover read
+under a fresh observer fence; preserve the SUT's existing protected owner.
+Metadata and bounded authorization keep their typed managed observer route.
+All 16 Mac fixture and 95 release tests pass; native qualification continues.

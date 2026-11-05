@@ -444,6 +444,10 @@ def run(c):
             subprocess.run(['xcrun', 'swiftc', str(c['source_root'] / 'tests/macos/cover-observation.swift'),
                             '-o', str(tool)], capture_output=True, check=True, timeout=90)
         # The independent appliance has no covered owner/capture exclusion.
+        # Lock legitimately retired its prior Desktop fence. Begin this
+        # explicit independent read phase under the now-covered console;
+        # never reuse a pre-lock reference or cycle the SUT's live owner.
+        if c.get('rig') is not None:c['rig'].close_observer()
         result = c['exchange'](c['observer'], 'capture', scope='display', provider='macos-native')
         assert result.get('accepted') and result.get('fidelity') == 'full_display'
         image = Path(result['data']['artifactPath'])

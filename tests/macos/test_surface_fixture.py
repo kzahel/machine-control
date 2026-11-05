@@ -10,6 +10,31 @@ fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_observer_metadata_and_typed_authorization_do_not_use_action_channel(self):
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        rig.observer='managed-fixture';rig.observer_owner=object();calls=[]
+        def exchange(path,operation,**fields):
+            calls.append((path,operation));return {'accepted':True,'data':{}}
+        rig.exchange=exchange
+        for operation in ['status','capabilities','authorization.begin']:
+            self.assertTrue(rig.observer_response(operation)['accepted'])
+        self.assertEqual(calls,[('managed-fixture',op) for op in ['status','capabilities','authorization.begin']])
+
+    def test_automatic_owner_waits_without_desktop_ui_observation(self):
+        ready=threading.Event();calls=[]
+        class Session:
+            def wait(self):
+                if not ready.wait(3):raise AssertionError('Automatic activation missing')
+            def status(self):ready.set();return {'state':'active'}
+            def close(self):calls.append('close');ready.set()
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        rig.target={};rig.profiles=['fixture-profile'];rig.owners={}
+        rig.sdk=lambda *args,**fields:Session()
+        def find(label):raise AssertionError('Automatic Browser work must not inspect Desktop UI')
+        rig.find=find
+        rig.owner('browser');rig.close_owners()
+        self.assertEqual(calls,['close'])
+
     def test_status_reobserves_only_the_typed_generation_refusal(self):
         rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture);rig.endpoint='fixture'
         replies=iter([{'accepted':False,'errorCode':'control_generation_changed'},
@@ -26,6 +51,7 @@ class SurfaceFixtureTests(unittest.TestCase):
         calls=[]
         class Session:
             def wait(self):pass
+            def status(self):return {'state':'active'}
             def close(self):calls.append('close')
         rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
         rig.target={};rig.profiles=['fixture-profile'];rig.owners={}
@@ -47,6 +73,7 @@ class SurfaceFixtureTests(unittest.TestCase):
             def wait(self):
                 if not approved.wait(3):raise AssertionError('Native approval not pressed')
             def close(self):calls.append('close');approved.set()
+            def status(self):return {'state':'waiting_for_approval'}
         rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
         rig.target={};rig.profiles=[];rig.owners={}
         def sdk(*args,**fields):calls.append('open');return Session()

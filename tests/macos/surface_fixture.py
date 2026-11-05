@@ -63,6 +63,8 @@ class SurfaceFixture:
         return poll(fresh,'fresh generation-bound fixture status',timeout=10)
 
     def observer_response(self,operation,**fields):
+        if operation in {'status','capabilities','authorization.begin'}:
+            return self.exchange(self.observer,operation,provider='macos-native',**fields)
         if self.observer_owner is None:
             result=self.exchange(self.observer,operation,provider='macos-native',**fields)
             if result.get('errorCode')!='control_session_required':
@@ -150,9 +152,10 @@ class SurfaceFixture:
             try:
                 while not waiting.done():
                     assert time.monotonic()<deadline,'Native surface approval did not complete'
-                    row=self.find('Allow this task')
+                    state=owner.status()['state']
+                    row=self.find('Allow this task') if state=='waiting_for_approval' else None
                     if row:self.observe('action',reference=row['reference'],action='press')
-                    elif not diagnosed and time.monotonic()>deadline-110:
+                    elif state=='waiting_for_approval' and not diagnosed and time.monotonic()>deadline-110:
                         diagnosed=True
                         print('SURFACE_APPROVAL_DIAGNOSTIC '+json.dumps({
                             'buttons':[r.get('label') for r in self.tree() if r.get('role')=='AXButton'],
@@ -190,6 +193,9 @@ class SurfaceFixture:
 
     def close(self):
         self.close_owners()
+        self.close_observer()
+
+    def close_observer(self):
         if self.observer_owner is not None:self.observer_owner.close();self.observer_owner=None
 
 
