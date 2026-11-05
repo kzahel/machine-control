@@ -40,6 +40,17 @@ struct ControlSessionLease {
         if !sameConsoleSession(self.session, session) { return "session_changed" }
         return nil
     }
+
+    func keepsPreparedRoute(phase: String, authorized: Bool, interruption: String?,
+                            lastHelperPositive: TimeInterval?, now: TimeInterval,
+                            grantID: String?, session: [String:Any]) -> Bool {
+        guard startedLocked, ["waiting_for_lock", "unlocking", "active"].contains(phase),
+              authorized, interruption == nil, now.isFinite,
+              let lastHelperPositive, lastHelperPositive.isFinite,
+              now >= lastHelperPositive,
+              now - lastHelperPositive < CoveredHelperLiveness.maximumSilence else { return false }
+        return refusal(now:now, grantID:grantID, session:session) == nil
+    }
 }
 
 func completeConsoleIdentity(_ value: [String:Any]) -> Bool {
@@ -521,6 +532,12 @@ final class MacLockedUse {
     // lease instead has its own live guardian and root watchdog. A temporarily
     // unavailable background status must not masquerade as operator disable.
     var continuationAuthorized: Bool { !locallyDisabled && permission.controlAuthorized }
+    var admittedRouteReady: Bool {
+        lease?.keepsPreparedRoute(phase:phase, authorized:continuationAuthorized,
+            interruption:safety.reason, lastHelperPositive:helperLiveness?.lastPositive,
+            now:ProcessInfo.processInfo.systemUptime, grantID:broker.activeGrant?.id,
+            session:service.observedConsoleSession) == true
+    }
     var status: [String: Any] {
         let helper = service.displayedUnlockStatus
         let approval = permission.approvalState

@@ -375,6 +375,18 @@ def run(c):
                 return None
             current = state()
             if owner.poll() is not None:
+                if c.get('rig') is not None:
+                    try:
+                        view=owner.session.status()
+                        observed=fresh_status()
+                        diagnostics={k:view.get(k) for k in ['state','terminalReason','blockingReasons']}
+                        diagnostics['surfaces']={name:{k:value.get(k) for k in ['mode','ready','expired','pauses']}
+                            for name,value in observed['admission']['surfaces'].items()}
+                        diagnostics['physicalActivity']={k:observed.get('physicalActivity',{}).get(k)
+                            for k in ['enabled','healthy','unknownBlocksAdmission']}
+                    except Exception as error:
+                        diagnostics={'observationError':getattr(error,'code',type(error).__name__)}
+                    print('COVERED_OWNER_DIAGNOSTICS '+json.dumps(diagnostics),flush=True)
                 output, _ = owner.communicate()
                 raise AssertionError('Covered startup ended: ' + output.decode() + ' ' + json.dumps(current))
             if current['phase']=='active' and c.get('rig') is not None:
@@ -899,9 +911,16 @@ def run(c):
         text_and_hover(); visible_cover()
         call('session.control.end', controlSessionId=active['controlSessionId']); ended()
         if c.get('covered_probe'):
+            for _ in range(12):
+                active=start();effect()
+                call('session.control.end',controlSessionId=active['controlSessionId']);ended()
+            check('successive protected startup probe retains explicit consent and independent effects')
             full_duration()
             renewable_owner()
             renewable_disconnect()
+            if c.get('rig') is not None:
+                check('development covered probe ends independently locked',c['locked']())
+                return
             start()
             c['check_stop_lock'] = True
             return

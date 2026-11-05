@@ -404,6 +404,32 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(effects,1)
     }
 
+    func testAdmittedGuardSurvivesSetupCacheGapButNotLossOfItsContinuationProof() throws {
+        let console:[String:Any] = ["desktopState":"locked","uuid":"fixture","boot":123,"uid":getuid()]
+        server.grantConsoleObservation = { console }
+        server.service.applySessionObservation(console)
+        server.nativeProvider.readSession = { console }
+        var freshSetup = true, admittedGuard = false
+        server.preparedConsoleReady = { freshSetup }
+        server.admittedPreparedRouteReady = { admittedGuard }
+        server.coveredActivation = { channel,_ in
+            channel.coveredSessionID = "fixture-native-guard"
+            freshSetup = false; admittedGuard = true
+        }
+        server.coveredPreparation = { _ in .ready }
+        server.refreshAdmission()
+        let client = try connect(), offer = open(client,"setup-cache-gap")
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        let request:[String:Any] = ["sessionId":active["sessionId"]!,
+            "resourceGenerations":active["resourceGenerations"]!,"request":["operation":"snapshot"]]
+        let first = command(client,"control.dispatch",request)
+        XCTAssertEqual((first["data"] as? [String:Any])?["accepted"] as? Bool,true)
+        XCTAssertEqual(effects,1)
+        admittedGuard = false; server.refreshAdmission()
+        XCTAssertEqual(command(client,"control.dispatch",request)["errorCode"] as? String,"stale_control_session")
+        XCTAssertEqual(effects,1,"Losing continuation must fence the old owner before another effect")
+    }
+
     func testNativePreparationWaitsWithoutDispatchAndStopFencesItsReturn() throws {
         server.coveredActivation = { channel,_ in channel.coveredSessionID = "fixture-native-guard" }
         var ready = false

@@ -172,6 +172,7 @@ final class ResidentServer {
     func removeChannel(_ descriptor: Int32) { channels.removeValue(forKey:descriptor) }
     func refreshAdmission() { tick() }
     lazy var preparedConsoleReady: () -> Bool = { [weak self] in self?.lockedUse.enabled == true }
+    lazy var admittedPreparedRouteReady: () -> Bool = { [weak self] in self?.lockedUse.admittedRouteReady == true }
     func preparedConsoleAuthority(scopes: Set<GrantScope>) -> String? {
         if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
         guard let grant = broker.activeGrant,
@@ -524,7 +525,10 @@ final class ResidentServer {
         let desktopBound = managed || grantConsoleBinding?.matches(grantID:broker.desktopConsentID, observation:observation) == true
         let browserBound = managed || browserConsoleBinding?.matches(grantID:broker.browserConsentID, observation:observation) == true
         let unlocked = state == "unlocked"
-        let prepared = state == "locked" && lockedUse.enabled
+        // A cached setup observation is not a revocation of an already
+        // admitted finite guard. Its own console/consent, heartbeat, safety
+        // and helper-silence fences remain authoritative during preparation.
+        let prepared = state == "locked" && (preparedConsoleReady() || admittedPreparedRouteReady())
         broker.desktopRouteReady = desktopBound && (unlocked || prepared)
         broker.browserRouteReady = browserBound && (unlocked || state == "locked" && browserWhileLockedEnabled)
         broker.browserOnlyWhileLocked = !broker.desktopRouteReady && broker.browserRouteReady && state == "locked"

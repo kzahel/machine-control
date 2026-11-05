@@ -323,3 +323,36 @@ late completion still cannot restore authority. All 229 Swift tests pass.
 Cancel the failed candidate; it cannot qualify publication. Build its successor
 alongside source CI, while keeping native acceptance and publication gated on
 the exact clean source, green checks and complete candidate success.
+
+The complete successor candidate passes all six builds and package checks.
+Its exact bundled-SDK campaign passes 112 checks, then refuses the first
+protected read after the startup fault as `stale_control_session`, without
+possible dispatch. Native state reports a generation ending and unavailable
+cached helper facts. Its scope releases both claim and workspace; no release
+receipt is emitted. Capture closed owner/blocking/readiness diagnostics on
+future failures, preserving the original refusal if diagnosis itself fails.
+
+A short development probe passes startup, expiry and renewal but exposes its
+legacy exit expecting a final crash that this probe intentionally omits.
+Correct only that development path and add twelve repeated startup/effect/
+completion cells; release mode continues to reject probe use. The original
+failure's exact shared blocking reason remains unknown.
+
+Source review separately finds a deterministic contract mismatch: native setup
+cache unavailability marks Desktop unready even during an already-admitted
+finite protected lease. Retain that route only within the original locked
+console/consent identity, heartbeat/deadline, allowed preparation/active phases,
+safety latch, explicit continuation authority and 30-second positive-helper
+silence bound. New tasks still require fresh setup; unknown physical activity
+and every existing cancellation/dispatch fence remain effective. A channel
+regression fails with three assertions without continuity and passes with it;
+pure lease cases cover each preserved bound. All 231 Swift tests pass. This
+source defect is consistent with the packaged observation, but does not prove
+its original trigger. New signed acceptance is required for the repaired source.
+
+The focused signed-package development probe passes 104 checks, including all
+twelve additional startup/effect/completion cycles, with exact workspace and
+claim release. It does not reproduce the intermittent original refusal and
+predates the native continuity repair. The repaired source passes all 231
+Swift, 19 Mac fixture and 95 release tests (one platform skip), and Mac native
+static checks. Keep those evidence boundaries explicit in final qualification.

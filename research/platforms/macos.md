@@ -34,6 +34,17 @@ resulting metadata-isolation gap, and
 [Tactical 156](../../docs/tactical/156-desktop-0.7.0-release.md) owns continuing
 release qualification. This partial development run cannot qualify publication.
 
+**Current (2026-11-05), bounded negative packaged evidence:** the exact signed
+candidate and bundled SDK pass 112 checks before a post-fault protected
+startup's first read refuses `stale_control_session` without delivery. The
+native ending reports a generation change and unavailable cached helper
+readiness; the exact shared blocking reason was not retained. Workspace and
+claim disposal pass. A deterministic source regression separately establishes
+that setup-cache unavailability can retire an admitted prepared route. The
+[locked-use topic](../../topics/macos-locked-use.md) owns the bounded continuity
+repair and its still-pending signed qualification. Do not treat the inferred
+connection as proof of the original trigger or this failed run as acceptance.
+
 ## Native foundation
 
 **Current (2026-10-25), bounded `live-tested` placement finding:** direct

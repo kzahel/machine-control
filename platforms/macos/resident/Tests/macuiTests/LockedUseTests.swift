@@ -6,6 +6,39 @@ import XCTest
 final class LockedUseTests: XCTestCase {
     private let session: [String:Any] = ["uuid":"console-a", "boot":123, "uid":501]
 
+    func testPreparedRouteContinuityKeepsEveryFiniteLeaseFence() {
+        let locked = session.merging(["desktopState":"locked"]) { _,new in new }
+        let lease = ControlSessionLease(id:"task", grantID:"consent", session:locked,
+            deadline:200, heartbeatDeadline:150)
+        func permits(_ phase:String = "unlocking", authorized:Bool = true,
+                     interruption:String? = nil, positive:Double? = 100,
+                     now:Double = 101, grant:String? = "consent", console:[String:Any]? = nil) -> Bool {
+            lease.keepsPreparedRoute(phase:phase, authorized:authorized,
+                interruption:interruption, lastHelperPositive:positive, now:now,
+                grantID:grant, session:console ?? locked)
+        }
+        for phase in ["waiting_for_lock","unlocking","active"] { XCTAssertTrue(permits(phase)) }
+        for phase in ["ready","off","paused","recovering","relocking"] { XCTAssertFalse(permits(phase)) }
+        XCTAssertFalse(permits(authorized:false))
+        XCTAssertFalse(permits(interruption:"physical_presence"))
+        XCTAssertFalse(permits(positive:nil))
+        XCTAssertFalse(permits(now:130))
+        XCTAssertFalse(permits(now:99))
+        XCTAssertFalse(permits(now:.nan))
+        XCTAssertFalse(permits(positive:.infinity))
+        XCTAssertFalse(permits(positive:149, now:150))
+        XCTAssertFalse(permits(positive:199, now:200))
+        XCTAssertFalse(permits(grant:nil))
+        XCTAssertFalse(permits(grant:"replacement"))
+        XCTAssertFalse(permits(console:[:]))
+        XCTAssertFalse(permits(console:locked.merging(["uuid":"other"]) { _,new in new }))
+        let ordinary = ControlSessionLease(id:"ordinary", grantID:"consent",
+            session:session.merging(["desktopState":"unlocked"]) { _,new in new },
+            deadline:200, heartbeatDeadline:150)
+        XCTAssertFalse(ordinary.keepsPreparedRoute(phase:"active", authorized:true,
+            interruption:nil,lastHelperPositive:100,now:101,grantID:"consent",session:locked))
+    }
+
     func testOnlyIndependentlyLockedStartupCanPrepareAnAsleepDisplay() {
         for phase in ["waiting_for_lock","unlocking"] {
             XCTAssertFalse(displaySleepEndsControl(startedLocked:true,phase:phase,observedState:"locked"))

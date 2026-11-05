@@ -345,6 +345,8 @@ def _run_surfaces(context):
     if covered:
         context.update(locked=locked,browser_tab=other)
         covered.run(context)
+        if context.get('covered_probe'):
+            return
     else:
         check('browser-only qualification leaves the disposable OS locked',locked())
         return

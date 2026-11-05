@@ -8,6 +8,20 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-11-05), source-tested readiness repair:** a cached helper setup
+observation becoming unavailable must not retire an already-admitted finite
+protected owner. Desktop readiness now retains that owner's route only while
+its original locked-console identity, consent, heartbeat, phase, safety latch
+and positive-helper silence bound remain valid. New tasks still need fresh
+setup readiness. A deterministic channel regression fails without this rule
+and passes with it; all 231 Swift tests pass. The full signed campaign exposed
+an intermittent first-read refusal with unavailable cached helper facts, but
+did not retain its exact shared blocking reason. This repair is consistent
+with that observation; exact incident attribution remains open. Closed owner
+diagnostics and repeated development startups support further qualification.
+[Tactical 156](../docs/tactical/156-desktop-0.7.0-release.md) owns final signed
+acceptance; source tests do not establish the full packaged sustained route.
+
 **Current (2026-11-04), bounded shared-policy adoption:** the unreleased
 native guard binds Desktop surface consent and one live shared owner, while
 Swift/root retain their independent native safety ceiling. Clean bbb53fd passes
