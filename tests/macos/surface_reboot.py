@@ -28,8 +28,7 @@ def run(stage,claim,observer_socket,verify,boot,saved,protected_stop=False):
             rig.arm('ask',('desktop',));rig.arm('automatic',('browser',))
             assert rig.status()['admission']['surfaces']['desktop']['mode']=='ask'
             assert rig.status()['admission']['surfaces']['browser']['profileIds']==rig.profiles
-            rig.press('Settings')
-            row=poll(lambda:rig.find('Allow approved browser access while locked','AXCheckBox'),'locked Browser setting')
+            row=poll(lambda:rig.find('Allow approved Browser work while locked','AXCheckBox'),'locked Browser setting')
             if str(row.get('value','')).lower() not in {'1','true'}:rig.observe('action',reference=row['reference'],action='press')
             rig.press('Access');rig.stop()
             old=rig.status()['processId']
@@ -80,7 +79,6 @@ def visible_choices(rig):
         assert poll(lambda:rig.find(label),'remembered '+label)
     duration=poll(lambda:rig.find('Access lifetime','AXPopUpButton'),'remembered access lifetime')
     assert 'Until' in str(duration.get('value')),duration.get('value')
-    rig.press('Settings')
-    row=poll(lambda:rig.find('Allow approved browser access while locked','AXCheckBox'),'remembered locked Browser preference')
+    row=poll(lambda:rig.find('Allow approved Browser work while locked','AXCheckBox'),'remembered locked Browser preference')
     assert str(row.get('value','')).lower() in {'1','true'}
     rig.press('Access')

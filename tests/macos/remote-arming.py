@@ -254,7 +254,7 @@ def _run_surfaces(context):
         rig.arm();rig.owner('both')
         rig.observe('window.close',target=str(rig.status()['processId']))
         if covered:covered.verify_saved_model(context,'clean quit' if clean else 'crash')
-    rig.settings();rig.press('Settings');_toggle_surface(rig,'Allow approved browser access while locked')
+    rig.settings();_toggle_surface(rig,'Allow approved Browser work while locked')
     poll(lambda:rig.status()['browserWhileLocked']['enabled'],'locked Browser preference')
     rig.observe('window.close',target=str(rig.status()['processId']))
     rig.close_owners();rig.owner('browser')

@@ -169,3 +169,9 @@ clean/crash no-replay checks. The post-crash UI observer encounters a typed
 `control_generation_changed` status refusal. Reobserve only that read within
 a short bound; unrelated failures and all action/owner uncertainty remain
 terminal. Fourteen Mac fixture cases cover that distinction.
+
+The next run passes both restart/model checks and reaches the separate locked-
+Browser preference. Its modern fixture still searches legacy Settings text.
+Use the current Access checkbox, `Allow approved Browser work while locked`,
+in recovery and cold-boot checks. The production UI and policy are unchanged;
+the failed disposable scope released both workspace and claim.
