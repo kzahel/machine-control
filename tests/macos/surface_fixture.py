@@ -227,6 +227,10 @@ class SDKOwnerProcess:
             return reply
         self.future=self.pool.submit(begin)
 
+    @property
+    def first_read_finished(self):
+        return self.future.done()
+
     def poll(self):
         if self.returncode is not None:return self.returncode
         if not self.future.done():return None

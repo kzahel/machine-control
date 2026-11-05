@@ -148,8 +148,9 @@ class SurfaceFixtureTests(unittest.TestCase):
 
     def test_pending_first_read_cannot_claim_completion_or_retarget(self):
         process,_,native,_,ready=self.process(blocked=True)
+        self.assertFalse(process.first_read_finished)
         self.assertIsNone(process.poll())
-        ready.set();process.future.result(3);self.assertIsNone(process.poll())
+        ready.set();process.future.result(3);self.assertTrue(process.first_read_finished);self.assertIsNone(process.poll())
         native['controlSessionId']='replacement-owner'
         with self.assertRaisesRegex(AssertionError,'changed without a new task'):process.poll()
 

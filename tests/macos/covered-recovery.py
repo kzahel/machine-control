@@ -359,6 +359,11 @@ def run(c):
                 'operation': 'session.control', 'durationSeconds': duration, 'claimId': c['claim']})],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         def active():
+            # The initial snapshot itself prepares and observes native
+            # activation. A parallel full status read uses the same native
+            # executor and can cause a provably undispatched busy refusal.
+            if c.get('rig') is not None and not owner.first_read_finished:
+                return None
             current = state()
             if owner.poll() is not None:
                 output, _ = owner.communicate()

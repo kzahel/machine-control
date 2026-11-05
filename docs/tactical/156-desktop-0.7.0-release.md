@@ -229,3 +229,12 @@ diagnostics. Consolidate both status callers onto one bounded read helper.
 Only the explicit status observation is repeated; runtime identity checks,
 unrelated refusals, actions and owner creation remain unchanged. All 16 Mac
 fixture and 95 release tests pass. Native qualification remains incomplete.
+
+Closed diagnostics identify the successful-start cell's first-read refusal as
+`native_provider_busy`, with refused delivery/effect and no uncertainty. The
+fixture concurrently polls full native status while its activation snapshot
+uses that same executor. Wait for the initial read to finish before status
+observation or protected effects; its failure still fails qualification. The
+expected interrupted read in the unarmed startup-injection cell remains a
+failure receipt, checked independently by that fault oracle. All 16 Mac fixture
+and 95 release tests pass. No read retry or owner replacement is introduced.
