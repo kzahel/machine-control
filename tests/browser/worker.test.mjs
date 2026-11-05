@@ -165,7 +165,10 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     const identity = (await request("browser.tabs")).data.providerInfo;
     const workerSource = await readFile(new URL("../../providers/chrome-extension/service_worker.js", import.meta.url), "utf8");
     const operationsStart = workerSource.indexOf("function createOperations(context) {");
-    const operationsEnd = workerSource.indexOf("\nreturn { perform, prepare };\n}", operationsStart) + "\nreturn { perform, prepare };\n}".length;
+    assert.ok(operationsStart >= 0, "operations function must be present");
+    const operationsEnding = /\r?\nreturn \{ perform, prepare \};\r?\n\}/.exec(workerSource.slice(operationsStart));
+    assert.ok(operationsEnding, "operations function ending must be present");
+    const operationsEnd = operationsStart + operationsEnding.index + operationsEnding[0].length;
     assert.deepEqual(identity, {schema:"machine-control-browser-provider/v0", extensionId:"fixture-extension",
       extensionVersion:"fixture", protocolVersion:1,
       operationsSha256:createHash("sha256").update(workerSource.slice(operationsStart, operationsEnd)).digest("hex")});
