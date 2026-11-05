@@ -15,6 +15,7 @@ from policy import Policy,PolicyError
 import test_linux_policy
 
 
+@unittest.skipIf(sys.platform == 'win32', 'Requires POSIX Linux-adapter process and pipe semantics')
 class AccessTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

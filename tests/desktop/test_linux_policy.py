@@ -13,6 +13,7 @@ sys.path.insert(0,str(ROOT/'desktop/native/linux'))
 from policy import Policy, PolicyError
 
 
+@unittest.skipIf(sys.platform == 'win32', 'Requires POSIX Linux-adapter process and pipe semantics')
 class TransportTests(unittest.TestCase):
     def fixture(self, mode):
         callbacks=queue.Queue()
@@ -62,6 +63,7 @@ class TransportTests(unittest.TestCase):
         self.assertTrue(host.reaped.wait(2))
 
 
+@unittest.skipIf(sys.platform == 'win32', 'Requires POSIX Linux-adapter process and pipe semantics')
 class SharedPolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

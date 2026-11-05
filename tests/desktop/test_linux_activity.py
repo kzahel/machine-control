@@ -25,6 +25,7 @@ class ActivityTests(unittest.TestCase):
         for invalid in ['', 'nothex', '1'*17]:
             with self.assertRaises(ValueError):bitmap(invalid)
 
+    @unittest.skipIf(os.name == 'nt', 'Requires POSIX event-loop pipe readers')
     def test_raw_motion_has_no_activity_and_overflow_or_eof_fences(self):
         loop=asyncio.new_event_loop();self.addCleanup(loop.close)
         tracker=Tracker(loop)
@@ -49,6 +50,7 @@ class ActivityTests(unittest.TestCase):
         self.assertNotEqual(tracker.generation,generation)
         self.assertEqual(tracker.devices,{})
 
+    @unittest.skipIf(os.name == 'nt', 'Requires POSIX event-loop pipe readers')
     def test_stream_loss_is_unknown_instead_of_idle(self):
         loop=asyncio.new_event_loop();self.addCleanup(loop.close)
         tracker=Tracker(loop);read,write=os.pipe()

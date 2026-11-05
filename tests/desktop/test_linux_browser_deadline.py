@@ -11,6 +11,7 @@ from browser import Browser
 from policy import Policy
 
 
+@unittest.skipIf(sys.platform == 'win32', 'Requires POSIX Linux-adapter process and pipe semantics')
 class BrowserBoundaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

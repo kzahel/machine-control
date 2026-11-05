@@ -17,6 +17,7 @@ exec(compile(ast.Module(body=[method],type_ignores=[]),str(source),'exec'),names
 shutdown=namespace['shutdown']
 
 
+@unittest.skipUnless(hasattr(socket, 'AF_UNIX'), 'Requires native Unix-domain sockets')
 class ShutdownTests(unittest.TestCase):
     def test_each_cleanup_failure_still_closes_endpoints_and_reaps_notice(self):
         for failed in ('audit','work','access','policy','portal','browser','channel','activity','presentation'):
