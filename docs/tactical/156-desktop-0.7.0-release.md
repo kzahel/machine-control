@@ -291,3 +291,10 @@ Use the existing process-group-bounded command runner for each read-only boot
 probe, within the original boot deadline. Keep a single submitted reboot and
 require a changed kernel boot time; do not replay the lifecycle action. The
 failed scope releases its workspace and claim before a fresh boot trial.
+
+The bounded probes observe the first changed boot successfully. The following
+visible-choice phase exposes its observer starting under workstation policy:
+the earlier protected-Stop phase already selected that policy. Load appliance
+policy only for the independent observer on every pass, immediately restoring
+workstation policy. The candidate keeps its already-loaded workstation policy;
+no ordinary consent is restored. The failed scope releases both resources.

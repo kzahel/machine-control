@@ -79,13 +79,12 @@ def guest(stage, claim, verify, protected_stop=False):
         assert current['deployment']['policy']['grantMode'] == ('surface_modes' if surface_model else 'approval')
         assert (all(v['mode']=='off' for v in current['admission']['surfaces'].values()) if surface_model else exchange(endpoint,'grant.status')['grant'] is None), 'Pre-boot authority survived reboot'
 
-    # The standing appliance observer is independent of the candidate. On the
-    # post-boot pass the candidate has already loaded workstation policy; only
-    # the observer loads the temporary appliance policy. Restore it immediately.
+    # The appliance observer is independent of the candidate. After either
+    # boot the candidate has already loaded workstation policy; only the
+    # observer loads temporary appliance policy. Restore it immediately.
     observer = None
     try:
-        if verify:
-            select_policy('appliance')
+        select_policy('appliance')
         observer_socket.unlink(missing_ok=True)
         with (stage / ('observer-post.log' if verify else 'observer-pre.log')).open('wb') as log:
             observer = subprocess.Popen([str(stage / 'Original.app/Contents/MacOS/macui'),
