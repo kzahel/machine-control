@@ -245,16 +245,21 @@ selection, debugger/tab contention, owner liveness, expiry, cancellation,
 generation checks, console/session policy or protected safety guards. Never
 yield Browser means no automatic physical-input yield, not immunity from Stop.
 
-**Current, review finding:** `disruptive` currently couples countdown,
-human-input reservation, monitor readiness and physical-input cooldown. Changing
-the input callback alone does not exempt Browser: a Desktop cooldown can still
-block it. **Proposal:** use an explicit Desktop-including yield predicate in
-the shared core. Browser-only work should not depend on the physical-input
-monitor's health; retain independent browser/provider/console safety checks.
-**Open:** also remove Browser-only ownership of the shared human-input resource,
-as the reviewer recommends. Keeping that reservation without yielding can let
-long-running Browser work block Desktop indefinitely. Removing it allows
-concurrent Desktop/Browser work and requires a deliberate resource-policy test.
+**Current, source and deterministic/process-inlet tested:** the shared core
+separates Desktop physical-input yielding from Browser countdown/impact policy.
+Browser-only tasks neither reserve the shared human-input resource nor wait for
+its monitor readiness/cooldown. This permits concurrent Desktop and Browser
+work while preserving exact-profile/browser contention. Desktop-including
+compound tasks retain Desktop input reservation, readiness and yield rules.
+Native/package acceptance is separate from this bounded shared-policy evidence.
+
+**Open, release boundary:** explicit Browser foreground opt-ins (including raw
+CDP presentation controls) remain cooperative today and can bring Chrome forward
+while a Desktop owner is active. This core-only change does not yet require a
+Desktop-including fence for those opt-ins. Before qualifying Browser/Desktop
+concurrency as preserving native input routing, gate foreground opt-in through
+Desktop authority or explicitly qualify its residual interference. Ordinary
+background operation remains preferred; this is not same-tab yield detection.
 
 **Decision:** native Desktop input, OS dialogs and other Desktop-dependent
 operations still require Desktop admission and yield rules. Browser permission

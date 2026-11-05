@@ -239,11 +239,12 @@ test("configuration replacement and restart cannot restore tasks or old Ask appr
   assert.equal(fresh.nextDeadline(), null);
 });
 
-test("changing clients or surfaces cannot bypass a disruptive resource deferral", () => {
+test("replacement Desktop clients cannot bypass a resource deferral; Browser stays independent", () => {
   const f = fixture(), first = f.request();
   f.policy.defer(first.intentId, 30_000);
   const other = f.policy.open();
-  assert.equal(f.request("browser", { disruptive: true }, other).state, "paused");
+  assert.equal(f.request("browser", { disruptive: true }, other).state, "announcing");
+  assert.equal(f.request("desktop", {}, other).state, "paused");
   assert.equal(f.request("browser", { profileIds: ["personal"] }, other).state, "offered", "independent background work remains available");
   assert.equal(f.policy.status().deferrals.find(pause => pause.resource === "human-input").remainingSeconds, 30);
   assert.deepEqual(f.policy.status().deferrals.find(pause => pause.resource === "human-input").surfaces, ["desktop"]);
@@ -251,13 +252,13 @@ test("changing clients or surfaces cannot bypass a disruptive resource deferral"
   assert.equal(f.inspect(first).state, "announcing");
 });
 
-test("deliberate takeover cooldown spans disruptive surfaces and preserves background owners", () => {
+test("Desktop cooldown preserves independent Browser owners and new Browser work", () => {
   const f = fixture(), active = f.activate(f.request());
   const background = f.activate(f.request("browser", { profileIds: ["personal"] }));
   f.policy.input("desktop", "button");
   assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
   assert.equal(f.policy.authorize(f.owner, background), null);
-  assert.equal(f.request("browser", { disruptive: true }).state, "paused");
+  assert.equal(f.request("browser", { disruptive: true }).state, "announcing");
   assert.equal(f.policy.status().handoffCooldownRemainingSeconds, 60);
   assert.deepEqual(f.policy.status().handoffCooldownSurfaces, ["desktop"]);
 });
@@ -270,7 +271,7 @@ test("an explicitly ready locked route skips an invisible warning but keeps impa
   const active = f.activate(first);
   assert.ok(Object.hasOwn(active.resourceGenerations, "human-input"));
   const competing = f.request("browser", { disruptive: true });
-  assert.equal(competing.state, "waiting_for_resource");
+  assert.equal(competing.state, "announcing", "Browser does not reserve Desktop input");
   f.policy.cancel(f.owner, competing.intentId);
   f.policy.configure("desktop", { mode: "ask", durationMs: null });
   assert.equal(f.request().state, "waiting_for_approval", "a locked native fact never supplies task approval");
@@ -294,6 +295,17 @@ test("production process inlet carries independent owners and negotiates v2 with
     const active = await call("accept", { owner: "two", intentId: browser.intentId, offerGeneration: browser.offerGeneration });
     assert.equal((await call("authorize", { owner: "two", fence: active })).refusal, null);
     await assert.rejects(call("inspect", { owner: "one", intentId: browser.intentId }), /owner_mismatch/);
+    await call("cancel", { owner: "two", intentId: browser.intentId });
+    await call("input-ready", { ready: false });
+    const full = await call("submit", { owner: "two", request: { ...request, requestId: "full-browser", surfaces: ["browser"], profileIds: ["work"] } });
+    assert.equal(full.state, "announcing");
+    await call("start", { intentId: full.intentId });
+    const offer = await call("inspect", { owner: "two", intentId: full.intentId });
+    const fullActive = await call("accept", { owner: "two", intentId: full.intentId, offerGeneration: offer.offerGeneration });
+    await call("input", { surface: "browser", kind: "key" });
+    await call("input", { surface: "desktop", kind: "button" });
+    assert.equal((await call("authorize", { owner: "two", fence: fullActive })).refusal, null);
+    assert.equal((await call("authorize", { owner: "two", fence: fullActive, operation: "input.key" })).refusal, "operation_not_permitted_by_control_channel");
     await call("close", { owner: "two" });
     assert.equal((await call("state")).active, 0);
     await call("stop");
@@ -301,17 +313,17 @@ test("production process inlet carries independent owners and negotiates v2 with
   } finally { await process.close(); }
 });
 
-test("unknown human-input observation fences disruptive Browser but preserves background work", () => {
+test("unknown physical-input observation fences Desktop but does not block Browser", () => {
   const f = fixture();
   const active = f.activate(f.request("browser", { disruptive: true }));
   const background = f.activate(f.request("browser", { profileIds: ["personal"] }));
   f.policy.inputReady(false);
-  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+  assert.equal(f.policy.authorize(f.owner, active), null);
   assert.equal(f.policy.authorize(f.owner, background), null);
   const request = f.request("desktop");
   assert.ok(request.blockingReasons.includes("activity_unknown"));
   f.policy.inputReady(true);
-  assert.equal(f.inspect(request).state, "waiting_for_resource", "restored readiness preserves resource arbitration");
+  assert.equal(f.inspect(request).state, "announcing", "Browser never reserves the Desktop input resource");
   f.policy.cancel(f.owner, active.intentId);
   assert.equal(f.inspect(request).state, "announcing");
 });
@@ -385,4 +397,41 @@ test("explicit same-owner renewal extends only the live lease under its original
   assert.equal(f.inspect(task).state, "active", "explicit renewal passes the initial finite task ceiling");
   f.policy.pause("desktop", "manual", null);
   assert.throws(() => f.policy.renew(f.owner, lease, 120_000), /stale_control_session/);
+});
+
+
+test("full Browser survives physical input and can run concurrently with Desktop", () => {
+  const f = fixture();
+  const browser = f.activate(f.request("browser", { disruptive: true }));
+  const desktop = f.activate(f.request());
+  for (const surface of ["desktop", "browser"]) for (const kind of ["key", "button", "scroll", "movement"]) f.policy.input(surface, kind);
+  assert.equal(f.policy.authorize(f.owner, browser), null);
+  assert.equal(f.policy.authorize(f.owner, desktop), "stale_control_session");
+  f.policy.inputReady(false);
+  assert.equal(f.policy.authorize(f.owner, browser), null);
+  f.policy.pause("browser", "manual", null);
+  assert.equal(f.policy.authorize(f.owner, browser), "stale_control_session");
+  f.policy.resume("browser", "manual");
+  const fresh = f.activate({ intentId: browser.intentId });
+  f.policy.stop();
+  assert.equal(f.policy.authorize(f.owner, fresh), "stale_control_session");
+});
+
+test("Desktop-dependent Browser compounds still yield and require Desktop consent", () => {
+  const f = fixture();
+  const task = f.request("browser", { disruptive: true, surfaces: ["desktop", "browser"] });
+  const active = f.activate(task);
+  f.policy.input("desktop", "key");
+  assert.equal(f.policy.authorize(f.owner, active), "stale_control_session");
+  f.policy.configure("desktop", { mode: "off", durationMs: null });
+  assert.equal(f.inspect(task).terminalReason, "consent_replaced");
+  assert.equal(f.request("browser", { disruptive: true, surfaces: ["desktop", "browser"] }).terminalReason, "surface_disabled");
+});
+
+
+test("holding a full Browser task does not hold Desktop input", () => {
+  const f = fixture(), browser = f.request("browser", { disruptive: true });
+  f.policy.defer(browser.intentId, 30_000);
+  assert.equal(f.request("desktop").state, "announcing");
+  assert.deepEqual(f.policy.status().deferrals.map(row => row.resource), ["browser:work"]);
 });

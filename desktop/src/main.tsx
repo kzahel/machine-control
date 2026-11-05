@@ -1142,7 +1142,7 @@ function App() {
                         {state.activityObserver.setupState === "authorizing" ? "Authorizing…" : "Set up activity observer"}
                       </button>
                     </div>
-                    <p className="note">Administrator approval installs a read-only observer for clicks, keys and scrolling. It retains no input content and cannot control the computer. Mouse movement does not interrupt agents. Disruptive work waits while observation is unavailable.</p>
+                    <p className="note">Administrator approval installs a read-only observer for clicks, keys and scrolling. It retains no input content and cannot control the computer. Mouse movement does not interrupt agents. Desktop work waits while observation is unavailable.</p>
                     {state.activityObserver.setupError && <p role="alert" className="note">{state.activityObserver.setupError}</p>}
                   </>}
                   <div className="setting-row">

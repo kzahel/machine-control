@@ -17,6 +17,17 @@ the browser's native-host manifest directory.
 
 ## Architecture and reach
 
+**Current source; deterministic and production-inlet tested:** Browser-only
+shared admission no longer yields on human input or reserves the Desktop input
+resource. Desktop-including compounds still yield, and Browser Stop, pause,
+profile authority, expiry and owner fences remain. This is shared-policy
+behavior, not new extension-provider reach or native/package qualification.
+[Tactical 157](../../docs/tactical/157-desktop-access-experience.md) records the
+bounded evidence and subsequent native/presentation work. **Open:** explicit
+foreground opt-ins can still bring the browser forward without a Desktop fence;
+concurrent native input routing is not qualified by these policy tests. See the
+[access experience boundary](../../topics/desktop-access-experience.md#browser).
+
 **Current source:** panel rendering binds asynchronous tab/activity metadata to
 its presentation generation. A deterministic real-panel regression releases
 an older metadata read after a newer cleared state and verifies it cannot

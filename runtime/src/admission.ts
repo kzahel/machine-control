@@ -26,6 +26,10 @@ export interface AdmissionRequest {
   readonly waitMs: number;
   readonly durationMs: number;
 }
+/** Browser automation does not own the user's physical input device. */
+function yieldsToHuman(request: Pick<AdmissionRequest, "surfaces" | "disruptive">): boolean {
+  return request.disruptive && request.surfaces.includes("desktop");
+}
 export interface AdmissionEvent {
   readonly event: "requested" | "approved" | "deferred" | "start_now" | "takeover" |
     "pause" | "resume" | "configured" | "stopped" | "yielded" | "rejected" | "renewed" |
@@ -191,7 +195,7 @@ export class AccessAdmission {
     if (kind === "movement") return;
     // Input during a warning acknowledges no takeover and changes no deadline.
     // A cooldown is attached to the surface, so a new caller cannot bypass it.
-    if (!this.#intents.some(i => i.session && i.request.disruptive && i.request.surfaces.includes(surface))) return;
+    if (!this.#intents.some(i => i.session && yieldsToHuman(i.request) && i.request.surfaces.includes(surface))) return;
     if (this.#humanCooldownUntil <= this.#now) {
       this.#humanCooldownUntil = this.#now + 60_000;
       this.#takeoverSurfaces.clear();
@@ -238,7 +242,7 @@ export class AccessAdmission {
     if (this.#intents.filter(i => !i.terminal).length >= 256 ||
         this.#intents.filter(i => i.owner === owner && !i.terminal).length >= 4) throw new Error("admission_queue_full");
     const resources = [...(copy.surfaces.includes("desktop") ? ["desktop"] : []), ...profiles.map(id => `browser:${id}`),
-      ...(copy.disruptive ? ["human-input"] : [])];
+      ...(yieldsToHuman(copy) ? ["human-input"] : [])];
     const intent: Intent = {
       id: `intent:${++this.#sequence}`, owner, request: copy, identity, resources,
       deadline: this.#now + copy.waitMs, taskDeadline: this.#now + copy.waitMs + copy.durationMs,
@@ -525,7 +529,7 @@ export class AccessAdmission {
     return [...new Set([...intent.request.surfaces.flatMap(surface => {
       const available = this.#available(surface);
       return [...available.pauses.keys(), ...(available.ready ? [] : ["resource_unavailable"])];
-    }), ...this.#globalPauses.keys(), ...(intent.request.disruptive && !this.#inputReady ? ["activity_unknown"] : []), ...(intent.request.disruptive && this.#humanCooldownUntil > this.#now ? ["physical_takeover"] : []),
+    }), ...this.#globalPauses.keys(), ...(yieldsToHuman(intent.request) && !this.#inputReady ? ["activity_unknown"] : []), ...(yieldsToHuman(intent.request) && this.#humanCooldownUntil > this.#now ? ["physical_takeover"] : []),
       ...(intent.resources.some(resource => this.#deferrals.has(resource)) ? ["operator_deferral"] : [])])].sort();
   }
   #release(intent: Intent, reason: string): void {

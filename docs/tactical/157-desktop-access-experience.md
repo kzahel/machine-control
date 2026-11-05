@@ -260,3 +260,18 @@ profile disclosure in Activity approvals. Follow-up review accepted the phase;
 smaller fixes retain surface memory on Apply, keep unapplied duration edits,
 avoid inert Resume controls and preserve Off during unavailable/busy state.
 Native notices and new timing/yield behavior remain for subsequent phases.
+
+
+### Phase 2 - Browser physical-input independence
+
+**Current:** shared policy separates physical-input eligibility from disruptive
+countdown classification. Browser-only tasks do not reserve human-input or wait
+for Desktop input readiness/cooldown; compounds retain Desktop guards. Updated
+fake-clock and process-inlet checks cover independence/concurrency, manual
+pause/Stop, stale owners and refusal of native Desktop work on Browser owners.
+Runtime strict checking and all shared runtime checks pass before review.
+Independent Opus review accepted the phase with a recorded foreground-opt-in
+interference follow-up. Its focused admission suite passed independently; the
+coordinator's complete runtime suite and strict check also pass. Added the
+reverse Browser-deferral/Desktop-independence assertion and narrowed the input
+monitor copy to Desktop. No native/provider dispatch code changed.
