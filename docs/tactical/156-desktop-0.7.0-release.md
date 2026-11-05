@@ -128,3 +128,13 @@ Require its explicit managed appliance administration capability instead,
 while rejecting ordinary workstation policy and unavailable semantics.
 Apply the same check to restoration and the sequential reboot observer.
 The failed workspace and its claim are disposed; no release receipt is issued.
+
+Bounded development campaigns against those authenticated bytes expose two
+more fixture mismatches: quiet preflight requires surface readiness before
+consent, and the approval loop searches for legacy `Allow` instead of native
+`Allow this task`. Wait for input readiness independently, verify both surfaces
+start Off, and use the current native control with a bounded approval wait.
+The helper authorization preflight also uses the managed-observer capability
+check. Twelve pure Mac fixture tests pass, including actual selector and
+single-owner composition; canceled development scopes release their exact
+workspace and claim. Development evidence cannot qualify publication.

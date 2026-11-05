@@ -226,6 +226,7 @@ def main():
     def approve():
         assert args.observer_socket, 'Workstation approval requires an independent observer'
         if rig is not None:
+            assert all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values()), 'Packaged trial must start with both surfaces Off'
             rig.arm('ask');rig.owner('desktop');rig.owner('browser')
             check('packaged workstation native surface approvals')
             return
@@ -255,7 +256,7 @@ def main():
             nonlocal last_blockers
             if rig is not None:
                 current=rig.status()['admission']
-                return current['humanInputReady'] and current['surfaces']['desktop']['ready']
+                return current['humanInputReady']
             state = call('grant.status')['availability']
             blockers = state['blockingReasons']
             if blockers != last_blockers:

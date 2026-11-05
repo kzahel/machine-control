@@ -139,11 +139,17 @@ class SurfaceFixture:
         self.owners[surface]=owner
         with concurrent.futures.ThreadPoolExecutor() as pool:
             waiting=pool.submit(owner.wait)
-            while not waiting.done():
-                rows=[r for r in self.tree('Allow') if r.get('role')=='AXButton' and r.get('label')=='Allow']
-                if rows:self.observe('action',reference=rows[0]['reference'],action='press')
-                time.sleep(.2)
-            waiting.result()
+            deadline=time.monotonic()+120
+            try:
+                while not waiting.done():
+                    assert time.monotonic()<deadline,'Native surface approval did not complete'
+                    row=self.find('Allow this task')
+                    if row:self.observe('action',reference=row['reference'],action='press')
+                    time.sleep(.2)
+                waiting.result()
+            except BaseException:
+                owner.close()
+                raise
         return owner
 
     def dispatch(self,operation,**fields):

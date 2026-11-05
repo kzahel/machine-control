@@ -10,6 +10,30 @@ fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_surface_owner_uses_the_current_native_approval_control(self):
+        approved=threading.Event();calls=[]
+        class Session:
+            def wait(self):
+                if not approved.wait(3):raise AssertionError('Native approval not pressed')
+            def close(self):calls.append('close');approved.set()
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        rig.target={};rig.profiles=[];rig.owners={}
+        def sdk(*args,**fields):calls.append('open');return Session()
+        rig.sdk=sdk
+        def find(label):
+            calls.append(label)
+            return {'reference':'native-approval'} if label=='Allow this task' else None
+        rig.find=find
+        def observe(operation,**fields):
+            self.assertEqual((operation,fields),('action',{'reference':'native-approval','action':'press'}))
+            approved.set()
+        rig.observe=observe
+        owner=rig.owner('desktop')
+        self.assertIs(rig.owners['desktop'],owner)
+        self.assertEqual(calls.count('open'),1)
+        self.assertIn('Allow this task',calls)
+        owner.close()
+
     def test_observer_requires_explicit_managed_administration(self):
         value={'deployment':{'policy':{'preset':'appliance','grantMode':'surface_modes',
                 'protectedAdministration':True}},'nativeSemanticState':'ready'}

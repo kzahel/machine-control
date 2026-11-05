@@ -263,7 +263,8 @@ def launch_fixture(c):
 
 
 def _lease(c):
-    assert c['exchange'](c['observer'], 'status')['data']['deployment']['policy']['grantMode'] == 'standing'
+    from surface_fixture import require_managed_observer
+    require_managed_observer(c['exchange'](c['observer'], 'status')['data'])
     response = c['exchange'](c['observer'], 'authorization.begin', expectedRequester='Login Items',
                              contextId='covered-helper-' + uuid.uuid4().hex, timeoutMs=120000)
     return response.get('data', {}).get('leaseId') if response.get('accepted') else None
