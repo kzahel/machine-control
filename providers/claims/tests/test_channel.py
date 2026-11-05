@@ -1,5 +1,6 @@
 from __future__ import annotations
 import importlib.util
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -79,13 +80,23 @@ for line in sys.stdin.buffer:
         self.assertEqual(claims.command_check(self.options('check',['--claim-id',replacement]))['data']['claimId'],replacement)
     def test_external_renewal_keeps_channel_live_but_does_not_replay_frames(self):
         child = self.start(); self.send(child,'one')
-        claims.command_renew(self.options('renew',['--claim-id',self.identifier,'--duration-seconds','2']))
-        time.sleep(1)
-        claims.command_renew(self.options('renew',['--claim-id',self.identifier,'--duration-seconds','4']))
-        time.sleep(1.2); self.send(child,'two')
+        original = claims.command_renew(self.options('renew',[
+            '--claim-id',self.identifier,'--duration-seconds','2']))['data']['claim']
+        # Renew immediately, then cross the original deadline. Sleeping before
+        # renewal tests runner scheduling against a two-second lease instead
+        # of whether the existing channel observes an external extension.
+        renewed = claims.command_renew(self.options('renew',[
+            '--claim-id',self.identifier,'--duration-seconds','10']))['data']['claim']
+        self.assertEqual(renewed['claimId'],original['claimId'])
+        self.assertEqual(renewed['generation'],original['generation'])
+        self.assertGreater(renewed['expiresAt'],original['expiresAt'])
+        old_deadline = datetime.fromisoformat(original['expiresAt'].replace('Z','+00:00'))
+        time.sleep(max(0,(old_deadline-datetime.now(timezone.utc)).total_seconds())+.2)
+        self.send(child,'two')
         child.stdin.close(); child.stdin = None
         child.wait(timeout=5)
-        self.assertEqual(len(self.effects.read_text().splitlines()),2)
+        self.assertEqual([json.loads(line)['requestId'] for line in
+            self.effects.read_text().splitlines()],['one','two'])
     def test_stale_claim_refuses_before_launching_the_transport(self):
         claims.command_release(self.options('release',['--claim-id',self.identifier]))
         child=self.start(); child.wait(timeout=5)

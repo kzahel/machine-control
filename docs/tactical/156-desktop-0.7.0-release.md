@@ -268,3 +268,18 @@ during a helper outage remains explicitly open in the browser-profile topic
 and Mac platform report. Retire the known owner before independent cleanup
 lock observation, preserving the original error rather than querying the
 occupied native executor. All 18 Mac fixture and 95 release tests pass.
+
+The development campaign subsequently passes all 115 checks, including root
+stall, protected resident crash, both surfaces Off and independent relock.
+Its exact workspace and claim are released. The separate Stop/boot scope
+fails before its first native check because the staged entry point imports
+its helper before adding the staged source directory. Resolve that import
+inside the guest after selecting its source directory; the standalone staged
+entry point now imports successfully. That failed scope also releases both
+workspace and claim. Repeat only the separate Stop/boot phase in a fresh scope.
+
+Mac source CI independently exposes a short claim-channel test lease expiring
+before its renewal after a one-second sleep. Renew immediately and wait past
+the recorded original deadline, retaining the same claim and generation and
+checking the two exact independently recorded frames. The renewed lease has
+scheduling margin; production expiry and renewal behavior are unchanged.

@@ -16,7 +16,6 @@ import sys
 import tarfile
 import time
 import uuid
-from surface_fixture import require_managed_observer
 
 
 def wait(fn, label, seconds=60):
@@ -30,6 +29,8 @@ def wait(fn, label, seconds=60):
 
 
 def guest(stage, claim, verify, protected_stop=False):
+    sys.path.insert(0,str(stage/'source/tests/macos'))
+    from surface_fixture import require_managed_observer
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).startswith(b'VirtualMac')
     home = Path.home()
     installed = home / 'Applications/Machine Control.app'
