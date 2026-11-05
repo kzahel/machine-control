@@ -386,6 +386,15 @@ set +e
 bounded_status=$?
 set -e
 [[ "$bounded_status" -eq 124 ]]
+[[ "$("${lifecycle_env[@]}" bin/macvm exec --timeout-seconds 5 -- \
+    /usr/bin/printf 'bounded fixture output')" == 'bounded fixture output' ]]
+set +e
+"${lifecycle_env[@]}" bin/macvm exec --timeout-seconds 1 -- /bin/sleep 5
+bounded_exec_status=$?
+"${lifecycle_env[@]}" bin/macvm exec --timeout-seconds invalid -- /usr/bin/true
+invalid_bounded_status=$?
+set -e
+[[ "$bounded_exec_status" -eq 124 && "$invalid_bounded_status" -eq 2 ]]
 maintenance_log="$temporary/maintenance.log"
 maintenance_state="$temporary/maintenance.state"
 maintenance_env=(

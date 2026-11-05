@@ -298,3 +298,18 @@ the earlier protected-Stop phase already selected that policy. Load appliance
 policy only for the independent observer on every pass, immediately restoring
 workstation policy. The candidate keeps its already-loaded workstation policy;
 no ordinary consent is restored. The failed scope releases both resources.
+
+The separate native trial passes protected Stop, both observed boots, saved
+surface/profile/duration choices, clean relaunch and no restored authorization.
+Its workspace and claim are released. Timed-out read-only boot probes leave
+unpaired journal intents when the outer common CLI is killed; that journal is
+honestly closed as abandoned for incomplete command coverage, retaining the
+passing native evidence. No uncertain mutation is repeated.
+
+Bound the native transport inside `macvm exec --timeout-seconds` instead, so
+the common CLI survives to record each timeout result. A fixture-only common
+CLI regression proves timeout 124, a following successful read under the same
+claim, release, and ready journal closure with no unpaired commands. The static
+suite also checks bounded output, timeout and invalid arguments. The full
+packaged release run will use this path and the candidate's bundled SDK;
+development evidence cannot substitute for final acceptance.

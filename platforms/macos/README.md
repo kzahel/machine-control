@@ -120,6 +120,7 @@ bin/macvm doctor
 bin/macvm doctor --json
 bin/macvm up
 bin/macvm exec /usr/bin/sw_vers
+bin/macvm exec --timeout-seconds 10 -- /usr/sbin/sysctl -n kern.boottime
 bin/macvm post-update audit
 bin/macvm control '{"operation":"capabilities"}'
 bin/macvm control '{"operation":"applications"}'

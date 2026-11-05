@@ -20,7 +20,8 @@ Start here:
   claim-renew | claim-release
                          Coordinate exclusive use of the exact pinned target
   up                     Start/resume the VM and report its power state
-  exec COMMAND [ARG...]  Run a command through the Tart guest agent
+  exec [--timeout-seconds N --] COMMAND [ARG...]
+                         Run through the guest agent, optionally bounded
   shell                  Open an interactive zsh through the Tart guest agent
   ui COMMAND [ARG...]    Inspect and control the macOS accessibility tree
   control JSON           Call the target-resident machine-control facade
@@ -198,7 +199,23 @@ case "$command" in
         macvm_exec /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-java-fixture/state.json"
         ;;
-    exec) macvm_exec "$@" ;;
+    exec)
+        if [[ "${1:-}" == --timeout-seconds ]]; then
+            if [[ $# -lt 4 || ! "${2:-}" =~ ^[1-9][0-9]*$ || "${3:-}" != -- ]]; then
+                printf 'Usage: macvm exec --timeout-seconds N -- COMMAND [ARG...]\n' >&2
+                exit 2
+            fi
+            seconds="$2"
+            shift 3
+            # Bound the native transport inside the common CLI so its journal
+            # can record the actual timeout result instead of being killed.
+            "$REPO_DIR/scripts/bounded-command.py" --seconds "$seconds" -- \
+                /bin/bash -c 'source "$1"; shift; macvm_exec "$@"' \
+                macvm-bounded "$REPO_DIR/scripts/common.sh" "$@"
+        else
+            macvm_exec "$@"
+        fi
+        ;;
     shell) macvm_shell ;;
     status|get|host-state|up|ip|screenshot|click|drag|type|type-secret|key|suspend|discard-suspended-state|shutdown|stop|force-stop)
         provider "$command" "$@"

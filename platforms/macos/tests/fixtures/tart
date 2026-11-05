@@ -3,6 +3,10 @@
 set -euo pipefail
 
 case "${1:-}" in
+    exec)
+        shift 2
+        exec "$@"
+        ;;
     get)
         printf '{"State":"%s","Display":"1280x800"}\n' \
             "${MACHINE_CONTROL_TART_STATE:-stopped}"
