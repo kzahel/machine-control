@@ -16,6 +16,21 @@ from control_session import ControlSession, validate_view, complete_session_hand
 
 
 class ControlSessionTests(unittest.TestCase):
+    def test_profile_capability_refusal_preserves_fence_without_action_or_reopen(self):
+        with self.session("profile-capability-refused") as owner:
+            owner.wait()
+            with self.assertRaises(mc.ClientError) as error:
+                owner.call({"operation":"browser.click","browserProfileId":"fixture-profile","reference":"unused"})
+            self.assertEqual(error.exception.code,"control_generation_changed")
+            self.assertEqual(error.exception.data['delivery'],'refused')
+            self.assertEqual(error.exception.data['uncertainty'],'none')
+        events=self.record.read_text().splitlines()
+        self.assertEqual(events.count('control.open'),1)
+        self.assertEqual(events.count('control.dispatch'),1)
+        self.assertEqual(events.count('capabilities'),1)
+        self.assertNotIn('browser.click',events)
+        self.assertNotIn('effect',events)
+
     def test_explicit_profile_refuses_legacy_resident_before_action(self):
         with self.session() as owner:
             owner.wait()

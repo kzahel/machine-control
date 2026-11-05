@@ -25,6 +25,7 @@ def run(c):
                 if str(row.get('value','')).lower() not in {'1','true'}:rig.observe('action',reference=row['reference'],action='press')
                 poll(lambda:rig.status()['browserWhileLocked']['enabled'],'locked Browser enabled')
                 rig.close_owners();rig.owner('browser')
+                assert call('browser.tabs')['tabs']
                 tool=c['root']/'session-lock'
                 subprocess.run(['xcrun','clang','-fobjc-arc','-framework','Foundation','-framework','IOKit',str(c['source']/'tests/macos/session-lock.m'),'-o',str(tool)],check=True,capture_output=True)
                 subprocess.run([str(tool),'--lock'],check=True,capture_output=True)

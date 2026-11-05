@@ -186,3 +186,14 @@ For a stalled evaluation, observe its HTTP entry first, require status
 responsiveness, and check a second action is refused before dispatch. The
 probe cannot emit a release receipt; all 95 release and 14 Mac fixture tests
 pass. Full protected and final-source release qualification remain pending.
+
+A subsequent lock transition meets a refused SDK capability observation. The
+client collapses every refused capability response into a misleading resident
+upgrade error, hiding the original reason. Preserve its typed refusal and
+response, dispatch no requested Browser action, and never reopen or retry.
+The preapproved-owner fixture negotiates its exact Browser profile before
+locking. SDK error traces now retain only closed refusal metadata rather than
+mislabeling every exception as connection loss. All 96 client/session, 95
+release (one platform skip) and 14 Mac fixture tests pass. Native development
+qualification continues; the original refusal reason was not retained by the
+old client and is not inferred from the upgrade message.

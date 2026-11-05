@@ -110,6 +110,7 @@ def main():
         nonlocal generation
         started = time.monotonic()
         result = None
+        failure = None
         try:
             if rig is not None and operation not in {'status','capabilities','browser.profiles','session.control.end','server.stop'} and rig.owners.get('browser' if operation.startswith('browser.') else 'desktop') is not None:
                 result = rig.dispatch(operation, **fields)
@@ -117,14 +118,19 @@ def main():
                 result = exchange(endpoint, operation, **fields)
                 if rig is not None and operation=='session.control.end' and result.get('accepted'):
                     rig.close_owners()
+        except BaseException as error:
+            failure=error
+            raise
         finally:
             if trace:
+                refused=getattr(failure,'data',None)
+                details=result if result is not None else refused if isinstance(refused,dict) else None
                 trace.write(json.dumps({'operation': operation, 'monotonic': started,
                     'durationMs': round((time.monotonic() - started) * 1000),
                     'accepted': result.get('accepted') if result else None,
-                    'errorCode': result.get('errorCode') if result else 'connection_lost',
-                    'failureDetails': {key: result.get(key) for key in ['message','delivery','effect','uncertainty','actualRoute']}
-                        if result and not result.get('accepted') else None}) + '\n')
+                    'errorCode': result.get('errorCode') if result else getattr(failure,'code','connection_lost'),
+                    'failureDetails': {key: details.get(key) for key in ['message','delivery','effect','uncertainty','actualRoute']}
+                        if details and not details.get('accepted') else None}) + '\n')
                 trace.flush()
         # Browser results name the relay generation, which changes on native
         # host reconnect. Resident/native results name the runtime generation.

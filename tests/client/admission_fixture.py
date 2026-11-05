@@ -72,6 +72,13 @@ for line in sys.stdin.buffer:
     if mode == "sequenced" or mode.startswith("outer"): data["requestSequencing"] = "strict"
     if mode.startswith("outer"): data["outerRecovery"] = "borrowed_exact_claim/v1"
     if operation == "control.dispatch":
+        if mode == "profile-capability-refused":
+            event(request["request"]["operation"])
+            data = dict(schema="machine-control/v0", accepted=False,
+                operation=request["request"]["operation"],errorCode="control_generation_changed",
+                delivery="refused",effect="refused",uncertainty="none",retrySafety="safe_not_dispatched")
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
+            continue
         event("effect")
         if mode.startswith("outer"): event(request["request"]["operation"])
         uncertain = mode in {"uncertain", "uncertain-accepted"}

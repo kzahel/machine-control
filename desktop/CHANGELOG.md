@@ -22,6 +22,8 @@
 - Keep the Python CLI and SDK, automatically renewing supported live owners
   under their original consent. Use `--no-renew` for an intentionally finite
   task; Stop, disconnect, claim loss and consent expiry still end access.
+- Preserve the actual refusal reason when browser profile discovery meets a
+  session transition, without dispatching or replaying the requested action.
 - Keep Linux warnings visible while Settings has focus, add an explicitly
   installed read-only physical-activity observer, and reap the policy child
   even when its native parent crashes. Ordinary effects remain AT-SPI/portal.

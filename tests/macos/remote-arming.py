@@ -258,6 +258,7 @@ def _run_surfaces(context):
     poll(lambda:rig.status()['browserWhileLocked']['enabled'],'locked Browser preference')
     rig.observe('window.close',target=str(rig.status()['processId']))
     rig.close_owners();rig.owner('browser')
+    check('exact Browser owner negotiates its profile before locking',bool(call('browser.tabs')['tabs']))
     lock_binary=context['root']/'session-lock'
     subprocess.run(['xcrun','clang','-fobjc-arc','-framework','Foundation','-framework','IOKit',str(context['source_root']/'tests/macos/session-lock.m'),'-o',str(lock_binary)],check=True,capture_output=True)
     def locked():

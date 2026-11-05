@@ -3025,6 +3025,9 @@ def update_request(arguments: list[str]) -> dict[str, Any]:
 
 
 def require_browser_profile_selection(capabilities: dict[str, Any]) -> None:
+    error_code = capabilities.get("errorCode")
+    if capabilities.get("accepted") is False and isinstance(error_code, str) and error_code:
+        raise ClientError(error_code, "Browser capability observation was refused", data=capabilities)
     data = capabilities.get("data")
     browser = data.get("browser") if isinstance(data, dict) else None
     if capabilities.get("accepted") is not True or not isinstance(browser, dict) or browser.get("profileSelectionSupported") is not True:
