@@ -44,13 +44,11 @@ class Notification:
     def closed(self,sender,identifier,reason):
         if sender!=self.owner or not self.identifier or identifier!=self.identifier:return
         self.identifier=0;self.message=None;self.dismissed=self.binding
-        if reason in (1,2) and not self.acted and not self.opened and self.intent and self.state!='paused':
-            self.acted=True;self.emit('intent.defer',intentId=self.intent,duration=60)
 
     def acknowledged(self):
-        # Dismissing an already-paused status must not block the next timed
-        # retry. A new announcing binding still requires a new native post.
-        return bool(self.identifier or self.state=='paused' and self.binding is not None and self.dismissed==self.binding)
+        # A deliberately dismissed notice was presented. Dismissal is no
+        # permission decision and must not create a shared-resource deferral.
+        return bool(self.identifier or self.binding is not None and self.dismissed==self.binding)
 
     def return_to_banner(self):
         # GNOME can close a notification when its Open action activates the
@@ -85,3 +83,8 @@ def other_announcements(requests,selected):
         lines.append('Also starting '+', '.join(row.get('surfaces',[]))+' in '+delay+': '+row.get('reason',''))
     if len(rows)>2:lines.append(str(len(rows)-2)+' more tasks are starting. Open Settings for details.')
     return lines
+
+
+def can_continue(row):
+    reasons=row.get('blockingReasons',[])
+    return row.get('state')=='paused' and bool(reasons) and set(reasons)<={'task_held','scheduled','physical_takeover'}

@@ -160,6 +160,25 @@ final class ResidentServer {
         }
         return status
     }
+    func approveTask(_ intent: String, seconds: Int = 0) throws {
+        guard (0...28800).contains(seconds) else { throw MacUIError.usage("Choose a valid delay") }
+        activity.acknowledgeCurrentActivity()
+        try broker.admission.approve(intent, seconds: seconds)
+        refreshAdmission()
+    }
+    func configureAccessPreferences(_ value: [String: Any]) throws {
+        let normalized = try broker.admission.preferences(value)
+        preferences.set(normalized, forKey: "machineControl.accessPreferences.v1")
+    }
+    func restoreAccessPreferences() {
+        if let value = preferences.dictionary(forKey: "machineControl.accessPreferences.v1") {
+            do { try broker.admission.preferences(value) }
+            catch {
+                if let failure = error as? SharedPolicyError, failure.code.hasPrefix("invalid_") { preferences.removeObject(forKey:"machineControl.accessPreferences.v1") }
+                revoke(reason:"access_preferences_restore_failed"); broker.journal?.diagnostic("access.preferences", code:"restore_failed")
+            }
+        } else { broker.admission.reconfigureNotice(noticeSeconds) }
+    }
     func startNow(_ intent: String) throws {
         activity.acknowledgeCurrentActivity()
         try broker.admission.startNow(intent)
@@ -921,6 +940,12 @@ func runResident(socketPath: String) throws -> Never {
                 server?.broker.journal?.diagnostic("operator.resume", code:result["error"] as? String ?? "pause_recovery_required")
             }
         }
+    }
+    menu.onResumeSurface = { [weak server] surface in
+        guard let server else { throw MacUIError.action("resident_stopping") }
+        server.activity.acknowledgeCurrentActivity()
+        try server.broker.resume(surface:surface)
+        server.refreshAdmission()
     }
     menu.browserProfiles = { [weak server] in server?.browser.profiles ?? [] }
     menu.onConfigure = { [weak server] surface, mode, seconds, profiles in

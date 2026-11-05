@@ -68,6 +68,7 @@ final class ResidentRuntime {
         guard !stopped else { throw MacUIError.action("A stopped runtime must be relaunched") }
         guard !running else { return }
         try server.start()
+        server.restoreAccessPreferences()
         server.broker.journal?.startRuntime(instance:server.socketPath)
         server.notice = AdmissionNotice(server:server)
         server.activity.enable()

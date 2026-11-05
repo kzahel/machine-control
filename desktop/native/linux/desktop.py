@@ -48,6 +48,7 @@ from wire import read_frame,encode,SocketFrames
 from policy import Policy,PolicyError
 from access import Access
 from activity import Activity
+from access_preferences import AccessPreferences
 from channel import Channel,process_token
 import notice_environment
 
@@ -77,6 +78,11 @@ class Desktop:
         self.notice_pending=False;self.notice_seconds=10
         self.policy=Policy(self.scheduler.post,self.policy_event,self.policy_failed)
         self.grants=Access(self.policy,self.policy_changed)
+        self.access_preferences=AccessPreferences(self.presentation.root,instance)
+        saved_options=self.access_preferences.read()
+        if saved_options is not None:
+            try:self.policy.call(dict(method='access.preferences',preferences=saved_options))
+            except (ValueError,PolicyError):self.journal.diagnostic('access.preferences','invalid_saved_preferences')
         self.browser_preference = BrowserPreference(self.presentation.root, instance)
         self.grants.browser_while_locked = self.browser_preference.enabled
         self.locked = False
@@ -308,17 +314,28 @@ class Desktop:
         elif method in {'surface.resume','resume_surface'}:
             self.grants.resume(command.get('surface'))
             self.grants.send('resume',surface=command.get('surface'),reason='physical_takeover')
-        elif method in {'intent.approve','approve_intent','intent.start','start_intent','intent.deny','deny_intent','intent.defer','defer_intent'}:
-            action={'approve_intent':'approve','start_intent':'start','deny_intent':'deny','defer_intent':'defer'}.get(method,method.split('.')[-1])
+        elif method=='access_preferences':
+            value=self.grants.send('preferences',preferences=command.get('preferences'))
+            self.access_preferences.set(value['preferences'])
+        elif method in {'hold_control','intent.hold'}:
+            self.grants.send('hold',intentId=command.get('intentId'));self.changed()
+        elif method in {'postpone_control','intent.postpone'}:
+            seconds=command.get('duration')
+            if type(seconds) is not int or not 1<=seconds<=28800:raise ValueError('Choose a valid delay')
+            self.grants.send('postpone',intentId=command.get('intentId'),milliseconds=seconds*1000);self.changed()
+        elif method in {'intent.approve','approve_intent','approve_control','continue_control','intent.start','start_intent','start_control','intent.deny','deny_intent','cancel_control','intent.defer','defer_intent','pause_request'}:
+            action={'approve_intent':'approve','approve_control':'approve','continue_control':'approve','start_control':'start','start_intent':'start','cancel_control':'deny','deny_intent':'deny','defer_intent':'defer','pause_request':'defer'}.get(method,method.split('.')[-1])
             fields=dict(intentId=command.get('intentId'))
-            if action=='defer':
-                duration=command.get('duration')
-                if duration is not None and (type(duration) is not int or not 1<=duration<=28800):raise ValueError('Invalid deferral')
+            if action in ('defer','approve'):
+                duration=command.get('duration',0 if action=='approve' else None)
+                if action=='approve':
+                    if type(duration) is not int or not 0<=duration<=28800:raise ValueError('Invalid delay')
+                elif duration is not None and (type(duration) is not int or not 1<=duration<=28800):raise ValueError('Invalid deferral')
                 fields['milliseconds']=None if duration is None else duration*1000
             self.grants.send(action,**fields);self.changed()
         elif method=='control_notice':
             seconds=command.get('noticeSeconds')
-            if type(seconds) is not int or seconds not in (5,10,30,60):raise ValueError('Invalid warning')
+            if type(seconds) is not int or not 0<=seconds<=60:raise ValueError('Invalid warning')
             self.grants.send('notice',milliseconds=seconds*1000)
         elif method=='browser_while_locked':
             enabled=command.get('enabled')
@@ -506,7 +523,7 @@ class Desktop:
                         elif method=="alive":
                             self.safety_observed=time.monotonic();self.safety_available=value.get("available") is True;self.notice_visible=value.get("visible") is True
                             self.refresh_availability()
-                        elif method in {"stop", "pause", "resume", "surface.pause", "surface.resume", "intent.approve", "intent.start", "intent.deny", "intent.defer"}:
+                        elif method in {"stop", "pause", "resume", "surface.pause", "surface.resume", "intent.approve", "intent.start", "intent.deny", "intent.defer", "intent.hold", "intent.postpone"}:
                             try:
                                 self.operator(value)
                             except ValueError:

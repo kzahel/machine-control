@@ -14,7 +14,7 @@ import gi
 
 gi.require_version('Gtk','3.0')
 from gi.repository import GLib,Gtk,Gdk,Gio
-from notification_state import Notification,primary_request,other_announcements
+from notification_state import Notification,primary_request,other_announcements,can_continue
 
 parent=os.getppid()
 if ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)!=0 or os.getppid()!=parent:
@@ -126,10 +126,14 @@ def update(value):
     state=row.get('state');identifier=row.get('intentId');surfaces=row.get('surfaces',[])
     title={'waiting_for_approval':'An agent wants to use this computer',
            'announcing':'An agent will start using this computer',
-           'active':'An agent is using this computer','paused':'Agent access is paused',
+           'active':'An agent is using this computer','paused':'Agent task is waiting',
            'waiting_for_availability':'An agent is waiting for access to become available',
            'waiting_for_resource':'An agent is waiting for another task to finish',
            'offered':'An agent is starting'}
+    scope=' + '.join(surface.title() for surface in surfaces)
+    if state=='waiting_for_approval':title[state]='Agent wants to use '+scope
+    elif state=='announcing':title[state]=scope+' task starts soon'
+    elif state=='active':title[state]=scope+' task running'
     heading.set_text(title.get(state,'Agent access'))
     reason.set_text(row.get('reason',''))
     access=', '.join(surfaces)
@@ -138,7 +142,11 @@ def update(value):
     remaining=row.get('noticeRemainingSeconds')
     cooldown=value.get('handoffCooldownRemainingSeconds',0)
     text=('Starting in '+str(math.ceil(remaining))+' seconds.' if isinstance(remaining,(int,float)) else '')
-    if state=='paused':text=('Retry in '+str(math.ceil(cooldown))+' seconds, with a fresh warning.' if cooldown else 'A fresh warning appears before access resumes.')
+    if state=='paused':
+        if row.get('held'):text='Task paused.'
+        elif row.get('scheduledRemainingSeconds',0)>0:text='Can start in '+str(math.ceil(row['scheduledRemainingSeconds']))+' seconds.'
+        elif 'physical_takeover' in row.get('blockingReasons',[]):text='You have control. The task has yielded.'
+        else:text='Waiting for access to become available.'
     if state=='waiting_for_availability':text='Check permissions and provider availability in Settings. This request remains queued.'
     others=other_announcements(requests,row)
     countdown.set_text('\n'.join([text,*others]).strip())
@@ -149,27 +157,37 @@ def update(value):
     if key!=binding:
         binding=key;choices=[]
         for child in buttons.get_children():buttons.remove(child);child.destroy()
-        if state=='waiting_for_approval':
-            button('Allow this task','intent.approve',intentId=identifier)
-            button('Deny this task','intent.deny',intentId=identifier)
+        if state=='waiting_for_approval':button('Allow now','intent.approve',intentId=identifier)
         if state=='announcing':button('Start now','intent.start',intentId=identifier)
-        if state in ('announcing','waiting_for_approval','active','offered'):
-            button('Pause 30 seconds','intent.defer',intentId=identifier,duration=30)
-            button('Pause 1 minute','intent.defer',intentId=identifier,duration=60)
-            button('Pause until Resume','intent.defer',intentId=identifier,duration=None)
+        if state in ('waiting_for_approval','announcing'):
+            menu=Gtk.MenuButton(label='Allow in…' if state=='waiting_for_approval' else 'More time…')
+            popup=Gtk.Menu()
+            budget=row.get('taskRemainingSeconds',0)
+            for seconds,label in ((30,'30 seconds'),(60,'1 minute'),(300,'5 minutes')):
+                item=Gtk.MenuItem(label=label);item.set_sensitive(seconds+65<budget)
+                item.connect('activate',lambda _,seconds=seconds: intent('intent.approve' if state=='waiting_for_approval' else 'intent.postpone',intentId=identifier,duration=seconds))
+                popup.append(item)
+            popup.show_all();menu.set_popup(popup);buttons.pack_start(menu,False,False,0)
+            button('Decline' if state=='waiting_for_approval' else 'Cancel','intent.deny',intentId=identifier)
+        if state in ('active','offered'):button('Pause task','intent.hold',intentId=identifier)
         if state=='paused':
-            if value.get('globalPauses'):button('Resume global pause','resume')
-            for surface in surfaces:button('Resume '+surface,'surface.resume',surface=surface)
-        button('Stop all access','stop')
-        button('Open Settings…','settings')
+            if can_continue(row):button('Continue','intent.approve',intentId=identifier)
+            else:
+                if value.get('globalPauses'):button('Resume access','resume')
+                for surface in surfaces:
+                    direct=value.get('surfaces',{}).get(surface,{}).get('pauses',[])
+                    if any(pause.get('scope')!='all' and pause.get('reason') in ('manual','operator_deferral','physical_takeover') for pause in direct) or any(surface in pause.get('surfaces',[]) for pause in value.get('deferrals',[])):
+                        button('Resume '+surface,'surface.resume',surface=surface)
+        button('Turn off access','stop')
+        button('Open Machine Control…','settings')
         button('Hide task controls','panel.hide')
     # The compositor owns the nonactivating banner. The full GTK panel is
     # mapped only after an explicit native notification action by the user.
     primary=[choice for choice in choices if choice[1] not in ('stop','settings','panel.hide')][:2]
     primary.extend(choice for choice in choices if choice[1]=='stop')
     if state in ('active','offered','paused','waiting_for_availability','waiting_for_resource'):
-        primary=[*[choice for choice in primary if choice[1]!='stop'][:1],('Open task controls','panel.show',{}),('Stop all access','stop',{})]
-    if others:primary=[('Pause all 30 seconds','pause',{'duration':30}),('Open task controls','panel.show',{}),('Stop all access','stop',{})]
+        primary=[*[choice for choice in primary if choice[1]!='stop'][:1],('Open task controls','panel.show',{}),('Turn off access','stop',{})]
+    if others:primary=[('Open task controls','panel.show',{}),('Turn off access','stop',{})]
     announcing=[task for task in requests if task.get('state')=='announcing']
     context=(key,tuple(task['intentId'] for task in announcing),json.dumps(primary,sort_keys=True),reason.get_text(),caller.get_text())
     if context!=caption_binding:

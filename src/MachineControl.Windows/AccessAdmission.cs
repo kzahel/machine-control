@@ -190,7 +190,18 @@ internal sealed class AccessAdmission(object? gate = null)
     }
     internal void Stop(string reason) { lock (Gate) { if (_invoke is not null) Call("stop"); } }
     internal void CancelFromOperator(string id) => Call("deny", new() { ["intentId"] = id });
-    internal void Approve(string id) => Call("approve", new() { ["intentId"] = id });
+    internal void Approve(string id, int seconds = 0)
+    {
+        if (seconds is < 0 or > 28800) throw new ArgumentException("Choose a valid delay");
+        Call("approve", new() { ["intentId"] = id, ["milliseconds"] = seconds * 1000 });
+    }
+    internal JsonObject Preferences(JsonObject value) => (JsonObject)Call("preferences", new() { ["preferences"] = value.DeepClone() })["preferences"]!.DeepClone();
+    internal void Hold(string id) => Call("hold", new() { ["intentId"] = id });
+    internal void Postpone(string id, int seconds)
+    {
+        if (seconds is < 1 or > 28800) throw new ArgumentException("Choose a valid delay");
+        Call("postpone", new() { ["intentId"] = id, ["milliseconds"] = seconds * 1000 });
+    }
     internal void Defer(string id, int? seconds) => Call("defer", new() { ["intentId"] = id, ["milliseconds"] = seconds is int value ? value * 1000 : null });
     internal void StartNow(string id)
     {

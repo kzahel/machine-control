@@ -2,21 +2,22 @@
 
 Topic: `desktop-access-experience`
 
-Status: **Implementation authorized; frontend phase accepted.** The operator
-authorized staged implementation, independent Opus review and a commit after
-each accepted phase. The target design below is not yet fully implemented.
+Status: **Source implementation complete in four independently reviewed
+phases.** Focused frontend/shared-policy/native-adapter checks pass. Installed
+package acceptance and publication are separate; see the tactical evidence
+limits. The operator authorized a commit after each accepted phase.
 [Tactical 157](../docs/tactical/157-desktop-access-experience.md)
-owns sequencing, review, validation and results. This topic owns the proposed
-product experience; [access admission](access-admission-and-pause.md) owns
-existing policy and evidence. Proposed behavior below is not shipped evidence.
+owns sequencing, review, validation and results. This topic owns the source
+product experience; [access admission](access-admission-and-pause.md) owns the
+underlying contract and evidence. Source checks are not shipped-package proof.
 
 ## Motivation and boundaries
 
-**Current:** mode changes apply immediately while profile/duration changes need
-Apply. Repeated Apply buttons, explanatory text and global/surface pause
-controls obscure ordinary use. Native approval and countdown panels look too
-similar. Personal/minimal/appliance presentation names suggest authorization
-differences they do not supply.
+**Motivating observation:** the previous UI applied modes immediately but left
+profile/duration edits pending. Repeated Apply buttons, explanatory text and
+global/surface pause controls obscured ordinary use. Approval and countdown
+panels looked too similar, and startup-profile names suggested authority they
+did not supply.
 
 **Decision:** simplify the experience over the existing shared admission engine
 and native providers. Keep Desktop and Browser separately configurable, with no
@@ -85,13 +86,13 @@ finite consent or restart work through an unrelated edit. Preserve dirty edits
 through status refreshes; expose concurrent changes and partial apply failures.
 Do not imply atomic success if native methods applied surfaces sequentially.
 
-**Current, review finding:** existing `surface.configure` ends a surface's
-tasks and resets its timed expiry to now plus duration, even for a mode/profile
-edit. Exact expiry preservation is therefore not just a React dirty-state
-change. **Open:** use a bounded preserve-expiry operator change, or retain the
-existing renewal behavior with an explicit duration/renewal consequence in the
-first frontend-only slice. Do not claim that Apply preserves expiry until it
-does. Applying an unchanged surface is unnecessary in either approach.
+**Current:** mode/profile/lifetime changes still use `surface.configure`, ending
+the changed surface's tasks and starting a fresh consent ceiling. The single
+Apply footer explicitly discloses that renewal/duration consequence. Warning
+and yield-preference changes use a separate operator command, preserving live
+consent and tasks. Unchanged surfaces are not reapplied. **Open:** exact-expiry
+preservation for mode/profile replacement would need a separate typed change;
+the UI does not claim it today.
 
 **Proposal:** existing access-duration choices live in an expandable access
 options section. Preserve the selected/default lifetime; never silently turn
@@ -173,14 +174,13 @@ indefinitely. Master/surface Off stops the relevant work immediately.
 Existing external/manual pauses must remain visible and recoverable during
 migration; removing their old controls must not strand an installation.
 
-**Current, review finding:** today's request Pause writes shared resource
-deferrals, can hold other tasks and survives the original task ending. There
-is no intent-local Continue primitive. The first UI slice must label inherited
-holds by their actual scope, for example "Desktop held" with Resume in Activity,
-instead of presenting them as task-only pauses. **Open:** whether a future
-task-local hold also gates replacement tasks on that surface, retaining today's
-protection against bypass by opening a new task. Define popup dismissal
-explicitly too; current Windows/Linux dismissal can defer resources.
+**Current:** Activity's new task Pause uses an intent-local hold. The old
+resource-wide deferral remains available for inherited pauses, accurately
+labeled by scope with Resume. A manual hold requires approval for replacement
+work on that surface until an explicitly approved task acquires it; cancelling
+or expiring the original task cannot bypass the decision. Explicit surface
+reconfiguration/Off clears this next-start gate. Dismissal of native notices
+makes no implicit approval or resource deferral.
 
 ## Yielding
 
@@ -208,21 +208,18 @@ When you take control                              v
 Suggested waits: 10 seconds, 30 seconds, 1 minute, 5 minutes. Then offers
 Continue the approved task or Ask for approval again. Default: 60 seconds and
 preserve approval, matching the operator's pause-like preference. Reapproval
-clears only this task's permission and also applies when the surface normally
-starts automatically. It does not turn the surface Off or affect other tasks.
+requires explicit approval of the next Desktop start, including replacement
+Automatic tasks. It does not turn the surface Off or affect independent Browser
+work; an approved task must actually acquire control to consume the gate.
 
 **Decision:** continuation requires the same live task and valid original
 consent, fresh ownership/references and observation; never replay uncertain
-actions. Automatic continuation follows the configured warning, or no warning
-for immediate mode. Reapproval waits for Allow after the delay. Wait and warning
-are additive: 60 seconds plus 10-second notice means roughly 70 seconds.
+actions. Automatic return on an unlocked route with visible notices always
+gets at least five seconds of warning, including immediate initial-start mode.
+Reapproval waits for Allow after the delay. Wait and warning are additive:
+60 seconds plus a 10-second notice means roughly 70 seconds. Explicit Continue
+can end the ordinary input wait but cannot clear protected/readiness blocks.
 
-**Open, review recommendations:** always give a short heads-up after Desktop
-yield, including when initial starts are immediate; and make reapproval gate
-the next Desktop start rather than only the interrupted intent. Otherwise a
-still-typing operator can encounter a restart/yield loop, or a replacement
-Automatic task can evade the reapproval choice. These are proposed refinements
-for discussion, not silently adopted changes to the agreed initial-start UI.
 
 **Decision:** briefly acknowledge yield without focus stealing:
 "You have control. Agent waiting 1 min." Show its timer and Continue now/Cancel
@@ -300,6 +297,8 @@ acceptance from those checks. Existing release gates still apply if publication
 is later requested. Implementation is now authorized with review before each phase commit; replacing
 the installed app and publication are separate.
 
-**Open:** final icon artwork, exact time choices, minimum-window layout and the
-first implementation slice's boundary. Review and operator discussion precede
-product changes.
+**Current:** the source UI and native adapters implement the design with the
+existing presentation profiles and version-2 agent states. Time choices and
+minimum-width layout are covered by focused fixtures; exact icon artwork and
+broader native/package qualification remain later work. Explicit foreground
+Browser opt-ins retain the interference boundary recorded above.

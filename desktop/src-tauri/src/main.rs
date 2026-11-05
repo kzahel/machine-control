@@ -603,13 +603,55 @@ fn main() {
                     let ui = handle.clone();
                     let _ = handle.run_on_main_thread(move || {
                         if let Some(tray) = ui.tray_by_id("control") {
-                            let _ = tray.set_tooltip(Some(if active {
-                                "Machine Control — access allowed"
-                            } else if standing {
-                                "Machine Control — standing access"
+                            let requests = value["state"]["admission"]["requests"].as_array();
+                            let running_desktop = requests.is_some_and(|rows| {
+                                rows.iter().any(|row| {
+                                    row["state"] == "active"
+                                        && row["surfaces"].as_array().is_some_and(|surfaces| {
+                                            surfaces.iter().any(|surface| surface == "desktop")
+                                        })
+                                })
+                            });
+                            let running = requests.is_some_and(|rows| {
+                                rows.iter().any(|row| row["state"] == "active")
+                            });
+                            let asking = requests.is_some_and(|rows| {
+                                rows.iter()
+                                    .any(|row| row["state"] == "waiting_for_approval")
+                            });
+                            let starting = requests.is_some_and(|rows| {
+                                rows.iter().any(|row| {
+                                    row["state"] == "announcing" || row["state"] == "offered"
+                                })
+                            });
+                            let yielded = requests.is_some_and(|rows| {
+                                rows.iter().any(|row| {
+                                    row["state"] == "paused"
+                                        && row["blockingReasons"].as_array().is_some_and(
+                                            |reasons| {
+                                                reasons
+                                                    .iter()
+                                                    .any(|reason| reason == "physical_takeover")
+                                            },
+                                        )
+                                })
+                            });
+                            let status = if running_desktop {
+                                "Desktop active"
+                            } else if running {
+                                "Browser active"
+                            } else if asking {
+                                "Approval needed"
+                            } else if starting {
+                                "Starting"
+                            } else if yielded {
+                                "Yielded to you"
+                            } else if active || standing {
+                                "Access on"
                             } else {
-                                "Machine Control — access off"
-                            }));
+                                "Access off"
+                            };
+                            let _ = tray.set_tooltip(Some(format!("Machine Control — {status}")));
                             #[cfg(any(
                                 target_os = "macos",
                                 target_os = "windows",
@@ -624,11 +666,7 @@ fn main() {
                                         || ui.get_webview_window("main").is_some(),
                                 );
                                 #[cfg(target_os = "macos")]
-                                let _ = tray.set_title(Some(if active || standing {
-                                    "ON"
-                                } else {
-                                    ""
-                                }));
+                                let _ = tray.set_title(Some(status));
                             }
                         }
                         #[cfg(any(

@@ -42,6 +42,12 @@ internal static class DesktopHost
         using var shortcut = new DesktopStopShortcut(broker);
         using var nativePresentation = new DesktopNativePresentation(broker);
         using var browser = new BrowserRelay(broker);
+        var accessPreferences = new DesktopAccessPreferences(Path.Combine(Path.GetDirectoryName(DesktopPresentationIpc.PathFor(instance))!, instance + "-access-preferences.json"));
+        if (accessPreferences.Read() is { } savedPreferences)
+        {
+            try { broker.Admission.Preferences(savedPreferences); }
+            catch (InvalidOperationException) { journal.Diagnostic("access.preferences", "invalid_saved_preferences"); }
+        }
         var browserTask = browser.RunAsync(stop.Token);
         var resident = new UserHost(instance, broker, browser, updates).RunAsync(stop.Token);
         var presentationServer = DesktopPresentationIpc.ServeAsync(instance, presentation, broker, stop.Token);
@@ -150,9 +156,18 @@ internal static class DesktopHost
                             reply = new { ok = true }; break;
                         case "control_notice":
                             var noticeSeconds = command["noticeSeconds"]!.GetValue<int>();
-                            if (noticeSeconds is < 1 or > 60) throw new ArgumentException("Choose a notice countdown between 1 and 60 seconds");
+                            if (noticeSeconds is < 0 or > 60) throw new ArgumentException("Choose a notice countdown between 0 and 60 seconds");
                             broker.Admission.Notice(noticeSeconds); reply = new { ok = true }; break;
-                        case "approve_control": broker.Admission.Approve(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
+                        case "access_preferences":
+                            accessPreferences.Set(broker.Admission.Preferences(command["preferences"]!.AsObject())); reply = new { ok = true }; break;
+                        case "hold_control":
+                            broker.Admission.Hold(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
+                        case "postpone_control":
+                            broker.Admission.Postpone(command["intentId"]!.GetValue<string>(), command["duration"]!.GetValue<int>()); reply = new { ok = true }; break;
+                        case "approve_control":
+                        case "continue_control":
+                            broker.Activity.AcknowledgeOperatorInput();
+                            broker.Admission.Approve(command["intentId"]!.GetValue<string>(), command["duration"]?.GetValue<int>() ?? 0); reply = new { ok = true }; break;
                         case "pause_request": broker.PauseRequest(command["intentId"]!.GetValue<string>(), command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
                         case "pause_surface":
                             var surface = command["surface"]!.GetValue<string>();

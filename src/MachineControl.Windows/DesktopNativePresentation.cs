@@ -28,19 +28,32 @@ internal sealed class DesktopNativePresentation : IDisposable
                 using var timer = new System.Windows.Forms.Timer { Interval = 200 };
                 Form? notice = null;
                 string? noticeId = null;
+                Form? yieldNotice = null;
+                var yieldShown = false;
+                var yieldUntil = DateTimeOffset.MinValue;
                 timer.Tick += (_, _) =>
                 {
                     try
                     {
                         var state = JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
-                        var requests = state.GetProperty("admission").GetProperty("requests");
+                        var admission = state.GetProperty("admission");
+                        var requests = admission.GetProperty("requests");
+                        var cooldown = admission.TryGetProperty("handoffCooldownRemainingSeconds", out var wait) ? wait.GetDouble() : 0;
+                        if (cooldown <= 0) yieldShown = false;
+                        if (yieldNotice is not null && DateTimeOffset.UtcNow >= yieldUntil) { yieldNotice.Dispose(); yieldNotice = null; }
+                        if (cooldown > 0 && !yieldShown)
+                        {
+                            yieldShown = true; yieldUntil = DateTimeOffset.UtcNow.AddSeconds(3);
+                            yieldNotice = Window("You have control", 80, focus: false);
+                            yieldNotice.Controls.Add(Text("Desktop yielded. You have control.", 18, 40));
+                            yieldNotice.Show();
+                        }
                         var current = requests.EnumerateArray().OrderBy(item => item.GetProperty("state").GetString() == "announcing" ? 0 : 1)
                             .FirstOrDefault(item => item.GetProperty("state").GetString() is "announcing" or "waiting_for_approval");
                         var next = current.ValueKind == JsonValueKind.Object ? current.GetProperty("intentId").GetString() + ":" + current.GetProperty("state").GetString() : null;
-                        // An operator can resume before the next timer tick
-                        // observes the pause. A closed notice must not suppress
-                        // the next warning for that same live request/state.
-                        if (notice?.IsDisposed == true) { notice = null; noticeId = null; }
+                        // Dismissal makes no permission decision. Keep this binding
+                        // dismissed until the task changes state.
+                        if (notice?.IsDisposed == true) { notice = null; }
                         if (next != noticeId)
                         {
                             notice?.Dispose(); notice = null; noticeId = next;
@@ -66,6 +79,7 @@ internal sealed class DesktopNativePresentation : IDisposable
                 _ready.TrySetResult(true);
                 Application.Run(context);
                 notice?.Dispose();
+                yieldNotice?.Dispose();
             }
             catch (Exception ex)
             {
@@ -146,23 +160,43 @@ internal sealed class DesktopNativePresentation : IDisposable
         form.Controls.Add(Text(intent.GetProperty("reason").GetString()!, 18, 50));
         form.Controls.Add(Text("Surface: " + surfaces + ". A local app requested this task.", 70, 28));
         var countdown = Text("", 104 + extra, 40); countdown.Name = "countdown"; form.Controls.Add(countdown);
-        var responded = false;
-        Button(form, needsApproval ? "Allow this task" : "Start now", 18, 155 + extra, () =>
+
+        Button(form, needsApproval ? "Allow now" : "Start now", 18, 155 + extra, () =>
         {
             // Drain native input before activation so choosing this button
             // cannot immediately count as a later human takeover.
-            if (!needsApproval) broker.Activity.AcknowledgeOperatorInput();
+            broker.Activity.AcknowledgeOperatorInput();
             broker.Admission.Refresh();
             if (needsApproval) broker.Admission.Approve(id); else broker.Admission.StartNow(id);
-            responded = true; form.Close();
+            form.Close();
         });
-        Button(form, "Pause 30 seconds", 156, 155 + extra, () => { broker.PauseRequest(id, 30); responded = true; form.Close(); });
-        Button(form, "Pause 1 minute", 294, 155 + extra, () => { broker.PauseRequest(id, 60); responded = true; form.Close(); });
-        Button(form, "Until Resume", 18, 200 + extra, () => { broker.PauseRequest(id, null); responded = true; form.Close(); });
-        Button(form, "Deny task", 156, 200 + extra, () => { broker.Admission.CancelFromOperator(id); responded = true; form.Close(); });
-        Button(form, "Stop access", 294, 200 + extra, () => { broker.Stop("stopped_by_person"); responded = true; form.Close(); });
-        form.FormClosing += (_, _) => { if (!responded) broker.PauseRequest(id, 60); };
-        var footer = Text("Mouse movement does not interrupt. Click, key or scroll to take control back.", 245 + extra, 36);
+        var delays = new ContextMenuStrip();
+        form.Disposed += (_, _) => delays.Dispose();
+        Button(form, needsApproval ? "Allow in…" : "More time…", 156, 155 + extra, () => delays.Show(Cursor.Position));
+        var budget = intent.TryGetProperty("taskRemainingSeconds", out var remaining) ? remaining.GetDouble() : 0;
+        foreach (var seconds in new[] { 30, 60, 300 })
+        {
+            var item = new ToolStripMenuItem(seconds == 30 ? "30 seconds" : seconds == 60 ? "1 minute" : "5 minutes") { Enabled = seconds + 65 < budget };
+            item.Click += (_, _) =>
+            {
+                try
+                {
+                    broker.Activity.AcknowledgeOperatorInput();
+                    if (needsApproval) broker.Admission.Approve(id, seconds); else broker.Admission.Postpone(id, seconds);
+                    form.Close();
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+                {
+                    broker.Journal?.Diagnostic("native.notice.action_failed", FailureCode(ex));
+                    if (form.Controls.Find("notice-error", false).OfType<Label>().FirstOrDefault() is { } error)
+                        error.Text = "This task changed. Open Activity to review it.";
+                }
+            };
+            delays.Items.Add(item);
+        }
+        Button(form, needsApproval ? "Decline" : "Cancel", 294, 155 + extra, () => { broker.Admission.CancelFromOperator(id); form.Close(); });
+        Button(form, "Turn off access", 18, 200 + extra, () => { broker.Stop("stopped_by_person"); form.Close(); });
+        var footer = Text("Desktop yields to your clicks, typing and scrolling. Browser work continues.", 245 + extra, 36);
         footer.Name = "notice-error"; form.Controls.Add(footer);
         return form;
     }

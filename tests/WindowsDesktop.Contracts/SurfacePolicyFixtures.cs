@@ -1,10 +1,25 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MachineControl.Windows;
 
 internal static class SurfacePolicyFixtures
 {
     internal static async Task RunAsync()
     {
+        var optionsRoot = Path.Combine(Path.GetTempPath(), "mc-access-preferences-" + Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(optionsRoot);
+        try
+        {
+            var optionsPath = Path.Combine(optionsRoot, "options.json");
+            var store = new DesktopAccessPreferences(optionsPath);
+            Require(store.Read() is null, "Missing preferences do not grant access");
+            store.Set(new JsonObject { ["desktopNoticeSeconds"] = 0, ["browserNoticeSeconds"] = 30, ["yieldWaitSeconds"] = 10, ["yieldReapprove"] = true });
+            var loaded = new DesktopAccessPreferences(optionsPath).Read();
+            Require(loaded?["yieldReapprove"]?.GetValue<bool>() == true && loaded["desktopNoticeSeconds"]?.GetValue<int>() == 0, "Restart retains operator return-approval and immediate-start choices");
+            Require(!File.ReadAllText(optionsPath).Contains("grant"), "Preferences contain no grant");
+        }
+        finally { Directory.Delete(optionsRoot, recursive: true); }
+
         var clock = new TestTime();
         var grants = TestBrowserProjection.Create(clock);
         grants.SetReady(true, consoleIdentity: "fixture-logon");

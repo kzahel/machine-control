@@ -4,7 +4,8 @@ Owning topics: [desktop-access-experience](../../topics/desktop-access-experienc
 [access-admission-and-pause](../../topics/access-admission-and-pause.md),
 [runtime-and-presentation](../../topics/runtime-and-presentation.md).
 
-Status: **Implementation authorized; frontend phase accepted.**
+Status: **Four implementation phases accepted after Opus review; source checks
+complete. Not installed or published.**
 
 ## Objective
 
@@ -232,10 +233,10 @@ operator-policy changes. Its main actionable findings are incorporated above:
    no Browser automatic yield, while retaining Desktop requirements for actual
    native input/dialogs and existing browser/profile contention.
 
-**Current result:** written design, implementation sequence and source review
-are complete. Document links and whitespace are checked. Product code, runtime
-settings, target installations and release state are unchanged. Implementation
-and any later qualification remain pending operator discussion.
+**Design-stage result (before implementation authorization):** written design,
+implementation sequence and source review were complete. The operator then
+authorized the implementation phases recorded below; installed target and
+release state remain unchanged.
 
 
 ## Implementation execution
@@ -299,3 +300,57 @@ Continue now respects protected/readiness blocks; stale active approvals are
 idempotent and cannot schedule a running task. Delay checks include notice
 budget. All 96 runtime tests and strict checks pass. Native/UI integration is
 still separate, and scheduled eligibility remains subject to actual readiness.
+
+
+### Phase 4 - native controls, status and complete Access UI
+
+**Current:** native operator adapters expose the reviewed preferences and exact
+intent delay/hold/continue operations. Mac and Windows acknowledge explicit
+Allow/Continue input; Linux retains the asynchronous native input barrier at
+owner acceptance. Preferences persist locally without restoring authority.
+Per-surface immediate/countdown/approval choices and Desktop return preferences
+are now wired to the shared policy. Activity provides delay, manual task pause,
+continue and stop, exact profile disclosure and compact scheduling status.
+
+Native approval/countdown controls are distinct and use bounded delay menus.
+Dismissing a notice makes no implicit shared-resource pause or approval. Mac
+and Windows show a brief nonactivating yield acknowledgement; Linux's existing
+native task notification carries the waiting state. Native/desktop menu and
+tray text distinguish idle, approval, starting, active and yielded states.
+Required Stop/recovery paths remain. Screenshots use the built frontend with a
+mocked native inlet in separately identified Playwright Chromium, not an
+installed product or a personal browser profile.
+
+Checks before review: desktop build and surface fixture; 96 runtime tests;
+Mac resident build and 24 admission/channel tests; 12 Linux notification and
+2 preference-persistence tests; Linux Python compile; Rust check; Windows
+contracts and x64/ARM64 self-contained publishes. The portable Windows contract
+executable runs on the available .NET 10 runtime with explicit major-version
+roll-forward; this is not native Windows execution. Full dotnet format returns
+success with workspace-reference warnings on this Mac; targeted whitespace
+verification is checked separately. Native package/effect acceptance is not
+claimed. Independent phase-4 Opus review is pending.
+
+
+Phase 4 follow-up Opus review accepted with no blockers. Fixes restrict Continue
+to operator-resumable task reasons (system holds/readiness cannot pre-arm a
+later start), validate Mac delay types, persist only normalized preferences,
+align delay budgets and native wording, and preserve the standalone Mac menu's
+enable/profile and scoped-recovery routes. Small accepted-review nits also
+align the post-yield approval copy, strict postponement typing and mode marks.
+
+Final focused evidence: desktop build and access/surface fixtures, 96 shared
+runtime tests/strict checking, Mac build and 26 admission/channel tests,
+13 Linux notification plus 2 persistence tests and Python compilation, Rust
+check/format, Windows portable contracts and x64/ARM64 publishes. Targeted
+.NET whitespace verification passes; full format exits successfully with
+workspace-reference warnings on the Mac. Screenshots were visually inspected
+from the built frontend and a mocked-native Chromium fixture. No installed
+OS effects, Windows/Linux notice pixels, signed package or release acceptance
+is inferred. The explicit Browser foreground opt-in concurrency boundary stays
+Open in the topic/provider dossier.
+
+All reviewer processes are stopped after report collection with verified
+shutdown and auto-resume disabled. Raw reports, receipts, build logs and images
+remain private. Implementation completion supersedes the earlier design-only
+status; this task does not install a replacement or publish a release.

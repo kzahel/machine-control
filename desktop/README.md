@@ -149,9 +149,22 @@ Quit, and Restart still end access. Agent-requested approvals remain timed.
 The exact signed ARM64 package passes targeted Tart acceptance; see
 [Tactical 057](../docs/tactical/057-macos-until-stopped-release.md).
 
+## Source access experience
+
+**Current source, not new package qualification:** the Access page uses a
+master On/Off switch and independent Desktop/Browser switches and start choices.
+One Apply footer handles drafts; Activity owns live approval, delay, task
+pause/continue and stop. Browser-only work does not automatically yield on
+physical input. Desktop can continue after a wait and fresh warning or require
+approval again. [Access experience](../topics/desktop-access-experience.md) owns
+behavior and limits; [Tactical 157](../docs/tactical/157-desktop-access-experience.md)
+records focused checks and native/package qualification boundaries.
+
 ## Mac presentation and recovery
 
-The Mac candidate uses one resident and one package for three launch modes:
+The Mac candidate uses one resident and one package for three launch modes.
+The source Settings UI calls these Open Settings, Stay in menu bar and Stay
+hidden until needed; the CLI retains its existing profile identifiers:
 
 - **Personal desktop** opens Settings at launch and keeps the menu bar.
 - **Minimal** starts with the menu bar; Settings is created only when opened.

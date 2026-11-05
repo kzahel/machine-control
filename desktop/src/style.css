@@ -555,3 +555,10 @@ fieldset:disabled .scope {
 .task-row > div:first-child { min-width: 0; overflow-wrap: anywhere; flex: 1 1 200px; }
 .task-row .request-actions { margin: 0; }
 @media (max-width: 600px) { .apply-footer { flex-wrap: wrap; } .footer-actions { margin-left: auto; } }
+.yield-options { border-top: 1px solid #e8ebe9; margin-top: 14px; padding-top: 12px; }
+.yield-options > summary { color: #626e66; cursor: pointer; font-size: 12px; }
+.yield-options[open] > summary { margin-bottom: 10px; }
+.yield-options select { max-width: 63%; }
+.task-row select { max-width: 150px; }
+.task-details { color: #738078; font-size: 11px; margin-top: 4px; }
+.task-details > summary { cursor: pointer; }

@@ -23,7 +23,7 @@ try:
   while time.monotonic()<deadline:
    context=GLib.MainContext.default()
    while context.pending():context.iteration(False)
-   control=linux_notice_ui.find(linuxui,'Allow this task')
+   control=linux_notice_ui.find(linuxui,'Allow now')
    if control:break
    assert child.poll() is None,'Native notice exited'
    time.sleep(.1)
@@ -41,7 +41,7 @@ try:
   child.wait(5);assert child.returncode==0,'Native notice did not exit cleanly'
   if not child.stdin.closed:child.stdin.close()
   deadline=time.monotonic()+5
-  while linux_notice_ui.find(linuxui,'Allow this task'):
+  while linux_notice_ui.find(linuxui,'Allow now'):
    assert time.monotonic()<deadline,'Owned notification survived its owner'
    time.sleep(.1)
   result.update(passed=True,pixelKinds=colors,provider='freedesktop_notifications',withdrawn=True,exitMode='terminate' if args.terminate else 'eof')

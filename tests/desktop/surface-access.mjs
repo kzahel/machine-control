@@ -52,6 +52,13 @@ try {
         for (const surface of Object.values(policy.surfaces)) surface.pauses = surface.pauses.filter(pause => pause.scope !== "all");
       }
       if (request.method === "control_notice") policy.noticeSeconds = request.noticeSeconds;
+      if (request.method === "access_preferences") { policy.preferences = request.preferences; policy.noticeSeconds = request.preferences.desktopNoticeSeconds; }
+      if (["hold_control", "continue_control", "approve_control", "postpone_control"].includes(request.method)) {
+        const row = state.admission.requests.find(row => row.intentId === request.intentId);
+        if (row && request.duration) Object.assign(row, { state: "paused", scheduledRemainingSeconds: request.duration, held: false, blockingReasons: ["scheduled"] });
+        if (row && request.method === "hold_control") Object.assign(row, { state: "paused", held: true, blockingReasons: ["task_held"] });
+        if (row && request.method === "continue_control") Object.assign(row, { state: "active", held: false, scheduledRemainingSeconds: 0 });
+      }
       return { ok: true, state: structuredClone(state) };
     } };
   });
@@ -145,13 +152,58 @@ try {
   assert.equal(await page.getByRole("button", { name: /Pause|Resume/ }).count(), 0);
   await page.setViewportSize({ width: 580, height: 650 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll(".group")].filter(g => g.offsetParent).every(g => g.scrollWidth <= g.clientWidth)), true);
+  await page.evaluate(() => {
+    const policy = window.fixtureState.accessPolicy;
+    policy.experienceVersion = 1;
+    policy.preferences = { desktopNoticeSeconds: 10, browserNoticeSeconds: 30, yieldWaitSeconds: 60, yieldReapprove: false };
+    policy.surfaces.desktop.mode = "automatic"; policy.surfaces.browser.mode = "automatic";
+    policy.surfaces.browser.profileIds = ["fixture:work"];
+    policy.surfaces.desktop.consentRemainingSeconds = null; policy.surfaces.browser.consentRemainingSeconds = null;
+  });
+  await page.getByRole("combobox", { name: "Browser heads-up duration" }).waitFor();
+  await desktopMode.selectOption("immediate");
+  await page.getByRole("combobox", { name: "Browser before starting" }).selectOption("immediate");
+  const optionsBefore = (await calls()).length;
+  await page.getByRole("button", { name: "Apply changes" }).click();
+  await page.getByRole("button", { name: "Apply changes" }).waitFor({ state: "hidden" });
+  assert.deepEqual((await calls()).slice(optionsBefore).map(c => c.method), ["access_preferences"], "warning-only changes do not replace consent or end tasks");
+  assert.equal((await calls()).at(-1).preferences.browserNoticeSeconds, 0);
+  await desktopMode.selectOption("automatic");
+  await page.locator("summary").filter({ hasText: "When you take control" }).click();
+  await page.getByRole("combobox", { name: "Desktop yield wait" }).selectOption("10");
+  await page.getByRole("combobox", { name: "After Desktop yields" }).selectOption("ask");
+  await page.getByRole("button", { name: "Apply changes" }).click();
+  await page.getByRole("button", { name: "Apply changes" }).waitFor({ state: "hidden" });
+  assert.equal((await calls()).at(-1).preferences.yieldReapprove, true);
+  await page.evaluate(() => {
+    window.fixtureState.admission.requests = [
+      { intentId: "system-task", surfaces: ["desktop"], state: "paused", blockingReasons: ["resource_unavailable"], reason: "Waiting for desktop readiness", noticeRemainingSeconds: null, taskRemainingSeconds: 180 },
+      { intentId: "native-task", surfaces: ["desktop"], state: "paused", held: true, blockingReasons: ["task_held"], reason: "Edit a note in TextEdit", noticeRemainingSeconds: null, taskRemainingSeconds: 180 },
+      { intentId: "browser-task", surfaces: ["browser"], profileIds: ["fixture:work"], state: "waiting_for_approval", reason: "Search Google for northern lights", noticeRemainingSeconds: null, taskRemainingSeconds: 400 },
+    ];
+  });
+  await page.getByRole("button", { name: "Activity", exact: true }).click();
+  const systemTask = page.locator(".task-row").filter({ hasText: "Waiting for desktop readiness" });
+  assert.equal(await systemTask.getByRole("button", { name: "Continue now", exact: true }).count(), 0, "system readiness never offers an inert Continue or pre-arms a later start");
+  await page.getByRole("button", { name: "Continue now", exact: true }).click();
+  assert.equal((await calls()).at(-1).method, "continue_control");
+  await page.getByRole("button", { name: "Pause task", exact: true }).click();
+  assert.equal((await calls()).at(-1).method, "hold_control");
+  await page.getByRole("combobox", { name: "Delay Search Google for northern lights" }).selectOption("60");
+  assert.deepEqual((await calls()).at(-1), { method: "approve_control", intentId: "browser-task", duration: 60 });
+  await page.getByText("Can start in 60s", { exact: false }).waitFor();
+  await page.evaluate(() => { window.fixtureState.admission.requests = window.fixtureState.admission.requests.filter(row => row.intentId !== "system-task"); });
+  await systemTask.waitFor({ state: "hidden" });
   if (process.env.MC_SCREENSHOT_DIR) {
     const { mkdir } = await import("node:fs/promises"); await mkdir(process.env.MC_SCREENSHOT_DIR, { recursive: true });
+    await page.setViewportSize({ width: 680, height: 800 });
+    await page.screenshot({ path: resolve(process.env.MC_SCREENSHOT_DIR, "activity.png"), fullPage: true });
+    await page.getByRole("button", { name: "Access", exact: true }).click();
+    await page.screenshot({ path: resolve(process.env.MC_SCREENSHOT_DIR, "access-yield-options.png"), fullPage: true });
+    await page.locator("summary").filter({ hasText: "When you take control" }).click();
     await page.screenshot({ path: resolve(process.env.MC_SCREENSHOT_DIR, "access.png"), fullPage: true });
     await desktopMode.selectOption("ask");
     await page.screenshot({ path: resolve(process.env.MC_SCREENSHOT_DIR, "access-unsaved.png"), fullPage: true });
-    await page.getByRole("button", { name: "Activity", exact: true }).click();
-    await page.screenshot({ path: resolve(process.env.MC_SCREENSHOT_DIR, "activity.png"), fullPage: true });
   }
   await page.evaluate(() => { window.failedStatePoll = true; });
   await page.getByText("Resident unavailable", { exact: true }).waitFor();

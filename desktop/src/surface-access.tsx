@@ -4,6 +4,8 @@ type Surface = "desktop" | "browser";
 type Mode = "off" | "ask" | "automatic";
 export type SurfacePolicy = {
   schema: string;
+  experienceVersion?: number;
+  preferences?: AccessPreferences;
   available?: boolean;
   humanInputReady?: boolean;
   handoffCooldownSurfaces?: Surface[];
@@ -46,9 +48,21 @@ export type ControlRequest = {
   noticeRemainingSeconds: number | null;
   blockingReasons?: string[];
   terminalReason?: string | null;
+  scheduledRemainingSeconds?: number;
+  taskRemainingSeconds?: number;
+  waitRemainingSeconds?: number;
+  held?: boolean;
+  caller?: string;
+  ownerAssurance?: string;
 };
 type Act = (command: Record<string, unknown>) => Promise<boolean>;
-type Choices = {
+type AccessPreferences = {
+  desktopNoticeSeconds: number;
+  browserNoticeSeconds: number;
+  yieldWaitSeconds: number;
+  yieldReapprove: boolean;
+};
+type Choices = AccessPreferences & {
   desktop: "ask" | "automatic";
   browser: "ask" | "automatic";
   duration: number;
@@ -90,6 +104,27 @@ function choices(policy: SurfacePolicy): Choices {
       ? surfaces.filter((s) => saved.enabled!.includes(s))
       : [],
     noticeSeconds: policy.noticeSeconds,
+    desktopNoticeSeconds:
+      typeof saved.desktopNoticeSeconds === "number" &&
+      Number.isInteger(saved.desktopNoticeSeconds) &&
+      saved.desktopNoticeSeconds >= 0 &&
+      saved.desktopNoticeSeconds <= 60
+        ? saved.desktopNoticeSeconds
+        : (policy.preferences?.desktopNoticeSeconds ?? policy.noticeSeconds),
+    browserNoticeSeconds:
+      typeof saved.browserNoticeSeconds === "number" &&
+      Number.isInteger(saved.browserNoticeSeconds) &&
+      saved.browserNoticeSeconds >= 0 &&
+      saved.browserNoticeSeconds <= 60
+        ? saved.browserNoticeSeconds
+        : (policy.preferences?.browserNoticeSeconds ?? policy.noticeSeconds),
+    yieldWaitSeconds: [10, 30, 60, 300].includes(saved.yieldWaitSeconds!)
+      ? saved.yieldWaitSeconds!
+      : (policy.preferences?.yieldWaitSeconds ?? 60),
+    yieldReapprove:
+      typeof saved.yieldReapprove === "boolean"
+        ? saved.yieldReapprove
+        : (policy.preferences?.yieldReapprove ?? false),
   };
 }
 const enabled = (policy: SurfacePolicy, surface: Surface) =>
@@ -97,6 +132,7 @@ const enabled = (policy: SurfacePolicy, surface: Surface) =>
 function liveChoices(policy: SurfacePolicy, saved: Choices): Choices {
   return {
     ...saved,
+    ...(policy.preferences ?? {}),
     noticeSeconds: policy.noticeSeconds,
     desktop: enabled(policy, "desktop")
       ? (policy.surfaces.desktop.mode as Choices["desktop"])
@@ -112,6 +148,7 @@ function liveChoices(policy: SurfacePolicy, saved: Choices): Choices {
 const signature = (policy: SurfacePolicy) =>
   JSON.stringify([
     policy.noticeSeconds,
+    policy.preferences,
     ...surfaces.map((s) => [
       policy.surfaces[s].mode,
       policy.surfaces[s].expired,
@@ -181,6 +218,25 @@ export function SurfaceAccess({
   policyRef.current = policy;
   const dirty = !same(draft, baseline);
   const blocked = busy || working || policy.available === false;
+  const modern = policy.experienceVersion === 1 && !!policy.preferences;
+  const optionFields = [
+    "desktopNoticeSeconds",
+    "browserNoticeSeconds",
+    "yieldWaitSeconds",
+    "yieldReapprove",
+  ] as const;
+  async function applyOptions(selected: readonly Surface[]) {
+    if (!modern) return true;
+    const value = { ...policyRef.current.preferences! };
+    if (selected.includes("desktop")) {
+      value.desktopNoticeSeconds = draft.desktopNoticeSeconds;
+      value.yieldWaitSeconds = draft.yieldWaitSeconds;
+      value.yieldReapprove = draft.yieldReapprove;
+    }
+    if (selected.includes("browser"))
+      value.browserNoticeSeconds = draft.browserNoticeSeconds;
+    return act({ method: "access_preferences", preferences: value });
+  }
   const selection = draft.profileIds;
   const validProfiles =
     selection.length > 0 &&
@@ -258,6 +314,11 @@ export function SurfaceAccess({
             : wasOn,
         });
     } else {
+      if (!(await applyOptions(selected))) {
+        setMessage("Start settings were not applied. Access remains off.");
+        setWorking(false);
+        return;
+      }
       let applied: Surface[] = [];
       for (const s of selected) {
         if (!(await configure(s, true))) {
@@ -288,6 +349,16 @@ export function SurfaceAccess({
             ? previous.duration
             : draft.duration,
           ...Object.fromEntries(applied.map((s) => [s, draft[s]])),
+          ...(modern && applied.includes("desktop")
+            ? {
+                desktopNoticeSeconds: draft.desktopNoticeSeconds,
+                yieldWaitSeconds: draft.yieldWaitSeconds,
+                yieldReapprove: draft.yieldReapprove,
+              }
+            : {}),
+          ...(modern && applied.includes("browser")
+            ? { browserNoticeSeconds: draft.browserNoticeSeconds }
+            : {}),
           ...(applied.includes("browser")
             ? { profileIds: [...selection] }
             : {}),
@@ -311,14 +382,21 @@ export function SurfaceAccess({
     );
     let count = 0,
       ok = true;
-    for (const surface of changed) {
+    if (
+      modern &&
+      optionFields.some((field) => draft[field] !== baseline[field])
+    ) {
+      ok = await applyOptions(surfaces);
+      if (ok) ++count;
+    }
+    for (const surface of ok ? changed : []) {
       if (!(await configure(surface, true))) {
         ok = false;
         break;
       }
       ++count;
     }
-    if (ok && draft.noticeSeconds !== baseline.noticeSeconds)
+    if (ok && !modern && draft.noticeSeconds !== baseline.noticeSeconds)
       ok = await act({
         method: "control_notice",
         noticeSeconds: draft.noticeSeconds,
@@ -398,15 +476,135 @@ export function SurfaceAccess({
               <select
                 aria-label={`${label} before starting`}
                 disabled={blocked}
-                value={draft[surface]}
-                onChange={(e) =>
-                  setDraft({ ...draft, [surface]: e.target.value })
+                value={
+                  modern &&
+                  draft[surface] === "automatic" &&
+                  draft[
+                    surface === "desktop"
+                      ? "desktopNoticeSeconds"
+                      : "browserNoticeSeconds"
+                  ] === 0
+                    ? "immediate"
+                    : draft[surface]
                 }
+                onChange={(e) => {
+                  const field =
+                    surface === "desktop"
+                      ? "desktopNoticeSeconds"
+                      : "browserNoticeSeconds";
+                  setDraft({
+                    ...draft,
+                    [surface]: e.target.value === "ask" ? "ask" : "automatic",
+                    ...(modern
+                      ? {
+                          [field]:
+                            e.target.value === "immediate"
+                              ? 0
+                              : draft[field] || 10,
+                        }
+                      : {}),
+                  });
+                }}
               >
+                {modern && <option value="immediate">Start immediately</option>}
                 <option value="automatic">Give me a heads-up</option>
                 <option value="ask">Wait for my approval</option>
               </select>
             </label>
+            {modern &&
+              draft[surface] === "automatic" &&
+              draft[
+                surface === "desktop"
+                  ? "desktopNoticeSeconds"
+                  : "browserNoticeSeconds"
+              ] > 0 && (
+                <label className="setting-row">
+                  <span>Heads-up</span>
+                  <select
+                    aria-label={`${label} heads-up duration`}
+                    disabled={blocked}
+                    value={
+                      draft[
+                        surface === "desktop"
+                          ? "desktopNoticeSeconds"
+                          : "browserNoticeSeconds"
+                      ]
+                    }
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        [surface === "desktop"
+                          ? "desktopNoticeSeconds"
+                          : "browserNoticeSeconds"]: Number(e.target.value),
+                      })
+                    }
+                  >
+                    {[
+                      ...new Set([
+                        draft[
+                          surface === "desktop"
+                            ? "desktopNoticeSeconds"
+                            : "browserNoticeSeconds"
+                        ],
+                        5,
+                        10,
+                        30,
+                        60,
+                      ]),
+                    ]
+                      .sort((a, b) => a - b)
+                      .map((seconds) => (
+                        <option value={seconds} key={seconds}>
+                          {seconds === 60 ? "1 minute" : `${seconds} seconds`}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+            {modern && surface === "desktop" && (
+              <details className="yield-options">
+                <summary>When you take control</summary>
+                <label className="setting-row">
+                  <span>Wait before trying again</span>
+                  <select
+                    aria-label="Desktop yield wait"
+                    value={draft.yieldWaitSeconds}
+                    disabled={blocked}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        yieldWaitSeconds: Number(e.target.value),
+                      })
+                    }
+                  >
+                    {[10, 30, 60, 300].map((seconds) => (
+                      <option value={seconds} key={seconds}>
+                        {seconds < 60
+                          ? `${seconds} seconds`
+                          : `${seconds / 60} minute${seconds > 60 ? "s" : ""}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="setting-row">
+                  <span>Then</span>
+                  <select
+                    aria-label="After Desktop yields"
+                    value={draft.yieldReapprove ? "ask" : "continue"}
+                    disabled={blocked}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        yieldReapprove: e.target.value === "ask",
+                      })
+                    }
+                  >
+                    <option value="continue">Continue after a heads-up</option>
+                    <option value="ask">Ask for approval again</option>
+                  </select>
+                </label>
+              </details>
+            )}
             {state.expired && <p className="note">Access expired</p>}
             {on && !state.ready && (
               <p role="status" className="note">
@@ -482,23 +680,27 @@ export function SurfaceAccess({
       })}
       <details className="group access-options">
         <summary>More options</summary>
-        <label className="setting-row">
-          <span>Heads-up duration</span>
-          <select
-            aria-label="Notice countdown"
-            value={draft.noticeSeconds}
-            disabled={blocked}
-            onChange={(e) =>
-              setDraft({ ...draft, noticeSeconds: Number(e.target.value) })
-            }
-          >
-            <option value={5}>5 seconds</option>
-            <option value={10}>10 seconds</option>
-            <option value={30}>30 seconds</option>
-            <option value={60}>1 minute</option>
-          </select>
-        </label>
-        <p className="note">Applies to Desktop and Browser.</p>
+        {!modern && (
+          <>
+            <label className="setting-row">
+              <span>Heads-up duration</span>
+              <select
+                aria-label="Notice countdown"
+                value={draft.noticeSeconds}
+                disabled={blocked}
+                onChange={(e) =>
+                  setDraft({ ...draft, noticeSeconds: Number(e.target.value) })
+                }
+              >
+                <option value={5}>5 seconds</option>
+                <option value={10}>10 seconds</option>
+                <option value={30}>30 seconds</option>
+                <option value={60}>1 minute</option>
+              </select>
+            </label>
+            <p className="note">Applies to Desktop and Browser.</p>
+          </>
+        )}
         <label className="setting-row">
           <span>Access duration</span>
           <select
@@ -696,12 +898,20 @@ export function SurfaceActivity({
           )}
         </div>
       ))}
-      {(policy.handoffCooldownRemainingSeconds ?? 0) > 0 && (
-        <p className="note">
-          Yielded to you · Can try again in{" "}
-          {Math.ceil(policy.handoffCooldownRemainingSeconds!)}s
-        </p>
-      )}
+      {(policy.handoffCooldownRemainingSeconds ?? 0) > 0 &&
+        requests.some(
+          (request) =>
+            request.state === "paused" &&
+            request.blockingReasons?.includes("physical_takeover"),
+        ) && (
+          <p className="note">
+            Yielded to you ·{" "}
+            {policy.preferences?.yieldReapprove
+              ? "Can ask for approval in"
+              : "Can try again in"}{" "}
+            {Math.ceil(policy.handoffCooldownRemainingSeconds!)}s
+          </p>
+        )}
       {enabled(policy, "desktop") && policy.humanInputReady === false && (
         <p className="note">
           Desktop is waiting for input monitoring to recover.
@@ -724,6 +934,15 @@ export function SurfaceActivity({
                   .join(", ")}
               </p>
             )}
+            <details className="task-details">
+              <summary>Details</summary>
+              <p className="note">
+                {request.caller ?? "Local process"} ·{" "}
+                {request.ownerAssurance === "verified_desktop_integration"
+                  ? "Verified desktop integration"
+                  : "Identity unverified"}
+              </p>
+            </details>
             <p className="note">
               {request.surfaces
                 ?.map((s) => (s === "desktop" ? "Desktop" : "Browser"))
@@ -736,13 +955,99 @@ export function SurfaceActivity({
                   : request.state === "announcing"
                     ? `Starts in ${Math.ceil(request.noticeRemainingSeconds ?? 0)}s`
                     : request.state === "paused"
-                      ? "Waiting"
+                      ? request.held
+                        ? "Paused"
+                        : (request.scheduledRemainingSeconds ?? 0) > 0
+                          ? `Can start in ${Math.ceil(request.scheduledRemainingSeconds!)}s`
+                          : request.blockingReasons?.includes(
+                                "physical_takeover",
+                              )
+                            ? "Yielded to you"
+                            : "Waiting"
                       : request.state === "offered"
                         ? "Starting"
                         : "Queued"}
             </p>
           </div>
           <div className="request-actions">
+            {policy.experienceVersion === 1 &&
+              request.state === "paused" &&
+              !!request.blockingReasons?.length &&
+              request.blockingReasons.every((reason) =>
+                ["task_held", "scheduled", "physical_takeover"].includes(
+                  reason,
+                ),
+              ) && (
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void act({
+                      method: "continue_control",
+                      intentId: request.intentId,
+                    })
+                  }
+                >
+                  Continue now
+                </button>
+              )}
+            {policy.experienceVersion === 1 &&
+              ["active", "announcing", "offered"].includes(request.state) && (
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void act({
+                      method: "hold_control",
+                      intentId: request.intentId,
+                    })
+                  }
+                >
+                  Pause task
+                </button>
+              )}
+            {policy.experienceVersion === 1 &&
+              ["waiting_for_approval", "announcing"].includes(
+                request.state,
+              ) && (
+                <select
+                  aria-label={`Delay ${request.reason}`}
+                  value=""
+                  disabled={busy}
+                  onChange={(e) => {
+                    const seconds = Number(e.target.value);
+                    if (seconds)
+                      void act({
+                        method:
+                          request.state === "waiting_for_approval"
+                            ? "approve_control"
+                            : "postpone_control",
+                        intentId: request.intentId,
+                        duration: seconds,
+                      });
+                  }}
+                >
+                  <option value="">
+                    {request.state === "waiting_for_approval"
+                      ? "Allow in…"
+                      : "More time…"}
+                  </option>
+                  {[30, 60, 300].map((seconds) => (
+                    <option
+                      value={seconds}
+                      key={seconds}
+                      disabled={
+                        seconds + 65 >=
+                        (request.taskRemainingSeconds ??
+                          request.waitRemainingSeconds ??
+                          0)
+                      }
+                    >
+                      {seconds < 60
+                        ? "30 seconds"
+                        : `${seconds / 60} minute${seconds > 60 ? "s" : ""}`}
+                    </option>
+                  ))}
+                </select>
+              )}
             {request.state === "waiting_for_approval" && (
               <button
                 className="primary"
@@ -754,7 +1059,7 @@ export function SurfaceActivity({
                   })
                 }
               >
-                Allow task
+                {policy.experienceVersion === 1 ? "Allow now" : "Allow task"}
               </button>
             )}
             {request.state === "announcing" && (

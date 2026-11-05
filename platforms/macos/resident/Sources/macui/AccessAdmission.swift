@@ -252,7 +252,14 @@ final class AccessAdmission {
         _ = try? send("notice", ["milliseconds": Int(seconds * 1000)]); changed?()
     }
     func startNow(_ id: String) throws { _ = try send("start", ["intentId": id]); changed?() }
-    func approve(_ id: String) throws { _ = try send("approve", ["intentId": id]); changed?() }
+    func approve(_ id: String, seconds: Int = 0) throws { _ = try send("approve", ["intentId": id, "milliseconds": seconds * 1000]); changed?() }
+    @discardableResult func preferences(_ value: [String: Any]) throws -> [String: Any] {
+        let result = try send("preferences", ["preferences": value]); changed?()
+        guard let normalized = result["preferences"] as? [String: Any] else { throw MacUIError.action("invalid_access_preferences_reply") }
+        return normalized
+    }
+    func hold(_ id: String) throws { _ = try send("hold", ["intentId": id]); changed?() }
+    func postpone(_ id: String, seconds: Int) throws { _ = try send("postpone", ["intentId": id, "milliseconds": seconds * 1000]); changed?() }
     func deny(_ id: String) throws { _ = try send("deny", ["intentId": id]); changed?() }
     func deferRequest(_ id: String, seconds: Int?) throws {
         _ = try send("defer", ["intentId": id, "milliseconds": seconds.map { Int($0 * 1000) } as Any? ?? NSNull()]); changed?()

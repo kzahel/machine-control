@@ -64,7 +64,7 @@ class NotificationTests(unittest.TestCase):
         old=self.notice.identifier
         self.notice.action(':1.42',old,'default')
         self.notice.closed(':1.42',old,2)
-        self.assertFalse(self.notice.acknowledged())
+        self.assertTrue(self.notice.acknowledged())
         self.notice.return_to_banner();self.update()
         self.assertTrue(self.notice.acknowledged())
         self.assertNotEqual(old,self.notice.identifier)
@@ -74,10 +74,10 @@ class NotificationTests(unittest.TestCase):
         token=self.token();self.update(body='Starting in nine seconds')
         self.assertEqual(self.token(),token);self.assertEqual(self.sent[-1][0],7)
         self.update(body='Starting in nine seconds');self.assertEqual(len(self.sent),2)
-    def test_dismissal_defers_once_for_a_minute_without_approval(self):
+    def test_dismissal_makes_no_approval_or_resource_deferral(self):
         self.notice.closed(':1.43',7,2);self.assertEqual(self.events,[])
         self.notice.closed(':1.42',7,2);self.notice.closed(':1.42',7,2)
-        self.assertEqual(self.events,[('intent.defer',{'intentId':'task','duration':60})])
+        self.assertEqual(self.events,[]);self.assertTrue(self.notice.acknowledged())
         self.update();self.assertEqual(len(self.sent),1)
     def test_opening_controls_grants_no_authority_and_withdraw_ignores_late_signals(self):
         self.notice.action(':1.42',7,'default');self.assertEqual(self.events,[]);self.assertEqual(self.shown,[True])
@@ -92,6 +92,11 @@ class PresentationTests(unittest.TestCase):
         ask=dict(state='waiting_for_approval',surfaces=['desktop'])
         automatic=dict(state='announcing',surfaces=['browser'])
         self.assertIs(module.primary_request([ask,automatic]),automatic)
+    def test_continue_is_only_for_operator_resumable_task_reasons(self):
+        for reasons in (['task_held'],['scheduled'],['physical_takeover']):
+            self.assertTrue(module.can_continue(dict(state='paused',blockingReasons=reasons)))
+        for reasons in ([],['resource_unavailable'],['activity_unknown'],['manual'],['operator_deferral'],['task_held','resource_unavailable']):
+            self.assertFalse(module.can_continue(dict(state='paused',blockingReasons=reasons)))
     def test_concurrent_surface_warnings_keep_each_remaining_countdown(self):
         desktop=dict(state='announcing',surfaces=['desktop'],noticeRemainingSeconds=3,reason='Desktop task')
         browser=dict(state='announcing',surfaces=['browser'],noticeRemainingSeconds=8.2,reason='Browser task')

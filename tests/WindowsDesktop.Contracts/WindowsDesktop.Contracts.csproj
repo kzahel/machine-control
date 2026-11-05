@@ -11,6 +11,7 @@
     <Compile Include="../../src/MachineControl.Windows/RetainedPipeProxy.cs" Link="RetainedPipeProxy.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopWork.cs" Link="DesktopWork.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopPresentation.cs" Link="DesktopPresentation.cs" />
+    <Compile Include="../../src/MachineControl.Windows/DesktopAccessPreferences.cs" Link="DesktopAccessPreferences.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopBrowserPreference.cs" Link="DesktopBrowserPreference.cs" />
     <Compile Include="../../src/MachineControl.Windows/PointerGeometry.cs" Link="PointerGeometry.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopActivityPolicy.cs" Link="DesktopActivityPolicy.cs" />

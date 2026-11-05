@@ -1,6 +1,16 @@
 import AppKit
 import ApplicationServices
 import Foundation
+import CoreFoundation
+
+/// Missing means now; malformed delayed approval must never become immediate.
+func accessDelaySeconds(_ supplied: Any?) throws -> Int {
+    guard let supplied else { return 0 }
+    guard let number = supplied as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+          number.doubleValue.isFinite, number.doubleValue.rounded(.towardZero) == number.doubleValue,
+          (0...28800).contains(number.doubleValue) else { throw MacUIError.usage("Choose an integer delay") }
+    return number.intValue
+}
 
 /// Operator-only browser registration and explicitly selected installation path.
 func setupBrowserExtension(bundled: Bool = false, bundledExtension: URL? = nil) throws -> String {
@@ -200,8 +210,17 @@ extension ResidentRuntime {
                         throw MacUIError.usage("Choose a surface")
                     }
                     try server.broker.resume(surface:surface)
-                case "approve_control":
-                    try server.broker.admission.approve(command["intentId"] as? String ?? "")
+                case "access_preferences":
+                    guard let value = command["preferences"] as? [String: Any] else { throw MacUIError.usage("Choose access preferences") }
+                    try server.configureAccessPreferences(value)
+                case "hold_control":
+                    try server.broker.admission.hold(command["intentId"] as? String ?? "")
+                case "postpone_control":
+                    let seconds = try accessDelaySeconds(command["duration"])
+                    guard seconds > 0 else { throw MacUIError.usage("Choose a positive delay") }
+                    try server.broker.admission.postpone(command["intentId"] as? String ?? "", seconds: seconds)
+                case "approve_control", "continue_control":
+                    try server.approveTask(command["intentId"] as? String ?? "", seconds: try accessDelaySeconds(command["duration"]))
                 case "deny_control":
                     try server.broker.admission.deny(command["intentId"] as? String ?? "")
                 case "decision", "arm":

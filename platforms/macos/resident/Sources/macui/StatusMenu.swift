@@ -12,6 +12,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     let setup: SetupWindowController
     var onRevoke: ((String) -> Void)?
     var onResume: (() throws -> Void)?
+    var onResumeSurface: ((String) throws -> Void)?
     var trustedAccess: () -> Bool = { false }
     var onConfigure: ((String, String, Int?, [String]) throws -> Void)?
     var browserProfiles: () -> [[String:Any]] = { [] }
@@ -46,7 +47,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         [statusItem.button?.window].compactMap { $0 }
     }
 
-    private var approvalMode: Bool { broker.policy.grantMode == .approval }
 
     func updateIcon() {
         guard let button = statusItem.button else { return }
@@ -55,13 +55,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let pending = requests.contains { $0["state"] as? String == "waiting_for_approval" }
         let armed = broker.admission.enabled("desktop") || broker.admission.enabled("browser")
         let active = (state["active"] as? Int ?? 0) > 0
-        let symbol = pending ? "questionmark.circle.fill" : active ? "cursorarrow.motionlines" : "cursorarrow"
-        var image = NSImage(systemSymbolName:symbol, accessibilityDescription:"Machine Control")
-        if pending || active {
-            image = image?.withSymbolConfiguration(.init(paletteColors:[pending ? .systemOrange : .systemRed]))
-            image?.isTemplate = false
-        } else { image?.isTemplate = true }
-        button.image = image; button.title = armed ? " On" : ""
+        let desktopActive = requests.contains { $0["state"] as? String == "active" && ($0["surfaces"] as? [String] ?? []).contains("desktop") }
+        let starting = requests.first { $0["state"] as? String == "announcing" }
+        let yielding = requests.contains { $0["state"] as? String == "paused" && ($0["blockingReasons"] as? [String] ?? []).contains("physical_takeover") }
+        let label = desktopActive ? "Desktop" : active ? "Browser" : pending ? "Approval" : starting != nil ? "\(Int(ceil((starting?["noticeRemainingSeconds"] as? NSNumber)?.doubleValue ?? 0)))s" : yielding ? "Waiting" : armed ? "On" : "Off"
+        let symbol = desktopActive ? "cursorarrow.motionlines" : active ? "globe" : pending ? "questionmark.circle" : starting != nil || yielding ? "hourglass" : "cursorarrow"
+        let image = NSImage(systemSymbolName:symbol, accessibilityDescription:"Machine Control — " + label)
+        image?.isTemplate = true
+        button.image = image; button.title = " " + label; button.toolTip = "Machine Control — " + label
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -75,50 +76,41 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let selected = surfaces["browser"]?["profileIds"] as? [String] ?? []
         if chosenProfiles.isEmpty { chosenProfiles = Set(selected) }
         for surface in ["desktop", "browser"] {
-            let name = surface.capitalized, value = surfaces[surface] ?? [:]
-            let mode = value["mode"] as? String ?? "off"
-            let parent = NSMenuItem(title:name + ": " + mode.replacingOccurrences(of:"_", with:" ").capitalized, action:nil, keyEquivalent:"")
-            let choices = NSMenu()
+            let value = surfaces[surface] ?? [:]
+            let on = (value["mode"] as? String ?? "off") != "off" && value["expired"] as? Bool != true
+            let parent = NSMenuItem(title:surface.capitalized + ": " + (on ? "On" : "Off"), action:nil, keyEquivalent:"")
+            let options = NSMenu(); options.autoenablesItems = false; parent.submenu = options
             if surface == "browser" {
-                choices.addItem(disabled("Select exact browser profiles:"))
                 for profile in browserProfiles() {
                     guard let id = profile["profileId"] as? String else { continue }
-                    let label = profile["name"] as? String ?? "Browser profile"
-                    let item = add(label + (profile["connected"] as? Bool == true ? "" : " (disconnected)"), #selector(selectProfile(_:)), to:choices)
-                    item.representedObject = id; item.toolTip = id
-                    item.state = chosenProfiles.contains(id) ? .on : .off
+                    let item = add(profile["name"] as? String ?? "Browser profile", #selector(selectProfile(_:)), to:options)
+                    item.representedObject = id; item.state = chosenProfiles.contains(id) ? .on : .off
                 }
-                choices.addItem(.separator())
+                options.addItem(.separator())
             }
-            for (label, next) in [("Off", "off"), ("Ask First", "ask"), ("Automatic", "automatic")] {
-                let item = NSMenuItem(title:label, action:nil, keyEquivalent:"")
-                if next == "off" {
-                    item.action = #selector(configureSurface(_:)); item.target = self
-                    item.representedObject = ["surface":surface, "mode":next]; item.tag = 0
-                } else {
-                    let durations = NSMenu()
-                    for (title, seconds) in [("15 Minutes",900), ("1 Hour",3600), ("Until I Stop",0)] {
-                        let duration = add(title, #selector(configureSurface(_:)), to:durations)
-                        duration.representedObject = ["surface":surface, "mode":next]; duration.tag = seconds
-                        duration.isEnabled = surface != "browser" || !chosenProfiles.isEmpty
-                    }
-                    item.submenu = durations
+            let automatic = (value["noticeSeconds"] as? NSNumber)?.doubleValue == 0 ? "Start immediately" : "Give me a heads-up"
+            for (label, mode) in [("Wait for my approval", "ask"), (automatic, "automatic")] {
+                let choice = NSMenuItem(title:label, action:nil, keyEquivalent:""); let durations = NSMenu(); durations.autoenablesItems = false; choice.submenu = durations
+                choice.state = value["mode"] as? String == mode ? .on : .off
+                for (title, seconds) in [("15 minutes",900),("1 hour",3600),("Until turned off",0)] {
+                    let item = add(title,#selector(configureSurface(_:)),to:durations)
+                    item.representedObject = ["surface":surface,"mode":mode]; item.tag = seconds
+                    item.isEnabled = surface != "browser" || !chosenProfiles.isEmpty
                 }
-                item.state = mode == next ? .on : .off; choices.addItem(item)
+                options.addItem(choice)
             }
-            let reasons = (value["pauses"] as? [[String:Any]] ?? []).compactMap { $0["reason"] as? String }
-            if !reasons.isEmpty { choices.addItem(disabled("Paused: " + reasons.joined(separator:", "))) }
-            parent.submenu = choices; menu.addItem(parent)
+            let off = add("Turn off " + surface,#selector(configureSurface(_:)),to:options)
+            off.representedObject = ["surface":surface,"mode":"off"]
+            if (value["pauses"] as? [[String:Any]] ?? []).contains(where: { $0["scope"] as? String != "all" && ["manual", "operator_deferral", "local_use_episode", "physical_takeover"].contains($0["reason"] as? String ?? "") }) {
+                let resume = add("Resume " + surface,#selector(resumeSurface(_:)),to:options); resume.representedObject = surface
+            }
+            menu.addItem(parent)
         }
         menu.addItem(.separator())
-        add("Stop Access (" + Self.stopShortcut + ")", #selector(stopAccess), to:menu)
-        let pauses = NSMenuItem(title:"Pause Access", action:nil, keyEquivalent:"")
-        let choices = NSMenu()
-        for (title, seconds) in [("30 Seconds",30), ("1 Minute",60), ("Until I Resume",0)] {
-            add(title, #selector(pauseAccess(_:)), to:choices).tag = seconds
+        add("Turn Off Access (" + Self.stopShortcut + ")", #selector(stopAccess), to:menu)
+        if !(state["globalPauses"] as? [[String:Any]] ?? []).isEmpty || !(state["deferrals"] as? [[String:Any]] ?? []).isEmpty {
+            add("Resume Held Access", #selector(resumeAccess), to:menu)
         }
-        pauses.submenu = choices; menu.addItem(pauses)
-        add("Resume Access", #selector(resumeAccess), to:menu)
         menu.addItem(disabled("Tasks: \(state["active"] ?? 0) active · \(state["waiting"] ?? 0) waiting"))
         menu.addItem(.separator())
         let activity = NSMenuItem(title:"Recent Activity", action:nil, keyEquivalent:"")
@@ -165,9 +157,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         onRevoke?("stopped_by_hotkey")
     }
 
-    @objc private func pauseAccess(_ sender: NSMenuItem) {
-        do { try broker.pause(seconds:sender.tag == 0 ? nil : sender.tag) }
-        catch { broker.journal?.diagnostic("operator.pause", code:"pause_storage_unavailable") }
+    @objc private func resumeSurface(_ sender: NSMenuItem) {
+        guard let surface = sender.representedObject as? String else { return }
+        do { try onResumeSurface?(surface) }
+        catch { broker.journal?.diagnostic("operator.resume", code:"pause_recovery_required") }
     }
     @objc private func resumeAccess() {
         do { try onResume?() }

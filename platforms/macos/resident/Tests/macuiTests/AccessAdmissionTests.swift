@@ -2,6 +2,20 @@ import XCTest
 @testable import macui
 
 final class AccessAdmissionTests: XCTestCase {
+    func testDelayedApprovalNeverTurnsMalformedValuesIntoAllowNow() throws {
+        XCTAssertEqual(try accessDelaySeconds(nil), 0)
+        XCTAssertEqual(try accessDelaySeconds(60), 60)
+        for value: Any in ["60", 60.5, true, NSNull(), -1, 28801] { XCTAssertThrowsError(try accessDelaySeconds(value)) }
+    }
+    func testPreferencesReturnOnlyRuntimeNormalizedPropertyListValues() throws {
+        let fixture = try SharedPolicyFixture()
+        let normalized = try fixture.admission.preferences(["desktopNoticeSeconds":0, "browserNoticeSeconds":30,
+            "yieldWaitSeconds":10, "yieldReapprove":true, "extra":NSNull()])
+        XCTAssertNil(normalized["extra"])
+        XCTAssertTrue(PropertyListSerialization.propertyList(normalized, isValidFor:.binary))
+        XCTAssertEqual(normalized["yieldReapprove"] as? Bool, true)
+    }
+
     func testSharedOwnerCannotBorrowSessionAndPauseNeedsFreshOffer() throws {
         let fixture = try SharedPolicyFixture(), admission = fixture.admission
         try admission.configure("desktop",mode:"automatic",seconds:nil)
