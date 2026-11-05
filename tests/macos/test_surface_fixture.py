@@ -10,6 +10,25 @@ fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_hybrid_phase_uses_one_owner_and_closes_it_once(self):
+        calls=[]
+        class Session:
+            def wait(self):pass
+            def close(self):calls.append('close')
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        rig.target={};rig.profiles=['fixture-profile'];rig.owners={}
+        def sdk(*args,**fields):calls.append(fields);return Session()
+        rig.sdk=sdk;rig.find=lambda label:None
+        owner=rig.owner('both')
+        self.assertIs(rig.owners['desktop'],owner)
+        self.assertIs(rig.owners['browser'],owner)
+        self.assertEqual(calls[0]['surfaces'],['desktop','browser'])
+        self.assertEqual(calls[0]['profile_ids'],['fixture-profile'])
+        with self.assertRaisesRegex(AssertionError,'previous human-input owner'):rig.owner('browser')
+        rig.close_owners()
+        self.assertEqual(calls.count('close'),1)
+        self.assertEqual(rig.owners,{})
+
     def test_surface_owner_uses_the_current_native_approval_control(self):
         approved=threading.Event();calls=[]
         class Session:
@@ -56,7 +75,9 @@ class SurfaceFixtureTests(unittest.TestCase):
                 calls.append(request['operation']);ready.wait(3)
                 return {'accepted':not failure,'errorCode':'fixture_refused' if failure else None}
             def close(self):calls.append('close');ready.set()
-        rig=SimpleNamespace(sdk=lambda *a,**k:Session(),target={},owners={})
+        rig=SimpleNamespace(sdk=lambda *a,**k:Session(),target={},owners={},profiles=[])
+        rig.close_owners=lambda:rig.owners.clear()
+        rig.bind_owner=lambda owner,surfaces:rig.owners.update({s:owner for s in surfaces})
         native={'phase':'active','controlSessionId':'native-one','lastEndedReason':None}
         process=fixture.SDKOwnerProcess(rig,900,123,lambda:{'lockedUse':native})
         self.addCleanup(process.terminate)

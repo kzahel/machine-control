@@ -138,3 +138,12 @@ The helper authorization preflight also uses the managed-observer capability
 check. Twelve pure Mac fixture tests pass, including actual selector and
 single-owner composition; canceled development scopes release their exact
 workspace and claim. Development evidence cannot qualify publication.
+
+Native diagnostics confirm approval succeeds, then two default disruptive
+owners contend for the shared human-input resource. Compose hybrid native/CDP
+phases under one owner naming both surfaces and the exact profile. Explicitly
+end that phase before browser-only locked checks or a fresh protected owner;
+never reopen after uncertain dispatch. Protected renewal uses that same
+combined owner, and post-completion browser readback opens its separate phase
+only after the previous owner has ended. Pure fixture coverage checks shared
+binding and exactly-once closure; real development qualification continues.

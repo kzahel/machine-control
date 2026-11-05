@@ -146,6 +146,8 @@ def verify_saved_model(c, phase):
     saved = c.get('last_saved_model')
     if not saved:
         return
+    if c.get('rig') is not None and not c['rig'].owners:
+        c['rig'].owner('browser')
     c['poll'](lambda:c['raw']('browser.tabs').get('accepted'),'browser reconnect for passive model check',timeout=30)
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
@@ -495,11 +497,12 @@ def run(c):
         c['sdk_class'], c['sdk_target'] = ControlSession, target
         samples = []
         sdk_ready()
+        surface_options=dict(surfaces=['desktop','browser'],profile_ids=c['rig'].profiles) if c.get('rig') is not None else {}
         with ControlSession(target, reason='Qualify finite owner renewal under existing consent',
-                            duration=30, wait=120, renew=True) as session:
+                            duration=30, wait=120, renew=True, **surface_options) as session:
             initial = session.wait()
             if c.get('rig') is not None:
-                c['rig'].owners['desktop']=session
+                c['rig'].bind_owner(session,['desktop','browser'])
                 first=session.call(dict(operation='snapshot',provider='macos-native',target=str(c['fixture'].pid)))
                 assert first.get('accepted'),first.get('errorCode')
             poll(lambda: state()['phase'] == 'active', 'renewable covered activation', timeout=45)
@@ -546,6 +549,7 @@ def run(c):
             assert root['coveredRenewals'] >= 2, 'No multiple root-acknowledged renewals observed'
             if duration > 900:
                 assert samples[-1]['elapsedSeconds'] - samples[0]['elapsedSeconds'] > 900, 'No independently sampled active interval beyond fifteen minutes'
+        if c.get('rig') is not None:c['rig'].close_owners()
         poll(c['locked'], 'renewable owner completion independently relocks', timeout=45)
         poll(lambda: state()['controlSessionId'] is None, 'renewable owner cleanup', timeout=45)
         with os.fdopen(os.open(c['evidence'] / 'renewable-owner.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
@@ -570,11 +574,12 @@ def run(c):
         if not c.get('covered_renewal_seconds'):
             return
         sdk_ready()
+        surface_options=dict(surfaces=['desktop','browser'],profile_ids=c['rig'].profiles) if c.get('rig') is not None else {}
         with c['sdk_class'](c['sdk_target'],reason='Qualify renewable owner transport loss',
-                            duration=30,wait=120,renew=True) as session:
+                            duration=30,wait=120,renew=True, **surface_options) as session:
             initial = session.wait()
             if c.get('rig') is not None:
-                c['rig'].owners['desktop']=session
+                c['rig'].bind_owner(session,['desktop','browser'])
                 first=session.call(dict(operation='snapshot',provider='macos-native',target=str(c['fixture'].pid)))
                 assert first.get('accepted'),first.get('errorCode')
             control_id = state()['controlSessionId']
@@ -592,10 +597,12 @@ def run(c):
             poll(c['locked'],'renewed transport loss independently relocks',timeout=45)
             poll(lambda:state()['controlSessionId'] is None,'disconnected owner cleanup',timeout=45)
             session.close(cancel=False)
+        if c.get('rig') is not None:c['rig'].close_owners()
         verify_saved_model(c,'renewed owner disconnect')
         check('renewed owner transport loss fences ownership and independently relocks without reopening')
 
     def sdk_ready():
+        if c.get('rig') is not None:c['rig'].close_owners()
         # Completion/readback can precede the next availability reconciliation.
         # Observe readiness before creating an owner; do not reopen a refused
         # intent or replay a dispatched action to hide that transition.

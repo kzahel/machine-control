@@ -135,16 +135,24 @@ class SurfaceFixture:
         assert all(self.status()['admission']['surfaces'][name]['consentRemainingSeconds'] is None for name in surfaces)
 
     def owner(self,surface,duration=900,renew=None):
-        owner=self.sdk(self.target,reason='Qualify exact packaged '+surface+' behavior',surfaces=[surface],profile_ids=self.profiles if surface=='browser' else [],duration=duration,wait=180,renew=renew)
-        self.owners[surface]=owner
+        surfaces=['desktop','browser'] if surface=='both' else [surface]
+        assert not self.owners,'Close the previous human-input owner before opening a new phase'
+        owner=self.sdk(self.target,reason='Qualify exact packaged '+surface+' behavior',surfaces=surfaces,profile_ids=self.profiles if 'browser' in surfaces else [],duration=duration,wait=180,renew=renew)
+        self.bind_owner(owner,surfaces)
         with concurrent.futures.ThreadPoolExecutor() as pool:
             waiting=pool.submit(owner.wait)
             deadline=time.monotonic()+120
+            diagnosed=False
             try:
                 while not waiting.done():
                     assert time.monotonic()<deadline,'Native surface approval did not complete'
                     row=self.find('Allow this task')
                     if row:self.observe('action',reference=row['reference'],action='press')
+                    elif not diagnosed and time.monotonic()>deadline-110:
+                        diagnosed=True
+                        print('SURFACE_APPROVAL_DIAGNOSTIC '+json.dumps({
+                            'buttons':[r.get('label') for r in self.tree() if r.get('role')=='AXButton'],
+                            'requests':[{k:r.get(k) for k in ['state','surfaces']} for r in self.status()['admission']['requests']]}),flush=True)
                     time.sleep(.2)
                 waiting.result()
             except BaseException:
@@ -169,9 +177,12 @@ class SurfaceFixture:
         return acknowledged
 
     def close_owners(self):
-        for owner in self.owners.values():
+        for owner in set(self.owners.values()):
             with contextlib.suppress(Exception):owner.close()
         self.owners.clear()
+
+    def bind_owner(self,owner,surfaces):
+        for surface in surfaces:self.owners[surface]=owner
 
     def close(self):
         self.close_owners()
@@ -186,8 +197,10 @@ class SDKOwnerProcess:
     """
     def __init__(self,rig,duration,target,status):
         self.rig=rig;self.status=status;self.control_id=None;self.returncode=None
-        self.session=rig.sdk(rig.target,reason='Qualify finite protected owner',surfaces=['desktop'],duration=duration,wait=180,renew=False)
-        rig.owners['desktop']=self.session
+        rig.close_owners()
+        surfaces=['desktop','browser'] if rig.profiles else ['desktop']
+        self.session=rig.sdk(rig.target,reason='Qualify finite protected owner',surfaces=surfaces,profile_ids=rig.profiles,duration=duration,wait=180,renew=False)
+        rig.bind_owner(self.session,surfaces)
         self.pool=concurrent.futures.ThreadPoolExecutor(max_workers=1)
         def begin():
             self.session.wait()
@@ -219,7 +232,8 @@ class SDKOwnerProcess:
 
     def terminate(self):
         self.session.close()
-        if self.rig.owners.get('desktop') is self.session:self.rig.owners.pop('desktop')
+        for surface,owner in list(self.rig.owners.items()):
+            if owner is self.session:self.rig.owners.pop(surface)
         self.pool.shutdown(wait=False,cancel_futures=True)
 
 

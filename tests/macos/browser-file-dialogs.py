@@ -114,8 +114,7 @@ def main():
             else:
                 result = exchange(endpoint, operation, **fields)
                 if rig is not None and operation=='session.control.end' and result.get('accepted'):
-                    owner=rig.owners.pop('desktop',None)
-                    if owner is not None:owner.close()
+                    rig.close_owners()
         finally:
             if trace:
                 trace.write(json.dumps({'operation': operation, 'monotonic': started,
@@ -227,7 +226,7 @@ def main():
         assert args.observer_socket, 'Workstation approval requires an independent observer'
         if rig is not None:
             assert all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values()), 'Packaged trial must start with both surfaces Off'
-            rig.arm('ask');rig.owner('desktop');rig.owner('browser')
+            rig.arm('ask');rig.owner('both')
             check('packaged workstation native surface approvals')
             return
         assert call('grant.status')['grant'] is None, 'Packaged trial must start with access Off'

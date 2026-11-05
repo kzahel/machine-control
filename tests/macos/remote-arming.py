@@ -232,7 +232,7 @@ def _run_surfaces(context):
         spec=importlib.util.spec_from_file_location('covered_recovery',context['source_root']/'tests/macos/covered-recovery.py')
         covered=importlib.util.module_from_spec(spec);spec.loader.exec_module(covered)
         context['covered_module']=covered;covered.prepare(context)
-    rig.arm();rig.owner('browser');rig.owner('desktop')
+    rig.arm();rig.owner('both')
     check('native operator enables independent indefinite Desktop and exact Browser consent')
     rig.observe('window.close',target=str(rig.status()['processId']))
     if covered:
@@ -251,13 +251,13 @@ def _run_surfaces(context):
         if covered:
             after=json.loads(context['fixture_state'].read_text())
             check('native fixture receives no replay on resident restart',all(after[k]==before[k] for k in ['text','keyEventCount']))
-        rig.arm();rig.owner('browser');rig.owner('desktop')
+        rig.arm();rig.owner('both')
         rig.observe('window.close',target=str(rig.status()['processId']))
         if covered:covered.verify_saved_model(context,'clean quit' if clean else 'crash')
     rig.settings();rig.press('Settings');_toggle_surface(rig,'Allow approved browser access while locked')
     poll(lambda:rig.status()['browserWhileLocked']['enabled'],'locked Browser preference')
     rig.observe('window.close',target=str(rig.status()['processId']))
-    rig.owners.pop('desktop').close()
+    rig.close_owners();rig.owner('browser')
     lock_binary=context['root']/'session-lock'
     subprocess.run(['xcrun','clang','-fobjc-arc','-framework','Foundation','-framework','IOKit',str(context['source_root']/'tests/macos/session-lock.m'),'-o',str(lock_binary)],check=True,capture_output=True)
     def locked():
