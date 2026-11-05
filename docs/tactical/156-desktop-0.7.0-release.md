@@ -89,3 +89,9 @@ cannot qualify the simulated action. Admission-channel tests now bind both
 coordinator and worker observations to their same modeled console. All 17
 admission-channel cases pass. Real console/session behavior remains a native
 candidate gate; it is not inferred from this fixture.
+
+A subsequent Mac run reaches a renewal assertion comparing a real shared-child
+lease view to exactly 120 seconds. The observed 119.999 seconds is elapsed
+monotonic time, not a shortened requested lease. The test now requires the
+renewed view in (119, 120] while retaining same-session and Stop/refusal checks.
+All 17 admission-channel cases pass again; production timing is unchanged.

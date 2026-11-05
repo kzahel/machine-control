@@ -190,7 +190,11 @@ final class AdmissionChannelTests: XCTestCase {
         clock += 3
         let extended = command(client,"control.renew",renewal)["data"] as! [String:Any]
         XCTAssertEqual(extended["sessionId"] as? String,active["sessionId"] as? String)
-        XCTAssertEqual(extended["activeRemainingSeconds"] as? Double,120)
+        // The shared child owns real monotonic time; the helper fixture clock
+        // does not freeze elapsed time between renewal and its returned view.
+        let remaining = try XCTUnwrap(extended["activeRemainingSeconds"] as? Double)
+        XCTAssertGreaterThan(remaining,119)
+        XCTAssertLessThanOrEqual(remaining,120)
         broker.revoke(reason:"stopped_by_person")
         XCTAssertEqual(command(client,"control.renew",renewal)["accepted"] as? Bool,false)
         XCTAssertEqual((command(client,"control.status")["data"] as? [String:Any])?["state"] as? String,"ended")
