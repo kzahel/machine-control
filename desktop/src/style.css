@@ -520,3 +520,38 @@ fieldset:disabled .scope {
 .surface-access .setting-row,
 .surface-lifetime .setting-row,
 .surface-warnings .setting-row { padding: 0; }
+
+/* Compact access controls; live task state lives in Activity. */
+.access-form { max-width: 720px; margin: 0 auto; }
+.access-heading { padding: 2px 2px 12px; }
+.access-heading h1 { font-size: 20px; }
+.surface-heading, .task-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.surface-heading { margin-bottom: 18px; }
+.surface-heading h2 { font-size: 16px; }
+.access-form .surface-access { padding: 18px; margin-bottom: 14px; border-radius: 10px; }
+.access-form .setting-row { gap: 12px; min-height: 40px; }
+.access-form select { max-width: 65%; }
+.access-switch { width: 65px; min-width: 65px; height: 30px; border-radius: 18px; background: #e3e7e4; border: 0; padding: 3px; justify-content: flex-start; position: relative; color: #55645b; }
+.access-switch.checked { background: #377454; color: white; }
+.access-switch:hover { filter: brightness(.96); }
+.switch-thumb { width: 24px; height: 24px; border-radius: 50%; background: white; box-shadow: 0 1px 3px #0002; }
+.access-switch.checked .switch-thumb { transform: translateX(35px); }
+.switch-word { position: absolute; left: 30px; font-size: 11px; }
+.access-switch.checked .switch-word { left: 11px; }
+.browser-profile-list { border-top: 1px solid #e8ebe9; margin-top: 14px; padding-top: 14px; }
+.browser-profile-list h3 { font-size: 12px; font-weight: 500; color: #626e66; margin: 0 0 8px; }
+.profile-state { font-size: 11px; color: #738078; margin-left: auto; }
+.access-options { padding: 14px 18px; border-radius: 10px; }
+.access-options > summary { cursor: pointer; color: #626e66; }
+.access-options[open] > summary { margin-bottom: 12px; }
+.access-options > .note { font-size: 11px; margin-bottom: 12px; }
+.access-options .group { margin-top: 12px; }
+.apply-footer { position: sticky; bottom: -18px; background: #f7faf8; border: 1px solid #cbd9cf; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 -3px 15px #00000008; margin-top: 14px; }
+.apply-footer p { font-size: 11px; color: #626e66; margin-top: 4px; }
+.footer-actions { display: flex; gap: 6px; }
+.live-tasks { padding: 16px; }
+.live-tasks > h2 { margin-bottom: 12px; }
+.task-row { padding: 12px 0; border-top: 1px solid #e8ebe9; flex-wrap: wrap; }
+.task-row > div:first-child { min-width: 0; overflow-wrap: anywhere; flex: 1 1 200px; }
+.task-row .request-actions { margin: 0; }
+@media (max-width: 600px) { .apply-footer { flex-wrap: wrap; } .footer-actions { margin-left: auto; } }

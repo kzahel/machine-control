@@ -15,6 +15,14 @@ native, packaged and restoration qualification.
 
 ## Scope and motivation
 
+**Proposal, pending implementation:** the
+[desktop access experience](desktop-access-experience.md) records the next
+operator design: On/Off, separate start choices, task-local delays, configurable
+Desktop yielding and no automatic physical-input yield for Browser-only work.
+It does not describe current runtime behavior or alter the evidence below.
+[Tactical 157](../docs/tactical/157-desktop-access-experience.md) owns review and
+the bounded implementation/validation plan.
+
 **Decision:** standing authorization, temporary availability and exclusive
 control have separate lifetimes. An operator choosing **Until I turn it off**
 should be able to leave a computer useful to authorized agents. The operator

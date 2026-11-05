@@ -88,3 +88,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
   configurable presentation and operator recovery in one package.
 - `computer-use-positioning` — complete-package positioning, Computer Use
   capability gaps, provider independence and optional Sky experiments.
+
+- `desktop-access-experience` — compact access configuration, task Activity,
+  start notices, yielding behavior and native status presentation.

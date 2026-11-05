@@ -13,7 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import "./style.css";
-import { SurfaceAccess, type SurfacePolicy } from "./surface-access";
+import { SurfaceAccess, SurfaceActivity, type SurfacePolicy } from "./surface-access";
 import {
   type Scope,
   defaultAccessChoices,
@@ -349,8 +349,10 @@ function App() {
     try {
       await native(command);
       await refresh();
+      return true;
     } catch (e) {
       if (generation === actionGeneration.current) setError(String(e));
+      return false;
     } finally {
       actionCount.current -= 1;
       setBusy(actionCount.current > 0);
@@ -567,9 +569,10 @@ function App() {
             {notice}
           </div>
         )}
-        {page === "access" && (state?.accessPolicy?.schema === "machine-control-admission/v2" ?
+        {state?.accessPolicy?.schema === "machine-control-admission/v2" && <div hidden={page !== "access"}>
           <SurfaceAccess policy={state.accessPolicy} profiles={state.browser.profiles ?? []}
-            requests={state.admission?.requests ?? []} busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} /> :
+            busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} /></div>}
+        {page === "access" && !unifiedPolicy && (
           <>
             {state && <p role="status" className="note">This platform uses the legacy control model while unified surface permissions are being migrated.</p>}
             <div className="access-status">
@@ -1395,6 +1398,7 @@ function App() {
         )}
         {page === "activity" && (
           <>
+            {unifiedPolicy && state?.accessPolicy && <SurfaceActivity profiles={state.browser.profiles ?? []} policy={state.accessPolicy} requests={state.admission?.requests ?? []} busy={!!busy} act={act} />}
             {state?.logging?.previousExitUnclean && (
               <p role="status">
                 The previous session ended without a clean shutdown. Review
@@ -1621,11 +1625,11 @@ function App() {
           <>
             {state?.presentation && (
               <section className="group" aria-label="Presentation">
-                <h2 className="group-title">Presentation</h2>
+                <h2 className="group-title">Startup</h2>
                 <label className="setting-row">
-                  <span className="row-label">Launch mode</span>
+                  <span className="row-label">When Machine Control starts</span>
                   <select
-                    aria-label="Presentation mode"
+                    aria-label="Startup behavior"
                     value={state.presentation.profile}
                     disabled={
                       busy ||
@@ -1640,19 +1644,13 @@ function App() {
                       })
                     }
                   >
-                    <option value="personal">Personal desktop</option>
-                    <option value="minimal">Minimal</option>
-                    <option value="appliance">Dedicated appliance</option>
+                    <option value="personal">Open Settings</option>
+                    <option value="minimal">Stay in {state.platform === "macos" ? "menu bar" : "tray"}</option>
+                    <option value="appliance">Stay hidden until needed</option>
                   </select>
                 </label>
                 <p className="note group-note">
-                  Personal opens Settings at launch. Minimal keeps the{" "}
-                  {state.platform === "macos" ? "menu bar" : "tray"}. Appliance
-                  starts quietly. Approvals, control notices and Stop remain
-                  available in every mode. Authorization:{" "}
-                  {state.deployment.policy.preset} (
-                  {state.deployment.policy.grantMode}). Changing presentation
-                  preserves access and permissions.
+                  Approvals and active control remain visible in every startup mode.
                 </p>
                 {state.presentation.temporaryOverride && (
                   <p className="note">

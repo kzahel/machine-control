@@ -67,6 +67,12 @@ public-socket saturation and provider work.
 
 ## Product direction
 
+**Proposal:** the [desktop access experience](desktop-access-experience.md)
+replaces presentation-profile names with concrete startup/idle-icon controls
+mapped to existing behavior, without changing authorization or runtime
+placement. Review and implementation remain in
+[Tactical 157](../docs/tactical/157-desktop-access-experience.md).
+
 **Current (Windows):** Tauri schedules companion IPC and lifecycle work away
 from its event thread. One bounded provider worker retains capacity through
 late completion, and admission-time authority fences prevent replacement

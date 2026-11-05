@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [157 — Desktop access experience](157-desktop-access-experience.md)
+  (design/review): compact operator UI and explicit behavior, staged UI/shared
+  policy changes and focused validation before implementation.
+
 - [156 — Desktop 0.7.0 release](156-desktop-0.7.0-release.md)
   (in progress): green source CI, signed six-target candidate, exact packaged
   acceptance for the shared surface model, then queued publication.

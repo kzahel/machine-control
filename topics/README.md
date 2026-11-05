@@ -34,6 +34,10 @@ its `Topic:` trailers.
 
 ## Current topics
 
+- [`desktop-access-experience.md`](desktop-access-experience.md): proposed
+  compact access switches, independent start behavior, task notices/Activity,
+  Desktop yielding and bounded Browser yield exemption; review before implementation.
+
 - [`shared-resident-core.md`](shared-resident-core.md): shared policy and typed
   provider boundaries, TypeScript/bundled Node deployment, fast verification
   and bounded Windows, macOS and Linux policy/handoff adoption; signed release
