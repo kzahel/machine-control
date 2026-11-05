@@ -268,12 +268,22 @@ def _run_surfaces(context):
     subprocess.run([str(lock_binary),'--lock'],check=True,capture_output=True)
     poll(locked,'independently observed OS lock')
     check('exact preapproved Browser owner remains usable while independently locked')
-    # Real beforeunload: sticky activation comes from prior fixture clicks.
-    call('browser.eval', tabId=tab, expression="window.addEventListener('beforeunload', e => { e.preventDefault(); e.returnValue = ''; }); true")
+    # Reloading the model clears its document's prior activation. Establish a
+    # fresh trusted CDP click on this exact page before requiring beforeunload.
+    button=poll(lambda:next((e['reference'] for e in call('browser.snapshot',tabId=tab)['elements'] if e.get('name')=='Increment'),None),'locked page activation target')
+    before=effects['clicks']
+    call('browser.click',reference=button)
+    poll(lambda:effects['clicks']==before+1,'fresh locked-page click effect')
+    assert call('browser.eval',tabId=tab,expression='navigator.userActivation.hasBeenActive')['value'] is True
+    check('locked page has independently observed fresh user activation')
+    unload_before=effects['beforeunload']
+    call('browser.eval', tabId=tab, expression="window.onbeforeunload=()=>{navigator.sendBeacon('/beforeunload','fired');return 'prompt';};true")
     with concurrent.futures.ThreadPoolExecutor() as pool:
-        pending = pool.submit(raw, 'browser.cdp', tabId=tab, method='Page.reload')
+        pending = pool.submit(raw, 'browser.cdp', tabId=tab, method='Page.reload', timeoutMs=2000)
+        pending.result(timeout=10)  # One action slot; never replay this reload.
         dialog = poll(lambda: call('browser.dialog', tabId=tab).get('dialog'), 'beforeunload dialog')
         check('typed dialog identifies beforeunload', dialog['type'] == 'beforeunload')
+        poll(lambda:effects['beforeunload']==unload_before+1,'independent beforeunload callback')
         other = call('browser.navigate', newTab=True, url=url, active=False)['tab']['tabId']
         check('tab discovery progresses despite a page dialog', len(call('browser.tabs')['tabs']) >= 2)
         before = effects['clicks']
@@ -288,7 +298,6 @@ def _run_surfaces(context):
         current = call('browser.dialog', tabId=tab)['dialog']
         check('refused release preserves the actual dialog attachment', current['id'] == dialog['id'])
         call('browser.dialog', tabId=tab, action='dismiss', dialogId=current['id'])
-        pending.result(timeout=10)  # Never replay the uncertain reload.
         call('browser.release')
         reattached = call('browser.dialog', tabId=tab)
         check('reattachment reports event readiness after dialog resolution',
@@ -304,15 +313,23 @@ def _run_surfaces(context):
     # A truly unresolved CDP promise exercises the extension deadline rather
     # than relying on dialog behavior to reproduce the old queue wedge.
     with concurrent.futures.ThreadPoolExecutor() as pool:
-        pending = pool.submit(raw, 'browser.eval', tabId=other, expression='new Promise(() => {})', timeoutMs=1500)
-        time.sleep(.2)
+        effects['pending']=False
+        pending = pool.submit(raw, 'browser.eval', tabId=other,
+            expression="new Promise(() => {fetch('/pending',{method:'POST'});})", timeoutMs=1500)
+        poll(lambda:effects['pending'],'independently observed pending renderer command')
+        assert not pending.done(),'Pending-action cell ended before observation'
+        check('resident status progresses during an unresolved command',bool(call('status')['browser']['connected']))
+        before=effects['clicks']
         queued = pool.submit(raw, 'browser.eval', tabId=other,
                              expression="fetch('/click', {method:'POST'}); true", timeoutMs=1500)
-        check('recovery discovery progresses during an unresolved command', bool(call('browser.tabs')['tabs']))
+        try:
+            queued.result(timeout=5)
+            raise AssertionError('Native channel unexpectedly dispatched a second action')
+        except Exception as error:
+            assert type(error).__name__=='ClientError' and getattr(error,'code',None)=='control_action_in_progress',type(error).__name__
+        check('second native-channel action is refused before dispatch',effects['clicks']==before)
         outcome = pending.result(timeout=10)
         check('dispatched timeout reports unknown delivery', not outcome['accepted'] and outcome['delivery'] == 'unknown')
-        queued_outcome = queued.result(timeout=10)
-        check('abandoned queued command is refused', not queued_outcome['accepted'])
     before = effects['clicks']
     call('browser.release')
     time.sleep(.3)

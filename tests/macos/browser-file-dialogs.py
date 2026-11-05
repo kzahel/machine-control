@@ -51,6 +51,7 @@ def main():
     parser.add_argument('--covered-duration', type=int, default=0)
     parser.add_argument('--covered-renewal-seconds', type=int, default=0)
     parser.add_argument('--model-only', action='store_true')
+    parser.add_argument('--dialog-probe', action='store_true')
     parser.add_argument('--trace', type=Path,
                         help='New private operation timeline; includes failure metadata but excludes request fields and response data')
     parser.add_argument('--report', type=Path, help='New private machine-readable summary')
@@ -58,6 +59,7 @@ def main():
     assert 1 <= args.repeat <= 300 and 0 <= args.soak_seconds <= 1800
     assert not args.faults or args.expected_policy == 'approval'
     assert not args.remote_arming or (args.expected_policy == 'approval' and args.observer_socket)
+    assert not args.dialog_probe or (args.expected_policy=='approval' and args.observer_socket and args.report and not args.faults and not args.remote_arming)
     assert args.covered_duration == 0 or (args.covered_recovery and 60 <= args.covered_duration <= 900)
     assert args.covered_renewal_seconds == 0 or (args.covered_recovery and 120 <= args.covered_renewal_seconds <= 1800)
     rng = random.Random(args.seed)
@@ -75,7 +77,7 @@ def main():
     last_native = None
     checks = []
     effects = {'upload': None, 'text': None, 'clicks': 0, 'model':None, 'saved':None, 'modelSaves':0,
-               'modelClock':(-1,-1), 'modelDocument':0}
+               'modelClock':(-1,-1), 'modelDocument':0, 'beforeunload':0}
     payload = b'Machine Control harmless download fixture\n'
     reports = Path.home() / 'Library/Logs/DiagnosticReports'
     def report_names():
@@ -175,6 +177,10 @@ def main():
             elif self.path == '/model-save':
                 effects['saved'] = body.decode()
                 effects['modelSaves'] += 1
+            elif self.path == '/beforeunload':
+                effects['beforeunload'] += 1
+            elif self.path == '/pending':
+                effects['pending'] = True
             self.send_response(204)
             self.end_headers()
 
@@ -330,6 +336,12 @@ def main():
             approve()
         poll(lambda: call('status')['browser']['connected'], 'extension connected')
         tab = poll(lambda: next((t['tabId'] for t in call('browser.tabs')['tabs'] if t['url'] == url), None), 'fixture tab')
+        if args.dialog_probe:
+            assert rig is not None
+            from browser_dialog_probe import run
+            run(dict(rig=rig,call=call,raw=raw,poll=poll,check=check,tab=tab,url=url,effects=effects,
+                source=args.source_root,root=root,port=port,cdp=cdp,report=args.report))
+            return
 
         def reference(label):
             return poll(lambda: next((e['reference'] for e in call('browser.snapshot', tabId=tab)['elements']

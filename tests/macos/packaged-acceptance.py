@@ -39,9 +39,12 @@ def main():
     p.add_argument('--covered-duration', type=int, default=0)
     p.add_argument('--covered-renewal-seconds', type=int, default=0)
     p.add_argument('--model-only', action='store_true')
+    p.add_argument('--dialog-probe', action='store_true')
     p.add_argument('--covered-probe', action='store_true')
     p.add_argument('--admin-secret-file', type=Path, help='Owner-only canonical VM credential; one-shot native sheet transport only')
     a = p.parse_args()
+    if a.dialog_probe and (not a.development or a.faults or a.remote_arming or a.covered_recovery or a.model_only or a.covered_probe):
+        p.error('Dialog probe is development-only and cannot run a release or protected campaign')
     repo = Path(__file__).resolve().parents[2]
     if a.output.resolve().is_relative_to(repo):
         p.error('Raw VM evidence must be outside the public checkout')
@@ -116,6 +119,7 @@ def main():
             archive.add(app, arcname='candidate/Machine Control.app')
             for name in ['tests/macos/packaged-acceptance-guest.py',
                          'tests/macos/browser-file-dialogs.py', 'tests/macos/remote-arming.py',
+                         'tests/macos/browser_dialog_probe.py',
                          'tests/macos/surface_fixture.py', 'tests/macos/surface-policy-live.py', 'tests/macos/surface-covered-live.py',
                          'tests/macos/covered-recovery.py', 'tests/macos/cover-observation.swift', 'tests/macos/kernel-pointer-fixture.m',
                          'tests/macos/guardian-startup-watch.m', 'tests/macos/session-lock.m',
@@ -137,6 +141,8 @@ def main():
                 argv += ['--faults']
             if a.model_only:
                 argv += ['--model-only']
+            if a.dialog_probe:
+                argv += ['--dialog-probe']
             if a.covered_probe:
                 argv += ['--covered-probe']
             if a.remote_arming:

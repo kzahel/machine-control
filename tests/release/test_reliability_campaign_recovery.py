@@ -17,6 +17,16 @@ SPEC.loader.exec_module(RELIABILITY)
 
 
 class DevelopmentRecoveryTests(unittest.TestCase):
+    def test_dialog_probe_cannot_enter_release_mode_or_touch_a_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'unused'
+            result=subprocess.run([sys.executable,str(ROOT/'tests/macos/packaged-acceptance.py'),
+                '--dialog-probe','--package-directory',str(Path(directory)/'unread-package'),
+                '--team-id','UNUSED','--output',str(output)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,2)
+            self.assertIn('development-only',result.stderr)
+            self.assertFalse(output.exists())
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

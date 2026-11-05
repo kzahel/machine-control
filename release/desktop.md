@@ -138,6 +138,14 @@ submitted once through guest launchd, with changed kernel boot time as the
 independent effect proof, so losing the guest does not require killing an
 unrecorded command transport.
 
+For focused browser diagnosis, the claimed packaged harness accepts
+`--development --dialog-probe`. It observes actual extension beforeunload
+events and independent HTTP callbacks before and after OS lock, without
+running the long protected campaign. It cannot emit a release receipt.
+The Mac retained `control.dispatch` channel admits one action at a time;
+status remains available during a pending action. Issue dialog recovery
+actions sequentially on that channel.
+
 No CI runner currently reaches the prepared VM. This is maintainer/controller
 attestation of execution, not a claim that hosted CI ran the GUI or independently
 attested the machine. The receipt contains only closed coverage, source/version,

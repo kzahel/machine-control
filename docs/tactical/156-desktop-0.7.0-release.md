@@ -175,3 +175,14 @@ Browser preference. Its modern fixture still searches legacy Settings text.
 Use the current Access checkbox, `Allow approved Browser work while locked`,
 in recovery and cold-boot checks. The production UI and policy are unchanged;
 the failed disposable scope released both workspace and claim.
+
+The locked Browser trial reaches beforeunload, but its concurrent fixture
+commands race for the native channel's single action slot. A focused, strictly
+development-only dialog probe records the initial reload refusal before any
+Chrome event. Sequential dispatch then passes real beforeunload opening,
+HTTP callback and dismissal both unlocked and independently locked, with
+verified workspace/claim disposal. Use that sequence in the full campaign.
+For a stalled evaluation, observe its HTTP entry first, require status
+responsiveness, and check a second action is refused before dispatch. The
+probe cannot emit a release receipt; all 95 release and 14 Mac fixture tests
+pass. Full protected and final-source release qualification remain pending.
