@@ -10,6 +10,18 @@ fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_status_reobserves_only_the_typed_generation_refusal(self):
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture);rig.endpoint='fixture'
+        replies=iter([{'accepted':False,'errorCode':'control_generation_changed'},
+            {'accepted':True,'data':{'processId':123}}])
+        calls=[]
+        def exchange(*args):calls.append(args);return next(replies)
+        rig.exchange=exchange
+        self.assertEqual(rig.status(),{'processId':123})
+        self.assertEqual(calls,[('fixture','status'),('fixture','status')])
+        rig.exchange=lambda *args:{'accepted':False,'errorCode':'unrelated_failure'}
+        with self.assertRaisesRegex(AssertionError,'unrelated_failure'):rig.status()
+
     def test_hybrid_phase_uses_one_owner_and_closes_it_once(self):
         calls=[]
         class Session:

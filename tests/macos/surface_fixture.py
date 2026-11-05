@@ -55,8 +55,12 @@ class SurfaceFixture:
             return json.loads(line)
 
     def status(self):
-        result=self.exchange(self.endpoint,'status');assert result.get('accepted'),result.get('errorCode')
-        return result['data']
+        def fresh():
+            result=self.exchange(self.endpoint,'status')
+            if result.get('accepted'):return result['data']
+            assert result.get('errorCode')=='control_generation_changed',result.get('errorCode')
+            return None
+        return poll(fresh,'fresh generation-bound fixture status',timeout=10)
 
     def observer_response(self,operation,**fields):
         if self.observer_owner is None:

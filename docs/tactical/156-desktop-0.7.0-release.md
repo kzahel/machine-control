@@ -162,3 +162,10 @@ kill. Accept its typed SDK transport-closed/timeout ending at that exact fault,
 close the dead owner before restart, and close retained ownership during
 cleanup rather than dispatching Browser release on a dead channel. Other SDK
 errors remain failures; no uncertain operation is replayed.
+
+A subsequent native development run passes forced-exit Off, audit identity,
+Activity/export, production helper preparation, native model/save/reload and
+clean/crash no-replay checks. The post-crash UI observer encounters a typed
+`control_generation_changed` status refusal. Reobserve only that read within
+a short bound; unrelated failures and all action/owner uncertainty remain
+terminal. Fourteen Mac fixture cases cover that distinction.
