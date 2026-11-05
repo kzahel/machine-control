@@ -10,6 +10,19 @@ fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_observer_requires_explicit_managed_administration(self):
+        value={'deployment':{'policy':{'preset':'appliance','grantMode':'surface_modes',
+                'protectedAdministration':True}},'nativeSemanticState':'ready'}
+        fixture.require_managed_observer(value)
+        value['deployment']['policy']['protectedAdministration']=False
+        with self.assertRaises(AssertionError):fixture.require_managed_observer(value)
+        value['deployment']['policy'].update(preset='workstation',protectedAdministration=True)
+        with self.assertRaises(AssertionError):fixture.require_managed_observer(value)
+        value['deployment']['policy'].update(preset='appliance',grantMode='standing')
+        fixture.require_managed_observer(value)
+        value['nativeSemanticState']='unavailable'
+        with self.assertRaises(AssertionError):fixture.require_managed_observer(value)
+
     def process(self,*,failure=False,blocked=False):
         calls=[];ready=threading.Event()
         if not blocked:ready.set()

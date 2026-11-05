@@ -119,3 +119,12 @@ boot validator reads the extracted app's surface-contract marker after its
 directory has been removed. Capture that marker while the verified archive is
 still extracted; cleanup then cannot misclassify the current app as legacy.
 No candidate or appliance execution is needed to reproduce this path error.
+
+Unified candidate `41980679363` passes all six signed package builds and
+authentication at `5ce16ee`. The first acquired native workspace exposes a
+remaining harness preflight requiring the old `standing` status string from
+its original observer. The prepared source already reports surface modes.
+Require its explicit managed appliance administration capability instead,
+while rejecting ordinary workstation policy and unavailable semantics.
+Apply the same check to restoration and the sequential reboot observer.
+The failed workspace and its claim are disposed; no release receipt is issued.

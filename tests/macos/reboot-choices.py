@@ -16,6 +16,7 @@ import sys
 import tarfile
 import time
 import uuid
+from surface_fixture import require_managed_observer
 
 
 def wait(fn, label, seconds=60):
@@ -67,7 +68,7 @@ def guest(stage, claim, verify, protected_stop=False):
     boot = subprocess.check_output(['sysctl','-n','kern.boottime']).decode().strip()
     saved = None
     if not verify and not (stage/'Original.app').exists():
-        assert wait(status, 'Original resident unavailable')['deployment']['policy']['grantMode'] == 'standing'
+        require_managed_observer(wait(status, 'Original resident unavailable'))
         command('/usr/bin/ditto', installed, stage / 'Original.app')
     elif verify:
         saved = json.loads((stage / 'preboot.json').read_text())
@@ -88,7 +89,7 @@ def guest(stage, claim, verify, protected_stop=False):
         with (stage / ('observer-post.log' if verify else 'observer-pre.log')).open('wb') as log:
             observer = subprocess.Popen([str(stage / 'Original.app/Contents/MacOS/macui'),
                 'serve', str(observer_socket)], stdout=log, stderr=log)
-        assert wait(lambda:status(observer_socket), 'Independent observer unavailable')['deployment']['policy']['grantMode'] == 'standing'
+        require_managed_observer(wait(lambda:status(observer_socket), 'Independent observer unavailable'))
     finally:
         select_policy('workstation')
     try:

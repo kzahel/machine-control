@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import time
+from surface_fixture import require_managed_observer
 
 
 def main():
@@ -106,7 +107,7 @@ def main():
 
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
-    assert status()['deployment']['policy']['grantMode'] == 'standing'
+    require_managed_observer(status())
     original_manifest = manifest(installed)
     command('/usr/bin/ditto', installed, backup / 'Original.app')
     assert manifest(backup / 'Original.app') == original_manifest
@@ -129,8 +130,7 @@ def main():
             observer = subprocess.Popen([str(backup / 'Original.app/Contents/MacOS/macui'),
                 'serve', str(observer_socket)], stdout=log, stderr=log)
         observed = wait(lambda: status(observer_socket), 'Observer unavailable')
-        assert observed['deployment']['policy']['grantMode'] == 'standing'
-        assert observed['nativeSemanticState'] == 'ready'
+        require_managed_observer(observed)
         mutated = True
         stop()
         work = root / 'workstation.json'
@@ -251,8 +251,7 @@ def main():
                 agent.chmod(agent_mode)
                 command('/bin/launchctl', 'bootstrap', domain, agent)
                 restored = wait(status, 'Original resident did not return')
-                assert restored['deployment']['policy']['grantMode'] == 'standing'
-                assert restored['nativeSemanticState'] == 'ready'
+                require_managed_observer(restored)
                 assert manifest(installed) == original_manifest
                 assert policy.read_bytes() == original_policy and policy.stat().st_uid == policy_stat.st_uid
                 assert agent.read_bytes() == original_agent

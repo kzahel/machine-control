@@ -61,7 +61,7 @@ gh workflow run desktop-release.yml --ref main -f version=VERSION
 Download the successful unified run's `macos-desktop-aarch64-apple-darwin`
 artifact to a private directory. At that exact clean source, run the controller
 harness against a prepared dedicated VM with Chrome for Testing, an unlocked
-session, an existing healthy standing resident, and normal Developer ID TCC
+session, an existing healthy managed appliance resident, and normal Developer ID TCC
 consent. It verifies updater signatures, notarization and bundle identity before
 installation, temporarily selects the stricter workstation policy, and restores
 the original app/policy/LaunchAgent/operator state and original power state.

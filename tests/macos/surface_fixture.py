@@ -24,6 +24,15 @@ def poll(function, label, timeout=45):
     raise AssertionError('Timed out: '+label)
 
 
+def require_managed_observer(value):
+    """Require the explicitly installed appliance administration plane."""
+    policy=value['deployment']['policy']
+    assert policy['preset'] in {'appliance','unattended'}
+    assert policy['grantMode']=='standing' or (
+        policy['grantMode']=='surface_modes' and policy.get('protectedAdministration') is True)
+    assert value['nativeSemanticState']=='ready'
+
+
 class SurfaceFixture:
     def __init__(self, source, resident, endpoint, observer, claim):
         self.source,self.resident,self.endpoint,self.observer,self.claim=Path(source),Path(resident),Path(endpoint),Path(observer),claim
