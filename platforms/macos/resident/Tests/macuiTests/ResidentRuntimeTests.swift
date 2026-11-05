@@ -52,8 +52,14 @@ final class ResidentRuntimeTests: XCTestCase {
         let cancelled = expectation(description:"Resume cancelled by Stop")
         let drained = expectation(description:"late helper drained")
         let release = DispatchSemaphore(value:0)
-        defer { release.signal() }
+        let helperReturned = DispatchSemaphore(value:0)
+        // A failure must remain bounded, but aggregate throughput of 100
+        // status projections is not the oracle for dependency independence.
+        let deadline = DispatchWorkItem { release.signal() }
+        DispatchQueue.global().asyncAfter(deadline:.now() + 10, execute:deadline)
+        defer { deadline.cancel(); release.signal() }
         value.resumeHelper = { _, cancelled in
+            defer { helperReturned.signal() }
             started.fulfill(); release.wait(); XCTAssertNotNil(cancelled())
         }
         var completions = 0
@@ -63,12 +69,12 @@ final class ResidentRuntimeTests: XCTestCase {
             cancelled.fulfill()
         }
         wait(for:[started], timeout:1)
-        let begin = ProcessInfo.processInfo.systemUptime
         for _ in 0..<100 {
             XCTAssertEqual(value.operatorCommand(["method":"state"])["ok"] as? Bool, true)
         }
         value.stopAccess()
-        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - begin, 1)
+        XCTAssertEqual(helperReturned.wait(timeout:.now()), .timedOut,
+            "Status and Stop must finish while the Resume helper remains held")
         wait(for:[cancelled], timeout:1)
         XCTAssertTrue(value.server.broker.admission.blocks("desktop").contains("manual"))
         XCTAssertNil(value.server.broker.grant)

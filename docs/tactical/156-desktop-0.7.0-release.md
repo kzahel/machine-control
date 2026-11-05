@@ -313,3 +313,13 @@ claim, release, and ready journal closure with no unpaired commands. The static
 suite also checks bounded output, timeout and invalid arguments. The full
 packaged release run will use this path and the candidate's bundled SDK;
 development evidence cannot substitute for final acceptance.
+
+All final-source CI passes, but the candidate's repeated Mac check exposes a
+separate throughput assertion: 100 operator state projections plus Stop take
+1.53 seconds against a one-second aggregate limit. Keep all 100 reads and
+assert directly that they and Stop complete while the independently blocked
+Resume helper remains held. A bounded fallback releases the fixture on failure;
+late completion still cannot restore authority. All 229 Swift tests pass.
+Cancel the failed candidate; it cannot qualify publication. Build its successor
+alongside source CI, while keeping native acceptance and publication gated on
+the exact clean source, green checks and complete candidate success.
