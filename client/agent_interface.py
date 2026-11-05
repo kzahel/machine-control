@@ -135,6 +135,11 @@ each observation or click:
     --wait 5m --duration 5m
 For Browser, use --surface browser --profile PROFILE_ID. Send one common
 request JSON object per line and read each result before sending the next.
+Supported owners renew automatically for the live task; --duration selects a
+finite renewal interval, not a total task cutoff. No repeated handoff or new
+approval is needed while the claim and original consent remain valid. Use
+--no-renew only for an intentionally finite owner. Stop and disconnect still
+end access. Keep the target claim renewed separately, or use a scoped run.
 Close stdin in finally cleanup. Empty input acquires nothing. Inspect command
 help for the target's typed operations; the transport preserves native routes.
 

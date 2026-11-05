@@ -41,6 +41,8 @@ for line in sys.stdin.buffer:
         break
     if operation == "control.open" and mode in {"paused", "outer-paused"}:
         state = "paused"
+    elif operation == "control.open" and mode == "renewable-clock":
+        remaining = request['durationSeconds']
     elif operation == "control.accept":
         state = "active"
         activations += 1
@@ -49,6 +51,12 @@ for line in sys.stdin.buffer:
         state = "paused" if resumed_polls == 1 else "offered"
     elif operation == "control.cancel":
         state = "ended"
+    elif operation == "control.heartbeat" and mode == "renewable-clock" and state == "active":
+        # Advance a deterministic provider clock across the old task cutoff.
+        remaining -= 600
+        event('elapsed:600')
+        if remaining <= 0:
+            state = "ended"
     data = view()
     if mode == "resumed": data["waitRemainingSeconds"] = 2
     if mode.startswith("renewable"):

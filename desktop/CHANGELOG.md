@@ -2,12 +2,33 @@
 
 ## [Unreleased]
 
-- Move Windows browser coordination into the shared TypeScript resident core,
-  shipped with a private pinned Node runtime. Keep native authentication,
-  session safety, owner admission and audit storage in Windows.
-- Support explicitly enabled, named Chrome profiles on Windows, with exact
-  approval sets and `browser --profile` selection. Stop, stale references and
-  disconnected profiles cannot silently redirect control.
+## [0.7.0]
+
+- Give Desktop and Browser independent Off, Ask first and Automatic modes on
+  Windows, macOS and Linux, using one shared TypeScript policy engine and a
+  privately bundled Node runtime.
+- Add predictable takeover warnings, native approval, Start now, per-task
+  deferral, timed or manual pauses, Resume and Stop. Deliberate human input
+  interrupts desktop work; mouse movement alone does not.
+- Support explicitly enabled, named Chrome profiles across desktop platforms.
+  Approval and `browser --profile` select exact profiles; connection loss,
+  stale references and Stop cannot redirect work to another profile.
+- Include supported CDP and page JavaScript in Browser permission. Keep
+  Desktop permissions independent, including browser access while locked.
+- Update Settings and native task controls for the shared permissions model.
+  Restart restores access choices but no live control authority; explicitly
+  enable the intended surfaces and browser profiles after upgrading.
+- Keep the Python CLI and SDK, automatically renewing supported live owners
+  under their original consent. Use `--no-renew` for an intentionally finite
+  task; Stop, disconnect, claim loss and consent expiry still end access.
+- Keep Linux warnings visible while Settings has focus, add an explicitly
+  installed read-only physical-activity observer, and reap the policy child
+  even when its native parent crashes. Ordinary effects remain AT-SPI/portal.
+
+Targets all six desktop architectures. Bounded native ARM64 appliance evidence
+for Windows, macOS and GNOME Wayland Linux is documented separately from
+signed candidate acceptance. Physical human-input classification, other Linux
+compositors and broader display/hardware configurations require qualification.
 
 ## [0.6.11]
 

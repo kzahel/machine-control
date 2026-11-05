@@ -147,28 +147,33 @@ as usual. A launcher or agent must explicitly own the task connection; the
 setting does not infer a task from unrelated one-shot requests.
 
 ```bash
-bin/machine-control --target host --claim "$claim_id" desktop session control --duration 5m
+bin/machine-control --target host --claim "$claim_id" control stream \
+  --surface desktop --reason 'Work while the screen is locked' --duration 5m
 ```
 
-Run this command concurrently with the task and keep its connection alive.
-It sends heartbeats and returns the final termination result. Poll
-`desktop status`: `data.lockedUse` reports phase, exact `controlSessionId`,
+Send the task's common requests as JSON lines through this retained connection,
+reading each result before sending the next request. Keep its stdin open for
+the task and close it in `finally` cleanup. It sends heartbeats and automatically
+renews the same live owner when supported; it never reopens an ended session.
+Poll `desktop status`: `data.lockedUse` reports phase, exact `controlSessionId`,
 remaining time, covered display count, helper health, recovery condition and
 cooldown. A read-only status refused with `control_generation_changed` during
 lock/unlock can be observed again with a fresh request; this is not permission
 to replay an input or an uncertain application effect. Doctor also exposes sanitized browser route health and multiple-display
 qualification risk.
-The command defaults to five minutes and accepts one second through fifteen
-minutes, capped by the ordinary access grant's remaining lifetime. Until-stopped
-access still gets a finite control session. Heartbeats prove liveness; they do
-not extend the maximum deadline. A new lease requires current valid approval.
-**Current, unreleased source:** for longer tasks, the owner-bound admission SDK
-supports explicit `renew(seconds)` and opt-in `renew=True`; the CLI equivalent
-is `control stream --renew`. Every interval remains finite and the original
-approval controls total lifetime. The resident, guardian and supporting root
-helper must acknowledge extension of the same live owner. Legacy `desktop
-session control` remains a finite compatibility path. Never reopen an ended
-owner automatically. See [the admission guide](../../../docs/access-admission.md)
+
+The command defaults to a five-minute lease interval. Automatic renewal has
+no fifteen-minute total task cutoff: Until-stopped consent permits continued
+work while the claim, connection and native safety checks remain valid. Timed
+consent still ends at its original deadline. Each renewal interval remains
+finite (15–900 seconds), and resident, guardian and supporting root helper
+must acknowledge the extension. Heartbeats alone prove liveness and confer no
+extension. Keep the target claim renewed separately, or use a scoped run.
+The owner-bound SDK negotiates renewal by default (`renew=None`); explicit
+`renew=True` / `--renew` requires support. Use `renew=False` / `--no-renew` for
+an intentionally finite owner. Unsupported routes, shorter intervals and legacy
+`desktop session control` retain finite compatibility behavior. Never reopen
+an ended owner automatically. See [the admission guide](../../../docs/access-admission.md)
 and [Tactical 144](../../../docs/tactical/144-renewable-control-owners.md) for the
 contract and qualification limits.
 Prepared, enabled and unpaused locked use retains that approval across idle
@@ -177,8 +182,10 @@ without a manual unlock or another approval. Grant expiry and revocation still
 apply. Until-stopped consent may survive restart for the verified same console
 and boot; queue entries and active sessions never survive restart.
 
-In the task's `finally` cleanup, end that exact session before releasing its
-target-use claim:
+In the task's `finally` cleanup, close stream stdin or the SDK context, observe
+protected cleanup/relock, then release the target-use claim. For the legacy
+finite compatibility path, explicitly end its exact native session before
+releasing the claim:
 
 ```bash
 bin/machine-control --target host --claim "$claim_id" desktop session end --session-id "$control_session_id"

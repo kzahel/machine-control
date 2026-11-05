@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [156 — Desktop 0.7.0 release](156-desktop-0.7.0-release.md)
+  (in progress): green source CI, signed six-target candidate, exact packaged
+  acceptance for the shared surface model, then queued publication.
+
 - [155 — Linux shared surface adoption](155-linux-shared-surface-adoption.md)
   (complete for bounded ARM64 GNOME Wayland acceptance): one shared authority,
   native handoff, read-only activity observation, profiles/lock/restart, both

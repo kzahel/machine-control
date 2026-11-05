@@ -403,6 +403,18 @@ checks. Never silently escalate an ordinary request to outer control.
 authorization; timed approval never restarts, and Until I turn it off permits
 continued authorized work until Stop or task/authority/safety termination.
 Claim renewal and watchdog heartbeats alone extend no control deadline.
+
+**Decision, current client source (2026-11-04):** retained SDK/CLI task
+connections automatically renew an advertised live owner under the original
+consent. There is no fifteen-minute total task cutoff on supporting routes;
+finite provider watchdog intervals are an internal renewal boundary. Losing
+the claim, consent, connection or safety readiness still ends access. Explicit
+`renew=False` / `--no-renew` preserves finite ownership, and explicit
+`renew=True` / `--renew` requires provider support. Unsupported routes retain
+their finite contracts. Deterministic client clocks cover continued effects
+beyond fifteen minutes under unchanged ownership, renewal refusal, claim loss
+and prompt cleanup; this is client evidence, not new native/package acceptance.
+
 **Current, Windows v2 source:** ordinary owners can explicitly renew their
 finite lease and task deadline on the same connection, preserving the owner
 and generations under the original consent. Heartbeats and resumed waits do

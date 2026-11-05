@@ -3,7 +3,7 @@
 The [unified permissions contract](../topics/access-admission-and-pause.md)
 separates surface consent, temporary availability, a waiting task and finite
 active ownership. The shared TypeScript policy implements resident admission
-v2; Windows is its first native adapter. Mac/Linux adoption is pending.
+v2; Windows, macOS and Linux now have native adapters over that shared policy.
 [Tactical 153](tactical/153-unified-permissions-and-handoff.md) owns current
 qualification. Older resident v1 channels cannot silently satisfy v2 requests.
 
@@ -54,19 +54,33 @@ The public scope-based v1 constructor/CLI contract is retired explicitly.
 
 `wait()` accepts a current offer, `status()` observes without renewing liveness,
 `call(request)` dispatches once, and `cancel()` ends this connection's intent.
-The background heartbeat keeps only the live context useful, checks its claim,
-and extends neither consent nor hard task/active deadlines. After interruption,
+The background heartbeat keeps the live context useful and checks its claim.
+By default the SDK also negotiates typed renewal of the same active owner:
+`duration` selects a finite lease interval (15–900 seconds for automatic renewal),
+not a total task cutoff. A healthy retained task may continue past fifteen
+minutes without re-acquiring ownership or requesting fresh approval. Renewal
+never extends the original consent. After interruption,
 wait for a fresh owner and observe again before further actions. Closing the
 context releases promptly; reconnect restores no owner, stream or queue position.
 A caller must close stream stdin when finished; a CLI blocked on stdin may
 remain alive after its owner expires, but cannot dispatch further input.
 
-Ordinary Windows v2 owners support explicit same-connection `renew()` and
-`--renew`, retaining their session/generation fence under the original consent.
+Use `renew=False` in the SDK or CLI `--no-renew` for an intentionally finite
+owner. `renew=True` / `--renew` requires negotiated provider support rather
+than accepting a finite fallback. The default (`renew=None`) renews supporting
+providers automatically; unsupported providers and intervals below 15 seconds
+retain finite behavior. Keep the target claim renewed separately, or use a
+[scoped run](scoped-runs.md). Losing the claim ends automatic renewal.
+
+Ordinary Windows v2 owners support same-connection `renew()`, retaining their
+session/generation fence under the original consent.
 Only renewal can extend the finite task deadline; heartbeat and resumption
 cannot. Prepared Windows owners do not advertise renewal because their native
-guardian has a separate hard deadline. Earlier Mac v1 renewal evidence is
-historical until that platform adopts and qualifies the common contract; see [Tactical 144](tactical/144-renewable-control-owners.md).
+guardian has a separate hard deadline. The Mac adapter supports protected
+renewal when its actual helper acknowledges it. Earlier Mac v1 sustained
+renewal evidence is in [Tactical 144](tactical/144-renewable-control-owners.md);
+v2 native adoption and its qualification limits are in
+[Tactical 154](tactical/154-macos-shared-surface-adoption.md).
 
 ## Ordinary one-shot negotiation
 

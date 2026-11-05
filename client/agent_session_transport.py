@@ -78,8 +78,10 @@ class RetainedTransport:
             self._audit(["claim", "acquire"], acquire)
 
             def admit() -> JSON:
-                self.owner = control_factory(self.target, reason=reason, scopes=("observe", "control"),
-                                             duration=900, wait=300)
+                # This transport audits/schedules renewal itself. Disable the
+                # SDK scheduler so the same owner has one renewal authority.
+                self.owner = control_factory(self.target, reason=reason, surfaces=("desktop",),
+                                             duration=900, wait=300, renew=False)
                 return self.owner.wait()
             admitted = self._audit(["control", "open"], admit)
             self.owner_renewable = admitted.get("renewal") == "owner_connection/v1"

@@ -59,6 +59,59 @@ class ControlSessionTests(unittest.TestCase):
         self.assertEqual(self.record.read_text().splitlines().count('control.renew'), 2)
         self.assertNotIn('effect', self.record.read_text())
 
+    def test_default_renewal_crosses_fifteen_minutes_without_reacquiring(self):
+        with self.session("renewable-clock", duration=900) as owner:
+            original = owner.wait()
+            deadline = time.monotonic() + 6
+            while self.record.read_text().splitlines().count('control.renew') < 3:
+                self.assertLess(time.monotonic(), deadline, self.record.read_text())
+                self.assertIsNone(owner.failure)
+                time.sleep(.02)
+            self.assertTrue(owner.call({'operation':'snapshot'})['accepted'])
+            current = owner.status()
+            self.assertEqual(current['sessionId'], original['sessionId'])
+            self.assertEqual(current['resourceGenerations'], original['resourceGenerations'])
+        events = self.record.read_text().splitlines()
+        self.assertGreater(sum(600 for event in events if event == 'elapsed:600'), 900)
+        self.assertEqual(events.count('control.open'), 1)
+        self.assertEqual(events.count('control.accept'), 1)
+        self.assertEqual(events.count('effect'), 1)
+        self.assertIn('control.cancel', events)
+        self.assertIn('EOF', events)
+
+    def test_finite_opt_out_and_default_legacy_provider_do_not_renew(self):
+        for mode, renew in [('renewable-clock', False), ('ready', None)]:
+            with self.session(mode, duration=900, renew=renew) as owner:
+                owner.wait()
+                deadline = time.monotonic() + 3
+                while 'control.heartbeat' not in self.record.read_text():
+                    self.assertLess(time.monotonic(), deadline)
+                    time.sleep(.02)
+                self.assertNotIn('control.renew', self.record.read_text())
+            self.record.unlink()
+
+    def test_automatic_renewal_refusal_closes_owner_without_reopening(self):
+        with self.session('renewable-refused') as owner:
+            owner.wait()
+            self.assertTrue(owner.stopped.wait(3))
+            owner.heartbeat.join(timeout=3)
+            self.assertEqual(owner.failure.code, 'access_ended')
+        events = self.record.read_text().splitlines()
+        self.assertEqual(events.count('control.renew'), 1)
+        self.assertEqual(events.count('control.open'), 1)
+        self.assertNotIn('effect', events)
+        self.assertIn('EOF', events)
+
+    def test_claim_loss_stops_automatic_renewal_before_extension(self):
+        with self.session('renewable') as owner:
+            owner.wait()
+            with patch.object(mc, 'require_selected_claim', side_effect=mc.ClientError('claim_expired', 'Claim ended')):
+                self.assertTrue(owner.stopped.wait(3))
+                owner.heartbeat.join(timeout=3)
+            self.assertEqual(owner.failure.code, 'claim_expired')
+        self.assertNotIn('control.renew', self.record.read_text())
+        self.assertNotIn('effect', self.record.read_text())
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.record = Path(self.temporary.name) / "events"
@@ -188,6 +241,39 @@ sys.exit(handle_control('fixture',json.loads(sys.argv[2]),['stream','--reason','
         self.assertEqual(events.count("control.open"), 1)
         self.assertEqual(events.count("effect"), 2)
         self.assertIn("EOF", events)
+
+    @unittest.skipIf(os.name == "nt", "POSIX pipe readiness fixture")
+    def test_stream_renews_by_default_while_waiting_for_next_input(self):
+        import select
+        script = """import sys,json
+sys.path.insert(0,sys.argv[1])
+from control_session import handle_control
+sys.exit(handle_control('fixture',json.loads(sys.argv[2]),['stream','--reason','fixture','--duration','15m']))
+"""
+        target = dict(self.target, platform='windows',
+                      environment={**self.target['environment'], 'MC_ADMISSION_FIXTURE':'renewable-clock'})
+        with subprocess.Popen([sys.executable, '-c', script, str(Path(mc.__file__).parent), json.dumps(target)],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as child:
+            try:
+                child.stdin.write('{"operation":"snapshot"}\n'); child.stdin.flush()
+                self.assertTrue(select.select([child.stdout], [], [], 5)[0])
+                self.assertTrue(json.loads(child.stdout.readline())['accepted'])
+                deadline = time.monotonic() + 5
+                while self.record.read_text().splitlines().count('control.renew') < 2:
+                    self.assertLess(time.monotonic(), deadline, self.record.read_text())
+                    time.sleep(.02)
+                child.stdin.write('{"operation":"snapshot"}\n'); child.stdin.flush()
+                self.assertTrue(select.select([child.stdout], [], [], 5)[0])
+                self.assertTrue(json.loads(child.stdout.readline())['accepted'])
+                child.stdin.close()
+                self.assertEqual(child.wait(timeout=5), 0)
+            finally:
+                if child.poll() is None: child.kill(); child.wait()
+                child.stdout.close(); child.stderr.close()
+        events = self.record.read_text().splitlines()
+        self.assertEqual(events.count('control.open'), 1)
+        self.assertEqual(events.count('effect'), 2)
+        self.assertIn('EOF', events)
 
     def test_stream_empty_and_malformed_input_cleanup(self):
         self.assertEqual(self.stream(b""), (0, []))

@@ -22,7 +22,9 @@ class TransportTest(unittest.TestCase):
             def renew(self,duration):outer.events.append('claim.renew');return {'accepted':True}
             def close(self):outer.events.append('claim.close')
         class Owner:
-            def __init__(self,*a,**kw):outer.events.append('owner.open')
+            def __init__(self, target, *, reason, surfaces, duration, wait, renew):
+                outer.owner_options = dict(surfaces=surfaces, renew=renew)
+                outer.events.append('owner.open')
             def wait(self):return {}
             def renew(self,duration):outer.events.append('owner.renew');return dict(renewal='owner_connection/v1',activeRemainingSeconds=duration)
             def call(self,request):
@@ -55,6 +57,7 @@ class TransportTest(unittest.TestCase):
 
     def test_each_operation_has_audit_intent_and_uses_retained_owner(self):
         t=self.transport();self.events.clear()
+        self.assertEqual(self.owner_options, dict(surfaces=('desktop',), renew=False))
         t.call({'operation':'input.text','text':'private text'})
         t.call({'operation':'snapshot'})
         self.assertEqual(self.events,['audit.intent','owner.check','dispatch','audit.observe','audit.result']*2)

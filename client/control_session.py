@@ -102,8 +102,8 @@ class ControlSession:
         return validate_view(value, schema=self._admission_schema)
 
     def __init__(self, target, *, reason, surfaces=("desktop",), scopes=None,
-                 profile_ids=None, operations=None, wait=300, duration=300, prepared_console=False, renew=False):
-        if type(prepared_console) is not bool or type(renew) is not bool:
+                 profile_ids=None, operations=None, wait=300, duration=300, prepared_console=False, renew=None):
+        if type(prepared_console) is not bool or (renew is not None and type(renew) is not bool):
             raise mc.ClientError("invalid_admission_request", "Invalid prepared console option")
         if scopes is not None:
             raise mc.ClientError("legacy_scope_contract_unsupported", "Admission v2 uses surfaces and an optional typed operation set")
@@ -146,7 +146,11 @@ class ControlSession:
             self.close(cancel=False)
             raise
         self.deadline = time.monotonic() + wait
-        self.renew_duration = duration if renew else None
+        # Keep finite watchdog leases, but do not impose a task cutoff on a
+        # healthy retained owner. Explicit True requires provider support;
+        # the default negotiates it, and False requests finite ownership.
+        self.renew_required = renew is True
+        self.renew_duration = duration if renew is not False and duration >= 15 else None
         self.heartbeat = threading.Thread(target=self._keepalive, daemon=True)
         self.heartbeat.start()
 
@@ -157,6 +161,7 @@ class ControlSession:
         self.response_schema = response_schema
         self.cancel_operation = cancel_operation
         self.renew_duration = None
+        self.renew_required = False
         self.sequenced = False
         self.request_sequence = 0
         command = mc.resolved_adapter_command(target)
@@ -248,6 +253,8 @@ class ControlSession:
                 mc.require_selected_claim(self.target)
                 current = self._validate_view(self._rpc({"operation": "control.heartbeat"}))
                 self.view = current
+                if current['state'] == 'ended':
+                    raise mc.ClientError(current.get('terminalReason') or 'control_ended', 'Control intent ended')
                 if self.renew_duration and current['state'] == 'active' \
                         and current.get('renewal') == 'owner_connection/v1' \
                         and current.get('activeRemainingSeconds', float('inf')) <= self.renew_duration / 3:
@@ -278,7 +285,7 @@ class ControlSession:
             if view["state"] == "ended":
                 raise mc.ClientError(view.get("terminalReason") or "control_ended", "Control intent ended")
             if view["state"] == "active":
-                if self.renew_duration and view.get('renewal') != 'owner_connection/v1':
+                if self.renew_required and view.get('renewal') != 'owner_connection/v1':
                     raise mc.ClientError('control_renewal_unavailable', 'This provider does not support renewable owners')
                 return view
             if view["state"] == "offered":
@@ -286,7 +293,7 @@ class ControlSession:
                 try:
                     accepted = self._validate_view(self._rpc({"operation":"control.accept", "offerGeneration":view["offerGeneration"]}))
                     self.view = accepted
-                    if self.renew_duration and accepted.get('renewal') != 'owner_connection/v1':
+                    if self.renew_required and accepted.get('renewal') != 'owner_connection/v1':
                         raise mc.ClientError('control_renewal_unavailable', 'This provider does not support renewable owners')
                     return accepted
                 except mc.ClientError as error:
@@ -337,7 +344,9 @@ class ControlSession:
                 raise mc.ClientError("control_renewal_failed", "Owner ended during renewal")
             self.view = renewed
             return renewed
-        except BaseException:
+        except BaseException as error:
+            if isinstance(error, mc.ClientError):
+                self._fail(error)
             self.close()
             raise
 
@@ -384,9 +393,11 @@ def handle_control(alias, target, arguments):
     parser.add_argument("--surface", action="append", choices=["desktop", "browser"])
     parser.add_argument("--profile", action="append", help="Exact browser profile bound to this owner")
     parser.add_argument("--wait", default="5m")
-    parser.add_argument("--duration", default="5m")
+    parser.add_argument("--duration", default="5m", help="Finite lease interval; supported live owners renew automatically")
     parser.add_argument("--prepared-console", action="store_true")
-    parser.add_argument("--renew", action="store_true", help="Renew this live owner under remaining approval; requires provider support")
+    renewal = parser.add_mutually_exclusive_group()
+    renewal.add_argument("--renew", action="store_true", default=None, help="Require automatic renewal support (negotiated by default)")
+    renewal.add_argument("--no-renew", action="store_false", dest="renew", help="End this owner after the finite --duration interval")
     options = parser.parse_args(arguments)
     if (options.command == "call") != (options.json is not None):
         raise mc.ClientError("usage", "call requires JSON; stream reads JSON lines from stdin")

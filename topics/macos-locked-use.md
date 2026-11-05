@@ -191,8 +191,11 @@ active-control display-sleep endings remain. Tactical 143 owns qualification.
 
 **Decision, source implemented:** [144](../docs/tactical/144-renewable-control-owners.md)
 permits negotiated finite renewal of the same live owner under its original
-approval. Every protected extension requires resident/guardian/root agreement;
-the original timed grant ceiling, Stop, Pause, takeover, connection loss and
+approval. Current retained SDK/CLI clients negotiate automatic renewal by
+default, so a supported task has no fifteen-minute total cutoff and needs no
+repeated ownership acquisition. Every protected extension still requires
+resident/guardian/root agreement; the original timed grant ceiling, Stop,
+Pause, takeover, connection loss and
 watchdogs still win. Claim renewal confers no desktop authority, and legacy
 finite owner commands remain bounded. Sustained exact-package qualification
 passes in the documented VM profile in the tactical, including 960 seconds
