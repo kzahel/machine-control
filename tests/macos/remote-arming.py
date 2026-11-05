@@ -316,18 +316,20 @@ def _run_surfaces(context):
     with concurrent.futures.ThreadPoolExecutor() as pool:
         effects['pending']=False
         pending = pool.submit(raw, 'browser.eval', tabId=other,
-            expression="new Promise(() => {fetch('/pending',{method:'POST'});})", timeoutMs=1500)
+            expression="new Promise(() => {fetch('/pending',{method:'POST'});})", timeoutMs=8000)
         poll(lambda:effects['pending'],'independently observed pending renderer command')
         assert not pending.done(),'Pending-action cell ended before observation'
         check('resident status progresses during an unresolved command',bool(call('status')['browser']['connected']))
+        assert not pending.done(),'Pending-action window ended during status observation'
         before=effects['clicks']
         queued = pool.submit(raw, 'browser.eval', tabId=other,
                              expression="fetch('/click', {method:'POST'}); true", timeoutMs=1500)
         try:
             queued.result(timeout=5)
-            raise AssertionError('Native channel unexpectedly dispatched a second action')
         except Exception as error:
             assert type(error).__name__=='ClientError' and getattr(error,'code',None)=='control_action_in_progress',type(error).__name__
+        else:
+            raise AssertionError('Native busy-action cell did not produce its required refusal')
         check('second native-channel action is refused before dispatch',effects['clicks']==before)
         outcome = pending.result(timeout=10)
         check('dispatched timeout reports unknown delivery', not outcome['accepted'] and outcome['delivery'] == 'unknown')

@@ -206,3 +206,11 @@ actual waiting-for-approval request. Start the explicit unfiltered cover read
 under a fresh observer fence; preserve the SUT's existing protected owner.
 Metadata and bounded authorization keep their typed managed observer route.
 All 16 Mac fixture and 95 release tests pass; native qualification continues.
+
+A repeat reveals an inconclusive busy-action cell: its renderer request
+expires in 1.575 seconds while the independent status read takes 1.820 seconds,
+so the next action reaches a free native slot. Use a bounded eight-second
+request and assert it remains pending after status observation before testing
+second-action refusal. Keep actual unknown-delivery timeout and no-replay
+checks. All 95 release tests pass (one platform skip); native repetition
+continues rather than treating an expired window as concurrency evidence.
