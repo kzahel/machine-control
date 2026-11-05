@@ -95,3 +95,13 @@ lease view to exactly 120 seconds. The observed 119.999 seconds is elapsed
 monotonic time, not a shortened requested lease. The test now requires the
 renewed view in (119, 120] while retaining same-session and Stop/refusal checks.
 All 17 admission-channel cases pass again; production timing is unchanged.
+
+All four source workflows pass at `da4762a`. Extension `extension-v0.9.0`
+submits successfully for Google review. Unified candidate `41974918896` then
+finds a Windows release-only ordering bug: native shared-policy contracts run
+before installing their Node dependencies. The failed composition cannot
+qualify publication; its remaining builds are canceled before VM acceptance.
+Install shared dependencies before native/portable checks in both Windows
+release jobs. Mac source paths and its pure fixture test invocation now include
+the shared runtime and all Mac acceptance helpers. Extension bytes are unchanged;
+its immutable submission is not repeated when rebuilding the desktop candidate.

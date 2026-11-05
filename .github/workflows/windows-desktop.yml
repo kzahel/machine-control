@@ -44,9 +44,9 @@ jobs:
           components: rustfmt, clippy
       - name: Check native and frontend contracts
         run: |
-          ./tests/windows/static.ps1
           pnpm --dir runtime install --frozen-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'Shared runtime install failed' }
+          ./tests/windows/static.ps1
           pnpm --dir desktop install --frozen-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'Frontend install failed' }
           pnpm --dir desktop build
@@ -114,11 +114,11 @@ jobs:
         run: |
           python release/changelog.py desktop/CHANGELOG.md $env:CANDIDATE_VERSION
           if ($LASTEXITCODE -ne 0) { throw 'Required candidate changelog missing' }
+          pnpm --dir runtime install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Shared runtime install failed' }
           python bin/check --portable
           if ($LASTEXITCODE -ne 0) { throw 'Portable checks failed' }
           ./tests/windows/static.ps1
-          pnpm --dir runtime install --frozen-lockfile
-          if ($LASTEXITCODE -ne 0) { throw 'Shared runtime install failed' }
           pnpm --dir desktop install --frozen-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'Frontend install failed' }
           pnpm --dir desktop build
