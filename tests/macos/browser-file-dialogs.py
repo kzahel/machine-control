@@ -25,6 +25,7 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.request import urlopen
+from surface_fixture import generation_bound_status
 
 
 def main():
@@ -143,7 +144,7 @@ def main():
         return result
 
     def call(operation, **fields):
-        result = raw(operation, **fields)
+        result = generation_bound_status(lambda:raw(operation,**fields)) if operation=='status' else raw(operation, **fields)
         assert result.get('accepted'), operation + ': ' + str(result.get('errorCode'))
         assert result.get('hostInterference') == 'none'
         return result.get('data', {})

@@ -33,6 +33,16 @@ def require_managed_observer(value):
     assert value['nativeSemanticState']=='ready'
 
 
+def generation_bound_status(observe):
+    """Reobserve only a read-only status fenced by a generation transition."""
+    def fresh():
+        result=observe()
+        if result.get('accepted'):return result
+        assert result.get('errorCode')=='control_generation_changed',result.get('errorCode')
+        return None
+    return poll(fresh,'fresh generation-bound fixture status',timeout=10)
+
+
 class SurfaceFixture:
     def __init__(self, source, resident, endpoint, observer, claim):
         self.source,self.resident,self.endpoint,self.observer,self.claim=Path(source),Path(resident),Path(endpoint),Path(observer),claim
@@ -55,12 +65,7 @@ class SurfaceFixture:
             return json.loads(line)
 
     def status(self):
-        def fresh():
-            result=self.exchange(self.endpoint,'status')
-            if result.get('accepted'):return result['data']
-            assert result.get('errorCode')=='control_generation_changed',result.get('errorCode')
-            return None
-        return poll(fresh,'fresh generation-bound fixture status',timeout=10)
+        return generation_bound_status(lambda:self.exchange(self.endpoint,'status'))['data']
 
     def observer_response(self,operation,**fields):
         if operation in {'status','capabilities','authorization.begin'}:

@@ -222,3 +222,10 @@ exception class, which loses the native reason. Retain and report the closed
 first-read error/delivery/effect/uncertainty fields without replay, owner
 replacement or fabricated success. All 16 Mac fixture and 95 release tests
 pass, including exact refusal-code retention. Native diagnosis continues.
+
+The next repetition meets the same legitimate status-generation fence through
+the browser campaign's separate `call` path, before reaching protected read
+diagnostics. Consolidate both status callers onto one bounded read helper.
+Only the explicit status observation is repeated; runtime identity checks,
+unrelated refusals, actions and owner creation remain unchanged. All 16 Mac
+fixture and 95 release tests pass. Native qualification remains incomplete.
