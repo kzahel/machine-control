@@ -608,9 +608,12 @@ def main():
                 try:
                     outcome = pending.result(timeout=30)
                     assert not outcome['accepted']
-                except (ConnectionError, OSError):
-                    pass
+                except Exception as error:
+                    assert isinstance(error,(ConnectionError,OSError)) or (
+                        rig is not None and type(error).__name__=='ClientError' and
+                        getattr(error,'code',None) in {'control_transport_closed','control_transport_timeout'}),type(error).__name__
                 unblock.set()
+            if rig is not None:rig.close_owners()
             # Reset the stability baseline only at this explicit planned
             # fault, and require the expected generation/PID transition.
             generation = None
@@ -736,7 +739,9 @@ def main():
         raise
     finally:
         unblock.set()
-        if tab is not None:
+        if rig is not None:
+            rig.close()
+        elif tab is not None:
             try:
                 raw('browser.release', tabId=tab)
             except (OSError, ValueError, AssertionError):
@@ -754,7 +759,6 @@ def main():
         server.shutdown()
         server.server_close()
         workspace.cleanup()
-        if rig is not None:rig.close()
         if trace:
             trace.close()
         if layout_state is not None:

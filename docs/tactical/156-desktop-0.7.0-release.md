@@ -155,3 +155,10 @@ reference checks remain. With that correction the development trial passes
 actual native approval, browser input/capture, Settings recreation, download/
 upload byte effects, cancellation and overwrite observation. Recovery checks
 continue; this is not release acceptance.
+
+The development browser campaign passes real native-host loss, stale-reference
+refusal and Stop during a held provider, then reaches the deliberate resident
+kill. Accept its typed SDK transport-closed/timeout ending at that exact fault,
+close the dead owner before restart, and close retained ownership during
+cleanup rather than dispatching Browser release on a dead channel. Other SDK
+errors remain failures; no uncertain operation is replayed.
