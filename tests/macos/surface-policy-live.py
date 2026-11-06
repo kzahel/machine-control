@@ -36,7 +36,7 @@ def poll(function, label, timeout=30):
 
 
 class Owner:
-    def __init__(self, endpoint, claim, surfaces, *, profiles=(), operations=None, duration=180):
+    def __init__(self, endpoint, claim, surfaces, *, profiles=(), operations=None, duration=180, prepared_console=False):
         self.socket = socket.socket(socket.AF_UNIX)
         self.socket.settimeout(20)
         self.socket.connect(str(endpoint))
@@ -54,6 +54,8 @@ class Owner:
                        waitSeconds=180, durationSeconds=duration, reason='Verify unified surface handoff')
         if operations is not None:
             request['operations'] = operations
+        if prepared_console:
+            request['preparedConsole'] = True
         self.view = self.rpc(**request)
         self.thread = threading.Thread(target=self.keepalive, daemon=True)
         self.thread.start()

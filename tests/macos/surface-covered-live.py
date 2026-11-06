@@ -170,7 +170,9 @@ def main():
         sessions=[]
         for number in [1,2]:
             before=oracle()['count']
-            with actor.Owner(endpoint,args.claim,['desktop']) as owner:
+            # Task 1 keeps the flagless compatibility owner; task 2 uses the
+            # common --prepared-console request (Tactical 159 decision 1).
+            with actor.Owner(endpoint,args.claim,['desktop'],prepared_console=number==2) as owner:
                 active=owner.wait();sessions.append(active['sessionId'])
                 # Submit exactly once immediately after acceptance. The native
                 # adapter must hold it through guard preparation, not send a
