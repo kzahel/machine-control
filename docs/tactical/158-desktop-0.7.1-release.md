@@ -58,3 +58,8 @@ press, wait boundedly for the shared footer and cover mixed active/off arming,
 safe Off cleanup and disclosure idempotence. All 23 Mac fixture tests and
 95 release tests pass (one platform-specific skip). The reviewer checked
 source; this is not native packaged acceptance. Candidate execution is pending.
+
+The first-source Windows portable job exposes POSIX-only Linux preference
+fixtures calling unavailable `fchmod` and `getuid`. Declare those fixtures'
+platform requirement, retaining their actual execution on macOS/Linux. Cancel
+the obsolete candidate before native acceptance; no release receipt exists.

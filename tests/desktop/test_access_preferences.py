@@ -8,6 +8,7 @@ import unittest
 spec=importlib.util.spec_from_file_location('access_preferences',Path(__file__).resolve().parents[2]/'desktop/native/linux/access_preferences.py')
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 
+@unittest.skipUnless(os.name == 'posix', 'Linux preferences require POSIX ownership and file modes')
 class AccessPreferencesTests(unittest.TestCase):
     def test_restart_keeps_return_approval_and_immediate_choice(self):
         with tempfile.TemporaryDirectory() as root:
