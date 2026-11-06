@@ -32,20 +32,26 @@ def relay(check=lambda:None):
         old=os.get_blocking(outgoing);os.set_blocking(outgoing,False)
         request=bytearray();to_socket=bytearray();to_stdout=bytearray()
         check_at=time.monotonic();write_at=None;output_at=None
+        # A side that closes still gets its peer's pending bytes delivered:
+        # a resident often replies with a refusal and closes immediately.
+        resident_closed=caller_closed=False
         try:
             while os.getppid()==parent:
+                if resident_closed and not to_stdout:return 0
+                if caller_closed and not to_socket:return 0
                 now=time.monotonic()
                 if now>=check_at:
                     check();check_at=time.monotonic()+1;now=time.monotonic()
                 if write_at is not None and now-write_at>3:raise ValueError('Resident write timeout')
                 if output_at is not None and now-output_at>3:raise ValueError('Caller write timeout')
-                readable=[incoming] if len(to_socket)<65536 else []
-                if len(to_stdout)<MAXIMUM:readable.append(client)
-                writable=([client] if to_socket else [])+([outgoing] if to_stdout else [])
+                readable=[incoming] if len(to_socket)<65536 and not caller_closed and not resident_closed else []
+                if len(to_stdout)<MAXIMUM and not resident_closed:readable.append(client)
+                writable=([client] if to_socket and not resident_closed else [])+([outgoing] if to_stdout else [])
                 ready,writes,_=select.select(readable,writable,[],.1)
                 if incoming in ready:
                     chunk=os.read(incoming,16384)
-                    if not chunk:return 0
+                    if not chunk:
+                        caller_closed=True;continue
                     request.extend(chunk)
                     while b'\n' in request:
                         count=request.index(b'\n')+1
@@ -57,7 +63,8 @@ def relay(check=lambda:None):
                     if len(request)>65536:raise ValueError('Request frame too large')
                 if client in ready:
                     chunk=client.recv(65536)
-                    if not chunk:return 0
+                    if not chunk:
+                        resident_closed=True;continue
                     if not to_stdout:output_at=now
                     to_stdout.extend(chunk)
                 if client in writes:

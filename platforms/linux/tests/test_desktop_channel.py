@@ -39,6 +39,13 @@ class DesktopChannelTests(unittest.TestCase):
             self.assertEqual(peer.recv(65536),b'{"operation":"control.status"}\n')
             peer.sendall(b'{"accepted":true}\n');self.assertEqual(self.child.stdout.readline(),b'{"accepted":true}\n')
             self.child.stdin.close();self.child.wait(3);self.assertEqual(peer.recv(1),b'')
+    def test_reply_sent_just_before_resident_close_is_delivered(self):
+        with self.listener.accept()[0] as peer:
+            peer.settimeout(2);self.child.stdin.write(b'{"operation":"control.open"}\n');self.child.stdin.flush()
+            self.assertEqual(peer.recv(65536),b'{"operation":"control.open"}\n')
+            peer.sendall(b'{"accepted":false,"errorCode":"locked_use_unsupported"}\n');peer.close()
+            self.assertEqual(self.child.stdout.readline(),b'{"accepted":false,"errorCode":"locked_use_unsupported"}\n')
+            self.assertEqual(self.child.wait(3),0)
     def test_oversized_incomplete_frame_closes_without_forwarding(self):
         with self.listener.accept()[0] as peer:
             peer.settimeout(3);self.child.stdin.write(b'x'*65537);self.child.stdin.flush()
