@@ -12,7 +12,7 @@ internal static class AdmissionChannel
     internal const string Schema = "machine-control-admission-channel/v2";
     internal static async Task RunAsync(Stream stream, StreamReader reader, JsonObject open,
         DesktopGrants grants, Func<Request, ControlOwnership, CancellationToken, Task<Result>> dispatch,
-        CancellationToken stop, Action? refreshConsole = null)
+        CancellationToken stop, Action? refreshConsole = null, Func<bool>? preparedUnlockAvailable = null)
     {
         var owner = Guid.NewGuid().ToString("n");
         var admission = grants.Admission;
@@ -20,6 +20,10 @@ internal static class AdmissionChannel
         string? initialSession = null;
         bool? startedLocked = null;
         var prepared = false;
+        var plainDesktop = false;
+        // A prepared owner whose task started locked is unlocked once, at
+        // control.accept. Its dispatches wait for that outcome.
+        Task<Result>? consoleUnlock = null;
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stop);
         using var writes = new SemaphoreSlim(1, 1);
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, leaveOpen: true);
@@ -41,7 +45,11 @@ internal static class AdmissionChannel
                         projection["requestSequencing"] = "strict";
                         // The protected guardian has a separate hard deadline.
                         // Do not advertise renewal without its acknowledgement.
-                        if (prepared) projection.Remove("renewal");
+                        if (prepared && startedLocked != false) projection.Remove("renewal");
+                        if (consoleUnlock is { } unlock)
+                            projection["consoleUnlock"] = !unlock.IsCompleted ? new JsonObject { ["state"] = "unlocking" }
+                                : unlock.IsCompletedSuccessfully && unlock.Result.Accepted ? new JsonObject { ["state"] = "unlocked" }
+                                : new JsonObject { ["state"] = "failed", ["errorCode"] = unlock.IsCompletedSuccessfully ? unlock.Result.ErrorCode : "console_unlock_interrupted" };
                         data = projection;
                     }
                 }
@@ -68,10 +76,14 @@ internal static class AdmissionChannel
             if (operations is not null && (operations.Length is < 1 or > 64 || operations.Distinct().Count() != operations.Length ||
                 operations.Any(op => DesktopGrants.ScopeFor(op) is not { } scope || !scopes.Contains(scope)))) throw new ArgumentException("invalid_admission_operations");
             if (grants.Journal?.Available == false) throw new InvalidOperationException("audit_storage_unavailable");
-            prepared = open["preparedConsole"]?.GetValue<bool>() == true;
-            if (prepared && (!grants.PreparedConsole || !scopes.Order().SequenceEqual(new[] { "control", "observe" })))
-                throw new InvalidOperationException("prepared_console_unavailable");
-            if (!grants.ReadyForScopes(scopes) && !prepared) throw new InvalidOperationException("prepared_console_required");
+            // Agents request a prepared console for every Desktop owner. The
+            // flag is a no-op for Browser-only work and for an unlocked console.
+            var desktop = surfaces.Contains("desktop");
+            prepared = open["preparedConsole"]?.GetValue<bool>() == true && desktop;
+            // Only a Desktop request on a locked console refuses here; a
+            // transiently unready console or locked Browser-only work queues.
+            if (desktop && grants.ConsoleLocked && !prepared) throw new InvalidOperationException("prepared_console_required");
+            if (desktop && grants.ConsoleLocked && !grants.PreparedConsole) throw new InvalidOperationException("prepared_console_unavailable");
             // The shared host classifies impact from this enforced operation
             // set. Callers cannot assert that arbitrary effects are background.
             var initial = admission.Submit(owner, Required(open, "requestId").GetValue<string>(), surfaces,
@@ -79,6 +91,9 @@ internal static class AdmissionChannel
                 Required(open, "reason").GetValue<string>(),
                 profileIds, operations);
             intentId = JsonSerializer.SerializeToElement(initial).GetProperty("intentId").GetString()!;
+            // A plain Desktop owner admitted while unlocked must pause, not be
+            // offered a locked desktop, while its intent remains live.
+            if (desktop && !prepared) { grants.TrackPlainDesktop(intentId, true); plainDesktop = true; }
             await Reply(Required(open, "requestId").GetValue<string>(), initial);
             while (!lifetime.IsCancellationRequested)
             {
@@ -104,17 +119,39 @@ internal static class AdmissionChannel
                             await Reply(id, admission.Inspect(owner, intentId, operation == "control.heartbeat")); break;
                         case "control.accept":
                             object accepted;
+                            var unlockNow = false;
                             lock (grants.Gate)
                             {
                                 refreshConsole?.Invoke();
                                 var initialLock = grants.TaskStartLocked;
                                 accepted = admission.Accept(owner, intentId, Required(request, "offerGeneration").GetValue<long>());
                                 var session = JsonSerializer.SerializeToElement(accepted, Contract.Json).GetProperty("sessionId").GetString();
-                                if (initialSession != session) { initialSession = session; startedLocked = initialLock; }
+                                if (initialSession != session)
+                                {
+                                    initialSession = session; startedLocked = initialLock;
+                                    unlockNow = prepared && initialLock == true && preparedUnlockAvailable?.Invoke() == true;
+                                }
+                            }
+                            if (unlockNow)
+                            {
+                                // Same credential, guardian and cover path as an explicit
+                                // session.unlock, started here so the accepted owner is
+                                // usable without a separate unlock dispatch.
+                                var view = JsonSerializer.SerializeToElement(accepted, Contract.Json);
+                                var unlockFence = new ControlOwnership(owner, intentId, view.GetProperty("sessionId").GetString()!,
+                                    view.GetProperty("resourceGenerations").Deserialize<Dictionary<string, long>>()!, true);
+                                var unlockRequest = new Request { Operation = "session.unlock", RequestId = "accept-" + id };
+                                consoleUnlock = Task.Run(async () =>
+                                {
+                                    var result = await dispatch(unlockRequest, unlockFence, lifetime.Token);
+                                    grants.Journal?.Record(result);
+                                    return result;
+                                }, lifetime.Token);
+                                actions.Add(consoleUnlock);
                             }
                             await Reply(id, accepted); break;
                         case "control.renew":
-                            if (prepared) throw new InvalidOperationException("control_renewal_unavailable");
+                            if (prepared && startedLocked != false) throw new InvalidOperationException("control_renewal_unavailable");
                             // Renewal preserves the owner fence and performs no
                             // provider work. It must progress during a long action.
                             var seconds = Required(request, "durationSeconds").GetValue<int>();
@@ -137,12 +174,37 @@ internal static class AdmissionChannel
                             if (operations is not null && effect.Operation is not ("capabilities" or "browser.profiles") && !operations.Contains(effect.Operation)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && !prepared) throw new InvalidOperationException("prepared_console_required");
                             if (effect.Operation is "session.unlock.prepare" or "session.unlock" && fence.StartedLocked != true) throw new InvalidOperationException("task_did_not_start_locked");
+                            var pendingUnlock = consoleUnlock;
                             var actionToken = new object();
                             if (Interlocked.CompareExchange(ref activeAction, actionToken, null) is not null) throw new InvalidOperationException("control_action_in_progress");
                             actions.Add(Task.Run(async () =>
                             {
                                 try
                                 {
+                                    if (pendingUnlock is not null)
+                                    {
+                                        var unlocked = await pendingUnlock;
+                                        // The accept already unlocked: an explicit unlock is an
+                                        // idempotent no-op; other work runs only once unlocked.
+                                        if (effect.Operation == "session.unlock")
+                                        {
+                                            await Reply(id, unlocked with
+                                            {
+                                                RequestId = id,
+                                                Operation = effect.Operation,
+                                                Delivery = unlocked.Accepted ? "not_applicable" : unlocked.Delivery,
+                                                Effect = unlocked.Accepted ? "no_effect" : unlocked.Effect,
+                                                RetrySafety = unlocked.Accepted ? "not_needed" : unlocked.RetrySafety,
+                                                Data = new { alreadyUnlocked = unlocked.Accepted, unlockedAt = "control.accept" }
+                                            }, completedAction: actionToken);
+                                            return;
+                                        }
+                                        if (!unlocked.Accepted)
+                                        {
+                                            await Reply(id, error: unlocked.ErrorCode ?? "console_unlock_failed", completedAction: actionToken);
+                                            return;
+                                        }
+                                    }
                                     var result = await dispatch(effect, fence, lifetime.Token);
                                     var stale = admission.Authorize(owner, intentId, fence.Session, fence.Generations);
                                     if (stale is not null) result = result with { Accepted = false, ErrorCode = stale, Uncertainty = "interrupted_after_possible_dispatch", RetrySafety = "unsafe" };
@@ -163,6 +225,7 @@ internal static class AdmissionChannel
         { await Reply(open["requestId"]?.GetValue<string>() ?? "invalid", error: ex.Message); }
         finally
         {
+            if (plainDesktop) grants.TrackPlainDesktop(intentId!, false);
             admission.Disconnect(owner); lifetime.Cancel();
             try { await Task.WhenAll(actions); } catch (OperationCanceledException) { } catch (IOException) { }
         }

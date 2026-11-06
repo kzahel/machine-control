@@ -38,7 +38,9 @@ internal static class AdmissionChannelFixtures
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var owners = new List<Task>();
         var clients = new List<TcpClient>();
-        async Task<(StreamReader Reader, StreamWriter Writer, JsonObject View)> Open(string id, bool prepared = false)
+        var unlockCalls = 0;
+        var unlockGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); unlockGate.SetResult();
+        async Task<(StreamReader Reader, StreamWriter Writer, JsonObject View)> Open(string id, bool prepared = false, bool enrolled = false, bool expectAccepted = true, List<string>? dispatched = null)
         {
             var client = new TcpClient(); clients.Add(client);
             await client.ConnectAsync((IPEndPoint)listener.LocalEndpoint, stop.Token);
@@ -60,22 +62,35 @@ internal static class AdmissionChannelFixtures
             {
                 using (resident)
                 using (var reader = new StreamReader(resident.GetStream(), Encoding.UTF8, false, 4096, leaveOpen: true))
-                    await AdmissionChannel.RunAsync(boundary, reader, opening, grants, (request, fence, cancellation) =>
+                    await AdmissionChannel.RunAsync(boundary, reader, opening, grants, async (request, fence, cancellation) =>
                     {
-                        if (request.RequestId == "after-visible-result") boundaryDispatch.TrySetResult();
-                        if (request.RequestId == "held-provider") { providerStarted.TrySetResult(); return heldProvider.Task; }
-                        if (request.Operation is "capabilities" or "browser.profiles")
-                            return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "not_applicable" });
-                        var denied = grants.Authorize(request with { ControlOwnership = fence });
-                        if (denied is not null) return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, ErrorCode = denied });
-                        lastFence = fence;
-                        Interlocked.Increment(ref effects);
-                        return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "observed" });
-                    }, stop.Token);
+                        dispatched?.Add(request.Operation);
+                        if (request.Operation == "session.unlock")
+                        {
+                            Interlocked.Increment(ref unlockCalls);
+                            await unlockGate.Task.WaitAsync(cancellation);
+                            grants.SetReady(true);
+                            return new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "confirmed" };
+                        }
+                        return await Effect(request, fence);
+                    }, stop.Token, preparedUnlockAvailable: () => enrolled);
             }));
+            Task<Result> Effect(Request request, ControlOwnership fence)
+            {
+                if (request.RequestId == "after-visible-result") boundaryDispatch.TrySetResult();
+                if (request.RequestId == "held-provider") { providerStarted.TrySetResult(); return heldProvider.Task; }
+                if (request.Operation is "capabilities" or "browser.profiles")
+                    return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "not_applicable" });
+                var denied = grants.Authorize(request with { ControlOwnership = fence });
+                if (denied is not null) return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, ErrorCode = denied });
+                lastFence = fence;
+                Interlocked.Increment(ref effects);
+                return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "observed" });
+            }
             var readerClient = new StreamReader(client.GetStream());
             var writerClient = new StreamWriter(client.GetStream(), new UTF8Encoding(false)) { AutoFlush = true };
             var first = JsonNode.Parse(await readerClient.ReadLineAsync(stop.Token) ?? "")!.AsObject();
+            if (!expectAccepted) return (readerClient, writerClient, first);
             Require(first["accepted"]!.GetValue<bool>(), "Open accepted");
             return (readerClient, writerClient, first["data"]!.AsObject());
         }
@@ -175,12 +190,15 @@ internal static class AdmissionChannelFixtures
                 var prepared = await Open("prepared-" + origin, prepared: true);
                 Require(!prepared.View.ContainsKey("renewal"), "Prepared owner does not advertise unacknowledged guardian renewal");
                 active = (await Call(prepared, "control.accept", new() { ["offerGeneration"] = prepared.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();
-                Require((await Call(prepared, "control.renew", new()
+                Require(active.ContainsKey("renewal") == !origin, "Only an unlocked-origin prepared owner advertises renewal");
+                var renewed = await Call(prepared, "control.renew", new()
                 {
                     ["sessionId"] = active["sessionId"]!.DeepClone(),
                     ["resourceGenerations"] = active["resourceGenerations"]!.DeepClone(),
                     ["durationSeconds"] = 120
-                }))["errorCode"]!.GetValue<string>() == "control_renewal_unavailable", "Protected renewal refuses before changing any deadline");
+                });
+                Require(origin ? renewed["errorCode"]!.GetValue<string>() == "control_renewal_unavailable" : renewed["accepted"]!.GetValue<bool>(),
+                    "Protected renewal refuses before changing any deadline; an unlocked origin renews like any owner");
                 grants.SetReady(false, lockedConsole: true);
                 var unlock = Action(); unlock["request"] = new JsonObject { ["operation"] = "session.unlock.prepare" };
                 var response = await Call(prepared, "control.dispatch", unlock);
@@ -189,6 +207,66 @@ internal static class AdmissionChannelFixtures
                 else Require(response["errorCode"]!.GetValue<string>() == "task_did_not_start_locked", "Unlocked origin refuses before credential preparation");
                 await Call(prepared, "control.cancel");
             }
+            // Tactical 159 decisions 1 and 2: one prepared route and waiting
+            // rather than refusing outside a locked Desktop request.
+            grants.SetReady(true); grants.ConfigureSurface("desktop", "automatic", 900, "timed");
+            grants.SetReady(false, lockedConsole: true);
+            var plainLocked = await Open("plain-locked", expectAccepted: false);
+            Require(plainLocked.View["errorCode"]!.GetValue<string>() == "prepared_console_required" && plainLocked.View["requestId"]!.GetValue<string>() == "plain-locked",
+                "A plain Desktop owner on a locked console refuses prepared_console_required");
+            grants.SetReady(false, lockedConsole: false);
+            var transient = await Open("plain-transient");
+            Require(transient.View["state"]!.GetValue<string>() is "waiting_for_resource" or "paused" &&
+                transient.View["blockingReasons"]!.AsArray().Any(reason => reason!.GetValue<string>() == "resource_unavailable"),
+                "A transiently unready console queues as resource_unavailable");
+            await Call(transient, "control.cancel");
+            grants.SetReady(true);
+            grants.PrepareConsole(false); grants.ConfigureSurface("desktop", "automatic", 900, "timed");
+            var flagged = await Open("prepared-unlocked-unprepared", prepared: true);
+            Require(flagged.View["state"]!.GetValue<string>() == "offered", "The prepared flag is harmless on an unlocked console without locked use");
+            await Call(flagged, "control.cancel");
+            grants.SetReady(false, lockedConsole: true);
+            var unavailable = await Open("prepared-locked-unprepared", prepared: true, expectAccepted: false);
+            Require(unavailable.View["errorCode"]!.GetValue<string>() == "prepared_console_unavailable", "Locked use disabled refuses a prepared owner");
+            grants.SetReady(true); grants.PrepareConsole(true); grants.ConfigureSurface("desktop", "automatic", 900, "timed");
+            // A plain owner admitted while unlocked pauses when the console
+            // locks; it is never offered a locked desktop.
+            var early = await Open("plain-before-lock");
+            grants.SetReady(false, lockedConsole: true);
+            var paused = (await Call(early, "control.status"))["data"]!.AsObject();
+            Require(paused["state"]!.GetValue<string>() != "offered" && paused["blockingReasons"]!.AsArray().Any(reason => reason!.GetValue<string>() == "resource_unavailable"),
+                "A plain owner waits while locked instead of being offered");
+            await Call(early, "control.cancel");
+            clients[^1].Dispose(); await owners[^1];
+            // Enrolled prepared owner: unlocked at accept, then usable.
+            unlockGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var calls = new List<string>();
+            var enrolled = await Open("prepared-enrolled", prepared: true, enrolled: true, dispatched: calls);
+            Require(enrolled.View["state"]!.GetValue<string>() == "offered", "A prepared owner is offered the locked console");
+            var accepted = (await Call(enrolled, "control.accept", new() { ["offerGeneration"] = enrolled.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();
+            Require(accepted["consoleUnlock"]?["state"]?.GetValue<string>() == "unlocking" && !accepted.ContainsKey("renewal"),
+                "Accept starts the prepared unlock without a separate dispatch");
+            for (var spin = 0; Volatile.Read(ref unlockCalls) == 0 && spin < 100; spin++) await Task.Delay(10);
+            Require(Volatile.Read(ref unlockCalls) == 1, "Exactly one accept-time unlock");
+            JsonObject Owned(JsonObject request) => new()
+            {
+                ["sessionId"] = accepted["sessionId"]!.DeepClone(),
+                ["resourceGenerations"] = accepted["resourceGenerations"]!.DeepClone(),
+                ["request"] = request
+            };
+            var waiting = Owned(new JsonObject { ["operation"] = "type", ["text"] = "fixture" });
+            waiting["operation"] = "control.dispatch"; waiting["requestId"] = "after-unlock";
+            await enrolled.Writer.WriteLineAsync(waiting.ToJsonString());
+            await Task.Delay(100);
+            Require(!calls.Contains("type"), "Ordinary work waits for the accept-time unlock");
+            unlockGate.SetResult();
+            var typed = JsonNode.Parse(await enrolled.Reader.ReadLineAsync(stop.Token) ?? "")!.AsObject();
+            Require(typed["requestId"]!.GetValue<string>() == "after-unlock" && typed["accepted"]!.GetValue<bool>() && calls.Contains("type"), "Work runs once unlocked");
+            var again = await Call(enrolled, "control.dispatch", Owned(new JsonObject { ["operation"] = "session.unlock" }));
+            Require(again["accepted"]!.GetValue<bool>() && again["data"]!["data"]!["alreadyUnlocked"]!.GetValue<bool>() && unlockCalls == 1,
+                "An explicit unlock afterwards is an idempotent no-op");
+            Require((await Call(enrolled, "control.status"))["data"]!["consoleUnlock"]!["state"]!.GetValue<string>() == "unlocked", "Status reports the completed unlock");
+            await Call(enrolled, "control.cancel");
         }
         finally
         {

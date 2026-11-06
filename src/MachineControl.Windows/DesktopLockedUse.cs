@@ -27,6 +27,15 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
 
     internal static bool Prepared() => PreparationRefusal() is null;
 
+    /// Native one-time enrollment lets the resident unlock at control.accept.
+    /// The advanced controller-key policy keeps its explicit preparation.
+    internal bool LocallyEnrolled()
+    {
+        try { return Prepared() && UnlockPolicy.Read(Instance).CredentialSource == "local_enrollment"; }
+        catch (Exception error) when (error is IOException or InvalidDataException or JsonException or ArgumentException or FormatException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+        { return false; }
+    }
+
     private static string? PreparationRefusal()
     {
         try

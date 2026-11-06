@@ -20,6 +20,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private bool _ready, _preparedConsole, _lockedConsole, _browserWhileLocked, _updating;
     private string? _consoleIdentity, _browserConsentConsole, _lastEnded;
     private long _desktopConsentRevision;
+    // Plain (unprepared) Desktop intents. While one is live, a locked console
+    // is not admissible: that owner pauses instead of being offered.
+    private readonly HashSet<string> _plainDesktopIntents = new(StringComparer.Ordinal);
     private long _stops;
     /// Stops counted before any policy call, read live by status replies. Stops
     /// the supervisor itself causes (exit, policy loss) are not counted: they
@@ -46,6 +49,29 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     internal string GenerationFor(string operation) => BrowserScope(ScopeFor(operation) ?? "") ? BrowserGeneration : Generation;
     internal bool PreparedConsole { get { lock (Gate) return _preparedConsole; } }
     internal bool ConsoleReady { get { lock (Gate) return _ready; } }
+    /// The console is positively observed locked (not merely unready).
+    internal bool ConsoleLocked { get { lock (Gate) return !_ready && _lockedConsole; } }
+    internal void TrackPlainDesktop(string intentId, bool live)
+    {
+        lock (Gate)
+        {
+            if (live) _plainDesktopIntents.Add(intentId); else _plainDesktopIntents.Remove(intentId);
+            if (_admission is not null) PublishReady();
+        }
+    }
+    private bool LockedDesktopAdmissible => _preparedConsole && _lockedConsole && !PlainDesktopLive();
+    private bool PlainDesktopLive()
+    {
+        if (_plainDesktopIntents.Count == 0 || _admission is null) return false;
+        var live = (_admission.Status() as JsonObject)?["requests"] is JsonArray requests
+            ? requests.Where(request => request?["state"]?.GetValue<string>() is { } state && state != "ended")
+                .Select(request => request!["intentId"]?.GetValue<string>()).OfType<string>().ToHashSet(StringComparer.Ordinal)
+            : null;
+        // Without a policy view, stay conservative: a plain owner may be live.
+        if (live is null) return true;
+        _plainDesktopIntents.RemoveWhere(id => !live.Contains(id));
+        return _plainDesktopIntents.Count > 0;
+    }
     internal bool? TaskStartLocked { get { lock (Gate) return _ready ? false : _lockedConsole ? true : null; } }
     internal long DesktopConsentRevision { get { lock (Gate) return _desktopConsentRevision; } }
     internal DesktopActivityPolicy Activity => _activityPolicy ??= new(this, _time);
@@ -57,7 +83,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             {
                 if (_admission is not null) return _admission;
                 _admission = new AccessAdmission(gate: Gate);
-                _admission.Register("desktop", _ready || _preparedConsole && _lockedConsole, _ready);
+                _admission.Register("desktop", _ready || LockedDesktopAdmissible, _ready);
                 _admission.Register("browser", _ready);
                 _admission.OwnershipChanged += surfaces => { if (surfaces.Contains("desktop")) _generation = Guid.NewGuid().ToString("n"); };
                 return _admission;
@@ -72,7 +98,6 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             _browserConsentConsole == _consoleIdentity && Admission.Enabled("browser");
         }
     }
-    internal bool ReadyForScopes(string[] scopes) => ConsoleReady || BrowserOnlyWhileLocked && scopes.All(BrowserScope);
     internal bool CanEnableBrowserWhileLocked { get { lock (Gate) return _ready && _consoleIdentity is not null; } }
     internal object BrowserWhileLockedState() => new
     {
@@ -101,7 +126,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         // the specific reason rather than leaving them waiting.
         if (Journal?.Available == false && _admission is not null) _admission.EndAll("audit_storage_unavailable");
         var healthy = Journal?.Available != false && !_updating;
-        Admission.SetReady("desktop", healthy && (_ready || _preparedConsole && _lockedConsole), healthy && _ready);
+        Admission.SetReady("desktop", healthy && (_ready || LockedDesktopAdmissible), healthy && _ready);
         Admission.SetReady("browser", healthy && (_ready || BrowserOnlyWhileLocked), healthy && _ready);
     }
     internal void SetReady(bool ready, bool lockedConsole = false, string? consoleIdentity = null)

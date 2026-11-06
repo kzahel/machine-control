@@ -40,16 +40,29 @@ this desktop profile.
 
 ## Enrolled agent task
 
-Retain a v2 `ControlSession` with `prepared_console=True`,
+Open every Desktop owner with `prepared_console=True` (`control
+--prepared-console`), as on the other desktop platforms, with
 `surfaces=["desktop"]` and a finite duration of at most 900 seconds. Choose
 Desktop Automatic or approve the exact task under Desktop Ask first; helper
-setup grants neither. Prepared Windows owners do not support renewal until
-the independent guardian can acknowledge an extended deadline. The owner must
-start with the console locked. Dispatch `session.unlock` through that owner;
-no controller key, credential file or password is sent by the agent. Unowned
-requests and ordinary JSON credentials are refused. An unlocked-origin task
-cannot gain unlock/relock authority from a later idle lock; acquire a fresh
-locked-origin task instead.
+setup grants neither. The flag is harmless when the console is unlocked or
+covered use is off: the owner is then an ordinary one.
+
+When the task starts with the console locked, the resident performs the
+enrolled unlock at `control.accept`. The accepted view reports
+`consoleUnlock.state` (`unlocking`, then `unlocked` or `failed` with its
+`errorCode`); the owner's first actions wait for that outcome, so no separate
+unlock dispatch is needed. An explicit `session.unlock` afterwards is an
+idempotent no-op. No controller key, credential file or password is sent by
+the agent. Locked-origin prepared owners do not support renewal until the
+independent guardian can acknowledge an extended deadline.
+
+A Desktop owner without the flag is refused with `prepared_console_required`
+while the console is locked, because it would use the stored credential.
+A transiently unready console and locked Browser-only work wait as
+`resource_unavailable` instead. A plain owner admitted while unlocked pauses
+when the console locks and resumes after an unlock; it is never offered a
+locked desktop. An unlocked-origin task cannot gain unlock/relock authority
+from a later idle lock; acquire a fresh locked-origin task instead.
 
 The service accepts this route only from the actual installed Medium resident,
 with live owner and consent checks. It starts the independent cover/relock
@@ -59,8 +72,8 @@ erases transient credential buffers. Failed or unknown credential use
 invalidates enrollment and requires explicit local setup; no new task can
 silently replay the credential. Unknown delivery must never be retried.
 
-Wait for confirmed unlock, then use the same owner for ordinary semantic
-control and capture. Unlock rotates ordinary observation generations: discard
+After confirmed unlock, use the same owner for ordinary semantic control and
+capture. Unlock rotates ordinary observation generations: discard
 old window references. Close the owner when work finishes. This confirms an
 existing session; it never establishes cold login or switches users.
 
