@@ -304,7 +304,15 @@ final class BrowserRelay {
     }
     private func receive(_ message: [String: Any]) {
         if message["type"] as? String == "access.event" {
-            if broker.journal?.admission(message) == false { failed("audit_storage_unavailable"); return }
+            if broker.journal?.admission(message) == false {
+                guard broker.journal?.errorCode != nil else { failed("audit_storage_unavailable"); return }
+                // Lost storage ends every intent with that reason while the
+                // policy stays available to report it. Opens, accepts and
+                // dispatch already refuse until an audit write succeeds.
+                broker.admission.receive(message)
+                broker.admission.endAll(reason: "audit_storage_unavailable")
+                return
+            }
             broker.admission.receive(message)
             if ["yielded", "ended"].contains(message["event"] as? String ?? ""),
                let session = message["sessionId"] as? String {

@@ -260,8 +260,18 @@ final class AccessAdmission {
                 "fence": ["intentId": id, "sessionId": session, "resourceGenerations": generations]])
         } catch { try? cancel(owner: owner, id: id); throw error }
     }
-    func cancel(owner: String, id: String) throws {
-        _ = try send("cancel", ["owner": owner, "intentId": id]); changed?()
+    /// Shared end reasons an adapter may report instead of `cancelled`.
+    static let endReasons: Set<String> = ["audit_storage_unavailable", "locked_use_guard_failed"]
+    func cancel(owner: String, id: String, reason: String? = nil) throws {
+        var frame: [String: Any] = ["owner": owner, "intentId": id]
+        if let reason, Self.endReasons.contains(reason) { frame["reason"] = reason }
+        _ = try send("cancel", frame); changed?()
+    }
+    /// End every owned intent for a shared safety reason.
+    func endAll(reason: String) {
+        for (id, requirement) in Array(requirements) {
+            _ = try? cancel(owner: requirement.owner, id: id, reason: reason)
+        }
     }
     func disconnect(_ owner: String) {
         _ = try? send("close", ["owner": owner])
@@ -317,7 +327,13 @@ final class AccessAdmission {
         guard !refreshing, presenting == 0, invoke != nil else { return }
         refreshing = true; defer { refreshing = false }
         for (id, requirement) in Array(requirements) {
-            if requirement.check() != nil { _ = try? send("cancel", ["owner": requirement.owner, "intentId": id]) }
+            if let refusal = requirement.check() {
+                // A safety refusal ends the intent with its own reason, never
+                // a caller-looking `cancelled`.
+                var frame: [String: Any] = ["owner": requirement.owner, "intentId": id]
+                if Self.endReasons.contains(refusal) { frame["reason"] = refusal }
+                _ = try? send("cancel", frame)
+            }
         }
         _ = try? send("query")
     }

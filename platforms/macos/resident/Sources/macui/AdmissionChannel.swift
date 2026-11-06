@@ -244,7 +244,10 @@ final class AdmissionChannel {
                     throw MacUIError.action("control_renewal_unavailable")
                 }
                 let seconds = Double(duration)
-                guard server.broker.journal?.event("control.renew.intent") != false else { throw MacUIError.action("audit_storage_unavailable") }
+                guard server.broker.journal?.event("control.renew.intent") != false else {
+                    try? admission.cancel(owner:owner, id:intentID, reason:"audit_storage_unavailable")
+                    throw MacUIError.action("audit_storage_unavailable")
+                }
                 let renewed = try admission.renew(owner:owner, id:intentID, session:session,
                     generations:generations, seconds:seconds) { deadline in
                         if let coveredSessionID = self.coveredSessionID {
@@ -256,7 +259,7 @@ final class AdmissionChannel {
                         }
                     }
                 guard server.broker.journal?.event("control.renewed") != false else {
-                    try? admission.cancel(owner:owner, id:intentID)
+                    try? admission.cancel(owner:owner, id:intentID, reason:"audit_storage_unavailable")
                     throw MacUIError.action("audit_storage_unavailable")
                 }
                 reply(id, data:renewed)

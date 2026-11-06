@@ -37,6 +37,24 @@ final class AccessAdmissionTests: XCTestCase {
         admission.receive(["type":"access.event", "event":"yielded", "intentId":id, "sessionId":session])
         XCTAssertEqual(endings,before,"A queued old event cannot end the newly accepted native owner")
     }
+    func testSafetyRefusalsEndIntentsWithTheirOwnReason() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission
+        try admission.configure("desktop",mode:"automatic",seconds:nil)
+        var refusal: String?
+        let offer = try admission.submit(owner:"one",requestID:"audit",resources:["desktop"],wait:120,duration:60,reason:"Fixture",authority:{ refusal })
+        let id = try XCTUnwrap(offer["intentId"] as? String)
+        _ = try admission.accept(owner:"one",id:id,generation:try XCTUnwrap(offer["offerGeneration"] as? Int))
+        refusal = "audit_storage_unavailable"
+        let ended = try admission.inspect(owner:"one",id:id)
+        XCTAssertEqual(ended["state"] as? String,"ended")
+        XCTAssertEqual(ended["terminalReason"] as? String,"audit_storage_unavailable")
+        // Other refusals remain a generic cancellation.
+        refusal = nil
+        let second = try admission.submit(owner:"two",requestID:"other",resources:["desktop"],wait:120,duration:60,reason:"Fixture",authority:{ refusal })
+        let next = try XCTUnwrap(second["intentId"] as? String)
+        refusal = "desktop_delegation_requires_own_console"
+        XCTAssertEqual(try admission.inspect(owner:"two",id:next)["terminalReason"] as? String,"cancelled")
+    }
     func testStatusPresentationUsesCachedProjectionAndDropsOnlyOvertakenBackgroundReplies() throws {
         let fixture = try SharedPolicyFixture(), admission = fixture.admission, host = fixture.host
         let lock = NSLock()

@@ -211,6 +211,12 @@ final class AdmissionChannelTests: XCTestCase {
         _ = command(plain,"control.cancel")
 
         // A covered owner whose helper lacks covered renewal must not offer it.
+        // Never read this test host's real helper state.
+        func helper(_ value: [String:Any]) {
+            server.service.helperObservation = BackgroundObservation(label:"test.admission.helper",
+                timeout:1, unknown:{ value }, read:{ value })
+        }
+        helper([:])
         var pair: [Int32] = [-1,-1]
         XCTAssertEqual(socketpair(AF_UNIX, SOCK_STREAM, 0, &pair), 0)
         defer { Darwin.close(pair[0]) }
@@ -230,8 +236,7 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(refused["errorCode"] as? String,"control_renewal_unavailable")
 
         // With helper support the same covered owner advertises renewal again.
-        server.service.helperObservation = BackgroundObservation(label:"test.admission.helper",
-            timeout:1, unknown:{ ["coveredRenewal":"owner_connection/v1"] }, read:{ ["coveredRenewal":"owner_connection/v1"] })
+        helper(["coveredRenewal":"owner_connection/v1"])
         XCTAssertEqual((command(covered,"control.status")["data"] as? [String:Any])?["renewal"] as? String,"owner_connection/v1")
 
         // A natively delegated owner never renews, so it never advertises.
@@ -249,6 +254,27 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(delegatedOffer["accepted"] as? Bool,true, "Delegated open refused: \(delegatedOffer)")
         XCTAssertNil((delegatedOffer["data"] as? [String:Any])?["renewal"])
         XCTAssertNil((command(delegated,"control.heartbeat")["data"] as? [String:Any])?["renewal"])
+        XCTAssertEqual(effects,0)
+    }
+
+    func testAuditStorageFailureEndsActiveAndQueuedIntentsWithItsReason() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("mc-audit-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:root) }
+        broker.journal = DesktopJournal(root:root)
+        let active = try connect(), queued = try connect()
+        let offer = open(active,"audit-active"), waiting = open(queued,"audit-queued")
+        XCTAssertEqual(waiting["state"] as? String,"waiting_for_resource")
+        XCTAssertEqual(command(active,"control.accept",["offerGeneration":offer["offerGeneration"]!])["accepted"] as? Bool,true)
+        // Replace the journal directory with a file so the next write fails.
+        try FileManager.default.removeItem(at:root)
+        try Data().write(to:root)
+        XCTAssertFalse(broker.journal!.event("fixture.audit_failure"))
+        for client in [active, queued] {
+            let reply = command(client,"control.status")
+            let view = reply["data"] as? [String:Any]
+            XCTAssertEqual(view?["state"] as? String,"ended", "Unexpected status: \(reply)")
+            XCTAssertEqual(view?["terminalReason"] as? String,"audit_storage_unavailable")
+        }
         XCTAssertEqual(effects,0)
     }
 
