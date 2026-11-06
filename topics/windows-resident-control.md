@@ -16,6 +16,18 @@ complete in
 The public-ISO-to-new-base boundary is complete in
 [`Tactical 007`](../docs/tactical/007-windows-iso-factory-acceptance.md).
 
+**Current (2026-11-06), [Tactical 159](../docs/tactical/159-platform-contract-alignment.md):**
+- Behavior: a prepared Desktop owner is unlocked at `control.accept`, and a
+  guard failure ends the task without Stop. Targeted `input.text`/`input.key`
+  activates the named app or refuses `target_unavailable`, and window capture
+  honors `target`.
+- New operations: `applications`, `focus` and `application.terminate`, plus a
+  general key-chord parser.
+- Status reports the common `desktopState`, `deployment` and `lockedUse.phase`.
+
+Live VM evidence covers all of these except the enrolled unlock and guard
+cells.
+
 **Current, unreleased source and focused x64 VM evidence:**
 [Tactical 104](../docs/tactical/104-windows-pointer-gestures.md) completes native
 move, bounded drag and signed wheel operations behind the existing desktop

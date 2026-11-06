@@ -5,6 +5,14 @@ Topic: `unified-desktop-client`
 Status: accepted first three-desktop client over the current resident
 implementations.
 
+**Current (2026-11-06), [Tactical 159](../docs/tactical/159-platform-contract-alignment.md):**
+- The client maps common key names to each resident's vocabulary; the logo key
+  stays Command/Windows/Super, never Ctrl.
+- `browser --profile` is gated by the resident capability, not by platform.
+- Windows now implements `applications`, focus and `application.terminate`.
+- Common status and channel shapes are defined under `contracts/` and checked
+  by the conformance runner.
+
 The [Computer Use positioning roadmap](computer-use-positioning.md) compares
 the complete Machine Control package with the optional Sky provider. Missing
 methods or qualification in the thin session facade do not remove existing

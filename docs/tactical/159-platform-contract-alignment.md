@@ -6,7 +6,8 @@ Owning topics: [access-admission-and-pause](../../topics/access-admission-and-pa
 [windows-resident-control](../../topics/windows-resident-control.md),
 [linux-resident-control](../../topics/linux-resident-control.md).
 
-Status: **active.**
+Status: **active — repairs committed; platform VM verification complete except
+the Windows enrolled unlock/guard cells; client VM pass in progress.**
 
 ## Objective
 
@@ -141,4 +142,106 @@ committed and verified on the matching dedicated VM.
 
 ## Result
 
-Pending.
+**Current (2026-11-06):** all items are committed under
+`Topic: platform-contract-alignment`. Live evidence is private; sanitized
+results follow.
+
+### Shared
+
+- `547c687`: reasoned `cancel` (audit and guard endings).
+- `cd2e56a`, `d35e90a`: v2 channel/status schemas, `control frames` and
+  `tests/conformance/platform_contract.py`.
+- Conformance runner passed 7/7 with the console unlocked and locked on:
+  - the macOS appliance VM;
+  - a `macos-exp` workstation workspace;
+  - the Windows desktop profile;
+  - the Linux desktop-product resident (frames sent in-guest).
+
+  The Linux and Windows appliance residents report `no_v2_channel` plus a
+  passing status check.
+
+### macOS
+
+Commits: `56d058e` renewal, `43fc13d` audit, `174a082` framing, `969a86b`
+codes, `a49a4b2` prepared plain owners, `2a470fd` capabilities, `ae7554f`
+doctor/phase, `9e1a0e3` harness.
+
+243 Swift tests pass. In a development build in a disposable `macos-exp`
+workspace:
+- The covered harness passes 18/18. Flagless and prepared plain owners each
+  unlock behind covers, produce one independent fixture effect and relock,
+  with lock state read through `IOConsoleLocked`.
+- A plain CLI `control call --prepared-console` on a locked console unlocks,
+  returns, and relocks.
+- A 30-second prepared owner renews twice and lasts 50 seconds. `renewal` was
+  briefly absent in the first read after activation.
+- Workstation capabilities omit `session.unlock` and `authorization.*`.
+
+The appliance VM showed audit endings and channel-schema refusals. The base
+image's appliance app (0.2.0) predates harness key support; it was replaced
+only inside the disposable workspace.
+
+### Windows
+
+Commits: `3cad15d` targeted input/capture, `a98c3bd` guard keeps consent,
+`4f3dcbf` audit, `6e35697` unlock at accept and queue-versus-refuse,
+`36b64b7` framing/codes/capabilities/portable operations, `69dc511` general
+key chords, `75c4bb6` status.
+
+Live on the `windows` VM:
+- Targeted text reached Notepad behind the fixture; an unknown target refused
+  without typing.
+- Window capture by target returned the fixture window.
+- Focus plus a key, terminate, and chords all worked.
+- Audit write-deny ended the owner and refused new opens.
+- Locked-console refusals matched decision 2.
+- Doctor reported `locked` and `unlocked`.
+
+**Open:** unlock at `control.accept` and guard-failure retention are covered by
+contract tests only. The VM's protected helper must match the source runtime.
+That needs native re-enrollment, and the Tactical 134 enrollment harness has
+not completed acceptance there.
+
+### Linux
+
+Commits: `b9c1100` appliance fields, `72117be` audit, `cf7638b` framing,
+`fdcb698` codes, `f154749` status and locked refusal, `934632b`
+`locked_use_unsupported`.
+
+Live on the `linux` VM:
+- The GTK fixture scrolled and dragged.
+- `applicationId` activated Files.
+- An audit block ended the owner.
+- Lock detection reported `locked` through product status, appliance status
+  and both doctors, with logind as the independent read.
+
+`desktop_locked_browser_only` needs a connected browser profile and is
+unit-tested only. Recovery from lock used a tracked reboot, because Linux has
+no secret-safe lock-screen password route.
+
+### Client
+
+Commits: `a23d972` `browser --profile`, `53a9794` key names and grant
+guidance, `303af1c` one locked route in the instructions and help, `ca234d0`
+owner-ended reason, dash arguments and the `consoleUnlock` view.
+
+343 client tests pass. Live client checks are in progress.
+
+### Decided, not changed
+
+- macOS keeps `grantMode: "surface_modes"` because live harnesses rely on it.
+- An appliance policy with `protectedOperations: false` therefore looks like a
+  workstation to the desktop UI. This is a recorded open edge.
+- Windows prepared owners still do not renew.
+- Plain Windows owners without the flag still refuse on a locked console,
+  because that route uses a stored credential.
+
+### Follow-ups
+
+- Complete Windows protected enrollment on the VM, then run unlock at accept
+  and guard-failure live.
+- Refresh the `macos-exp` base appliance app.
+- Ship the `desktop_channel.py` relay in the Linux desktop package, so
+  `control frames` reaches it through the CLI.
+- Consider a shared per-task readiness. The Windows fix for plain owners
+  offered a locked desktop is Windows-local.

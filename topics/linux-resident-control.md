@@ -5,6 +5,15 @@ Topic: `linux-resident-control`
 Status: accepted Ubuntu GNOME Wayland logged-in appliance; other compositors,
 protected login planes, and physical Linux hardware remain research-stage.
 
+**Current (2026-11-06), [Tactical 159](../docs/tactical/159-platform-contract-alignment.md):**
+- Appliance resident: accepts common `deltaX/deltaY`, drag `x/y` and
+  `applicationId`.
+- Desktop-product resident: projects `desktopState` (including `locked`) and
+  the common `deployment`, closes channels after ordering and open failures,
+  uses the common refusal codes, and refuses `preparedConsole` with
+  `locked_use_unsupported`.
+- Host doctor maps `locked` and checks surface modes.
+
 **Current:** Retained UTM appliances can explicitly select
 `LINUXVM_ADMIN_TRANSPORT=ssh` after guest-agent host-key pinning. Root
 administration and transfer then use pinned key-only SSH and appliance sudo;

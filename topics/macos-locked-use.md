@@ -8,6 +8,14 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-11-06), [Tactical 159](../docs/tactical/159-platform-contract-alignment.md):**
+- A plain CLI/SDK owner may request `preparedConsole: true` and receives the
+  same covered owner as a flagless one. Disposable-workspace evidence: 18/18
+  covered checks, plus a live plain `--prepared-console` call that unlocked,
+  returned and relocked.
+- Views advertise `renewal` only when renewal can succeed.
+- Workstation capabilities omit `session.unlock` and `authorization.*`.
+
 **Current (2026-11-05), bounded signed readiness qualification:** a cached helper setup
 observation becoming unavailable must not retire an already-admitted finite
 protected owner. Desktop readiness now retains that owner's route only while

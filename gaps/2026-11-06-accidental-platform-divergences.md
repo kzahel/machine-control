@@ -2,7 +2,10 @@
 
 Topic: `access-admission-and-pause`
 
-Status: **Open — source review only; nothing repaired except guidance.**
+Status: **Repaired in source (Tactical 159).** The items below describe the
+state before repair. Live results and remaining open cells, notably the
+Windows guard-failure path, are in the
+[tactical result](../docs/tactical/159-platform-contract-alignment.md#result).
 
 ## Origin
 

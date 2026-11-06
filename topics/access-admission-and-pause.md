@@ -13,6 +13,18 @@ macOS ordinary, streamed-CDP and protected packaged acceptance and cleanup.
 [Tactical 155](../docs/tactical/155-linux-shared-surface-adoption.md) owns Linux
 native, packaged and restoration qualification.
 
+**Decision (2026-11-06), [Tactical 159](../docs/tactical/159-platform-contract-alignment.md):** locked Desktop work has one route on macOS
+and Windows: open the owner with `preparedConsole: true`, and the covered
+unlock happens at acceptance with no separate unlock request. Linux refuses
+with `locked_use_unsupported`. A locked-use guard failure ends only the task
+and retains consent on every platform. Audit-storage loss refuses opens and
+ends intents with `audit_storage_unavailable`. Every reply after
+`control.open` uses the channel schema, and ordering violations close it.
+`contracts/admission-channel-v2.schema.json` owns the common refusal
+vocabulary. `tests/conformance/platform_contract.py` checks each resident
+against these contracts. Windows unlock at acceptance and guard retention
+remain contract-tested only, pending protected-helper enrollment on the VM.
+
 ## Scope and motivation
 
 **Proposal, pending implementation:** the

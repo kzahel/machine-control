@@ -2,8 +2,8 @@
 
 Topic: `access-admission-and-pause`
 
-Status: **Open.** Guidance corrected in d73fea5; the contract divergence is
-not repaired.
+Status: **Repaired in source (Tactical 159); Windows enrolled unlock awaits
+live qualification.** The table below records the state before repair.
 
 ## Observations
 
@@ -64,3 +64,16 @@ the Mac flag for delegated composition; the Windows flag came from Tactical
 - **Proposed:** add a cross-platform conformance case for the same four
   requests above, so the table becomes test-enforced rather than
   documentation-only.
+
+## Outcome
+
+[Tactical 159](../docs/tactical/159-platform-contract-alignment.md#result) made
+`--prepared-console` the one route for locked Desktop work.
+
+- **macOS (`a49a4b2`):** accepts the flag from plain callers. Covered
+  unlock/effect/relock passed live for both flagless and prepared owners.
+- **Windows (`6e35697`):** unlocks at `control.accept`; `session.unlock` is a
+  no-op afterwards. Its live cell awaits protected-helper enrollment on the VM.
+- **Linux (`934632b`):** refuses with `locked_use_unsupported`.
+- **Guidance (`303af1c`):** the instructions and help state the single rule.
+
