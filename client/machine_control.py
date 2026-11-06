@@ -2423,8 +2423,11 @@ DESKTOP_USAGE = {
         "desktop session end --session-id ID\n"
         "desktop session unlock --expected-desktop-generation ID\n"
         "    [--expected-helper-generation ID] --request-id ID\n"
-        "  Bounded locked-use control and protected unlock where the target\n"
-        "  advertises them. Keep session control alive for the task, then end it."
+        "  Legacy and appliance-only routes. Current Mac residents refuse session\n"
+        "  control (control_session_required); work while locked with an ordinary\n"
+        "  `control stream --surface desktop` owner instead, which unlocks behind\n"
+        "  covers and relocks when it ends. Session unlock requires a managed\n"
+        "  appliance (status protectedAdministration: true); workstations refuse it."
     ),
     "call": (
         "desktop call|call-local JSON\n"
@@ -4021,15 +4024,15 @@ Commands:
                                     Operate Chrome through the extension
   control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]
                                     Wait, accept, execute once and release
-  control stream --reason TEXT [--scope SCOPE]  JSON lines; one live owner
+  control stream --reason TEXT [--surface desktop|browser]  JSON lines; one live owner
   mcp [--reason TEXT] [--observe action|explicit]
                                     Candidate persistent Python MCP session
   desktop status|capabilities|applications|windows|snapshot|action|capture
         (desktop --help or desktop COMMAND --help; help works offline)
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
-  desktop session control [--duration 5m]  Hold a bounded Mac locked-use session
-  desktop session end --session-id ID     Complete it and restore screen lock
+                                    Managed-appliance unlock; workstations refuse
+  desktop session control|end       Legacy; use control stream while locked
   desktop application launch|activate|terminate
   desktop call|call-local JSON     Translate a common resident request
   desktop raw|raw-local JSON       Send a provider-native resident request

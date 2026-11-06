@@ -8,7 +8,8 @@ stays unlocked; no screen cover or automatic relock is provided.
 That is the explicit **appliance** profile. The separate
 [covered locked-use profile](locked-use.md) provides the desktop operator's
 default-off setting, bounded task lifecycle, covers, takeover, and automatic
-relock. Its root broker refuses ordinary `session.unlock`; use `session.control`.
+relock. Its root broker refuses ordinary `session.unlock`; start an ordinary
+Desktop `control stream` owner while locked instead.
 
 ## Observe first
 

@@ -171,8 +171,9 @@ must acknowledge the extension. Heartbeats alone prove liveness and confer no
 extension. Keep the target claim renewed separately, or use a scoped run.
 The owner-bound SDK negotiates renewal by default (`renew=None`); explicit
 `renew=True` / `--renew` requires support. Use `renew=False` / `--no-renew` for
-an intentionally finite owner. Unsupported routes, shorter intervals and legacy
-`desktop session control` retain finite compatibility behavior. Never reopen
+an intentionally finite owner. Unsupported routes and shorter intervals retain
+finite behavior. The shared-policy resident refuses legacy
+`desktop session control` with `control_session_required`. Never reopen
 an ended owner automatically. See [the admission guide](../../../docs/access-admission.md)
 and [Tactical 144](../../../docs/tactical/144-renewable-control-owners.md) for the
 contract and qualification limits.
@@ -183,15 +184,11 @@ apply. Until-stopped consent may survive restart for the verified same console
 and boot; queue entries and active sessions never survive restart.
 
 In the task's `finally` cleanup, close stream stdin or the SDK context, observe
-protected cleanup/relock, then release the target-use claim. For the legacy
-finite compatibility path, explicitly end its exact native session before
-releasing the claim:
+protected cleanup/relock, then release the target-use claim. Do not add
+`--prepared-console` from a plain CLI or SDK caller; that profile requires a
+natively delegated channel and otherwise refuses with
+`invalid_prepared_console_request`.
 
-```bash
-bin/machine-control --target host --claim "$claim_id" desktop session end --session-id "$control_session_id"
-```
-
-The ID permits stopping only; it is not bearer authority. A stale ID refuses.
 Disconnection or five seconds without a heartbeat ends the lease. Rediscover
 references after lock/unlock and completion. Use `macos-native` while covered;
 Cua is refused in this first version. A physical takeover returns
