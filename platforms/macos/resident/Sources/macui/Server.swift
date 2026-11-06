@@ -765,6 +765,9 @@ final class ResidentServer {
         if original["accepted"] as? Bool == true,
            ["status", "capabilities"].contains(original["operation"] as? String ?? ""),
            var data = response["data"] as? [String:Any] {
+            if !broker.protectedAdministration {
+                data = Self.withoutProtectedOperations(data)
+            }
             data["presentation"] = presentationStatus()
             data["deployment"] = broker.statusJSON
             data["lockedUse"] = lockedUse.status
@@ -780,6 +783,28 @@ final class ResidentServer {
             response["data"] = data
         }
         return response
+    }
+
+    /// Protected unlock and authorization operations are advertised only
+    /// when the current policy would admit them (Tactical 159 decision 9).
+    static func withoutProtectedOperations(_ original: [String:Any]) -> [String:Any] {
+        var data = original
+        func ordinary(_ entries: Any?) -> [[String:Any]]? {
+            (entries as? [[String:Any]])?.compactMap { entry in
+                var entry = entry
+                let operations = (entry["operations"] as? [String] ?? []).filter { operationClass($0) != .protected }
+                guard !operations.isEmpty else { return nil }
+                entry["operations"] = operations
+                return entry
+            }
+        }
+        if let providers = ordinary(data["providers"]) { data["providers"] = providers }
+        if let routing = ordinary(data["routing"]) { data["routing"] = routing }
+        if var lockScreen = data["lockScreen"] as? [String:Any] {
+            lockScreen.removeValue(forKey:"unlockTriggerOperation")
+            data["lockScreen"] = lockScreen
+        }
+        return data
     }
 
     /// Returns a response now, or nil when the client stays open for a

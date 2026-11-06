@@ -268,7 +268,7 @@ final class GrantBroker {
         case .protected:
             // The explicitly installed managed-appliance administration plane
             // is separate from ordinary workstation surface consent.
-            guard policy.protectedOperations && policy.grantMode == .standing else {
+            guard protectedAdministration else {
                 return GrantRefusal("operation_not_permitted_by_policy", "Protected administration requires its native managed policy")
             }
             return nil
@@ -287,6 +287,8 @@ final class GrantBroker {
             return nil
         }
     }
+    /// The managed-appliance plane that admits `.protected` operations.
+    var protectedAdministration: Bool { policy.protectedOperations && policy.grantMode == .standing }
     func admissionAuthority(scopes: Set<GrantScope>) -> String? {
         journal?.errorCode == nil ? nil : "audit_storage_unavailable"
     }
@@ -310,7 +312,7 @@ final class GrantBroker {
     }
     var statusJSON: [String: Any] {
         ["policy": ["preset": policy.preset, "grantMode": "surface_modes",
-                    "protectedAdministration": policy.protectedOperations && policy.grantMode == .standing],
+                    "protectedAdministration": protectedAdministration],
          "grant": NSNull(), "pendingRequest": NSNull(),
          "lastEnded": lastEnded.map { ["reason": $0.reason] as Any } ?? NSNull(),
          "browserOnlyWhileLocked": browserOnlyWhileLocked,

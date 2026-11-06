@@ -576,6 +576,13 @@ final class AdmissionChannelTests: XCTestCase {
             if operation == "capabilities" {
                 let data = try XCTUnwrap(result["data"] as? [String:Any])
                 XCTAssertEqual((data["browser"] as? [String:Any])?["profileSelectionSupported"] as? Bool,true)
+                // A workstation policy refuses protected operations, so it
+                // does not advertise them.
+                let advertised = ((data["providers"] as? [[String:Any]] ?? []) + (data["routing"] as? [[String:Any]] ?? []))
+                    .flatMap { $0["operations"] as? [String] ?? [] }
+                XCTAssertFalse(advertised.isEmpty)
+                XCTAssertTrue(advertised.allSatisfy { operationClass($0) != .protected }, "Advertised: \(advertised)")
+                XCTAssertNil((data["lockScreen"] as? [String:Any])?["unlockTriggerOperation"])
             }
         }
         let refused = command(client,"control.dispatch",["sessionId":active["sessionId"]!,
@@ -655,6 +662,25 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(effects,0,"No pending action may run after Stop")
     }
 
+    func testProtectedOperationsAreAdvertisedOnlyUnderProtectedPolicy() {
+        let data: [String:Any] = [
+            "providers":[["id":"macos-unlock", "operations":["session.unlock"]],
+                         ["id":"macos-native", "operations":["snapshot", "authorization.begin", "authorization.cancel"]]],
+            "routing":[["operations":["authorization.begin", "authorization.cancel"], "provider":"macos.authorization"],
+                       ["operations":["snapshot"], "provider":"macos.ax"]],
+            "lockScreen":["unlockTriggerOperation":"session.unlock", "ordinaryInputPolicy":"blocked_while_locked"]]
+        let filtered = ResidentServer.withoutProtectedOperations(data)
+        XCTAssertEqual((filtered["providers"] as? [[String:Any]])?.map { $0["id"] as? String }, ["macos-native"])
+        XCTAssertEqual((filtered["providers"] as? [[String:Any]])?.first?["operations"] as? [String], ["snapshot"])
+        XCTAssertEqual((filtered["routing"] as? [[String:Any]])?.map { $0["provider"] as? String }, ["macos.ax"])
+        XCTAssertNil((filtered["lockScreen"] as? [String:Any])?["unlockTriggerOperation"])
+        XCTAssertEqual((filtered["lockScreen"] as? [String:Any])?["ordinaryInputPolicy"] as? String, "blocked_while_locked")
+        XCTAssertFalse(GrantBroker(policy:.workstation(issue:nil)).protectedAdministration)
+        let appliance = DeploymentPolicy.parse(["schema":DeploymentPolicy.schema, "preset":"appliance"])!
+        XCTAssertTrue(GrantBroker(policy:appliance).protectedAdministration)
+        let unprotected = DeploymentPolicy.parse(["schema":DeploymentPolicy.schema, "preset":"appliance", "protectedOperations":false])!
+        XCTAssertFalse(GrantBroker(policy:unprotected).protectedAdministration)
+    }
     func testWireNumbersCannotBeBooleanOrFractional() {
         XCTAssertNil(admissionInteger(true))
         XCTAssertNil(admissionInteger(1.5))
