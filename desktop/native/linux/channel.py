@@ -13,6 +13,10 @@ from policy import PolicyError
 SCHEMA='machine-control-admission-channel/v2'
 
 
+class Closing(ValueError):
+    """A refusal after which this owner channel closes (ordering violation)."""
+
+
 def process_token(pid):
     try:
         with open(f'/proc/{pid}/stat') as stream:return stream.read().rsplit(')',1)[1].split()[19]
@@ -27,6 +31,7 @@ class Channel:
         self.incoming=threading.BoundedSemaphore(32)
         self.outgoing=queue.Queue(maxsize=32);self.bytes=0;self.lock=threading.Lock()
         self.dispatching=False;self.accepting=False;self.ticket=None
+        self.closing=False
         threading.Thread(target=self.writer,daemon=True,name='mc-owner-writer').start()
 
     def authority(self):
@@ -34,25 +39,38 @@ class Channel:
         return self.owner.native_authority(self.surfaces)
 
     def reply(self,request,data=None,error=None):
-        value=dict(schema=SCHEMA,requestId=request.get('requestId',''),accepted=error is None)
-        if error:value.update(errorCode=error,message='Control request refused')
-        else:
+        identifier=request.get('requestId')
+        # Every reply carries the full channel-schema shape.
+        value=dict(schema=SCHEMA,requestId=identifier if isinstance(identifier,str) else None,
+                   accepted=error is None,errorCode=error,data=None)
+        if not error:
             value['data']=data or {}
             if value['data'].get('schema')=='machine-control-admission/v2':
                 value['data']={**value['data'],'requestSequencing':'strict'}
         body=json.dumps(value,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()+b'\n'
         with self.lock:
-            if self.closed.is_set():return
+            if self.closed.is_set() or self.closing:return
             if len(body)>16*1024*1024 or self.bytes+len(body)>32*1024*1024:self.close();return
             try:self.outgoing.put_nowait(body)
             except queue.Full:self.close();return
             self.bytes+=len(body)
+
+    def finish(self):
+        """Close after every reply already queued has been written."""
+        with self.lock:
+            if self.closed.is_set() or self.closing:return
+            self.closing=True
+            try:self.outgoing.put_nowait(None)
+            except queue.Full:pass
+            else:return
+        self.close()
 
     def writer(self):
         try:
             while not self.closed.is_set():
                 try:body=self.outgoing.get(timeout=.1)
                 except queue.Empty:continue
+                if body is None:self.close();return
                 try:
                     offset=0;deadline=time.monotonic()+3
                     while offset<len(body):
@@ -88,15 +106,15 @@ class Channel:
 
     def handle(self,request):
         try:
-            if self.closed.is_set():return False
+            if self.closed.is_set() or self.closing:return False
             if not isinstance(request.get('requestId'),str) or not 0<len(request['requestId'])<=128:
                 raise ValueError('invalid_admission_request')
             # The unchanged SDK negotiates sequencing in its opening reply.
             # Explicitly sequenced callers start at one; an unsequenced open
             # leaves one as the first required subsequent sequence.
             if self.intent is not None or 'requestSequence' in request:
-                sequence=self.integer(request.get('requestSequence'),1,2**53-1)
-                if sequence!=self.sequence+1:raise ValueError('invalid_request_sequence')
+                sequence=request.get('requestSequence')
+                if type(sequence) is not int or sequence!=self.sequence+1:raise Closing('invalid_request_sequence')
                 self.sequence=sequence
             operation=request.get('operation')
             common={'operation','requestId','requestSequence'}
@@ -172,6 +190,9 @@ class Channel:
         except (ValueError,TypeError,KeyError,PolicyError) as error:
             code=str(error)
             self.reply(request,error=code if re.fullmatch('[a-z][a-z0-9_]{0,95}',code) else 'invalid_admission_request')
+            # Ordering violations and failed opens end ownership; the refusal
+            # above is written first, in the channel schema.
+            if isinstance(error,Closing) or self.intent is None:self.finish()
         return False
 
     def fence(self,request):

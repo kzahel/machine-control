@@ -161,11 +161,43 @@ class AccessTests(unittest.TestCase):
             return json.loads(body)
         opened=call(1,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],reason='Channel fixture')
         self.assertTrue(opened['accepted']);self.assertEqual(opened['data']['state'],'offered')
-        self.assertEqual(call(1,'control.status')['errorCode'],'invalid_request_sequence')
+        self.assertEqual((opened['schema'],opened['errorCode']),('machine-control-admission-channel/v2',None))
         self.assertTrue(call(2,'control.heartbeat')['accepted'])
-        channel.close()
+        # A replayed sequence is refused in the channel schema, then closes.
+        refused=call(2,'control.status')
+        self.assertEqual((refused['schema'],refused['accepted'],refused['errorCode'],refused['data']),
+            ('machine-control-admission-channel/v2',False,'invalid_request_sequence',None))
+        self.assertEqual(client.recv(65536),b'')
+        self.assertTrue(channel.closed.wait(2))
         while not self.callbacks.empty():self.callbacks.get()()
         self.assertNotIn(channel.label,self.access.owners)
+
+    def failed_open(self,**fields):
+        server,client=socket.socketpair();client.settimeout(2)
+        self.addCleanup(server.close);self.addCleanup(client.close)
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+            scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
+            channels=set(),changed=lambda:None)
+        channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
+        channel.authority=lambda:None
+        self.addCleanup(channel.close)
+        frame=dict(operation='control.open',requestId='open',schema='machine-control-admission/v2',
+            surfaces=['desktop'],reason='Channel fixture',waitSeconds=5,durationSeconds=60)
+        frame.update(fields)
+        channel.handle({key:value for key,value in frame.items() if value is not None})
+        body=b''
+        while not body.endswith(b'\n'):body+=client.recv(65536)
+        reply=json.loads(body)
+        self.assertEqual(set(reply),{'schema','requestId','accepted','errorCode','data'})
+        self.assertEqual((reply['schema'],reply['accepted']),('machine-control-admission-channel/v2',False))
+        self.assertEqual(client.recv(65536),b'')
+        self.assertTrue(channel.closed.wait(2))
+        self.assertIsNone(channel.intent)
+        return reply['errorCode']
+
+    def test_failed_open_replies_in_channel_schema_and_closes(self):
+        self.assertEqual(self.failed_open(schema='machine-control-admission/v9'),'unsupported_admission_schema')
+        self.assertEqual(self.failed_open(requestSequence=2),'invalid_request_sequence')
 
     def test_sdk_open_negotiates_the_first_required_sequence(self):
         server,client=socket.socketpair();client.settimeout(2)
@@ -189,6 +221,6 @@ class AccessTests(unittest.TestCase):
         self.assertEqual(opened['data']['requestSequencing'],'strict')
         self.assertTrue(call(1,'control.heartbeat')['accepted'])
         self.assertEqual(call(1,'control.status')['errorCode'],'invalid_request_sequence')
-        channel.close()
+        self.assertTrue(channel.closed.wait(2))
         while not self.callbacks.empty():self.callbacks.get()()
         self.assertNotIn(channel.label,self.access.owners)
