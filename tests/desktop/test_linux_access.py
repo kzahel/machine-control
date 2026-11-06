@@ -268,6 +268,8 @@ class AccessTests(unittest.TestCase):
             (dict(durationSeconds=None),'invalid_admission_request'),
             (dict(durationSeconds=901),'invalid_admission_request'),
             (dict(requestId='r'*81),'invalid_admission_request'),
+            (dict(preparedConsole=True),'locked_use_unsupported'),
+            (dict(preparedConsole=1),'invalid_prepared_console_request'),
         ]:
             with self.subTest(fields=fields):self.assertEqual(self.failed_open(**fields),code)
 

@@ -212,7 +212,8 @@
         "invalid_prepared_console_request",
         "audit_storage_unavailable",
         "control_renewal_unavailable",
-        "admission_queue_full"
+        "admission_queue_full",
+        "locked_use_unsupported"
       ]
     },
     "view": {

@@ -122,8 +122,13 @@ class Channel:
             if self.intent is None:
                 if operation!='control.open' or request.get('schema')!='machine-control-admission/v2':
                     raise ValueError('unsupported_admission_schema')
-                allowed=common|{'schema','surfaces','profileIds','operations','waitSeconds','durationSeconds','reason','claimId'}
+                allowed=common|{'schema','surfaces','profileIds','operations','waitSeconds','durationSeconds','reason','claimId','preparedConsole'}
                 if not set(request)<=allowed:raise ValueError('invalid_admission_request')
+                if 'preparedConsole' in request:
+                    # Linux has no covered locked use. Say so plainly instead of
+                    # a generic refusal when an agent asks for a prepared console.
+                    if request['preparedConsole'] is not True:raise ValueError('invalid_prepared_console_request')
+                    raise ValueError('locked_use_unsupported')
                 surfaces=request.get('surfaces');profiles=request.get('profileIds',[]);operations=request.get('operations')
                 if (not isinstance(surfaces,list) or not 1<=len(surfaces)<=2 or
                         any(not isinstance(s,str) or s not in SURFACE_OPERATIONS for s in surfaces) or len(set(surfaces))!=len(surfaces)):
