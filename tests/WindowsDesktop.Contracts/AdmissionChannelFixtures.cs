@@ -201,6 +201,20 @@ internal static class AdmissionChannelFixtures
     }
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
 
+    /// Runs one channel over in-memory frames and returns every reply frame.
+    internal static async Task<List<JsonObject>> Exchange(DesktopGrants grants, JsonObject open, params JsonObject[] frames)
+    {
+        var output = new MemoryStream();
+        var input = new MemoryStream(Encoding.UTF8.GetBytes(string.Concat(frames.Select(frame => frame.ToJsonString() + "\n"))));
+        using var reader = new StreamReader(input, Encoding.UTF8, false, 4096, leaveOpen: true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await AdmissionChannel.RunAsync(output, reader, open, grants, (request, fence, cancellation) =>
+            Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "not_applicable" }), stop.Token);
+        return Encoding.UTF8.GetString(output.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => JsonNode.Parse(line)!.AsObject()).ToList();
+    }
+    internal static async Task<JsonObject> OpenOnce(DesktopGrants grants, JsonObject open) => (await Exchange(grants, open))[0];
+
     // A transport can expose response bytes before its asynchronous flush
     // continuation finishes. Hold precisely that boundary, without sleeps.
     private sealed class ReplyBoundaryStream(Stream inner) : Stream

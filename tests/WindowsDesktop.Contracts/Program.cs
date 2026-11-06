@@ -106,6 +106,42 @@ try
     Refuses(() => gated.ConfigureSurface("desktop", "automatic", 60, "timed"), "Unlogged grant refused");
     gated.Stop("stopped_by_person");
     Assert(!State(gated).GetProperty("deployment").TryGetProperty("grant", out _) || State(gated).GetProperty("deployment").GetProperty("grant").ValueKind == JsonValueKind.Null, "Stop works without logging");
+    // Tactical 159 decision 5: storage loss ends active and queued tasks with
+    // that reason and refuses new opens; nothing waits as resource_unavailable.
+    var failingRoot = Path.Combine(journalRoot, "failing");
+    var failing = new DesktopJournal(failingRoot);
+    var audited = TestBrowserProjection.Create(journal: failing); audited.SetReady(true);
+    audited.ConfigureSurface("desktop", "automatic", 300, "timed");
+    string Submitted(string owner) => JsonSerializer.SerializeToElement(audited.Admission.Submit(owner, owner, ["desktop"], 300, 60, "Audit fixture"), Contract.Json).GetProperty("intentId").GetString()!;
+    var activeIntent = Submitted("audit-active"); var queuedIntent = Submitted("audit-queued");
+    Assert(JsonSerializer.SerializeToElement(audited.Admission.Inspect("audit-queued", queuedIntent), Contract.Json).GetProperty("state").GetString() == "waiting_for_resource", "Second task queues");
+    for (var attempt = 0; ; attempt++)
+    {
+        // The journal's event writer may briefly hold a segment open.
+        try { Directory.Delete(Path.Combine(failingRoot, "audit"), true); break; }
+        catch (IOException) when (attempt < 50) { await Task.Delay(20); }
+    }
+    File.WriteAllText(Path.Combine(failingRoot, "audit"), "");
+    Assert(!failing.Begin("click", "after-loss") && !failing.Available, "Storage loss observed");
+    audited.Refresh();
+    foreach (var (owner, intent) in new[] { ("audit-active", activeIntent), ("audit-queued", queuedIntent) })
+    {
+        var view = JsonSerializer.SerializeToElement(audited.Admission.Inspect(owner, intent), Contract.Json);
+        Assert(view.GetProperty("state").GetString() == "ended" && view.GetProperty("terminalReason").GetString() == "audit_storage_unavailable",
+            "Audit loss ends the " + owner + " task with its own reason");
+    }
+    var auditOpen = await AdmissionChannelFixtures.OpenOnce(audited, new System.Text.Json.Nodes.JsonObject
+    {
+        ["operation"] = "control.open",
+        ["schema"] = AccessAdmission.Schema,
+        ["requestId"] = "audit-open",
+        ["reason"] = "fixture",
+        ["durationSeconds"] = 60,
+        ["waitSeconds"] = 60,
+        ["surfaces"] = new System.Text.Json.Nodes.JsonArray("desktop")
+    });
+    Assert(auditOpen["accepted"]!.GetValue<bool>() == false && auditOpen["errorCode"]!.GetValue<string>() == "audit_storage_unavailable" &&
+        auditOpen["requestId"]!.GetValue<string>() == "audit-open", "Open is refused while audit storage is unavailable");
 }
 finally { if (Directory.Exists(journalRoot)) Directory.Delete(journalRoot, true); }
 var clock = new TestTime();

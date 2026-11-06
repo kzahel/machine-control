@@ -14,6 +14,8 @@ internal sealed class AccessAdmission(object? gate = null)
     private readonly Dictionary<string, (bool Ready, bool NoticeVisible)> _ready = new(StringComparer.Ordinal);
     private readonly Dictionary<(string, string), double?> _pauses = new();
     private readonly HashSet<string> _owners = [];
+    // Intents this adapter submitted, so a platform failure can end them.
+    private readonly Dictionary<string, string> _intentOwners = new(StringComparer.Ordinal);
     private bool _refreshing;
     private bool _inputReady;
     internal Action? RefreshAvailability { get; set; }
@@ -23,7 +25,7 @@ internal sealed class AccessAdmission(object? gate = null)
     {
         lock (Gate)
         {
-            _invoke = null; _owners.Clear();
+            _invoke = null; _owners.Clear(); _intentOwners.Clear();
             foreach (var item in _sessions.Values) OwnershipChanged?.Invoke(item.Surfaces);
             _sessions.Clear();
         }
@@ -121,7 +123,7 @@ internal sealed class AccessAdmission(object? gate = null)
         {
             Refresh();
             if (!_owners.Contains(owner)) { Call("open", new() { ["owner"] = owner }); _owners.Add(owner); }
-            return Call("submit", new()
+            var submitted = Call("submit", new()
             {
                 ["owner"] = owner,
                 ["request"] = new JsonObject
@@ -135,6 +137,8 @@ internal sealed class AccessAdmission(object? gate = null)
                     ["durationMs"] = (int)(durationSeconds * 1000)
                 }
             });
+            if (submitted["intentId"]?.GetValue<string>() is { } intent) _intentOwners[intent] = owner;
+            return submitted;
         }
     }
     internal object Inspect(string owner, string id, bool heartbeat = false)
@@ -193,7 +197,29 @@ internal sealed class AccessAdmission(object? gate = null)
     }
     internal void Disconnect(string owner)
     {
-        lock (Gate) { if (_owners.Remove(owner) && _invoke is not null) Call("close", new() { ["owner"] = owner }); }
+        lock (Gate)
+        {
+            foreach (var (intent, holder) in _intentOwners.ToArray()) if (holder == owner) _intentOwners.Remove(intent);
+            if (_owners.Remove(owner) && _invoke is not null) Call("close", new() { ["owner"] = owner });
+        }
+    }
+    /// Ends every active or queued intent this adapter submitted with one
+    /// platform safety reason. Returns how many the policy accepted.
+    internal int EndAll(string reason)
+    {
+        lock (Gate)
+        {
+            if (_invoke is null || _intentOwners.Count == 0) return 0;
+            var ended = 0;
+            foreach (var (intent, owner) in _intentOwners.ToArray())
+            {
+                _intentOwners.Remove(intent);
+                try { Cancel(owner, intent, reason); ended++; }
+                catch (InvalidOperationException) { }
+                catch (Exception ex) when (PolicyLoss(ex)) { break; }
+            }
+            return ended;
+        }
     }
     internal void Stop(string reason) { lock (Gate) { if (_invoke is not null) Call("stop"); } }
     internal void CancelFromOperator(string id) => Call("deny", new() { ["intentId"] = id });

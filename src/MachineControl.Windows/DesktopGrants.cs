@@ -97,6 +97,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     }
     private void PublishReady()
     {
+        // Unaudited work never continues: end active and queued tasks with
+        // the specific reason rather than leaving them waiting.
+        if (Journal?.Available == false && _admission is not null) _admission.EndAll("audit_storage_unavailable");
         var healthy = Journal?.Available != false && !_updating;
         Admission.SetReady("desktop", healthy && (_ready || _preparedConsole && _lockedConsole), healthy && _ready);
         Admission.SetReady("browser", healthy && (_ready || BrowserOnlyWhileLocked), healthy && _ready);

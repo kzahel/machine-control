@@ -67,6 +67,7 @@ internal static class AdmissionChannel
             var operations = open["operations"]?.Deserialize<string[]>();
             if (operations is not null && (operations.Length is < 1 or > 64 || operations.Distinct().Count() != operations.Length ||
                 operations.Any(op => DesktopGrants.ScopeFor(op) is not { } scope || !scopes.Contains(scope)))) throw new ArgumentException("invalid_admission_operations");
+            if (grants.Journal?.Available == false) throw new InvalidOperationException("audit_storage_unavailable");
             prepared = open["preparedConsole"]?.GetValue<bool>() == true;
             if (prepared && (!grants.PreparedConsole || !scopes.Order().SequenceEqual(new[] { "control", "observe" })))
                 throw new InvalidOperationException("prepared_console_unavailable");
