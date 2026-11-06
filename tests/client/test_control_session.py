@@ -140,6 +140,18 @@ class ControlSessionTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def test_raw_frames_report_replies_and_channel_closure_unchanged(self):
+        import control_session
+        peer = Path(self.temporary.name) / "peer.py"
+        peer.write_text("import json,sys\n"
+            "for n,line in enumerate(sys.stdin):\n"
+            "    print(json.dumps({'requestId':json.loads(line)['requestId'],'n':n}),flush=True)\n"
+            "    if n == 1: sys.exit(0)\n")
+        target = dict(self.target, command=[sys.executable, str(peer)])
+        replies = control_session.raw_channel_frames(target, [{"requestId":"a"}, {"requestId":"b"}, {"requestId":"c"}])
+        self.assertEqual(replies[:2], [{"requestId":"a","n":0}, {"requestId":"b","n":1}])
+        self.assertEqual(replies[2:], [{"event":"closed"}])
+
     def session(self, mode="ready", **options):
         target = dict(self.target, environment={**self.target["environment"], "MC_ADMISSION_FIXTURE":mode})
         return ControlSession(target, reason="fixture", **options)

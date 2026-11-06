@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "admission-channel-v2.schema.json",
+  "title": "Live owner-bound admission channel (v2)",
+  "description": "Frames on an adapter `channel` connection. Every reply after a control.open frame, including refusals, uses the reply envelope. Codes listed in commonRefusal are the shared vocabulary for the conditions named in Tactical 159; residents may return other specific codes.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/open"
+    },
+    {
+      "$ref": "#/$defs/command"
+    },
+    {
+      "$ref": "#/$defs/reply"
+    }
+  ],
+  "$defs": {
+    "open": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "operation",
+        "requestId",
+        "reason",
+        "surfaces",
+        "waitSeconds",
+        "durationSeconds"
+      ],
+      "properties": {
+        "schema": {
+          "const": "machine-control-admission/v2"
+        },
+        "operation": {
+          "const": "control.open"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "requestSequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "surfaces": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "desktop",
+              "browser"
+            ]
+          }
+        },
+        "profileIds": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "waitSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 14400
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 900
+        },
+        "claimId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "preparedConsole": {
+          "const": true,
+          "description": "Request a locked-console Desktop owner (Desktop surface only)."
+        },
+        "desktopDelegation": {
+          "type": "object",
+          "description": "macOS native delegation; see desktop-delegation-v1."
+        },
+        "outerRecovery": {
+          "type": "object",
+          "description": "macOS borrowed outer recovery; see outer-borrow-v1."
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "required": [
+        "operation",
+        "requestId"
+      ],
+      "properties": {
+        "operation": {
+          "enum": [
+            "control.status",
+            "control.heartbeat",
+            "control.accept",
+            "control.cancel",
+            "control.renew",
+            "control.dispatch"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "requestSequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offerGeneration": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resourceGenerations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "minimum": 15,
+          "maximum": 900
+        },
+        "request": {
+          "type": "object"
+        }
+      }
+    },
+    "reply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "requestId",
+        "accepted",
+        "errorCode",
+        "data"
+      ],
+      "properties": {
+        "schema": {
+          "const": "machine-control-admission-channel/v2"
+        },
+        "requestId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "commonRefusal": {
+      "enum": [
+        "exact_browser_profile_required",
+        "invalid_browser_profiles",
+        "invalid_admission_surfaces",
+        "unsupported_admission_schema",
+        "unsupported_admission_operation",
+        "invalid_renewal_duration",
+        "invalid_admission_operations",
+        "invalid_admission_request",
+        "invalid_request_sequence",
+        "prepared_console_required",
+        "invalid_prepared_console_request",
+        "audit_storage_unavailable",
+        "control_renewal_unavailable",
+        "admission_queue_full"
+      ]
+    },
+    "view": {
+      "type": "object",
+      "required": [
+        "schema",
+        "revision",
+        "intentId",
+        "state",
+        "terminalReason",
+        "offerGeneration",
+        "resourceGenerations",
+        "blockingReasons",
+        "surfaces",
+        "profileIds"
+      ],
+      "properties": {
+        "schema": {
+          "const": "machine-control-admission/v2"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "waiting_for_approval",
+            "waiting_for_resource",
+            "paused",
+            "announcing",
+            "offered",
+            "active",
+            "ended"
+          ]
+        },
+        "renewal": {
+          "const": "owner_connection/v1",
+          "description": "Present only when control.renew can succeed for this owner."
+        },
+        "terminalReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "offerGeneration": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resourceGenerations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "blockingReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "desktop",
+              "browser"
+            ]
+          }
+        },
+        "profileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requestSequencing": {
+          "const": "strict"
+        }
+      }
+    }
+  }
+}

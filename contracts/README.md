@@ -97,3 +97,16 @@ The [live admission channel schema](access-admission-channel-v1.schema.json) and
 - [Desktop delegation v1](desktop-delegation-v1.schema.json) carries bounded
   attribution on a separately authenticated native broker channel. Its public
   fields never confer authority.
+
+- [Admission channel v2](admission-channel-v2.schema.json) describes the live
+  owner channel on every desktop resident: open/command frames, the reply
+  envelope used for every reply after `control.open` (refusals included), the
+  shared admission view, and the common refusal vocabulary. `renewal` appears
+  only when `control.renew` can succeed for that owner.
+- [Deployment status v1](deployment-status-v1.schema.json),
+  [locked-use status v1](locked-use-status-v1.schema.json) and
+  [common desktop status v1](desktop-status-common-v1.schema.json) describe
+  the `status.data` fields every desktop resident projects: `desktopState`,
+  `deployment.policy.protectedAdministration` and a common locked-use `phase`.
+  `tests/conformance/platform_contract.py` checks a claimed target against
+  these contracts through the ordinary CLI (Tactical 159).

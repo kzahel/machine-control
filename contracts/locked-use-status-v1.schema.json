@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "locked-use-status-v1.schema.json",
+  "title": "Covered locked-use status (status.data.lockedUse)",
+  "description": "Common fields on platforms that implement covered locked use (macOS, Windows). Linux omits lockedUse or reports supported=false.",
+  "type": "object",
+  "required": [
+    "supported",
+    "enabled",
+    "phase"
+  ],
+  "properties": {
+    "supported": {
+      "type": "boolean"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "phase": {
+      "enum": [
+        "off",
+        "ready",
+        "paused",
+        "recovering",
+        "waiting_for_lock",
+        "unlocking",
+        "active",
+        "relocking"
+      ]
+    }
+  }
+}

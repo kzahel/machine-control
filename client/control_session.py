@@ -383,9 +383,88 @@ class ControlSession:
         self.close()
 
 
+def raw_channel_frames(target, frames, *, reply_timeout=15.0):
+    """Diagnostic parity probe: send frames unchanged, return raw replies.
+
+    Like `desktop raw`, nothing is validated, translated, renewed or retried;
+    conformance tooling inspects the resident's own framing. A closed channel
+    is reported as {"event": "closed"} after the frame that caused it.
+    """
+    import select
+    mc.require_selected_claim(target)
+    command = mc.resolved_adapter_command(target)
+    if command is None:
+        raise mc.ClientError("adapter_unavailable", "Control adapter unavailable")
+    process = subprocess.Popen([*command, "channel"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, env={**os.environ, **target.get("environment", {})})
+    replies, buffer = [], b""
+    def read_line(deadline):
+        nonlocal buffer
+        while b"\n" not in buffer:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+            ready, _, _ = select.select([process.stdout], [], [], remaining)
+            if not ready:
+                return None
+            chunk = os.read(process.stdout.fileno(), 65536)
+            if not chunk:
+                return b""
+            buffer += chunk
+        line, buffer = buffer.split(b"\n", 1)
+        return line
+    try:
+        for frame in frames:
+            try:
+                process.stdin.write(json.dumps(frame, separators=(",", ":")).encode() + b"\n")
+                process.stdin.flush()
+            except (BrokenPipeError, OSError):
+                replies.append({"event": "closed"}); break
+            line = read_line(time.monotonic() + reply_timeout)
+            if line is None:
+                replies.append({"event": "timeout"}); continue
+            if line == b"":
+                replies.append({"event": "closed"}); break
+            try:
+                replies.append(json.loads(line))
+            except ValueError:
+                replies.append({"event": "invalid_frame"})
+            # A refusal that closes ownership must show up as EOF promptly.
+            if buffer == b"":
+                ready, _, _ = select.select([process.stdout], [], [], 0.5)
+                if ready:
+                    chunk = os.read(process.stdout.fileno(), 65536)
+                    if chunk == b"":
+                        replies.append({"event": "closed"}); break
+                    buffer += chunk
+    finally:
+        try:
+            process.stdin.close()
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill(); process.wait()
+    return replies
+
+
 def handle_control(alias, target, arguments):
     if arguments == ["status"]:
         return mc.send_resident_request(alias, target, {"operation":"status"})
+    if arguments == ["frames"]:
+        frames = []
+        for line in sys.stdin.buffer.read(1024 * 1024 + 1).splitlines():
+            if line.strip():
+                try:
+                    frames.append(json.loads(line))
+                except ValueError:
+                    raise mc.ClientError("invalid_control_request", "Each frame must be one JSON object") from None
+        if len(frames) > 64:
+            raise mc.ClientError("invalid_control_request", "At most 64 diagnostic frames")
+        for reply in raw_channel_frames(target, frames):
+            print(json.dumps(reply, separators=(",", ":")), flush=True)
+        return 0
     parser = argparse.ArgumentParser(prog="machine-control control")
     parser.add_argument("command", choices=["call", "stream"])
     parser.add_argument("json", nargs="?")

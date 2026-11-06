@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "desktop-status-common-v1.schema.json",
+  "title": "Common desktop status fields (status.data)",
+  "type": "object",
+  "required": [
+    "desktopState",
+    "deployment"
+  ],
+  "properties": {
+    "desktopState": {
+      "enum": [
+        "locked",
+        "unlocked",
+        "no_session",
+        "unknown"
+      ]
+    },
+    "deployment": {
+      "$ref": "deployment-status-v1.schema.json"
+    },
+    "lockedUse": {
+      "$ref": "locked-use-status-v1.schema.json"
+    }
+  }
+}

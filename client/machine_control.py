@@ -4064,6 +4064,7 @@ Commands:
   control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]
                                     Wait, accept, execute once and release
   control stream --reason TEXT [--surface desktop|browser]  JSON lines; one live owner
+  control frames                    Diagnostic: raw channel frames from stdin
   mcp [--reason TEXT] [--observe action|explicit]
                                     Candidate persistent Python MCP session
   desktop status|capabilities|applications|windows|snapshot|action|capture

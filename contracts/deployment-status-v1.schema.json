@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "deployment-status-v1.schema.json",
+  "title": "Resident deployment policy projection (status.data.deployment)",
+  "description": "Common on macOS, Windows and Linux desktop residents. Platform-specific keys may appear alongside.",
+  "type": "object",
+  "required": [
+    "policy",
+    "availability",
+    "browserOnlyWhileLocked"
+  ],
+  "properties": {
+    "policy": {
+      "type": "object",
+      "required": [
+        "preset",
+        "grantMode",
+        "protectedAdministration"
+      ],
+      "properties": {
+        "preset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "grantMode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protectedAdministration": {
+          "type": "boolean",
+          "description": "True only when protected operations such as macOS appliance session.unlock are admitted."
+        }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "required": [
+        "paused",
+        "blockingReasons"
+      ],
+      "properties": {
+        "paused": {
+          "type": "boolean"
+        },
+        "blockingReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "browserOnlyWhileLocked": {
+      "type": "boolean"
+    }
+  }
+}
