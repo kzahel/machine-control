@@ -171,18 +171,17 @@ your harness's image viewer. A JSON pathname alone is not an image observation.
 For a native Open or Save panel an app has already shown (macOS), use
 `desktop dialog choose --path /absolute/path --target APP` within its admitted
 Desktop task. Browser permission does not authorize OS-dialog fallback.
-Locked console: the route differs by platform; check `desktop status` first.
-macOS: once the operator enables locked use and Desktop access, an ordinary
-Desktop owner started while locked (control stream/call, ControlSession, no
-extra flag) is the covered route: it unlocks behind covers and relocks at the
-end. Do not add --prepared-console; a plain CLI/SDK caller gets
-invalid_prepared_console_request. Windows: start the Desktop owner with
-control --prepared-console (else prepared_console_required), then send
-{"operation":"session.unlock"} through that same owner before other work;
-prepared Windows owners do not renew, so keep each task within 900 seconds.
-Keep the task owner alive; closing, expiry or a safety failure triggers native
-cleanup/relock. Report setup refusals such as locked_use_disabled or
-desktop_unavailable to the operator; do not work around them. On macOS,
+Locked console: when `desktop status` reports desktopState "locked", open the
+Desktop owner with `control stream|call --surface desktop --prepared-console`
+(or `ControlSession(..., prepared_console=True)`); it is the same on macOS and
+Windows. Once accepted, the console is unlocked behind covers and relocks when
+the owner ends; no separate unlock request is needed. Keep the task owner
+alive; closing, expiry or a safety failure triggers native cleanup/relock.
+Windows prepared owners do not renew yet, so keep each task within 900
+seconds. Linux has no locked use and refuses with locked_use_unsupported.
+Report setup refusals such as locked_use_disabled, prepared_console_unavailable
+or desktop_unavailable to the operator; do not work around them. macOS still
+accepts a flagless owner on a locked console for older clients. On macOS,
 `desktop session unlock` is a separate managed-appliance operation that leaves
 the console unlocked; workstations refuse it (operation_not_permitted_by_policy).
 Use it only where status reports protectedAdministration: true. Older
@@ -193,11 +192,9 @@ A trusted native desktop integration can bind a local control channel to
 its selected live agent process. The installed identity negotiates this
 capability; a proxy pathname or session label alone grants nothing. Use
 `control call` or the ControlSession SDK for delegated ordinary desktop work.
-Only such a natively delegated Mac channel uses --prepared-console (or
-`ControlSession(..., prepared_console=True)`) to compose its trust with
-separately approved desktop consent and prepared locked-use control; trust
-alone cannot unlock or arm locked control. Without delegation, use the ordinary
-locked-console route above.
+A delegated Mac channel uses the same --prepared-console request to compose
+its trust with separately approved desktop consent and prepared locked-use
+control; trust alone cannot unlock or arm locked control.
 Pause preserves consent but ends current control; wait for a fresh session
 before new work and never replay an uncertain mutation. Closing the agent
 ends its delegated tasks, while separately approved MC access remains valid.

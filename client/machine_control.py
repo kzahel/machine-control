@@ -2337,8 +2337,9 @@ def validate_unlock_status(value: Any) -> None:
 
 APPLICATION_TARGET = (
     "APP selects a running application. On macOS it is a pid, an exact name or "
-    "bundle ID (Google Chrome, com.google.Chrome), or a unique partial match; "
-    "use desktop applications to list them."
+    "bundle ID (Google Chrome, com.google.Chrome), or a unique partial match. On "
+    "Windows it is a pid, process or product name, app user model ID or window "
+    "title. Use desktop applications to list valid selectors on any target."
 )
 
 DESKTOP_USAGE = {
@@ -2423,12 +2424,12 @@ DESKTOP_USAGE = {
         "desktop session end --session-id ID\n"
         "desktop session unlock --expected-desktop-generation ID\n"
         "    [--expected-helper-generation ID] --request-id ID\n"
-        "  Legacy and appliance-only routes. Current Mac residents refuse session\n"
-        "  control (control_session_required); work while locked with an ordinary\n"
-        "  `control stream --surface desktop` owner instead, which unlocks behind\n"
-        "  covers and relocks when it ends. On macOS, session unlock requires a\n"
-        "  managed appliance (status protectedAdministration: true). On Windows,\n"
-        "  send session.unlock through a `control --prepared-console` owner instead."
+        "  Legacy and appliance-only routes. For locked work on macOS or Windows,\n"
+        "  open `control stream|call --surface desktop --prepared-console`; it\n"
+        "  unlocks behind covers at acceptance and relocks when it ends. Current\n"
+        "  Mac residents refuse session control (control_session_required). On\n"
+        "  macOS, session unlock requires a managed appliance (status\n"
+        "  protectedAdministration: true)."
     ),
     "call": (
         "desktop call|call-local JSON\n"
@@ -2708,6 +2709,19 @@ def _desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
                 "desktop application requires launch, activate, or terminate",
             )
         action, values = rest[0], rest[1:]
+        # `--argument --gui` passes a dash-prefixed program argument; argparse
+        # would otherwise read it as an unknown option.
+        joined: list[str] = []
+        index = 0
+        while index < len(values):
+            if values[index] == "--argument" and index + 1 < len(values) \
+                    and values[index + 1].startswith("-"):
+                joined.append("--argument=" + values[index + 1])
+                index += 2
+            else:
+                joined.append(values[index])
+                index += 1
+        values = joined
         options = parse_options(
             values,
             [
@@ -4063,7 +4077,8 @@ Commands:
                                     Operate Chrome through the extension
   control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]
                                     Wait, accept, execute once and release
-  control stream --reason TEXT [--surface desktop|browser]  JSON lines; one live owner
+  control stream --reason TEXT [--surface desktop|browser] [--prepared-console]
+                                    JSON lines; one live owner
   control frames                    Diagnostic: raw channel frames from stdin
   mcp [--reason TEXT] [--observe action|explicit]
                                     Candidate persistent Python MCP session
@@ -4071,7 +4086,7 @@ Commands:
         (desktop --help or desktop COMMAND --help; help works offline)
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
-                                    Mac appliance-only; Windows uses a prepared owner
+                                    Mac appliance-only; use --prepared-console
   desktop session control|end       Legacy; use control stream while locked
   desktop application launch|activate|terminate
   desktop call|call-local JSON     Translate a common resident request
