@@ -82,13 +82,89 @@ final class AdmissionChannelTests: XCTestCase {
     }
 
 
-    func testPreparedRequestCannotBeClaimedByAnUndelegatedOrMistypedCaller() throws {
-        for value: Any in [true, "true", 1, false] {
-            let response = exchange(try connect(),["operation":"control.open", "schema":AccessAdmission.schema,
-                "requestId":UUID().uuidString, "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60,
-                "waitSeconds":120, "preparedConsole":value])
-            XCTAssertEqual(response["errorCode"] as? String,"invalid_prepared_console_request")
+    func testPreparedRequestMustBeAnExactDesktopBoolean() throws {
+        let requests: [[String:Any]] = [
+            ["surfaces":["desktop"], "preparedConsole":"true"],
+            ["surfaces":["desktop"], "preparedConsole":1],
+            ["surfaces":["desktop"], "preparedConsole":false],
+            ["surfaces":["browser"], "profileIds":["fixture-profile"], "preparedConsole":true],
+            ["surfaces":["desktop", "browser"], "profileIds":["fixture-profile"], "preparedConsole":true],
+            ["surfaces":["desktop"], "operations":["snapshot"], "preparedConsole":true, "outerRecovery":[:]],
+        ]
+        for fields in requests {
+            var request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema,
+                "requestId":UUID().uuidString, "reason":"fixture", "durationSeconds":60, "waitSeconds":120]
+            request.merge(fields) { $1 }
+            let response = exchange(try connect(), request)
+            XCTAssertEqual(response["errorCode"] as? String,"invalid_prepared_console_request", "For \(fields)")
         }
+        XCTAssertEqual(effects,0)
+    }
+
+    func testPlainPreparedOwnerIsTheCoveredOwnerAFlaglessOwnerGets() throws {
+        var covered: [String] = []
+        server.coveredActivation = { channel,_ in
+            XCTAssertNil(channel.delegation)
+            covered.append(channel.preparedConsole ? "prepared" : "flagless")
+        }
+        func run(_ id: String, prepared: Bool) throws -> [String:Any] {
+            let client = try connect()
+            var request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema, "requestId":id,
+                "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120]
+            if prepared { request["preparedConsole"] = true }
+            let offer = exchange(client, request)
+            XCTAssertEqual(offer["accepted"] as? Bool,true, "Open refused: \(offer)")
+            let view = offer["data"] as? [String:Any] ?? [:]
+            XCTAssertNil(view["authorizationProfile"])
+            let accepted = command(client,"control.accept",["offerGeneration":view["offerGeneration"] ?? -1])
+            _ = command(client,"control.cancel")
+            return accepted
+        }
+        // Locked use enabled: both accepted through the same covered route.
+        server.preparedConsoleReady = { true }
+        XCTAssertEqual(try run("plain-prepared", prepared:true)["accepted"] as? Bool,true)
+        XCTAssertEqual(try run("plain-flagless", prepared:false)["accepted"] as? Bool,true)
+        XCTAssertEqual(covered,["prepared","flagless"])
+        // Locked use disabled: the explicit request refuses as on the delegated
+        // path; the flagless compatibility owner is unchanged.
+        server.preparedConsoleReady = { false }
+        let refused = try run("plain-prepared-disabled", prepared:true)
+        XCTAssertEqual(refused["errorCode"] as? String,"locked_use_disabled")
+        XCTAssertEqual(try run("plain-flagless-disabled", prepared:false)["accepted"] as? Bool,true)
+        XCTAssertEqual(covered,["prepared","flagless","flagless"])
+        XCTAssertEqual(effects,0)
+    }
+
+    func testDelegatedPreparedOwnerKeepsItsProfile() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-prepared-delegated-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        server.callerTrust = DesktopCallerTrust(directory:directory.path)
+        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+        server.callerTrust.peerValid = { _,_ in true }
+        server.callerTrust.peerStillValid = { _,_ in true }
+        var covered = 0
+        server.preparedConsoleReady = { true }
+        server.coveredActivation = { channel,_ in XCTAssertTrue(channel.preparedConsole); covered += 1 }
+        func delegated(_ id: String, prepared: Bool) throws -> [String:Any] {
+            var request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema, "requestId":id,
+                "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120,
+                "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]]
+            if prepared { request["preparedConsole"] = true }
+            let client = try connect(), offer = exchange(client, request)
+            XCTAssertEqual(offer["accepted"] as? Bool,true, "Open refused: \(offer)")
+            let view = offer["data"] as? [String:Any] ?? [:]
+            let accepted = command(client,"control.accept",["offerGeneration":view["offerGeneration"] ?? -1])
+            _ = command(client,"control.cancel")
+            return view.merging(["acceptedCode":accepted["errorCode"] ?? NSNull()]) { $1 }
+        }
+        let prepared = try delegated("delegated-prepared", prepared:true)
+        XCTAssertEqual(prepared["authorizationProfile"] as? String,"prepared_console_with_explicit_consent")
+        XCTAssertTrue(prepared["acceptedCode"] is NSNull, "Delegated prepared accept refused: \(prepared)")
+        // Ordinary delegated owners never enter covered activation.
+        let ordinary = try delegated("delegated-ordinary", prepared:false)
+        XCTAssertEqual(ordinary["authorizationProfile"] as? String,"ordinary_local_desktop")
+        XCTAssertEqual(covered,1)
         XCTAssertEqual(effects,0)
     }
 

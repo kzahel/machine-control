@@ -104,8 +104,13 @@ final class AdmissionChannel {
             delegation = try DesktopDelegation.parse(request["desktopDelegation"])
         }
         if let value = request["preparedConsole"] {
+            // A plain caller's flag explicitly requests the same covered owner
+            // a flagless plain Desktop owner receives; it adds no authority.
+            // A delegated caller's flag selects the prepared-console profile.
             guard let boolean = value as? NSNumber, CFGetTypeID(boolean) == CFBooleanGetTypeID(), boolean.boolValue,
-                  delegation != nil, scopes == [.observe,.control] else { throw MacUIError.usage("invalid_prepared_console_request") }
+                  request["outerRecovery"] == nil, scopes == [.observe,.control] else {
+                throw MacUIError.usage("invalid_prepared_console_request")
+            }
             preparedConsole = true
         }
         if request["outerRecovery"] != nil {
