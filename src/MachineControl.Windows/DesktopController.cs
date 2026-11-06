@@ -1228,6 +1228,18 @@ internal static partial class DesktopController
                 "invalid_key_duration",
                 "durationMs must be between 1 and 5000");
         }
+        if (keyMode == "virtual_key" && KeyChord.Parse(request.Key, KeyLayout) is null)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key",
+                $"Unsupported key chord '{request.Key}'; use modifiers (ctrl, alt, shift, win) " +
+                "joined with + and one key such as a-z, 0-9, f1-f24, enter, escape, tab, " +
+                "space, backspace, delete, home, end, pageup, pagedown or an arrow");
+        }
         if (keyMode == "scan_code" && !TryGetScanCodeChord(request.Key, out _))
         {
             return Failure(
@@ -2440,36 +2452,19 @@ internal static partial class DesktopController
         SendVirtualKey(key, durationMs);
     }
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern short VkKeyScanW(char character);
+
+    private static short KeyLayout(char character) => VkKeyScanW(character);
+
     private static void SendVirtualKey(string key, int durationMs)
     {
-        var strokes = key.ToLowerInvariant() switch
-        {
-            "enter" => new ushort[] { 0x0D },
-            "escape" => new ushort[] { 0x1B },
-            "tab" => new ushort[] { 0x09 },
-            "space" => new ushort[] { 0x20 },
-            "alt+y" => new ushort[] { 0x12, 0x59 },
-            "alt+n" => new ushort[] { 0x12, 0x4E },
-            "alt+tab" => new ushort[] { 0x12, 0x09 },
-            "alt+f4" => new ushort[] { 0x12, 0x73 },
-            "ctrl+a" => new ushort[] { 0x11, 0x41 },
-            "ctrl+escape" => new ushort[] { 0x11, 0x1B },
-            "ctrl+s" => new ushort[] { 0x11, 0x53 },
-            "ctrl+w" => new ushort[] { 0x11, 0x57 },
-            "shift+f10" => new ushort[] { 0x10, 0x79 },
-            "win" => new ushort[] { 0x5B },
-            "win+a" => new ushort[] { 0x5B, 0x41 },
-            "win+d" => new ushort[] { 0x5B, 0x44 },
-            "win+e" => new ushort[] { 0x5B, 0x45 },
-            "win+i" => new ushort[] { 0x5B, 0x49 },
-            "win+l" => new ushort[] { 0x5B, 0x4C },
-            "win+n" => new ushort[] { 0x5B, 0x4E },
-            "win+r" => new ushort[] { 0x5B, 0x52 },
-            "win+s" => new ushort[] { 0x5B, 0x53 },
-            _ => throw new ArgumentException($"Unsupported key '{key}'"),
-        };
+        // Parsed completely before delivery: no partial chord is pressed.
+        var strokes = KeyChord.Parse(key, KeyLayout)
+            ?? throw new ArgumentException($"Unsupported key '{key}'");
+        uint Flags(KeyStroke stroke) => stroke.Extended ? NativeMethods.KEYEVENTF_EXTENDEDKEY : 0;
         SendKeyboardInputs(strokes
-            .Select(stroke => KeyboardInput(stroke, 0))
+            .Select(stroke => KeyboardInput(stroke.VirtualKey, Flags(stroke)))
             .ToArray());
         try
         {
@@ -2480,8 +2475,8 @@ internal static partial class DesktopController
             ReleaseKeyboardInputs(strokes
                 .Reverse()
                 .Select(stroke => KeyboardInput(
-                    stroke,
-                    NativeMethods.KEYEVENTF_KEYUP))
+                    stroke.VirtualKey,
+                    Flags(stroke) | NativeMethods.KEYEVENTF_KEYUP))
                 .ToArray());
         }
     }

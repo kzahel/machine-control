@@ -36,6 +36,7 @@ static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElem
 await RetainedPipeProxyFixtures.RunAsync();
 CompanionBinaryIdentityFixtures.Run();
 ApplicationTargetFixtures.Run();
+KeyChordFixtures.Run();
 await GuardianJsonFixtures.RunAsync();
 for (var cause = 0; cause <= 11; ++cause)
 {
