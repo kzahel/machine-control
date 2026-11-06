@@ -275,6 +275,24 @@ final class AdmissionChannelTests: XCTestCase {
             XCTAssertEqual(view?["state"] as? String,"ended", "Unexpected status: \(reply)")
             XCTAssertEqual(view?["terminalReason"] as? String,"audit_storage_unavailable")
         }
+        // A new open is refused in the channel schema, not a v0 envelope.
+        let refused = exchange(try connect(),["operation":"control.open", "schema":AccessAdmission.schema, "requestId":"audit-open",
+            "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120])
+        XCTAssertEqual(refused["schema"] as? String,AdmissionChannel.schema)
+        XCTAssertEqual(refused["accepted"] as? Bool,false)
+        XCTAssertEqual(refused["errorCode"] as? String,"audit_storage_unavailable")
+        XCTAssertEqual(effects,0)
+    }
+
+    func testOpenRefusalsUseTheChannelSchema() throws {
+        // One process may hold four live channels; the fifth is refused.
+        for index in 0..<4 { _ = open(try connect(),"limit-\(index)") }
+        let full = exchange(try connect(),["operation":"control.open", "schema":AccessAdmission.schema, "requestId":"limit-full",
+            "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120])
+        XCTAssertEqual(full["schema"] as? String,AdmissionChannel.schema)
+        XCTAssertEqual(full["accepted"] as? Bool,false)
+        XCTAssertEqual(full["errorCode"] as? String,"admission_queue_full")
+        XCTAssertTrue(full["data"] is NSNull)
         XCTAssertEqual(effects,0)
     }
 

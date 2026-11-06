@@ -300,6 +300,10 @@ final class AdmissionChannel {
             (coveredSessionID == nil || (coveredOwner >= 0 &&
                 server?.service.displayedUnlockStatus["coveredRenewal"] as? String == "owner_connection/v1"))
     }
+    /// A channel-schema refusal for a frame answered outside a live channel.
+    static func refusal(_ id: String, code: String) -> [String:Any] {
+        ["schema":schema, "requestId":id, "accepted":false, "errorCode":code, "data":NSNull()]
+    }
     func reply(_ id: String, data: [String:Any]? = nil, error: String? = nil) {
         guard !closed else { return }
         do {

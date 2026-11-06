@@ -628,7 +628,8 @@ final class ResidentServer {
             return
         }
         if broker.journal?.begin(request, caller: caller) == false, !["grant.revoke", "server.stop", "session.control.end"].contains(operation) {
-            respond(client, request, service.refusal(request, code: "audit_storage_unavailable", message: "Audit storage unavailable"), caller: caller, claimID: claimID)
+            respond(client, request, service.refusal(request, code: "audit_storage_unavailable", message: "Audit storage unavailable"),
+                    caller: caller, claimID: claimID, channel: operation == "control.open")
             return
         }
         // Observe transitions before authorization, rather than leaving a
@@ -637,7 +638,8 @@ final class ResidentServer {
 
         if operation == "control.open" {
             guard channels.count < 64, channels.values.filter({ $0.caller.pid == caller.pid }).count < 4 else {
-                respond(client, request, service.refusal(request, code:"admission_queue_full", message:"Admission channel limit reached"), caller:caller, claimID:claimID); return
+                respond(client, request, service.refusal(request, code:"admission_queue_full", message:"Admission channel limit reached"),
+                        caller:caller, claimID:claimID, channel:true); return
             }
             let channel = AdmissionChannel(client, caller:caller, server:self)
             // Transfer descriptor ownership before opening: an immediately
@@ -823,7 +825,7 @@ final class ResidentServer {
     }
 
     private func respond(_ client: Int32, _ request: [String: Any], _ originalResponse: [String: Any],
-                         caller: CallerIdentity, claimID: String?) {
+                         caller: CallerIdentity, claimID: String?, channel: Bool = false) {
         var response = originalResponse
         if broker.journal?.record(response) == false {
             response["accepted"] = false; response["errorCode"] = "audit_storage_unavailable"
@@ -845,7 +847,11 @@ final class ResidentServer {
         }
         do {
             let id = UUID()
-            let reply = try SocketReply(client:client, data:encodeJSONLine(response))
+            // A refused control.open still answers in the admission channel
+            // schema so the client can read the refusal code.
+            let wire = channel ? AdmissionChannel.refusal(request["requestId"] as? String ?? "",
+                code:response["errorCode"] as? String ?? "control_refused") : response
+            let reply = try SocketReply(client:client, data:encodeJSONLine(wire))
             replies[id] = reply
             reply.completed = { [weak self] in self?.replies.removeValue(forKey:id) }
             reply.start()
