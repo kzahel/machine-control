@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Automation;
+using static MachineControl.Windows.ApplicationTargets;
 
 namespace MachineControl.Windows;
 
@@ -251,18 +252,18 @@ internal static partial class DesktopController
                 "snapshot" => Snapshot(
                     request, generation, desktopName, timer),
                 "screenshot" => Screenshot(
-                    request, generation, desktopName, timer),
+                    request, generation, desktopName, desktop, timer),
                 "invoke" => Invoke(request, generation, desktopName, timer),
                 "set.value" => SetValue(
                     request, generation, desktopName, timer),
                 "click" => PointerSerialized(() => Click(request, generation, desktopName, timer)),
                 "move" or "drag" or "scroll" => PointerSerialized(() => Pointer(request, generation, desktopName, timer)),
-                "key" => Key(request, generation, desktopName, timer),
+                "key" => Key(request, generation, desktopName, desktop, timer),
                 "key.timeline" => KeyTimeline(
                     request, generation, desktopName, timer),
                 "key.delayed_hold" => KeyDelayedHold(
                     request, generation, desktopName, timer),
-                "type" => TypeText(request, generation, desktopName, timer),
+                "type" => TypeText(request, generation, desktopName, desktop, timer),
                 "window.state" => WindowState(
                     request, generation, desktopName, timer),
                 "session.lock" => LockSession(
@@ -484,6 +485,30 @@ internal static partial class DesktopController
                 timer,
                 "application_activation_unavailable",
                 "Registered application activation requires the Medium interactive Default desktop helper");
+        }
+        if (string.IsNullOrWhiteSpace(request.ApplicationId) &&
+            !string.IsNullOrWhiteSpace(request.Target))
+        {
+            // Bring an already running application to the front by target.
+            var resolution = ResolveTarget(desktop, request.Target);
+            if (resolution.Window is not { } window)
+                return TargetFailure(request, generation, desktopName, timer, resolution);
+            var front = ActivateWindow(window);
+            return Success(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "windows.native/set_foreground_window",
+                "confirmed",
+                front ? "confirmed" : "no_effect",
+                new { target = request.Target, resolved = WindowIdentity(window), keyboardReceiver = KeyboardReceiver() },
+                fidelity: "running_application_activation") with
+            {
+                FocusConsequence = "target_application_activated",
+                ErrorCode = front ? null : "target_unavailable",
+                Accepted = front,
+            };
         }
         if (string.IsNullOrWhiteSpace(request.ApplicationId) ||
             request.ApplicationId.Length > 512 ||
@@ -765,8 +790,27 @@ internal static partial class DesktopController
         Request request,
         string generation,
         string desktopName,
+        IntPtr desktop,
         Stopwatch timer)
     {
+        // A window capture names its window by hwnd or by application
+        // target. It never silently widens to the foreground or full screen.
+        ApplicationWindow? resolvedWindow = null;
+        var selection = request.Hwnd is > 0 ? "hwnd" : "display";
+        if (request.Hwnd is not > 0 && request.Target is not null)
+        {
+            var resolution = ResolveTarget(desktop, request.Target);
+            if (resolution.Window is null) return TargetFailure(request, generation, desktopName, timer, resolution);
+            resolvedWindow = resolution.Window;
+            selection = resolution.Selection;
+        }
+        else if (request.Hwnd is not > 0 &&
+            string.Equals(request.Scope, "window", StringComparison.OrdinalIgnoreCase))
+        {
+            return Failure(request, generation, desktopName, timer, "invalid_request",
+                "A window capture requires target or windowId");
+        }
+        if (resolvedWindow is not null) request = request with { Hwnd = resolvedWindow.Hwnd };
         var virtualScreen = GetVirtualScreen();
         var bounds = request.Hwnd is > 0 &&
             NativeMethods.GetWindowRect(
@@ -856,6 +900,9 @@ internal static partial class DesktopController
                 artifactId,
                 targetLocalPath = path,
                 hwnd = request.Hwnd,
+                scope = request.Hwnd is > 0 ? "window" : "display",
+                selection,
+                window = resolvedWindow is null ? null : WindowIdentity(resolvedWindow),
                 bytes = fileBytes.Length,
                 width = bounds.Width,
                 height = bounds.Height,
@@ -883,6 +930,16 @@ internal static partial class DesktopController
                 "invoke requires query or reference");
         }
         var root = ResolveAutomationRoot(request);
+        if (root is null)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "target_unavailable",
+                "The requested automation root is unavailable");
+        }
         CachedSelector? selector = null;
         if (!string.IsNullOrWhiteSpace(request.Reference) &&
             (!Selectors.TryGetValue(request.Reference, out selector) ||
@@ -1025,6 +1082,16 @@ internal static partial class DesktopController
                 "set.value requires text plus query or reference");
         }
         var root = ResolveAutomationRoot(request);
+        if (root is null)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "target_unavailable",
+                "The requested automation root is unavailable");
+        }
         CachedSelector? selector = null;
         if (!string.IsNullOrWhiteSpace(request.Reference) &&
             (!Selectors.TryGetValue(request.Reference, out selector) ||
@@ -1114,6 +1181,7 @@ internal static partial class DesktopController
         Request request,
         string generation,
         string desktopName,
+        IntPtr desktop,
         Stopwatch timer)
     {
         if (string.IsNullOrWhiteSpace(request.Key))
@@ -1158,6 +1226,9 @@ internal static partial class DesktopController
                 "unsupported_scan_code_key",
                 $"Unsupported scan-code key '{request.Key}'");
         }
+        if (PrepareKeyboardTarget(request, generation, desktopName, desktop, timer, out var activated) is { } untargeted)
+            return untargeted;
+        var receiver = KeyboardReceiver();
         SendKey(request.Key, keyMode, durationMs);
         return Success(
             request,
@@ -1169,7 +1240,7 @@ internal static partial class DesktopController
                 : "windows.native/send_input",
             "confirmed",
             "unverifiable",
-            new { key = request.Key, keyMode, durationMs },
+            new { key = request.Key, keyMode, durationMs, keyboardReceiver = receiver, target = ResolvedTargetData(request, activated) },
             fidelity: keyMode == "scan_code"
                 ? "hardware_scan_code_compatible"
                 : "native");
@@ -1350,6 +1421,7 @@ internal static partial class DesktopController
         Request request,
         string generation,
         string desktopName,
+        IntPtr desktop,
         Stopwatch timer)
     {
         if (request.Text is null || request.Text.Length > 4096)
@@ -1362,6 +1434,9 @@ internal static partial class DesktopController
                 "invalid_request",
                 "type requires text no longer than 4096 UTF-16 code units");
         }
+        if (PrepareKeyboardTarget(request, generation, desktopName, desktop, timer, out var activated) is { } untargeted)
+            return untargeted;
+        var receiver = KeyboardReceiver();
         SendText(request.Text);
         return Success(
             request,
@@ -1371,7 +1446,7 @@ internal static partial class DesktopController
             "windows.native/send_input_unicode",
             "confirmed",
             "unverifiable",
-            new { textLength = request.Text.Length });
+            new { textLength = request.Text.Length, keyboardReceiver = receiver, target = ResolvedTargetData(request, activated) });
     }
 
     private static Result WindowState(
@@ -2151,14 +2226,21 @@ internal static partial class DesktopController
         {
             return FindTaskbarAutomationRoot();
         }
-        var hwnd = request.Target?.ToLowerInvariant() switch
+        if (string.IsNullOrWhiteSpace(request.Target) ||
+            string.Equals(request.Target, "desktop", StringComparison.OrdinalIgnoreCase))
         {
-            "foreground" => NativeMethods.GetForegroundWindow(),
-            _ => IntPtr.Zero,
-        };
-        return hwnd != IntPtr.Zero
-            ? AutomationElement.FromHandle(hwnd)
-            : AutomationElement.RootElement;
+            return AutomationElement.RootElement;
+        }
+        if (string.Equals(request.Target, "foreground", StringComparison.OrdinalIgnoreCase))
+        {
+            var foreground = NativeMethods.GetForegroundWindow();
+            return foreground == IntPtr.Zero ? null : AutomationElement.FromHandle(foreground);
+        }
+        // An application target scopes the tree to that application's
+        // frontmost window; an unknown name is unavailable, not the desktop.
+        return ResolveTarget(IntPtr.Zero, request.Target).Window is { } window
+            ? AutomationElement.FromHandle(new IntPtr(window.Hwnd))
+            : null;
     }
 
     private static AutomationElement? FindTaskbarAutomationRoot()

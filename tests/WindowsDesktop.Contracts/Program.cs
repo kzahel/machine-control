@@ -35,6 +35,7 @@ static void Refuses(Action action, string message)
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
 await RetainedPipeProxyFixtures.RunAsync();
 CompanionBinaryIdentityFixtures.Run();
+ApplicationTargetFixtures.Run();
 await GuardianJsonFixtures.RunAsync();
 for (var cause = 0; cause <= 11; ++cause)
 {

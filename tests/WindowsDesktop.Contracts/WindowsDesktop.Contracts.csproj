@@ -27,5 +27,6 @@
     <Compile Include="../../src/MachineControl.Windows/SharedBrowserHost.cs" Link="SharedBrowserHost.cs" />
     <Compile Include="../../src/MachineControl.Windows/BrowserUpload.cs" Link="BrowserUpload.cs" />
     <Compile Include="../../src/MachineControl.Windows/Contract.cs" Link="Contract.cs" />
+    <Compile Include="../../src/MachineControl.Windows/ApplicationTargets.cs" Link="ApplicationTargets.cs" />
   </ItemGroup>
 </Project>

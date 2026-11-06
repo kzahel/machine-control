@@ -39,9 +39,13 @@ internal static class DesktopSafety
         if (DesktopGrants.ScopeFor(request.Operation) != "control") return null;
         if (OwnProcess(resolvedProcess ?? request.ProcessId) || OwnWindow(new IntPtr(request.Hwnd ?? 0)))
             return "self_target_refused";
-        if (request.Operation is "key" or "key.timeline" or "key.delayed_hold" or "type" && OwnWindow(NativeMethods.GetForegroundWindow()))
+        // A targeted keystroke first activates its own application window;
+        // the request then drops its target and every keystroke rechecks
+        // the actual foreground below.
+        var untargetedKeys = request.Operation is "key" or "key.timeline" or "key.delayed_hold" or "type" && request.Target is null;
+        if (untargetedKeys && OwnWindow(NativeMethods.GetForegroundWindow()))
             return "self_target_refused";
-        if (request.Operation is "key" or "key.timeline" or "key.delayed_hold" or "type" && OwnShellElement(AutomationElement.FocusedElement))
+        if (untargetedKeys && OwnShellElement(AutomationElement.FocusedElement))
             return "self_target_refused";
         if (request.Operation is "click" or "move" or "drag" or "scroll")
         {
