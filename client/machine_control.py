@@ -2426,8 +2426,9 @@ DESKTOP_USAGE = {
         "  Legacy and appliance-only routes. Current Mac residents refuse session\n"
         "  control (control_session_required); work while locked with an ordinary\n"
         "  `control stream --surface desktop` owner instead, which unlocks behind\n"
-        "  covers and relocks when it ends. Session unlock requires a managed\n"
-        "  appliance (status protectedAdministration: true); workstations refuse it."
+        "  covers and relocks when it ends. On macOS, session unlock requires a\n"
+        "  managed appliance (status protectedAdministration: true). On Windows,\n"
+        "  send session.unlock through a `control --prepared-console` owner instead."
     ),
     "call": (
         "desktop call|call-local JSON\n"
@@ -4031,7 +4032,7 @@ Commands:
         (desktop --help or desktop COMMAND --help; help works offline)
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
-                                    Managed-appliance unlock; workstations refuse
+                                    Mac appliance-only; Windows uses a prepared owner
   desktop session control|end       Legacy; use control stream while locked
   desktop application launch|activate|terminate
   desktop call|call-local JSON     Translate a common resident request

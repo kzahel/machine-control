@@ -176,8 +176,10 @@ macOS: once the operator enables locked use and Desktop access, an ordinary
 Desktop owner started while locked (control stream/call, ControlSession, no
 extra flag) is the covered route: it unlocks behind covers and relocks at the
 end. Do not add --prepared-console; a plain CLI/SDK caller gets
-invalid_prepared_console_request. Windows: locked Desktop work requires
-control --prepared-console; without it the result is prepared_console_required.
+invalid_prepared_console_request. Windows: start the Desktop owner with
+control --prepared-console (else prepared_console_required), then send
+{"operation":"session.unlock"} through that same owner before other work;
+prepared Windows owners do not renew, so keep each task within 900 seconds.
 Keep the task owner alive; closing, expiry or a safety failure triggers native
 cleanup/relock. Report setup refusals such as locked_use_disabled or
 desktop_unavailable to the operator; do not work around them. On macOS,
