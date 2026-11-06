@@ -418,10 +418,14 @@ export class AccessAdmission {
     // Adapter drains/acknowledges the operator input before calling this method.
     this.tick();
   }
-  cancel(owner: AdmissionOwner, id: string): void {
+  /** Platform adapters may end an owned intent for a specific safety reason
+   * instead of reporting a caller-looking `cancelled`. */
+  static readonly endReasons: ReadonlySet<string> = new Set(["cancelled", "audit_storage_unavailable", "locked_use_guard_failed"]);
+  cancel(owner: AdmissionOwner, id: string, reason = "cancelled"): void {
+    if (!AccessAdmission.endReasons.has(reason)) throw new Error("invalid_end_reason");
     this.tick();
     const intent = this.#owned(owner, id);
-    if (!intent.terminal) this.#finish(intent, "cancelled");
+    if (!intent.terminal) this.#finish(intent, reason);
     this.tick();
   }
   deny(id: string): void {

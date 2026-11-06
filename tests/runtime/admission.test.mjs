@@ -613,3 +613,14 @@ test("held and scheduled work remain bounded by consent and the original task ce
   f.policy.hold(task.intentId); f.advance(2000);
   assert.equal(f.inspect(task).terminalReason, "duration_expired");
 });
+
+test("adapters end owned intents with a specific safety reason, never arbitrary text", () => {
+  const f = fixture();
+  const audit = f.request();
+  f.policy.cancel(f.owner, audit.intentId, "audit_storage_unavailable");
+  assert.equal(f.policy.inspect(f.owner, audit.intentId).terminalReason, "audit_storage_unavailable");
+  const guard = f.request();
+  assert.throws(() => f.policy.cancel(f.owner, guard.intentId, "made_up"), /invalid_end_reason/);
+  f.policy.cancel(f.owner, guard.intentId);
+  assert.equal(f.policy.inspect(f.owner, guard.intentId).terminalReason, "cancelled");
+});
