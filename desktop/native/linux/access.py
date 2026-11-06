@@ -5,6 +5,9 @@ import uuid
 from policy import PolicyError
 
 SCHEMA='machine-control-admission/v2'
+# Native refusals that end an owned intent with their own terminal reason
+# rather than a caller-looking `cancelled` (shared core allowlist).
+END_REASONS=frozenset({'audit_storage_unavailable','locked_use_guard_failed'})
 
 
 class Access:
@@ -62,9 +65,19 @@ class Access:
 
     def refresh(self):
         for owner,record in list(self.owners.items()):
-            if record['authority']() is not None:
-                self.send('cancel',owner=owner,intentId=record['intent'])
+            refusal=record['authority']()
+            if refusal is not None:self.end(owner,refusal)
         return self.send('query')
+
+    def end(self,owner,refusal):
+        """End an owned intent, keeping a specific safety reason when the
+        shared core accepts it; any other refusal ends as `cancelled`."""
+        fields=dict(owner=owner,intentId=self.owners[owner]['intent'])
+        if refusal in END_REASONS:fields['reason']=refusal
+        self.send('cancel',**fields)
+
+    def end_all(self,refusal):
+        for owner in list(self.owners):self.end(owner,refusal)
 
     def fact(self,key,value):
         if self.facts.get(key)==value:return

@@ -110,6 +110,29 @@ class AccessTests(unittest.TestCase):
         self.assertFalse(self.access.status_current)
         self.access.state();self.assertTrue(self.access.status_current)
 
+    def test_audit_storage_loss_ends_active_and_queued_intents_with_its_reason(self):
+        refusal=[None]
+        def submit(owner,surface):
+            return self.access.submit(owner,dict(requestId=owner,surfaces=[surface],
+                profileIds=['work'] if surface=='browser' else [],reason='Audit fixture',
+                waitMs=10000,durationMs=60000),lambda:refusal[0])
+        offered=submit('active','desktop')
+        self.access.accept('active',offered['offerGeneration'])
+        self.assertEqual(submit('queued','desktop')['state'],'waiting_for_resource')
+        refusal[0]='audit_storage_unavailable'
+        self.access.refresh()
+        for owner in ('active','queued'):
+            view=self.access.send('inspect',owner=owner,intentId=self.access.owners[owner]['intent'])
+            self.assertEqual((view['state'],view['terminalReason']),('ended','audit_storage_unavailable'))
+
+    def test_other_native_refusals_still_end_as_cancelled(self):
+        refusal=[None]
+        self.access.submit('one',dict(requestId='one',surfaces=['desktop'],profileIds=[],
+            reason='Disconnect fixture',waitMs=10000,durationMs=60000),lambda:refusal[0])
+        refusal[0]='owner_disconnected';self.access.refresh()
+        view=self.access.send('inspect',owner='one',intentId=self.access.owners['one']['intent'])
+        self.assertEqual(view['terminalReason'],'cancelled')
+
     def test_snapshot_without_policy_is_off(self):
         self.host.stop()
         self.assertFalse(self.access.snapshot()['available'])

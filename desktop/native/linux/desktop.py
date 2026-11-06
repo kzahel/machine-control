@@ -156,7 +156,14 @@ class Desktop:
         if hasattr(self,'browser'):
             self.browser.invalidate()
             for client in list(self.browser.peers):self.browser.disconnect(client)
-        if self.policy.alive:self.policy._fail(code)
+        if code=='audit_storage_unavailable':
+            # Keep the shared core so every active or queued owner observes
+            # this terminal reason. Native authority refuses new opens and
+            # dispatch while audit storage stays unavailable.
+            if self.policy.alive:
+                try:self.grants.end_all(code)
+                except PolicyError:pass
+        elif self.policy.alive:self.policy._fail(code)
         self.journal.diagnostic('resident.policy',code)
         self.changed()
         if code!='audit_storage_unavailable':
