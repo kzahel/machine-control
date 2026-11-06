@@ -569,9 +569,9 @@ function App() {
             {notice}
           </div>
         )}
-        {state?.accessPolicy?.schema === "machine-control-admission/v2" && <div hidden={page !== "access"}>
-          <SurfaceAccess policy={state.accessPolicy} profiles={state.browser.profiles ?? []}
-            busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} /></div>}
+        {state?.accessPolicy?.schema === "machine-control-admission/v2" &&
+          <SurfaceAccess visible={page === "access"} policy={state.accessPolicy} profiles={state.browser.profiles ?? []}
+            busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} />}
         {page === "access" && !unifiedPolicy && (
           <>
             {state && <p role="status" className="note">This platform uses the legacy control model while unified surface permissions are being migrated.</p>}

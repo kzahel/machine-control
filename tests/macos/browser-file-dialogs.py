@@ -7,6 +7,7 @@ unlocked VirtualMac. Reaps its browser/profile/server even on a failed action.
 """
 import argparse
 import concurrent.futures
+import contextlib
 import hashlib
 import html
 import importlib.util
@@ -444,8 +445,28 @@ def main():
 
             subprocess.run([str(resident), 'serve', str(endpoint), '--settings'],
                            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+            def require_content(query,label):
+                try:
+                    poll(lambda: tree(query),label)
+                except BaseException:
+                    # Diagnostics must neither replace the original failure
+                    # nor expose the private AX menu/task context publicly.
+                    with contextlib.suppress(Exception):
+                        if args.report:
+                            with os.fdopen(os.open(args.report.parent/'activity-failure-tree.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as file:
+                                json.dump(tree(),file)
+                            captured=exchange(args.observer_socket,'capture',target=str(pid),provider='macos-native')
+                            if captured.get('accepted'):
+                                image=Path(captured['data']['artifactPath'])
+                                with os.fdopen(os.open(args.report.parent/'activity-failure.png',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'wb') as file:
+                                    file.write(image.read_bytes())
+                                image.unlink()
+                    raise
+            operator_press('Settings')
+            require_content('Startup behavior','Settings content exposed after Access navigation')
+            check('installed Settings content remains accessible after Access navigation')
             operator_press('Activity')
-            poll(lambda: tree('previous session ended without'), 'unclean exit Activity banner')
+            require_content('previous session ended without','unclean exit Activity banner')
             check('installed Activity presents unclean-exit context')
             export = Path.home() / 'Library/Logs/MachineControl/exports/diagnostics.json'
             previous = (export.read_bytes(), export.stat().st_mode & 0o777) if export.exists() else None

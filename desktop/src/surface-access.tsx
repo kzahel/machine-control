@@ -185,6 +185,7 @@ function Switch({
 }
 
 export function SurfaceAccess({
+  visible = true,
   policy,
   profiles,
   busy,
@@ -192,6 +193,7 @@ export function SurfaceAccess({
   protectedAccess,
   lockedBrowser,
 }: {
+  visible?: boolean;
   policy: SurfacePolicy;
   profiles: Profile[];
   busy: boolean;
@@ -423,6 +425,8 @@ export function SurfaceAccess({
         (s === "browser" &&
           !same([...selection].sort(), [...baseline.profileIds].sort()))),
   );
+  // Keep the draft hooks alive without a hidden subtree in WebKit's AX tree.
+  if (!visible) return null;
   return (
     <div className="access-form">
       <div className="access-status access-heading">

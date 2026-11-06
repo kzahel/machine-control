@@ -63,3 +63,23 @@ The first-source Windows portable job exposes POSIX-only Linux preference
 fixtures calling unavailable `fchmod` and `getuid`. Declare those fixtures'
 platform requirement, retaining their actual execution on macOS/Linux. Cancel
 the obsolete candidate before native acceptance; no release receipt exists.
+
+The corrected source passes cross-platform, security and CodeQL checks; its
+six-target signed candidate passes. The first exact Mac campaign passes 75
+checks, including real approvals, file effects, native-host loss, Stop and
+forced-exit Off, then cannot discover the Activity crash banner through AX.
+The workspace and claim are released and restoration passes; no qualifying
+receipt is issued.
+
+A one-cycle development diagnostic reproduces the failure against unchanged
+signed bytes. Its private capture visibly contains the banner and task
+controls, while the native AX tree exposes only navigation and an empty main
+group. The retained hidden subtree is the leading suspected cause. Remove
+the inactive Access DOM while retaining its mounted React hooks
+and drafts, instead of retaining a hidden sibling subtree. This is a bounded
+presentation fix; policy and authorization are unchanged. Keep private failure
+tree/capture diagnostics in the harness. New exact signed acceptance is needed.
+The fix is accepted after Opus review; desktop build, both UI fixture suites,
+23 Mac fixture tests and 95 release tests pass (one platform-specific skip).
+The next native campaign additionally requires Settings content through AX
+after leaving Access, while preserving the Activity AX assertion.
