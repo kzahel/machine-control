@@ -146,6 +146,8 @@ $capabilities = Invoke-ControlProbe -Operation 'capabilities'
             schema = $status.schema
             accepted = $status.accepted
             sessionLocked = $status.sessionLocked
+            desktopState = $status.data.desktopState
+            surfaces = $status.data.admission.surfaces
             desktop = $status.desktop
             generation = $status.generation
             desktopReady = $status.data.ready
@@ -194,12 +196,30 @@ if [[ "$administration" == ready ]] &&
             .status.accepted == true' \
             <<<"$guest_probe" >/dev/null 2>&1; then
     resident=ready
-    if [[ "$(jq -r '.status.sessionLocked // false' \
+    # The resident's common desktopState is authoritative when present;
+    # older residents only report sessionLocked.
+    desktop_state="$(jq -r '.status.desktopState // empty' <<<"$guest_probe")"
+    case "$desktop_state" in
+        locked|no_session|unknown) desktop="$desktop_state" ;;
+    esac
+    if [[ -z "$desktop_state" && "$(jq -r '.status.sessionLocked // false' \
             <<<"$guest_probe")" == true ]]; then
         desktop=locked
-    elif [[ "$(jq -r '.status.desktop // "Default"' \
+    elif [[ "$desktop" == unlocked && "$(jq -r '.status.desktop // "Default"' \
             <<<"$guest_probe")" != Default ]]; then
         desktop=protected
+    fi
+    # Desktop-profile residents report the person's surface modes; the
+    # appliance has no surface admission and is coordinated by the claim.
+    if jq -e '.status.surfaces | type == "object"' <<<"$guest_probe" >/dev/null 2>&1; then
+        enabled="$(jq -r '[.status.surfaces | to_entries[] |
+            select((.value.mode == "ask" or .value.mode == "automatic") and .value.expired != true) |
+            "\(.key | ascii_upcase[0:1])\(.key[1:]) \(.value.mode)"] | join(", ")' <<<"$guest_probe")"
+        if [[ -n "$enabled" ]]; then
+            add_check grant pass "Surface access: $enabled"
+        else
+            add_check grant warn 'Desktop and Browser access are Off; the person enables a surface in Machine Control'
+        fi
     fi
     resident_json="$(jq -c \
         '{contract:.status.schema,generation:.status.generation}' \

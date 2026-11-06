@@ -70,6 +70,21 @@ internal static class SurfacePolicyFixtures
             Require(!grants.EndTask(new ControlOwnership("fixture", "missing", "x", new()), "locked_use_guard_failed"), "Unknown task end is harmless");
             grants.Admission.Disconnect("fixture");
         }
+        {
+            // Tactical 159 decision 8: the common deployment projection.
+            var deployment = View(grants.DeploymentState());
+            Require(deployment.GetProperty("policy").GetProperty("protectedAdministration").ValueKind == JsonValueKind.False &&
+                deployment.GetProperty("policy").GetProperty("preset").GetString() == "workstation" &&
+                deployment.GetProperty("policy").GetProperty("operationSet").GetString() == "ordinary" &&
+                deployment.GetProperty("availability").GetProperty("paused").ValueKind is JsonValueKind.True or JsonValueKind.False &&
+                deployment.GetProperty("availability").GetProperty("blockingReasons").ValueKind == JsonValueKind.Array &&
+                deployment.GetProperty("browserOnlyWhileLocked").ValueKind is JsonValueKind.True or JsonValueKind.False,
+                "Deployment carries the common policy, availability and locked-browser fields");
+            var modes = View(grants.SurfaceModes()).GetProperty("surfaces");
+            Require(modes.GetProperty("desktop").GetProperty("mode").GetString() == "automatic" &&
+                modes.GetProperty("browser").GetProperty("mode").GetString() == "automatic" &&
+                !modes.GetProperty("desktop").GetProperty("expired").GetBoolean(), "Surface modes project for the doctor");
+        }
         var protectedDesktopCeiling = grants.DesktopConsentRevision;
         grants.ConfigureSurface("browser", "automatic", 0, "until_stopped", ["fixture-profile"]);
         Require(grants.DesktopConsentRevision == protectedDesktopCeiling,

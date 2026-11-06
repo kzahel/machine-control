@@ -21,6 +21,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         internal readonly string Pipe = "machine-control-locked-guard-" + Guid.NewGuid().ToString("n");
         internal readonly CancellationTokenSource Done = new();
         internal bool Ending;
+        internal bool Unlocked;
         internal bool Complete;
         internal bool ServiceStarted;
     }
@@ -63,6 +64,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         var enrolled = false;
         try { enrolled = UnlockPolicy.Read(Instance).CredentialSource == "local_enrollment"; }
         catch (Exception) { }
+        var pauses = grants.Admission.Blocks("desktop");
         lock (grants.Gate) return new
         {
             supported = DesktopDisplayCovers.Supported,
@@ -71,8 +73,16 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
             enabled = grants.PreparedConsole,
             helperApproval = enrolled ? "local_account_enrolled" : "approved_controller_required",
             helperHealthy = preparation is null,
+            // Setup runs in the native prompt and service, not as a resident
+            // state machine; there is no asynchronous setup phase to report.
             setupState = "idle",
-            phase = _lease is null ? "idle" : _lease.Ending ? "relocking" : "task_owned",
+            // Common phase vocabulary (Tactical 159 decision 8).
+            phase = _lease is { } lease ? lease.Ending ? "relocking" : lease.Unlocked || grants.ConsoleReady ? "active" : "unlocking"
+                : !grants.PreparedConsole ? "off"
+                : pauses.Contains("relock_pending") ? "relocking"
+                : pauses.Any(reason => reason is "manual" or "physical_takeover" or "operator_deferral" or "activity_unknown") ? "paused"
+                : "ready",
+            windowsPhase = _lease is null ? "idle" : _lease.Ending ? "relocking" : "task_owned",
             controlSessionId = _lease?.Request.ControlOwnership?.Session,
             pausedUntilManualUnlock = false,
             privacy = "opaque_single_display_cover",
@@ -232,6 +242,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
             if (root.GetProperty("stage").GetString() == "result")
             {
                 var received = root.GetProperty("result").Deserialize<Result>(Contract.Json)!;
+                if (received.Accepted) lock (grants.Gate) lease.Unlocked = true;
                 completion.TrySetResult(received with { RequestId = lease.Request.RequestId!, Operation = lease.Request.Operation, Generation = generation });
             }
             else completion.TrySetResult(new Result

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local Windows desktop adapter. Claims coordinate; native grants authorize."""
+"""Local Windows desktop adapter. Claims coordinate; surface modes authorize."""
 from __future__ import annotations
 
 import ctypes
@@ -76,6 +76,29 @@ def require_claim() -> None:
         raise ValueError("The target-use claim is unavailable or belongs to another target")
 
 
+def surface_check(data: dict, deployment: dict) -> dict:
+    """Report the person's surface modes; per-request grants no longer exist."""
+    admission = data.get("admission") if isinstance(data.get("admission"), dict) else {}
+    surfaces = admission.get("surfaces") if isinstance(admission.get("surfaces"), dict) else None
+    if surfaces is None:
+        # An older resident without surface modes may still hold a grant.
+        if deployment.get("grant"):
+            return dict(id="grant", status="pass", summary="An approved grant is active")
+        return dict(id="grant", status="warn", summary="Surface access state is unavailable")
+    enabled = []
+    for name in ("desktop", "browser"):
+        view = surfaces.get(name) if isinstance(surfaces.get(name), dict) else {}
+        if view.get("mode") in {"ask", "automatic"} and view.get("expired") is not True:
+            enabled.append(f"{name.capitalize()} {view['mode']}")
+    if not enabled:
+        return dict(id="grant", status="warn",
+                    summary="Desktop and Browser access are Off; the person enables a surface in Machine Control")
+    return dict(id="grant", status="pass", summary="Surface access: " + ", ".join(enabled))
+
+
+DESKTOP_STATES = {"locked", "unlocked", "no_session", "unknown"}
+
+
 def doctor() -> int:
     states = dict(power="running", administration="unavailable", resident="unavailable",
                   desktop="unknown", semantic="unavailable", capture="unavailable",
@@ -90,17 +113,22 @@ def doctor() -> int:
         if status.get("accepted") is not True or data.get("desktopProduct") is not True:
             raise ValueError("The desktop resident is unavailable")
         states["resident"] = "ready"
-        states["desktop"] = "locked" if status.get("sessionLocked") else \
+        # The resident's common desktopState maps directly, including locked.
+        state = data.get("desktopState")
+        states["desktop"] = state if state in DESKTOP_STATES else \
+            "locked" if status.get("sessionLocked") else \
             "unlocked" if data.get("ready") else "no_session"
         for name in ("semantic", "capture", "input"):
             states[name] = "ready" if data.get("ready") else "unavailable"
-        grant = call({"operation": "grant.status"})
-        deployment = grant.get("data", {})
+        deployment = data.get("deployment")
+        if not isinstance(deployment, dict):
+            deployment = call({"operation": "grant.status"}).get("data", {})
         extensions["deployment"] = deployment
+        if isinstance(data.get("lockedUse"), dict):
+            extensions["lockedUsePhase"] = data["lockedUse"].get("phase")
         extensions["runtimeGeneration"] = status.get("generation")
         checks.append(dict(id="resident", status="pass", summary="Desktop resident is reachable"))
-        checks.append(dict(id="grant", status="pass" if deployment.get("grant") else "warn",
-                           summary="Access requires a native operator grant"))
+        checks.append(surface_check(data, deployment))
     except (OSError, ValueError, subprocess.SubprocessError):
         checks.append(dict(id="resident", status="fail", summary="Desktop resident or local identity is unavailable"))
     ready = states["resident"] == "ready" and states["desktop"] == "unlocked"

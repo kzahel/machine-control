@@ -256,6 +256,12 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                     desktopProduct = grants is not null,
                     controlSessionRequired = grants is not null,
                     artifactRoot = RuntimeProfile.ArtifactRoot,
+                    // Tactical 159 decision 8: common projection on every platform.
+                    desktopState = NativeMethods.WTSGetActiveConsoleSessionId() == (uint)RuntimeProfile.SessionId
+                        ? SessionStateInspector.DesktopState((uint)RuntimeProfile.SessionId) : "no_session",
+                    deployment = grants?.DeploymentState(),
+                    lockedUse = DesktopLockedUse.Current?.State(),
+                    admission = grants?.SurfaceModes(),
                 }
                 : new
                 {

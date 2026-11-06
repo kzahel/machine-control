@@ -297,7 +297,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         lock (Gate) return new
         {
-            policy = new { preset = "workstation", grantMode = "surface_modes", operationSet = "ordinary" },
+            // Covered locked use is not protected administration: it is the
+            // same task-bound route macOS workstations use.
+            policy = new { preset = "workstation", grantMode = "surface_modes", protectedAdministration = false, operationSet = "ordinary" },
             grant = (object?)null,
             pendingRequest = (string?)null,
             lastEnded = _lastEnded,
@@ -305,6 +307,22 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             effectiveScopes = EffectiveScopes(),
             availability = new { paused = Admission.Blocks("desktop").Length > 0, blockingReasons = Admission.Blocks("desktop") }
         };
+    }
+    /// Surface modes as the common doctor reads them (status.data.admission).
+    internal object SurfaceModes()
+    {
+        lock (Gate)
+        {
+            var surfaces = Admission.Status() is JsonObject status && status["surfaces"] is JsonObject all ? all : new JsonObject();
+            return new
+            {
+                surfaces = new[] { "desktop", "browser" }.ToDictionary(surface => surface, surface => new
+                {
+                    mode = surfaces[surface]?["mode"]?.GetValue<string>() ?? "off",
+                    expired = surfaces[surface]?["expired"]?.GetValue<bool>() == true,
+                })
+            };
+        }
     }
     internal object State()
     {

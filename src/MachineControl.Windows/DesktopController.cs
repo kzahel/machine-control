@@ -359,6 +359,20 @@ internal static partial class DesktopController
                 virtualScreen = ToSerializableBounds(GetVirtualScreen()),
                 foregroundWindow = GetForegroundWindowSummary(),
                 cursor = GetCursorSummary(),
+                desktopState = SessionStateInspector.DesktopState(sessionId),
+                // The appliance has no surface admission; the target claim
+                // coordinates use, and its protected desktop routes exist.
+                deployment = new
+                {
+                    policy = new
+                    {
+                        preset = RuntimeProfile.IsUser ? "user_component" : "appliance",
+                        grantMode = "target_claim",
+                        protectedAdministration = !RuntimeProfile.IsUser,
+                    },
+                    availability = new { paused = false, blockingReasons = Array.Empty<string>() },
+                    browserOnlyWhileLocked = false,
+                },
             }) with
         {
             SessionLocked = sessionId == uint.MaxValue
@@ -3069,6 +3083,13 @@ internal static class SessionStateInspector
         {
             NativeMethods.WTSFreeMemory(buffer);
         }
+    }
+
+    /// Common status vocabulary: locked|unlocked|no_session|unknown.
+    public static string DesktopState(uint sessionId)
+    {
+        if (sessionId == uint.MaxValue || !HasInteractiveUser(sessionId)) return "no_session";
+        return IsLocked(sessionId) switch { true => "locked", false => "unlocked", null => "unknown" };
     }
 
     public static bool? IsLocked(uint sessionId)
