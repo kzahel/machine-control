@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 state = "offered"
+terminal = "cancelled"
 sequence = 0
 remaining = 60
 resumed_polls = 0
@@ -22,7 +23,7 @@ def event(name):
 def view():
     return dict(schema=schema, revision=1, intentId="fixture-intent", state=state,
         offerGeneration=1, blockingReasons=[], resourceGenerations={"desktop":1} if state == "active" else {},
-        sessionId=("fixture-session" + str(activations) if mode == "resumed" else "fixture-session") if state == "active" else None, terminalReason="cancelled" if state == "ended" else None)
+        sessionId=("fixture-session" + str(activations) if mode == "resumed" else "fixture-session") if state == "active" else None, terminalReason=terminal if state == "ended" else None)
 
 for line in sys.stdin.buffer:
     request = json.loads(line)
@@ -72,6 +73,14 @@ for line in sys.stdin.buffer:
     if mode == "sequenced" or mode.startswith("outer"): data["requestSequencing"] = "strict"
     if mode.startswith("outer"): data["outerRecovery"] = "borrowed_exact_claim/v1"
     if operation == "control.dispatch":
+        if mode == "audit-ended":
+            event("refused")
+            state, terminal = "ended", "audit_storage_unavailable"
+            data = dict(schema="machine-control/v0", accepted=False, operation=request["request"]["operation"],
+                errorCode="control_session_ended", delivery="refused", effect="refused", uncertainty="none",
+                retrySafety="safe_not_dispatched")
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
+            continue
         if mode == "profile-capability-refused":
             event(request["request"]["operation"])
             data = dict(schema="machine-control/v0", accepted=False,

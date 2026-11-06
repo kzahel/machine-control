@@ -303,6 +303,10 @@
         },
         "requestSequencing": {
           "const": "strict"
+        },
+        "consoleUnlock": {
+          "type": "object",
+          "description": "Windows prepared owners: progress of the covered unlock started at control.accept. The owner's first action waits for it."
         }
       }
     }

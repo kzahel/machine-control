@@ -516,6 +516,16 @@ def handle_control(alias, target, arguments):
             request = first
             while True:
                 value = session.call(request)
+                if not value["accepted"]:
+                    # A refusal may also have ended this owner (for example
+                    # audit_storage_unavailable); report why, without retrying.
+                    try:
+                        owner = session.status()
+                    except mc.ClientError:
+                        owner = None
+                    if owner and owner.get("state") == "ended":
+                        value = {**value, "controlOwner": {"state": "ended",
+                                 "terminalReason": owner.get("terminalReason")}}
                 # Stream replies are one JSON line each, available before the
                 # next input. Confirmed delivery with an unverifiable effect
                 # needs a follow-up observation under the same owner. Preserve

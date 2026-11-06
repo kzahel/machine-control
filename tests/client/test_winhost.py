@@ -30,6 +30,13 @@ class WindowsHostTests(unittest.TestCase):
         self.assertEqual(value['extensions']['runtimeGeneration'], 'native-generation')
         self.assertEqual(value['checks'][-1]['status'], 'pass')
 
+    def test_doctor_checks_surface_modes_not_per_request_grants(self):
+        def check(surfaces):
+            return winhost.surface_check({'admission': {'surfaces': surfaces}}, {})
+        self.assertEqual(check({'desktop': {'mode': 'automatic'}, 'browser': {'mode': 'off'}})['status'], 'pass')
+        self.assertEqual(check({'desktop': {'mode': 'ask', 'expired': True}, 'browser': {'mode': 'off'}})['status'], 'warn')
+        self.assertIn('Off', check({'desktop': {'mode': 'off'}, 'browser': {'mode': 'off'}})['summary'])
+
     def test_installation_refuses_component_or_wrong_instance(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

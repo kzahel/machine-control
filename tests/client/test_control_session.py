@@ -247,6 +247,13 @@ class ControlSessionTests(unittest.TestCase):
             self.assertEqual(len(results), 1)
             self.assertEqual(self.record.read_text().splitlines().count("effect"), 1)
 
+    def test_refusal_that_ends_the_owner_reports_its_terminal_reason(self):
+        code, results = self.stream(b'{"operation":"snapshot"}\n{"operation":"snapshot"}\n', "audit-ended")
+        self.assertEqual(code, 1)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["controlOwner"], {"state": "ended", "terminalReason": "audit_storage_unavailable"})
+        self.assertEqual(self.record.read_text().splitlines().count("refused"), 1)
+
     @unittest.skipIf(os.name == "nt", "POSIX pipe readiness fixture")
     def test_stream_replies_before_stdin_eof(self):
         import select

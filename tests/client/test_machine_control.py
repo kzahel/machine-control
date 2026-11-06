@@ -1631,6 +1631,13 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(command, ["fixture-command", "argument"])
 
 
+class ApplicationArgumentTests(unittest.TestCase):
+    def test_dash_prefixed_program_arguments_are_values(self):
+        request, _ = machine_control.desktop_request(
+            ["application", "launch", "--executable", "/app", "--argument", "--gui", "--argument", "plain"])
+        self.assertEqual(request["argumentsList"], ["--gui", "plain"])
+
+
 class KeyChordTranslationTests(unittest.TestCase):
     def test_common_names_map_to_each_resident_vocabulary(self):
         cases = {
