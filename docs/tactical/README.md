@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [158 — Desktop 0.7.1 release](158-desktop-0.7.1-release.md)
+  (in progress): access experience release with minimum required exact signed
+  candidate acceptance and queued publication.
+
 - [157 — Desktop access experience](157-desktop-access-experience.md)
   (design/review): compact operator UI and explicit behavior, staged UI/shared
   policy changes and focused validation before implementation.

@@ -224,7 +224,7 @@ def _run_surfaces(context):
     tab,url,effects=(context[k] for k in ['tab','url','effects'])
     from pathlib import Path
     endpoint=Path.home()/'Library/Application Support/MachineControl/control.sock'
-    rig.stop()
+    rig.stop(require_active=False)
     context.update(press=rig.press,toggle=lambda label: _toggle_surface(rig,label),tree=rig.tree)
     covered=None
     if context['covered_recovery']:
@@ -362,6 +362,7 @@ def _run_surfaces(context):
 
 
 def _toggle_surface(rig,label):
+    rig.options()
     row=poll_surface(lambda:rig.find(label,'AXCheckBox'),'operator checkbox '+label)
     if str(row.get('value','')).lower() not in {'1','true'}:rig.observe('action',reference=row['reference'],action='press')
 

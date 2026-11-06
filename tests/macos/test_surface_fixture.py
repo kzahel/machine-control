@@ -10,6 +10,60 @@ fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_stop_never_enables_access_or_claims_a_measurement_when_already_off(self):
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        calls=[];rig.settings=lambda:None;rig.close_owners=lambda:calls.append('close')
+        rig.status=lambda:{'admission':{'surfaces':{'desktop':{'mode':'off'},'browser':{'mode':'off'}}}}
+        rig.switch=lambda label:self.fail('Off access must never be toggled on by Stop')
+        with self.assertRaisesRegex(AssertionError,'requires enabled access'):rig.stop()
+        self.assertIsNone(rig.stop(require_active=False))
+        self.assertEqual(calls,['close'])
+
+    def test_options_disclosure_is_idempotent(self):
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        expanded=False;calls=[]
+        def find(label,role='AXButton'):
+            if label=='Access lifetime':return {'reference':'duration'} if expanded else None
+            if label=='More options':return {'reference':'disclosure'}
+        def observe(operation,**fields):
+            nonlocal expanded
+            calls.append((operation,fields));expanded=True
+        rig.find=find;rig.observe=observe
+        rig.options();rig.options()
+        self.assertEqual(calls,[('action',{'reference':'disclosure','action':'press'})])
+
+    def test_apply_requires_a_present_footer_and_refuses_a_conflict(self):
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        calls=[];rig.observe=lambda *a,**k:calls.append((a,k));rig.find=lambda *a:None
+        rig.apply(timeout=0);self.assertEqual(calls,[])
+        rig.find=lambda label,*a:{'reference':label}
+        with self.assertRaisesRegex(AssertionError,'draft conflicts'):rig.apply(timeout=0)
+        self.assertEqual(calls,[])
+
+    def test_arming_enables_only_off_surfaces_and_applies_active_edits(self):
+        rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
+        modes={'desktop':'off','browser':'ask'};calls=[];draft={}
+        rig.profiles=['exact-profile'];rig.close_owners=lambda:calls.append('close')
+        rig.settings=lambda:calls.append('settings');rig.options=lambda:calls.append('options')
+        rig.select_profiles=lambda ids:calls.append(('profiles',ids.copy()))
+        def choose(label,index):
+            calls.append((label,index))
+            if label.endswith(' before starting'):draft[label.split()[0].lower()]='ask' if index==2 else 'automatic'
+        rig.choose=choose
+        def switch(label):
+            surface=label.split()[0].lower()
+            self.assertEqual(modes[surface],'off','An enabled surface must never be toggled off while arming')
+            calls.append(('switch',surface));modes[surface]=draft[surface]
+        rig.switch=switch
+        def apply():calls.append('apply');modes.update(draft)
+        rig.apply=apply
+        rig.status=lambda:{'admission':{'surfaces':{s:{'mode':mode,'consentRemainingSeconds':None} for s,mode in modes.items()}}}
+        rig.arm()
+        self.assertEqual(modes,{'desktop':'automatic','browser':'automatic'})
+        self.assertEqual([c for c in calls if isinstance(c,tuple) and c[0]=='switch'],[('switch','desktop')])
+        self.assertLess(calls.index(('profiles',['exact-profile'])),calls.index(('switch','desktop')))
+        self.assertEqual(calls.count('apply'),1)
+
     def test_root_pause_requires_explicit_healthy_bounded_automatic_recovery(self):
         spec=importlib.util.spec_from_file_location('covered_recovery',Path(__file__).with_name('covered-recovery.py'))
         recovery=importlib.util.module_from_spec(spec);spec.loader.exec_module(recovery)
@@ -91,7 +145,7 @@ class SurfaceFixtureTests(unittest.TestCase):
         rig.sdk=sdk
         def find(label):
             calls.append(label)
-            return {'reference':'native-approval'} if label=='Allow this task' else None
+            return {'reference':'native-approval'} if label=='Allow now' else None
         rig.find=find
         def observe(operation,**fields):
             self.assertEqual((operation,fields),('action',{'reference':'native-approval','action':'press'}))
@@ -100,7 +154,7 @@ class SurfaceFixtureTests(unittest.TestCase):
         owner=rig.owner('desktop')
         self.assertIs(rig.owners['desktop'],owner)
         self.assertEqual(calls.count('open'),1)
-        self.assertIn('Allow this task',calls)
+        self.assertIn('Allow now',calls)
         owner.close()
 
     def test_observer_requires_explicit_managed_administration(self):

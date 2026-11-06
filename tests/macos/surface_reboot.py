@@ -44,9 +44,9 @@ def run(stage,claim,observer_socket,verify,boot,saved,protected_stop=False):
             assert all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values())
             # Explicitly re-enable real consent before boot, distinguishing
             # saved choices from authority that must not survive the reboot.
-            rig.press('Enable Ask first for desktop')
+            rig.switch('Desktop access')
             poll(lambda:rig.status()['admission']['surfaces']['desktop']['mode']=='ask','preboot Desktop consent')
-            rig.press('Enable Automatic for browser')
+            rig.switch('Browser access')
             poll(lambda:rig.status()['admission']['surfaces']['desktop']['mode']=='ask' and rig.status()['admission']['surfaces']['browser']['mode']=='automatic','preboot surface consent')
             evidence=dict(boot=boot,stopCleanRelaunch=True,profileIds=rig.profiles,desktopChoice='ask',browserChoice='automatic')
             assert json.loads((stage/'protected-stop.json').read_text())['passed']
@@ -74,9 +74,10 @@ def run(stage,claim,observer_socket,verify,boot,saved,protected_stop=False):
 
 
 def visible_choices(rig):
-    rig.settings()
-    for label in ['Enable Ask first for desktop','Enable Automatic for browser']:
-        assert poll(lambda:rig.find(label),'remembered '+label)
+    rig.settings();rig.options()
+    for surface,choice in [('Desktop','Wait for my approval'),('Browser','Give me a heads-up')]:
+        row=poll(lambda:rig.find(surface+' before starting','AXPopUpButton'),'remembered '+surface+' start setting')
+        assert choice in str(row.get('value')),row.get('value')
     duration=poll(lambda:rig.find('Access lifetime','AXPopUpButton'),'remembered access lifetime')
     assert 'Until' in str(duration.get('value')),duration.get('value')
     row=poll(lambda:rig.find('Allow approved Browser work while locked','AXCheckBox'),'remembered locked Browser preference')

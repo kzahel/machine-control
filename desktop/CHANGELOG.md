@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [0.7.1]
+
+- Simplify access settings with an overall On/Off switch, separate Desktop
+  and Browser switches, and one Apply/Discard footer for edited choices.
+- Choose immediate starts, a configurable heads-up, or explicit approval
+  independently for Desktop and Browser.
+- Move live task approvals, delayed starts, Pause, Continue and Cancel into
+  Activity, with compact native notices and clearer menu bar/tray status.
+- Configure how long Desktop yields after deliberate human input and whether
+  it resumes the approved task or asks again. Automatic return still warns
+  before taking control; protected safety checks retain their own requirements.
+- Keep Browser automation running during ordinary computer use. It no longer
+  automatically yields to physical input; Activity and access switches retain
+  manual control. Explicit foreground browser operations can still interfere
+  with concurrent Desktop input.
+- Replace presentation profile names with concrete startup choices and retain
+  original task, owner and consent deadlines across delays and interruptions.
+
 ## [0.7.0]
 
 - Give Desktop and Browser independent Off, Ask first and Automatic modes on

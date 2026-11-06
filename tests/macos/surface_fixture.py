@@ -120,6 +120,27 @@ class SurfaceFixture:
             self.observe('input.key',key=key)
         time.sleep(.3)
 
+    def options(self):
+        if not self.find('Access lifetime','AXPopUpButton'):
+            row=poll(lambda:self.find('More options','AXDisclosureTriangle') or self.find('More options'),'access options disclosure')
+            self.observe('action',reference=row['reference'],action='press')
+            poll(lambda:self.find('Access lifetime','AXPopUpButton'),'expanded access options')
+
+    def switch(self,label):
+        row=poll(lambda:next((value for role in ['AXSwitch','AXCheckBox','AXButton']
+            if (value:=self.find(label,role))),None),'operator switch '+label)
+        self.observe('action',reference=row['reference'],action='press')
+
+    def apply(self,timeout=2):
+        deadline=time.monotonic()+timeout
+        row=self.find('Apply changes')
+        while row is None and time.monotonic()<deadline:
+            time.sleep(.1);row=self.find('Apply changes')
+        if row:
+            assert not self.find('Access changed elsewhere. Discard edits to reload.','AXStaticText'),'Access draft conflicts with a concurrent operator change'
+            self.observe('action',reference=row['reference'],action='press')
+            poll(lambda:not self.find('Apply changes'),'applied access choices')
+
     def select_profiles(self,ids):
         ids=set(ids)
         profiles=self.status()['browser']['profiles']
@@ -135,15 +156,17 @@ class SurfaceFixture:
         self.profiles=sorted(ids)
 
     def arm(self,mode='automatic',surfaces=('desktop','browser')):
-        self.close_owners();self.settings()
+        self.close_owners();self.settings();self.options()
         if 'browser' in surfaces:self.select_profiles(self.profiles)
         self.choose('Access lifetime',0)
         for surface in surfaces:
+            self.choose(surface.title()+' before starting',2 if mode=='ask' else 1)
             current=self.status()['admission']['surfaces'][surface]
-            if current['mode']==mode:self.press('Apply '+surface+' choices')
-            elif current['mode']=='off' and self.find('Enable '+('Automatic' if mode=='automatic' else 'Ask first')+' for '+surface):
-                self.press('Enable '+('Automatic' if mode=='automatic' else 'Ask first')+' for '+surface)
-            else:self.choose(surface.title()+' access mode',2 if mode=='automatic' else 1)
+            if current['mode']=='off':
+                self.switch(surface.title()+' access')
+                poll(lambda:self.status()['admission']['surfaces'][surface]['mode']==mode,surface+' enabled')
+        self.apply()
+        for surface in surfaces:
             poll(lambda:self.status()['admission']['surfaces'][surface]['mode']==mode,surface+' '+mode)
         assert all(self.status()['admission']['surfaces'][name]['consentRemainingSeconds'] is None for name in surfaces)
 
@@ -160,7 +183,7 @@ class SurfaceFixture:
                 while not waiting.done():
                     assert time.monotonic()<deadline,'Native surface approval did not complete'
                     state=owner.status()['state']
-                    row=self.find('Allow this task') if state=='waiting_for_approval' else None
+                    row=self.find('Allow now') if state=='waiting_for_approval' else None
                     if row:self.observe('action',reference=row['reference'],action='press')
                     elif state=='waiting_for_approval' and not diagnosed and time.monotonic()>deadline-110:
                         diagnosed=True
@@ -180,11 +203,14 @@ class SurfaceFixture:
         assert owner is not None,'Fixture has no retained '+surface+' owner'
         return owner.call(dict(operation=operation,**fields))
 
-    def stop(self):
+    def stop(self,require_active=True):
         self.settings()
-        button=poll(lambda:self.find('Stop all access'),'native Stop control')
         started=time.monotonic()
-        self.observe('action',reference=button['reference'],action='press')
+        active=any(v['mode']!='off' for v in self.status()['admission']['surfaces'].values())
+        assert active or not require_active,'Stop responsiveness requires enabled access before the operator press'
+        if not active:
+            self.close_owners();return None
+        self.switch('Agent access')
         poll(lambda:all(v['mode']=='off' for v in self.status()['admission']['surfaces'].values()),'native Stop')
         acknowledged=time.monotonic()-started
         self.close_owners()

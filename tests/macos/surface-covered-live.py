@@ -143,9 +143,15 @@ def main():
         ready=poll(prepared,'native helper and capture preparation',180)
         check('real Permissions prepares the production protected helper',ready['helperHealthy'])
         check('helper preparation does not arm ordinary control',all(value['mode']=='off' for value in status()['admission']['surfaces'].values()))
-        press('Access');press('Allow prepared tasks behind an opaque cover','AXCheckBox')
+        from surface_fixture import SurfaceFixture
+        rig=SurfaceFixture(args.source_root,resident,endpoint,args.observer_socket,args.claim)
+        # Keep the existing independent operator owner; a second observer
+        # would contend for its already-reserved native input resource.
+        rig.observe=observe
+        rig.settings();rig.options();rig.press('Allow prepared tasks behind an opaque cover','AXCheckBox')
         poll(lambda:status()['lockedUse']['enabled'],'operator enables covered tasks')
-        choose('Desktop access mode',2)
+        rig.arm('automatic',('desktop',))
+        rig.close()
         poll(lambda:status()['admission']['surfaces']['desktop']['mode']=='automatic','Desktop Automatic consent')
         check('protected preference and ordinary Desktop consent are separate',status()['admission']['surfaces']['browser']['mode']=='off')
 
