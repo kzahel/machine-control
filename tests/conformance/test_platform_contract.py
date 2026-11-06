@@ -69,5 +69,14 @@ class SequenceEvaluationTests(unittest.TestCase):
                                               {"event": "closed"}])["pass"])
 
 
+class ChannelPresenceTests(unittest.TestCase):
+    def test_closed_without_any_reply_means_no_channel(self):
+        self.assertFalse(pc.has_channel([{"event": "closed"}]))
+        self.assertFalse(pc.has_channel([]))
+        self.assertTrue(pc.has_channel([reply(False, "x"), {"event": "closed"}]))
+        # A v0 envelope is still a reply: framing problems are reported, not skipped.
+        self.assertTrue(pc.has_channel([{"schema": "machine-control/v0", "accepted": False}]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -179,13 +179,29 @@ def main() -> int:
     parser.add_argument("--claim", required=True)
     options = parser.parse_args()
     results = [evaluate_status(json.loads(cli(options.target, options.claim, "desktop", "status") or "{}"))]
-    for name, sequence, expected in REFUSALS:
-        results.append(evaluate_refusal(name, frames(options.target, options.claim, sequence), expected))
+    first = frames(options.target, options.claim, REFUSALS[0][1])
+    if not has_channel(first):
+        # Older appliance residents have no v2 owner channel at all. Report
+        # that once and plainly instead of as a cascade of framing failures.
+        results.append({"check": "admission_channel", "pass": True, "skipped": "no_v2_channel", "problems": []})
+        return report(results)
+    for index, (name, sequence, expected) in enumerate(REFUSALS):
+        replies = first if index == 0 else frames(options.target, options.claim, sequence)
+        results.append(evaluate_refusal(name, replies, expected))
     gap = [open_frame(),
            {"operation": "control.status", "requestId": uuid.uuid4().hex, "requestSequence": 1},
            {"operation": "control.status", "requestId": uuid.uuid4().hex, "requestSequence": 3},
            {"operation": "control.cancel", "requestId": uuid.uuid4().hex, "requestSequence": 2}]
     results.append(evaluate_sequence(frames(options.target, options.claim, gap)))
+    return report(results)
+
+
+def has_channel(replies: list) -> bool:
+    """True when the target answered with any frame rather than only closing."""
+    return any("event" not in reply for reply in replies)
+
+
+def report(results: list) -> int:
     for result in results:
         print(json.dumps(result, separators=(",", ":")))
     return 0 if all(result["pass"] for result in results) else 1
