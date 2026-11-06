@@ -589,7 +589,7 @@ function App() {
           </div>
         )}
         {state?.accessPolicy?.schema === "machine-control-admission/v2" &&
-          <SurfaceAccess visible={page === "access"} policy={state.accessPolicy} profiles={state.browser.profiles ?? []}
+          <SurfaceAccess visible={page === "access"} policy={state.accessPolicy} profiles={state.browser.profiles ?? []} browser={state.browser}
             busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} />}
         {page === "access" && !unifiedPolicy && (
           <>

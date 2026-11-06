@@ -541,6 +541,11 @@ fieldset:disabled .scope {
 .browser-profile-list { border-top: 1px solid #e8ebe9; margin-top: 14px; padding-top: 14px; }
 .browser-profile-list h3 { font-size: 12px; font-weight: 500; color: #626e66; margin: 0 0 8px; }
 .profile-state { font-size: 11px; color: #738078; margin-left: auto; }
+.browser-help .browser-store { margin: 4px 0 8px; }
+.browser-troubleshooting { margin-top: 8px; }
+.browser-troubleshooting > summary { cursor: pointer; font-size: 12px; color: #626e66; }
+.browser-troubleshooting ul { margin: 8px 0; padding-left: 18px; }
+.browser-troubleshooting li + li { margin-top: 4px; }
 .access-options { padding: 14px 18px; border-radius: 10px; }
 .access-options > summary { cursor: pointer; color: #626e66; }
 .access-options[open] > summary { margin-bottom: 12px; }

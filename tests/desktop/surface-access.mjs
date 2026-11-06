@@ -194,6 +194,29 @@ try {
   await page.getByText("Can start in 60s", { exact: false }).waitFor();
   await page.evaluate(() => { window.fixtureState.admission.requests = window.fixtureState.admission.requests.filter(row => row.intentId !== "system-task"); });
   await systemTask.waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Access", exact: true }).click();
+  const shownProfiles = await page.evaluate(() => window.fixtureState.browser.profiles);
+  await page.evaluate(() => { window.fixtureState.browser = { connected: false, profiles: [] }; });
+  await page.getByText("No browser extension is connected.", { exact: false }).waitFor();
+  if (process.env.MC_SCREENSHOT_DIR) {
+    const { mkdir } = await import("node:fs/promises"); await mkdir(process.env.MC_SCREENSHOT_DIR, { recursive: true });
+    await page.locator("summary").filter({ hasText: "Troubleshooting" }).click();
+    await page.locator(".browser-profile-list").screenshot({ path: resolve(process.env.MC_SCREENSHOT_DIR, "access-browser-help.png") });
+    await page.locator("summary").filter({ hasText: "Troubleshooting" }).click();
+  }
+  await page.getByRole("button", { name: "Install Chrome extension", exact: true }).click();
+  assert.deepEqual((await calls()).at(-1), { method: "browser.setup" }, "missing extension offers the store and native registration");
+  await page.getByText("Chrome Web Store opened.", { exact: false }).waitFor();
+  await page.evaluate(() => { window.fixtureState.browser = { connected: true, profiles: [], problems: [{ reason: "browser_profile_protocol_required" }] }; });
+  await page.getByText("too old to share profiles", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Install Chrome extension", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "Update Chrome extension", exact: true }).waitFor();
+  await page.evaluate(() => { window.fixtureState.browser = { connected: true, profiles: [{ profileId: "fixture:new", name: "New", enabled: false, connected: true }] }; });
+  await page.getByText("In Chrome, click the Machine Control toolbar icon", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Update Chrome extension", exact: true }).count(), 0);
+  await page.evaluate(profiles => { window.fixtureState.browser = { connected: true, profiles }; }, shownProfiles);
+  await page.getByText("In Chrome, click the Machine Control toolbar icon", { exact: false }).waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Activity", exact: true }).click();
   if (process.env.MC_SCREENSHOT_DIR) {
     const { mkdir } = await import("node:fs/promises"); await mkdir(process.env.MC_SCREENSHOT_DIR, { recursive: true });
     await page.setViewportSize({ width: 680, height: 800 });

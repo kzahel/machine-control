@@ -184,6 +184,112 @@ function Switch({
   );
 }
 
+type BrowserConnection = {
+  connected: boolean;
+  problems?: { reason: string }[];
+};
+
+/** Explains why no profile is selectable and offers the store/registration
+ * action (`browser.setup` also re-registers the native host). */
+function BrowserProfileHelp({
+  profiles,
+  browser,
+  disabled,
+  act,
+}: {
+  profiles: Profile[];
+  browser?: BrowserConnection;
+  disabled: boolean;
+  act: Act;
+}) {
+  const [opened, setOpened] = useState(false);
+  const problems = browser?.problems ?? [];
+  const outdated = problems.some((p) => p.reason.includes("protocol_required"));
+  const refused = problems.length > 0 && !outdated;
+  const enabled = profiles.some((p) => p.enabled);
+  const installed = profiles.length > 0 || !!browser?.connected;
+  async function openStore() {
+    setOpened(false);
+    if (await act({ method: "browser.setup" })) setOpened(true);
+  }
+  const storeButton = (label: string) => (
+    <button
+      type="button"
+      className="browser-store"
+      disabled={disabled}
+      onClick={openStore}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="browser-help">
+      {outdated ? (
+        <>
+          <p className="note" role="alert">
+            Your Machine Control extension is too old to share profiles. Update
+            it, then turn on Enable this profile in its side panel.
+          </p>
+          {storeButton("Update Chrome extension")}
+        </>
+      ) : refused ? (
+        <p className="note" role="alert">
+          A browser profile connection was refused. In that Chrome profile,
+          click the Machine Control toolbar icon, choose Reset profile identity,
+          then approve the profile here again.
+        </p>
+      ) : enabled ? null : installed ? (
+        <p className="note">
+          In Chrome, click the Machine Control toolbar icon and turn on Enable
+          this profile in its side panel.
+        </p>
+      ) : (
+        <>
+          <p className="note">
+            No browser extension is connected. Install Machine Control in
+            Chrome, then click its toolbar icon and turn on Enable this profile.
+          </p>
+          {storeButton("Install Chrome extension")}
+        </>
+      )}
+      {opened && (
+        <p className="note" role="status">
+          Chrome Web Store opened. Install or update Machine Control there.
+        </p>
+      )}
+      <details className="browser-troubleshooting">
+        <summary>Troubleshooting</summary>
+        <ul className="note">
+          <li>
+            Install the extension in each Chrome profile you want to share and
+            enable each one in its side panel.
+          </li>
+          <li>
+            Keep one Machine Control extension per Chrome profile. A Developer
+            mode copy and the Web Store copy are separate extensions.
+          </li>
+          <li>
+            To update now, open chrome://extensions, turn on Developer mode and
+            click Update.
+          </li>
+          <li>
+            Still not connected? Re-register Machine Control with Chrome, then
+            reload the extension from chrome://extensions.
+          </li>
+        </ul>
+        <button
+          type="button"
+          className="browser-store"
+          disabled={disabled}
+          onClick={openStore}
+        >
+          Re-register and open Web Store
+        </button>
+      </details>
+    </div>
+  );
+}
+
 export function SurfaceAccess({
   visible = true,
   policy,
@@ -192,10 +298,12 @@ export function SurfaceAccess({
   act,
   protectedAccess,
   lockedBrowser,
+  browser,
 }: {
   visible?: boolean;
   policy: SurfacePolicy;
   profiles: Profile[];
+  browser?: BrowserConnection;
   busy: boolean;
   act: Act;
   lockedBrowser?: { supported: boolean; enabled: boolean };
@@ -649,11 +757,12 @@ export function SurfaceAccess({
                       </span>
                     </label>
                   ))}
-                {!profiles.some((p) => p.enabled) && (
-                  <p className="note">
-                    Enable a profile in the Machine Control extension.
-                  </p>
-                )}
+                <BrowserProfileHelp
+                  profiles={profiles}
+                  browser={browser}
+                  disabled={busy || working}
+                  act={act}
+                />
                 {selection
                   .filter(
                     (id) =>

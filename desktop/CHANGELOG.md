@@ -6,6 +6,10 @@
   access, installs the update, restarts, and turns the same Desktop and
   Browser access back on, keeping any timed access's original end time.
   Running or waiting agent tasks end; Settings asks first when one exists.
+- The Browser card explains why no profile can be chosen: it offers to
+  install the Chrome extension when none is connected, to update one too
+  old for profiles, or to enable the profile in the extension's side
+  panel, plus brief troubleshooting steps.
 
 ## [0.7.1]
 
