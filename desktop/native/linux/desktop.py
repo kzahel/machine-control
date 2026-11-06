@@ -29,7 +29,7 @@ import gi
 
 from gi.repository import Gio, GLib
 
-from operations import OBSERVE, CONTROL
+from operations import OBSERVE, CONTROL, BROWSER
 from work import Work, Ticket, Cancelled
 from presentation import Presentation, runtime_directory
 from coordinator import Coordinator
@@ -472,9 +472,7 @@ class Desktop:
                     ownerBinding='live_same_user_transport',callerAssurance='unverified_same_user')}
         else:
             result['data']=dict(provider='linux-desktop',profile='gnome_wayland',privilege='ordinary_user',
-                operations=sorted(OBSERVE|CONTROL|{'browser.profiles','browser.tabs','browser.snapshot','browser.click',
-                    'browser.type','browser.key','browser.navigate','browser.wait','browser.capture','browser.release',
-                    'browser.cdp','browser.eval','browser.endpoint','update.check','update.status'}),
+                operations=sorted(OBSERVE|CONTROL|BROWSER|{'browser.profiles','update.check','update.status'}),
                 browser=self.browser.state(),capture=dict(route='user/linux.portal-pipewire',state=self.portal.state,scope='shared_screen'),
                 input=dict(route='user/linux.portal-notify',authorization='portal_consent',coordinateSpace='portal_shared_screen'),
                 physicalActivity=self.activity.state(self.session_identity),nativeNotice=self.notice_capability(),

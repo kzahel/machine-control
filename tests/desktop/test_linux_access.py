@@ -159,7 +159,7 @@ class AccessTests(unittest.TestCase):
             body=b''
             while not body.endswith(b'\n'):body+=client.recv(65536)
             return json.loads(body)
-        opened=call(1,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],reason='Channel fixture')
+        opened=call(1,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],reason='Channel fixture',waitSeconds=5,durationSeconds=60)
         self.assertTrue(opened['accepted']);self.assertEqual(opened['data']['state'],'offered')
         self.assertEqual((opened['schema'],opened['errorCode']),('machine-control-admission-channel/v2',None))
         self.assertTrue(call(2,'control.heartbeat')['accepted'])
@@ -195,6 +195,47 @@ class AccessTests(unittest.TestCase):
         self.assertIsNone(channel.intent)
         return reply['errorCode']
 
+    def test_open_refusals_use_the_common_vocabulary(self):
+        for fields,code in [
+            (dict(schema='machine-control-admission/v9'),'unsupported_admission_schema'),
+            (dict(surfaces=['desktop','printer']),'invalid_admission_surfaces'),
+            (dict(surfaces=[]),'invalid_admission_surfaces'),
+            (dict(surfaces=['browser']),'exact_browser_profile_required'),
+            (dict(profileIds=['work']),'invalid_browser_profiles'),
+            (dict(profileIds='work'),'invalid_browser_profiles'),
+            (dict(operations=['browser.tabs']),'invalid_admission_operations'),
+            (dict(operations=['format.disk']),'invalid_admission_operations'),
+            (dict(operations=['capabilities']),'invalid_admission_operations'),
+            (dict(waitSeconds=None),'invalid_admission_request'),
+            (dict(durationSeconds=None),'invalid_admission_request'),
+            (dict(durationSeconds=901),'invalid_admission_request'),
+            (dict(requestId='r'*81),'invalid_admission_request'),
+        ]:
+            with self.subTest(fields=fields):self.assertEqual(self.failed_open(**fields),code)
+
+    def test_channel_operation_and_renewal_codes(self):
+        server,client=socket.socketpair();client.settimeout(2)
+        self.addCleanup(server.close);self.addCleanup(client.close)
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+            scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
+            channels=set(),changed=lambda:None)
+        channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
+        channel.authority=lambda:None
+        self.addCleanup(channel.close)
+        def call(sequence,operation,**fields):
+            channel.handle(dict(requestSequence=sequence,requestId=str(sequence),operation=operation,**fields))
+            body=b''
+            while not body.endswith(b'\n'):body+=client.recv(65536)
+            return json.loads(body)
+        opened=call(1,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],
+            operations=['snapshot'],reason='Channel fixture',waitSeconds=5,durationSeconds=60)
+        self.assertTrue(opened['accepted'],opened)
+        self.assertEqual(call(2,'control.teleport')['errorCode'],'unsupported_admission_operation')
+        fence=dict(sessionId='s',resourceGenerations={})
+        self.assertEqual(call(3,'control.renew',durationSeconds=0,**fence)['errorCode'],'invalid_renewal_duration')
+        self.assertEqual(call(4,'control.renew',durationSeconds=901,**fence)['errorCode'],'invalid_renewal_duration')
+        self.assertTrue(call(5,'control.status')['accepted'])
+
     def test_failed_open_replies_in_channel_schema_and_closes(self):
         self.assertEqual(self.failed_open(schema='machine-control-admission/v9'),'unsupported_admission_schema')
         self.assertEqual(self.failed_open(requestSequence=2),'invalid_request_sequence')
@@ -216,7 +257,7 @@ class AccessTests(unittest.TestCase):
             body=b''
             while not body.endswith(b'\n'):body+=client.recv(65536)
             return json.loads(body)
-        opened=call(0,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],reason='Channel fixture')
+        opened=call(0,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],reason='Channel fixture',waitSeconds=5,durationSeconds=60)
         self.assertTrue(opened['accepted']);self.assertEqual(opened['data']['state'],'offered')
         self.assertEqual(opened['data']['requestSequencing'],'strict')
         self.assertTrue(call(1,'control.heartbeat')['accepted'])

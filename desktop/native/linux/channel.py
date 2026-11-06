@@ -9,6 +9,7 @@ import threading
 import time
 import uuid
 from policy import PolicyError
+from operations import SURFACE_OPERATIONS
 
 SCHEMA='machine-control-admission-channel/v2'
 
@@ -107,7 +108,7 @@ class Channel:
     def handle(self,request):
         try:
             if self.closed.is_set() or self.closing:return False
-            if not isinstance(request.get('requestId'),str) or not 0<len(request['requestId'])<=128:
+            if not isinstance(request.get('requestId'),str) or not 0<len(request['requestId'])<=80:
                 raise ValueError('invalid_admission_request')
             # The unchanged SDK negotiates sequencing in its opening reply.
             # Explicitly sequenced callers start at one; an unsequenced open
@@ -124,21 +125,33 @@ class Channel:
                 allowed=common|{'schema','surfaces','profileIds','operations','waitSeconds','durationSeconds','reason','claimId'}
                 if not set(request)<=allowed:raise ValueError('invalid_admission_request')
                 surfaces=request.get('surfaces');profiles=request.get('profileIds',[]);operations=request.get('operations')
-                if not isinstance(surfaces,list) or not surfaces or len(set(surfaces))!=len(surfaces) or any(s not in ('desktop','browser') for s in surfaces):raise ValueError('invalid_admission_request')
-                if not isinstance(profiles,list) or len(profiles)>64 or any(not isinstance(p,str) or not 0<len(p)<=128 for p in profiles) or len(set(profiles))!=len(profiles):raise ValueError('invalid_admission_request')
-                if ('browser' in surfaces)!=bool(profiles):raise ValueError('browser_profiles_required')
-                if operations is not None and (not isinstance(operations,list) or not 0<len(operations)<=64 or any(not isinstance(op,str) or not op or len(op)>96 for op in operations)):
-                    raise ValueError('invalid_admission_request')
+                if (not isinstance(surfaces,list) or not 1<=len(surfaces)<=2 or
+                        any(not isinstance(s,str) or s not in SURFACE_OPERATIONS for s in surfaces) or len(set(surfaces))!=len(surfaces)):
+                    raise ValueError('invalid_admission_surfaces')
+                if (not isinstance(profiles,list) or len(profiles)>64 or
+                        any(not isinstance(p,str) or not 0<len(p)<=128 for p in profiles) or len(set(profiles))!=len(profiles)):
+                    raise ValueError('invalid_browser_profiles')
+                if 'browser' in surfaces and not profiles:raise ValueError('exact_browser_profile_required')
+                if 'browser' not in surfaces and profiles:raise ValueError('invalid_browser_profiles')
+                if operations is not None:
+                    permitted=set().union(*(SURFACE_OPERATIONS[s] for s in surfaces))
+                    if (not isinstance(operations,list) or not 1<=len(operations)<=64 or
+                            any(not isinstance(op,str) or op not in permitted for op in operations) or len(set(operations))!=len(operations)):
+                        raise ValueError('invalid_admission_operations')
                 reason=request.get('reason')
                 if not isinstance(reason,str) or not 0<len(reason.strip())<=240:raise ValueError('invalid_admission_request')
+                # Like macOS and Windows, the caller states both bounds.
+                wait=self.integer(request.get('waitSeconds'),1,14400)
+                duration=self.integer(request.get('durationSeconds'),1,900)
                 self.surfaces,self.profiles=surfaces,profiles
                 refusal=self.authority()
                 if refusal:raise ValueError(refusal)
                 value=self.owner.grants.submit(self.label,dict(requestId=request['requestId'],surfaces=surfaces,
                     profileIds=profiles,operations=operations,reason=reason.strip(),
-                    waitMs=self.integer(request.get('waitSeconds',300),1,14400)*1000,
-                    durationMs=self.integer(request.get('durationSeconds',300),1,900)*1000),self.authority)
+                    waitMs=wait*1000,durationMs=duration*1000),self.authority)
                 self.intent=value['intentId'];self.reply(request,value);self.owner.changed();return False
+            if operation not in ('control.status','control.heartbeat','control.cancel','control.accept','control.renew','control.dispatch'):
+                raise ValueError('unsupported_admission_operation')
             if operation not in ('control.status','control.heartbeat','control.cancel') and self.authority():
                 raise ValueError(self.authority())
             allowed=common|({'offerGeneration'} if operation=='control.accept' else
@@ -171,8 +184,9 @@ class Channel:
                 else:accept(False)  # Only Node's background offer can survive unknown input.
             elif operation=='control.renew':
                 fence=self.fence(request)
-                self.reply(request,access.send('renew',owner=self.label,fence=fence,
-                    durationMs=self.integer(request.get('durationSeconds'),1,900)*1000))
+                seconds=request.get('durationSeconds')
+                if type(seconds) is not int or not 1<=seconds<=900:raise ValueError('invalid_renewal_duration')
+                self.reply(request,access.send('renew',owner=self.label,fence=fence,durationMs=seconds*1000))
             elif operation=='control.dispatch':
                 if self.dispatching or self.accepting:raise ValueError('control_action_in_progress')
                 fence=self.fence(request);action=request.get('request')
@@ -186,7 +200,6 @@ class Channel:
                     self.dispatching=False
                     self.reply(request,value)
                 self.owner.dispatch(self,action,fence,completed)
-            else:raise ValueError('unsupported_control_operation')
         except (ValueError,TypeError,KeyError,PolicyError) as error:
             code=str(error)
             self.reply(request,error=code if re.fullmatch('[a-z][a-z0-9_]{0,95}',code) else 'invalid_admission_request')
