@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [159 — Platform contract alignment](159-platform-contract-alignment.md)
+  (active): repair accidental macOS/Windows/Linux divergences in the agent
+  surface and verify each on its dedicated VM.
+
 - [158 — Desktop 0.7.1 release](158-desktop-0.7.1-release.md)
   (publication queued): access experience release with the minimum required
   exact signed candidate acceptance and a verified native AX visibility fix.

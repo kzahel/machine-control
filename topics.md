@@ -91,3 +91,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `desktop-access-experience` — compact access configuration, task Activity,
   start notices, yielding behavior and native status presentation.
+- `platform-contract-alignment` — repairs of accidental macOS/Windows/Linux
+  divergences in the common agent surface (Tactical 159).
