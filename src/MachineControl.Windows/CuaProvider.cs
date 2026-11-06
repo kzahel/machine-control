@@ -296,7 +296,7 @@ internal sealed class CuaProvider : IControlProvider
             return Failure(
                 request,
                 generation,
-                "stale_or_unknown_reference",
+                "stale_reference",
                 "The semantic reference is not known to the Cua adapter",
                 "refused",
                 "refused",
@@ -312,7 +312,7 @@ internal sealed class CuaProvider : IControlProvider
             return Failure(
                 request,
                 generation,
-                "stale_or_unknown_reference",
+                "stale_reference",
                 "The reference belongs to an earlier runtime or provider generation",
                 "refused",
                 "refused",
@@ -1064,7 +1064,7 @@ internal sealed class CuaDriverHost
         var code = lowered.Contains("stale_element_token", StringComparison.Ordinal) ||
             lowered.Contains("stale", StringComparison.Ordinal) ||
             lowered.Contains("has ended; tool call", StringComparison.Ordinal)
-                ? "stale_or_unknown_reference"
+                ? "stale_reference"
                 : lowered.Contains("outside", StringComparison.Ordinal) ||
                   lowered.Contains("authorization", StringComparison.Ordinal) ||
                   lowered.Contains("permission", StringComparison.Ordinal)

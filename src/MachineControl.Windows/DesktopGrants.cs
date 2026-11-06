@@ -36,8 +36,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     internal static string SurfaceFor(string scope) => BrowserScope(scope) ? "browser" : "desktop";
     internal static string? ScopeFor(string operation) => operation switch
     {
-        "windows" or "snapshot" or "screenshot" => "observe",
-        "app.launch" or "app.activate" or "invoke" or "set.value" or "click" or "move" or "drag" or "scroll" or
+        "windows" or "snapshot" or "screenshot" or "applications" => "observe",
+        "app.launch" or "app.activate" or "application.terminate" or "action" or "invoke" or "set.value" or "click" or "move" or "drag" or "scroll" or
         "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" or "session.unlock.prepare" or "session.unlock" => "control",
         "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or "browser.click" or "browser.type" or
         "browser.key" or "browser.capture" or "browser.upload" or "browser.release" or "browser.dialog" => "browser",

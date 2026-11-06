@@ -275,9 +275,68 @@ internal static class AdmissionChannelFixtures
             foreach (var owner in owners) try { await owner; } catch (OperationCanceledException) { } catch (IOException) { }
         }
         Require(grants.Admission.Status() is not null, "Disconnect cleanup accessible");
+        await FramingAsync();
         Console.WriteLine("Admission live transport fixtures passed");
     }
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
+
+    /// Tactical 159 decisions 6 and 7: one envelope, common refusal codes,
+    /// and ordering violations or failed opens close the channel.
+    private static async Task FramingAsync()
+    {
+        var grants = TestBrowserProjection.Create(new TestTime()); grants.SetReady(true);
+        grants.ConfigureSurface("desktop", "automatic", 900, "timed");
+        JsonObject Opening(Action<JsonObject>? change = null)
+        {
+            var frame = new JsonObject
+            {
+                ["operation"] = "control.open",
+                ["schema"] = AccessAdmission.Schema,
+                ["requestId"] = "open-" + Guid.NewGuid().ToString("n")[..8],
+                ["reason"] = "fixture",
+                ["durationSeconds"] = 60,
+                ["waitSeconds"] = 5,
+                ["surfaces"] = new JsonArray("desktop")
+            };
+            change?.Invoke(frame);
+            return frame;
+        }
+        foreach (var (change, code) in new (Action<JsonObject>, string)[]
+        {
+            (frame => frame["schema"] = "machine-control-admission/v9", "unsupported_admission_schema"),
+            (frame => frame["surfaces"] = new JsonArray("desktop", "printer"), "invalid_admission_surfaces"),
+            (frame => frame["surfaces"] = new JsonArray("browser"), "exact_browser_profile_required"),
+            (frame => frame["profileIds"] = new JsonArray("Work"), "invalid_browser_profiles"),
+            (frame => frame["operations"] = new JsonArray("browser.tabs"), "invalid_admission_operations"),
+            (frame => frame["requestSequence"] = 2L, "invalid_request_sequence"),
+        })
+        {
+            var open = Opening(change);
+            var trailing = new JsonObject { ["operation"] = "control.status", ["requestId"] = "after-refusal" };
+            var replies = await Exchange(grants, open, trailing);
+            Require(replies.Count == 1 && replies[0]["errorCode"]!.GetValue<string>() == code &&
+                replies[0]["requestId"]!.GetValue<string>() == open["requestId"]!.GetValue<string>() &&
+                replies[0]["schema"]!.GetValue<string>() == AdmissionChannel.Schema && replies[0].ContainsKey("data") && replies[0]["data"] is null,
+                "Failed open refuses with " + code + " in the channel envelope and closes");
+        }
+        var gap = await Exchange(grants, Opening(),
+            new JsonObject { ["operation"] = "control.status", ["requestId"] = "first", ["requestSequence"] = 1L },
+            new JsonObject { ["operation"] = "control.status", ["requestId"] = "skipped", ["requestSequence"] = 3L },
+            new JsonObject { ["operation"] = "control.cancel", ["requestId"] = "never", ["requestSequence"] = 2L });
+        Require(gap.Count == 3 && gap[0]["accepted"]!.GetValue<bool>() && gap[0]["errorCode"] is null && gap[0].ContainsKey("errorCode") &&
+            gap[1]["requestId"]!.GetValue<string>() == "first" && gap[1]["accepted"]!.GetValue<bool>(),
+            "Accepted replies carry an explicit null errorCode");
+        Require(gap[2]["requestId"]!.GetValue<string>() == "skipped" && gap[2]["errorCode"]!.GetValue<string>() == "invalid_request_sequence",
+            "A sequence gap answers the offending request, then the channel closes");
+        var unknown = await Exchange(grants, Opening(),
+            new JsonObject { ["operation"] = "control.teleport", ["requestId"] = "odd" },
+            new JsonObject { ["operation"] = "control.status", ["requestId"] = "still-open" });
+        Require(unknown.Count == 3 && unknown[1]["errorCode"]!.GetValue<string>() == "unsupported_admission_operation" &&
+            unknown[2]["requestId"]!.GetValue<string>() == "still-open", "An unknown operation is refused without closing");
+        foreach (var (operation, scope) in new[] { ("applications", "observe"), ("action", "control"), ("application.terminate", "control") })
+            Require(DesktopGrants.ScopeFor(operation) == scope, "Portable " + operation + " has a typed scope");
+        Console.WriteLine("Admission channel framing and refusal vocabulary contracts passed");
+    }
 
     /// Runs one channel over in-memory frames and returns every reply frame.
     internal static async Task<List<JsonObject>> Exchange(DesktopGrants grants, JsonObject open, params JsonObject[] frames)

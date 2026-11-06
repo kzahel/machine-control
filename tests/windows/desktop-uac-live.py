@@ -182,7 +182,7 @@ def main():
         check(cancel['effect'] == 'confirmed', 'Typed UAC cancellation returns to Default')
         check(not marker.exists(), 'Cancellation has no elevated application effect')
         stale = owner.call({'operation': 'invoke', 'hwnd': medium_hwnd, 'reference': old})
-        check(not stale['accepted'] and stale['errorCode'] == 'stale_or_unknown_reference', 'Desktop transition invalidates semantic reference')
+        check(not stale['accepted'] and stale['errorCode'] == 'stale_reference', 'Desktop transition invalidates semantic reference')
         elevation()
         approve = accepted({'operation': 'uac.respond', 'state': 'approve'})
         check(approve['effect'] == 'confirmed', 'Typed UAC approval returns to Default')

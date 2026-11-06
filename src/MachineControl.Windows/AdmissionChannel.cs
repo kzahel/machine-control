@@ -30,7 +30,9 @@ internal static class AdmissionChannel
         object? activeAction = null;
         var actions = new List<Task>();
         var order = new AdmissionRequestOrder();
-        async Task Reply(string id, object? data = null, string? error = null, object? completedAction = null)
+        // The request a channel-level refusal answers; null for an unreadable frame.
+        string? current = open["requestId"] is JsonValue openId && openId.TryGetValue<string>(out var openText) ? openText : null;
+        async Task Reply(string? id, object? data = null, string? error = null, object? completedAction = null)
         {
             await writes.WaitAsync(lifetime.Token);
             try
@@ -57,7 +59,17 @@ internal static class AdmissionChannel
                 // (and its containing Task) finishes. Provider work has ended;
                 // release occupancy before making its result visible.
                 if (completedAction is not null) Interlocked.CompareExchange(ref activeAction, null, completedAction);
-                await writer.WriteLineAsync(Contract.Serialize(new { schema = Schema, requestId = id, accepted = error is null, errorCode = error, data }).AsMemory(), timeout.Token);
+                // The channel envelope always carries errorCode and data,
+                // explicitly null when absent (admission-channel-v2 reply).
+                var envelope = new JsonObject
+                {
+                    ["schema"] = Schema,
+                    ["requestId"] = id,
+                    ["accepted"] = error is null,
+                    ["errorCode"] = error,
+                    ["data"] = data is null ? null : JsonSerializer.SerializeToNode(data, Contract.Json)
+                };
+                await writer.WriteLineAsync(envelope.ToJsonString().AsMemory(), timeout.Token);
                 await writer.FlushAsync(timeout.Token);
             }
             finally { writes.Release(); }
@@ -65,13 +77,14 @@ internal static class AdmissionChannel
         try
         {
             Keys(open, ["operation", "schema", "requestId", "reason", "surfaces", "profileIds", "operations", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "preparedConsole"]);
-            if (!order.Accept(open)) throw new ArgumentException("invalid_admission_request_order");
+            if (!order.Accept(open)) throw new ArgumentException("invalid_request_sequence");
             if (open["schema"]?.GetValue<string>() != AccessAdmission.Schema) throw new ArgumentException("unsupported_admission_schema");
             var surfaces = open["surfaces"]?.Deserialize<string[]>() ?? [];
             if (surfaces.Length is < 1 or > 2 || surfaces.Distinct().Count() != surfaces.Length || surfaces.Any(s => s is not ("desktop" or "browser"))) throw new ArgumentException("invalid_admission_surfaces");
             var scopes = DesktopGrants.SupportedScopes.Where(scope => surfaces.Contains(DesktopGrants.SurfaceFor(scope))).ToArray();
             var profileIds = open["profileIds"]?.Deserialize<string[]>() ?? [];
             if (surfaces.Contains("browser") && profileIds.Length == 0) throw new ArgumentException("exact_browser_profile_required");
+            if (!surfaces.Contains("browser") && profileIds.Length > 0) throw new ArgumentException("invalid_browser_profiles");
             var operations = open["operations"]?.Deserialize<string[]>();
             if (operations is not null && (operations.Length is < 1 or > 64 || operations.Distinct().Count() != operations.Length ||
                 operations.Any(op => DesktopGrants.ScopeFor(op) is not { } scope || !scopes.Contains(scope)))) throw new ArgumentException("invalid_admission_operations");
@@ -103,9 +116,12 @@ internal static class AdmissionChannel
                 if (line is null) break;
                 if (actions.Any(task => task.IsFaulted)) throw new IOException("Admission response failed");
                 actions.RemoveAll(task => task.IsCompletedSuccessfully);
-                var request = JsonNode.Parse(line)?.AsObject() ?? throw new ArgumentException("invalid_admission_request");
-                var id = request["requestId"]?.GetValue<string>() ?? "";
-                if (!order.Accept(request)) throw new ArgumentException("invalid_admission_request_id");
+                current = null;
+                var request = JsonNode.Parse(line) as JsonObject ?? throw new ArgumentException("invalid_admission_request");
+                var id = request["requestId"] is JsonValue requestId && requestId.TryGetValue<string>(out var requestText) ? requestText : "";
+                current = id.Length == 0 ? null : id;
+                // An ordering violation answers the offending frame, then closes.
+                if (!order.Accept(request)) throw new ArgumentException("invalid_request_sequence");
                 try
                 {
                     var operation = request["operation"]?.GetValue<string>() ?? "";
@@ -221,8 +237,12 @@ internal static class AdmissionChannel
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException) { await Reply(id, error: ex.Message); }
             }
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException)
-        { await Reply(open["requestId"]?.GetValue<string>() ?? "invalid", error: ex.Message); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException or InvalidDataException)
+        {
+            // Failed opens, ordering violations and unreadable frames close
+            // the channel after one refusal in the channel schema.
+            await Reply(current, error: ex is JsonException or InvalidDataException ? "invalid_admission_request" : ex.Message);
+        }
         finally
         {
             if (plainDesktop) grants.TrackPlainDesktop(intentId!, false);

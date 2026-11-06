@@ -58,7 +58,7 @@ try {
     Remove-Item -LiteralPath $capturePath
     if ($capture.actualRoute -match '/cua/') {
         $superseded = Call @{operation='invoke'; reference=$button.reference; expectedGeneration=$generation}
-        Assert (-not $superseded.accepted -and $superseded.errorCode -eq 'stale_or_unknown_reference' -and $superseded.delivery -eq 'refused') 'Superseded Cua snapshot reference refused'
+        Assert (-not $superseded.accepted -and $superseded.errorCode -eq 'stale_reference' -and $superseded.delivery -eq 'refused') 'Superseded Cua snapshot reference refused'
         $effect = Get-Content -LiteralPath $marker -Raw | ConvertFrom-Json
         Assert ($effect.counter -eq 1) 'No replay or effect for a superseded reference'
         $summary.captureInvalidatedReference = $true

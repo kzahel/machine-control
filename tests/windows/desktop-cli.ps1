@@ -59,7 +59,7 @@ try {
   $null=InvokeCommon @('--claim',$claimId,'desktop','artifact',$capture.data.artifactId,$capturePath)
   if ($LASTEXITCODE -ne 0 -or (Get-FileHash $capturePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $capture.data.sha256) {throw 'Local CLI artifact bytes mismatch'}
   $superseded=InvokeCommon @('--claim',$claimId,'desktop','raw',(@{operation='invoke';reference=$button.reference;expectedGeneration=$local.generation}|ConvertTo-Json -Compress))
-  if ($superseded.accepted -or $superseded.errorCode -ne 'stale_or_unknown_reference' -or $superseded.delivery -ne 'refused') {throw 'Capture-superseded Cua reference was not refused'}
+  if ($superseded.accepted -or $superseded.errorCode -ne 'stale_reference' -or $superseded.delivery -ne 'refused') {throw 'Capture-superseded Cua reference was not refused'}
   $marker=Get-Content (Join-Path $env:LOCALAPPDATA 'MachineControl\conformance\counter.json') -Raw|ConvertFrom-Json
   if ($marker.counter -ne 1 -or $marker.processId -ne $fixtureProcess) {throw 'Superseded action changed the independent fixture'}
   $summary.captureInvalidatedReference=$true

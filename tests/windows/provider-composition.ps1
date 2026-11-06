@@ -220,7 +220,7 @@ try {
             expectedGeneration = $before.generation
         }
         if ($staleAfterCrash.accepted -or
-            $staleAfterCrash.errorCode -ne 'stale_or_unknown_reference') {
+            $staleAfterCrash.errorCode -ne 'stale_reference') {
             throw 'reference survived a Cua provider-generation restart'
         }
         $summary.failures.provider_restart_invalidated_reference = $true

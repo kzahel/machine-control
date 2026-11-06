@@ -305,7 +305,7 @@ try {
  Remove-Item $capturePath
  if (-not $AllowUnsigned) {
   $superseded=Call @{operation='invoke';reference=$button.reference;expectedGeneration=$generation}
-  Assert (-not $superseded.accepted -and $superseded.errorCode -eq 'stale_or_unknown_reference' -and $superseded.delivery -eq 'refused') 'Capture-superseded provider reference refuses without replay'
+  Assert (-not $superseded.accepted -and $superseded.errorCode -eq 'stale_reference' -and $superseded.delivery -eq 'refused') 'Capture-superseded provider reference refuses without replay'
   $marker=Get-Content (Join-Path $env:LOCALAPPDATA 'MachineControl\conformance\counter.json') -Raw|ConvertFrom-Json
   Assert ($marker.counter -eq 1 -and $marker.processId -eq $fixtureProcess) 'Superseded action produces no fixture effect'
  }

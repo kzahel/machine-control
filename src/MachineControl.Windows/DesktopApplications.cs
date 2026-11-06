@@ -193,6 +193,98 @@ internal static partial class DesktopController
     private static object? ResolvedTargetData(Request request, ApplicationWindow? activated) =>
         activated is null ? null : new { requested = request.Target, resolved = WindowIdentity(activated) };
 
+    private static Result Applications(Request request, string generation, string desktopName, IntPtr desktop, Stopwatch timer)
+    {
+        var foreground = ApplicationNative.RootOwner(NativeMethods.GetForegroundWindow()).ToInt64();
+        var applications = ApplicationWindows(desktop)
+            .GroupBy(ApplicationTargets.Key)
+            .Select(group => group.OrderBy(window => window.ZOrder).ToList())
+            .OrderBy(group => group[0].ZOrder)
+            .Take(Math.Clamp(request.MaxElements ?? 100, 1, 500))
+            .Select(group => new
+            {
+                processId = group[0].ProcessId,
+                name = group[0].Name,
+                processName = group[0].ProcessName,
+                applicationId = group[0].ApplicationId,
+                running = true,
+                active = group.Any(window => window.Hwnd == foreground),
+                windowCount = group.Count,
+                windows = group.Take(8).Select(window => new { hwnd = window.Hwnd, title = window.Title }).ToArray(),
+            })
+            .ToList();
+        return Success(request, generation, desktopName, timer, "windows.native/enum_desktop_windows", "confirmed", "not_applicable",
+            new { applications, count = applications.Count, selection = "visible_unowned_top_level_windows" });
+    }
+
+    private static Result ApplicationTerminate(Request request, string generation, string desktopName, IntPtr desktop, Stopwatch timer)
+    {
+        var target = request.Target ?? request.ApplicationId ?? request.ProcessId?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (target is null)
+            return Failure(request, generation, desktopName, timer, "invalid_request", "application.terminate requires target, applicationId or processId");
+        var windows = ApplicationWindows(desktop);
+        var resolution = Select(windows, target, ApplicationNative.RootOwner(NativeMethods.GetForegroundWindow()).ToInt64());
+        if (resolution.Window is not { } chosen) return TargetFailure(request with { Target = target }, generation, desktopName, timer, resolution);
+        var key = ApplicationTargets.Key(chosen);
+        var owned = windows.Where(window => ApplicationTargets.Key(window) == key).Take(32).ToList();
+        // A graceful close request, like a user closing every window. The
+        // application may ask to save; that is reported, never overridden.
+        foreach (var window in owned)
+        {
+            var hwnd = new IntPtr(window.Hwnd);
+            DesktopAction(() => NativeMethods.PostMessage(hwnd, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero), AutomationElement.FromHandle(hwnd));
+        }
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(Math.Clamp(request.TimeoutMs ?? 3_000, 250, 15_000));
+        List<ApplicationWindow> remaining;
+        do
+        {
+            Thread.Sleep(100);
+            remaining = owned.Where(window => NativeMethods.IsWindow(new IntPtr(window.Hwnd)) && NativeMethods.IsWindowVisible(new IntPtr(window.Hwnd))).ToList();
+        }
+        while (remaining.Count > 0 && DateTime.UtcNow < deadline);
+        var confirmed = remaining.Count == 0;
+        return Success(request, generation, desktopName, timer, "windows.native/post_wm_close", "confirmed", confirmed ? "confirmed" : "unknown",
+            new
+            {
+                processId = chosen.ProcessId,
+                application = WindowIdentity(chosen),
+                windowsClosed = owned.Count - remaining.Count,
+                windowsRemaining = remaining.Select(window => new { hwnd = window.Hwnd, title = window.Title }).ToArray(),
+            },
+            fidelity: "graceful_window_close") with
+        {
+            Uncertainty = confirmed ? "none" : "termination_not_observed",
+            FocusConsequence = "may_change",
+        };
+    }
+
+    private static Result Focus(Request request, string generation, string desktopName, Stopwatch timer)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reference) && string.IsNullOrWhiteSpace(request.Query))
+            return Failure(request, generation, desktopName, timer, "invalid_request", "focus requires reference or query");
+        var root = ResolveAutomationRoot(request);
+        if (root is null)
+            return Failure(request, generation, desktopName, timer, "target_unavailable", "The requested automation root is unavailable");
+        CachedSelector? selector = null;
+        if (!string.IsNullOrWhiteSpace(request.Reference) &&
+            (!Selectors.TryGetValue(request.Reference, out selector) || !string.Equals(selector.Generation, generation, StringComparison.Ordinal)))
+            return Failure(request, generation, desktopName, timer, "stale_reference", "The semantic reference is not valid for this generation");
+        var query = request.Query ?? selector?.PreferredQuery ?? string.Empty;
+        var element = FindElement(root, query, maxVisited: 10_000, selector);
+        if (element is null)
+            return Failure(request, generation, desktopName, timer, selector is null ? "element_not_found" : "stale_reference",
+                selector is null ? $"No element matched '{query}'" : "The observed element is no longer available");
+        if (!element.Current.IsKeyboardFocusable)
+            return Failure(request, generation, desktopName, timer, "semantic_action_unavailable", "The element cannot take keyboard focus");
+        DesktopAction(() => element.SetFocus(), element);
+        var focused = false;
+        try { focused = Automation.Compare(AutomationElement.FocusedElement, element); }
+        catch (Exception ex) when (ex is InvalidOperationException or ElementNotAvailableException or COMException) { }
+        return Success(request, generation, desktopName, timer, "windows.native/uia_set_focus", "confirmed", focused ? "confirmed" : "unverifiable",
+            new { matched = SafeElementSummary(element), action = "focus", keyboardReceiver = KeyboardReceiver() }) with
+        { FocusConsequence = "target_element_focused" };
+    }
+
     private static partial class ApplicationNative
     {
         internal const uint GW_OWNER = 4;

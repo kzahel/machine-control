@@ -253,6 +253,18 @@ internal static partial class DesktopController
                     request, generation, desktopName, timer),
                 "screenshot" => Screenshot(
                     request, generation, desktopName, desktop, timer),
+                "applications" => Applications(
+                    request, generation, desktopName, desktop, timer),
+                "application.terminate" => ApplicationTerminate(
+                    request, generation, desktopName, desktop, timer),
+                "action" => request.Action?.ToLowerInvariant() switch
+                {
+                    "focus" => Focus(request, generation, desktopName, timer),
+                    "press" => Invoke(request, generation, desktopName, timer),
+                    "set_value" => SetValue(request, generation, desktopName, timer),
+                    _ => Failure(request, generation, desktopName, timer,
+                        "unsupported_action", "action must be press, focus or set_value"),
+                },
                 "invoke" => Invoke(request, generation, desktopName, timer),
                 "set.value" => SetValue(
                     request, generation, desktopName, timer),
@@ -953,7 +965,7 @@ internal static partial class DesktopController
                 generation,
                 desktopName,
                 timer,
-                "stale_or_unknown_reference",
+                "stale_reference",
                 "The semantic reference is not valid for this generation");
         }
         var query = request.Query ?? selector?.PreferredQuery ?? string.Empty;
@@ -965,7 +977,7 @@ internal static partial class DesktopController
                 generation,
                 desktopName,
                 timer,
-                selector is null ? "element_not_found" : "stale_or_unknown_reference",
+                selector is null ? "element_not_found" : "stale_reference",
                 selector is null ? $"No element matched '{query}'" : "The observed element is no longer available");
         }
 
@@ -1105,7 +1117,7 @@ internal static partial class DesktopController
                 generation,
                 desktopName,
                 timer,
-                "stale_or_unknown_reference",
+                "stale_reference",
                 "The semantic reference is not valid for this generation");
         }
         var query = request.Query ?? selector?.PreferredQuery ?? string.Empty;
@@ -1117,7 +1129,7 @@ internal static partial class DesktopController
                 generation,
                 desktopName,
                 timer,
-                selector is null ? "element_not_found" : "stale_or_unknown_reference",
+                selector is null ? "element_not_found" : "stale_reference",
                 selector is null ? $"No element matched '{query}'" : "The observed element is no longer available");
         }
         if (!element.TryGetCurrentPattern(

@@ -80,13 +80,13 @@ try {
         # this interval. Upstream's maintenance sweep runs every 30 seconds.
         Start-Sleep -Seconds $IdleSeconds
         $expired = Call @{ operation = 'invoke'; reference = $button[0].reference; expectedGeneration = $status.generation }
-        if ($expired.accepted -or $expired.errorCode -ne 'stale_or_unknown_reference') {
+        if ($expired.accepted -or $expired.errorCode -ne 'stale_reference') {
             throw 'Expired session action was not refused without replay'
         }
         $fresh = Accepted (Call @{ operation = 'snapshot'; hwnd = $hwnd; processId = $fixtureProcess; maxDepth = 10; maxElements = 40 })
         if ($fresh.actualRoute -notmatch '/cua/' -or $fresh.fallbackUsed) { throw 'Fresh observation did not recover the idle session' }
         $old = Call @{ operation = 'invoke'; reference = $button[0].reference; expectedGeneration = $status.generation }
-        if ($old.accepted -or $old.errorCode -ne 'stale_or_unknown_reference') { throw 'Revived session accepted an old reference' }
+        if ($old.accepted -or $old.errorCode -ne 'stale_reference') { throw 'Revived session accepted an old reference' }
         $button = @($fresh.data.elements | Where-Object name -eq 'Increment counter' | Select-Object -First 1)
         if ($button.Count -ne 1) { throw 'Revived session lost fixture semantics' }
         $null = Accepted (Call @{ operation = 'invoke'; reference = $button[0].reference; expectedGeneration = $status.generation })
@@ -108,7 +108,7 @@ try {
         $terminated = Invoke-CimMethod -InputObject $daemon[0] -MethodName Terminate
         if ($terminated.ReturnValue -ne 0) { throw 'Could not terminate the selected Cua daemon' }
         $staleProvider = Call @{ operation = 'invoke'; reference = $button[0].reference; expectedGeneration = $status.generation }
-        if ($staleProvider.accepted -or $staleProvider.errorCode -ne 'stale_or_unknown_reference') {
+        if ($staleProvider.accepted -or $staleProvider.errorCode -ne 'stale_reference') {
             throw 'Crashed provider retained an actionable reference'
         }
         $recovered = Accepted (Call @{ operation = 'snapshot'; hwnd = $hwnd; processId = $fixtureProcess; maxDepth = 10; maxElements = 40 })

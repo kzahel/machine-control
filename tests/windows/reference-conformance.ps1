@@ -34,7 +34,7 @@ Assert $invoked.accepted 'Exact button reference refused'
 $state = State
 Assert ($state.second -eq 1 -and $state.first -eq 0) 'Button retargeted duplicate label or shell'
 $stale = Call-Control @{ operation = 'invoke'; reference = $buttons[1].reference }
-Assert (!$stale.accepted -and $stale.errorCode -eq 'stale_or_unknown_reference') 'Removed element was retargeted'
+Assert (!$stale.accepted -and $stale.errorCode -eq 'stale_reference') 'Removed element was retargeted'
 $generation = Call-Control @{ operation = 'invoke'; reference = $buttons[0].reference; expectedGeneration = 'wrong-generation' }
 Assert (!$generation.accepted -and $generation.errorCode -eq 'stale_generation') 'Generation fencing failed'
 $query = Call-Control @{ operation = 'invoke'; hwnd = $window[0].hwnd; query = 'Start' }

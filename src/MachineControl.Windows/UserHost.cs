@@ -15,7 +15,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
     private string Generation => grants?.Generation ?? _generation;
     internal static readonly string[] Operations =
     [
-        "status", "capabilities", "app.launch", "app.activate", "windows",
+        "status", "capabilities", "applications", "app.launch", "app.activate", "application.terminate", "windows", "action",
         "snapshot", "screenshot", "invoke", "set.value", "click", "move", "drag", "scroll", "key",
         "key.timeline", "key.delayed_hold",
         "type", "window.state", "runtime.stop", "uac.respond",
@@ -143,6 +143,18 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
             65536, 65536, security);
     }
 
+    private static IEnumerable<string> AdvertisedOperations() =>
+        Operations.Where(operation => operation != "uac.respond" || DesktopUacClient.Enabled);
+
+    /// Unlock operations exist only with covered use enabled and prepared;
+    /// native enrollment unlocks at control.accept (explicit session.unlock
+    /// is then a no-op), while a controller-key policy prepares explicitly.
+    private string[] UnlockOperations()
+    {
+        if (grants?.PreparedConsole != true || DesktopLockedUse.Current is not { } locked || !DesktopLockedUse.Prepared()) return [];
+        return locked.LocallyEnrolled() ? ["session.unlock"] : ["session.unlock.prepare"];
+    }
+
     private Result Envelope(Request request) => new()
     {
         RequestId = request.RequestId!,
@@ -248,7 +260,8 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 : new
                 {
                     profile = "workstation",
-                    operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke", "session.unlock.prepare", "session.unlock", .. (updates is null ? Array.Empty<string>() : new[] { "update.check", "update.status" })],
+                    // Advertise only what current policy and preparation admit.
+                    operations = grants is null ? Operations : [.. AdvertisedOperations(), .. BrowserWire.Operations, "grant.status", "grant.revoke", .. UnlockOperations(), .. (updates is null ? Array.Empty<string>() : new[] { "update.check", "update.status" })],
                     browser = browser?.State,
                     authorization = grants is null ? "component_owner" : "surface_task_ownership",
                     controlSession = grants is null ? null : new { schema = AccessAdmission.Schema, required = true },
