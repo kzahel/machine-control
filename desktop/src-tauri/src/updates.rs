@@ -19,6 +19,7 @@ struct Core {
     candidate: Option<(String, Option<String>)>,
     last_checked: Option<u64>,
     error: Option<String>,
+    access_resume: Option<Value>,
 }
 
 impl Core {
@@ -88,7 +89,8 @@ impl Core {
             "availableVersion":self.candidate.as_ref().map(|v| &v.0),
             "notes":self.candidate.as_ref().and_then(|v| v.1.as_ref()),
             "lastCheckedAt":self.last_checked, "error":self.error,
-            "startupDelaySeconds":STARTUP_SECONDS, "periodicIntervalSeconds":PERIODIC_SECONDS})
+            "startupDelaySeconds":STARTUP_SECONDS, "periodicIntervalSeconds":PERIODIC_SECONDS,
+            "accessResume":self.access_resume})
     }
 }
 
@@ -147,6 +149,10 @@ pub fn begin_install(version: &str) -> Result<(), String> {
 }
 pub fn installing() {
     state().phase = "installing";
+}
+/// Live access around an operator-initiated update; see `update_resume`.
+pub fn set_access_resume(value: Value) {
+    state().access_resume = Some(value);
 }
 pub fn finish_install(result: &Result<(), String>) {
     crate::diagnostics::record(if result.is_ok() {

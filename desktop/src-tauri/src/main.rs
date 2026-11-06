@@ -17,6 +17,7 @@ mod linux;
 mod mac_instance;
 mod native_queue;
 mod restart;
+mod update_resume;
 mod updates;
 #[cfg(target_os = "windows")]
 mod windows;
@@ -147,6 +148,61 @@ fn check_update(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<V
         return Err("Operator window required".into());
     }
     updates::check(&app, "manual")
+}
+
+/// Run one operator command on the native thread from a blocking worker.
+/// Never call this from the macOS main thread.
+pub(crate) fn native_blocking(app: &tauri::AppHandle, command: Value) -> Result<Value, String> {
+    let (send, receive) = std::sync::mpsc::channel();
+    schedule_native(app, move || {
+        let _ = send.send(native_command(command));
+    })?;
+    receive
+        .recv_timeout(std::time::Duration::from_secs(15))
+        .map_err(|_| "Native operation did not complete".to_string())?
+}
+
+/// Use the same platform Stop path as the tray, which is asynchronous on
+/// Windows, then wait until the resident reports every consent Off.
+fn stop_access_for_update(app: &tauri::AppHandle, target: &str) -> Result<Option<Value>, String> {
+    let state = native_blocking(app, json!({"method":"state"}))?["state"].clone();
+    // Standing policy is not operator consent; the native update gate decides.
+    if update_resume::standing(&state) || !update_resume::access_on(&state) {
+        return Ok(None);
+    }
+    let plan = update_resume::capture(&state, target, update_resume::now());
+    if let Some(plan) = &plan {
+        update_resume::save(app, plan)?;
+    }
+    let stopped = (|| -> Result<(), String> {
+        #[cfg(target_os = "windows")]
+        windows::stop()?;
+        #[cfg(target_os = "linux")]
+        linux::stop_from_shortcut()?;
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        native_blocking(app, json!({"method":"stop"}))?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let reply = native_blocking(app, json!({"method":"state"}))?;
+            if !update_resume::access_on(&reply["state"]) {
+                return Ok(());
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err("Access did not stop; the update was not installed".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    })();
+    if let Err(error) = stopped {
+        if let Some(plan) = &plan {
+            update_resume::restore_after_failure(app, plan, |command| {
+                native_blocking(app, command)
+            });
+        }
+        return Err(error);
+    }
+    diagnostics::record("update.access.stopped");
+    Ok(plan)
 }
 
 // AT-SPI can call back into this GTK application while the resident handles
@@ -314,6 +370,15 @@ async fn perform_install(app: tauri::AppHandle, version: String) -> Result<(), S
         .await
         .map_err(|e| e.to_string())?;
     updates::installing();
+    // Stop only after a verified download, so a failed fetch never interrupts
+    // access. The updated client restores the recorded surface choices.
+    let resume = {
+        let app = app.clone();
+        let target = update.version.clone();
+        tauri::async_runtime::spawn_blocking(move || stop_access_for_update(&app, &target))
+            .await
+            .map_err(|e| e.to_string())??
+    };
     let (send, receive) = std::sync::mpsc::channel();
     let restart = app.clone();
     schedule_native(&app, move || {
@@ -324,6 +389,9 @@ async fn perform_install(app: tauri::AppHandle, version: String) -> Result<(), S
             .and_then(|_| restart::request(&restart));
         if result.is_err() {
             let _ = native_command(json!({"method":"cancel_update"}));
+            if let Some(plan) = &resume {
+                update_resume::restore_after_failure(&restart, plan, native_command);
+            }
         }
         let _ = send.send(result);
     })
@@ -731,6 +799,7 @@ fn main() {
                 })
                 .build(app)?;
             updates::start(app.handle(), updates);
+            update_resume::resume(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {

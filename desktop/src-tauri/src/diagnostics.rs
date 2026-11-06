@@ -71,6 +71,10 @@ pub fn record(code: &str) {
             | "update.check.failed"
             | "update.install.ok"
             | "update.install.failed"
+            | "update.access.stopped"
+            | "update.access.restored"
+            | "update.access.restore_failed"
+            | "update.access.restore_skipped"
     ) {
         return;
     }

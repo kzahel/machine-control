@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **Install and restart** works while access is on. Machine Control stops
+  access, installs the update, restarts, and turns the same Desktop and
+  Browser access back on, keeping any timed access's original end time.
+  Running or waiting agent tasks end; Settings asks first when one exists.
+
 ## [0.7.1]
 
 - Simplify access settings with an overall On/Off switch, separate Desktop

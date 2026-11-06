@@ -30,6 +30,12 @@ type UpdateState = {
   notes: string | null;
   reason: string | null;
   error: string | null;
+  /** Access stopped for an operator-initiated update and its restoration. */
+  accessResume?: {
+    phase: "restoring" | "restored" | "failed";
+    surfaces: string[];
+    error?: string;
+  } | null;
 };
 type State = {
   accessPolicy?: SurfacePolicy;
@@ -208,6 +214,7 @@ function App() {
   const [pendingBrowserProfileIds, setPendingBrowserProfileIds] = useState<string[]>([]);
   const [yaChoice, setYaChoice] = useState(false);
   const [pauseMenu, setPauseMenu] = useState(false);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
   const [duration, setDuration] = useState(
     initialChoices?.duration ?? defaultAccessChoices.duration,
   );
@@ -248,6 +255,16 @@ function App() {
     if (page === "activity") void loadHistory();
   }, [page, historyOffset, historyOperation, historyOutcome, historyStream]);
   const update = state?.updates;
+  const installUpdate = async (version: string) => {
+    setConfirmUpdate(false);
+    setBusy(true);
+    try {
+      await invoke("install_update", { version });
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  };
   const checkUpdates = async () => {
     try {
       await invoke("check_update");
@@ -379,9 +396,11 @@ function App() {
           ? "Resolve the pending access request before installing the update."
           : standing
             ? "Updates for appliances with standing access are managed by your administrator."
-            : grant || unifiedOn
-              ? "Stop access before installing the update. The app will restart."
-              : undefined;
+            : undefined;
+  // Installing stops live access, restarts, and turns the same access back on.
+  const updateStopsAccess = !!grant || unifiedOn;
+  const updateEndsTask =
+    (state?.admission?.active ?? 0) > 0 || (state?.admission?.waiting ?? 0) > 0;
   const trustedAccess = state?.desktopCallerTrust?.enabled === true;
   const availability = state?.deployment.availability;
   const blocks = availability?.blockingReasons ?? [];
@@ -1843,17 +1862,11 @@ function App() {
                           ? "update-install-blocked-reason"
                           : undefined
                       }
-                      onClick={async () => {
-                        setBusy(true);
-                        try {
-                          await invoke("install_update", {
-                            version: update.availableVersion,
-                          });
-                        } catch (e) {
-                          setError(String(e));
-                          setBusy(false);
-                        }
-                      }}
+                      onClick={() =>
+                        updateEndsTask && !confirmUpdate
+                          ? setConfirmUpdate(true)
+                          : void installUpdate(update.availableVersion!)
+                      }
                     >
                       Install and restart
                     </button>
@@ -1870,7 +1883,44 @@ function App() {
               {update?.availableVersion && (
                 <p className="note">
                   Version {update.availableVersion} available.
+                  {updateStopsAccess &&
+                    !updateInstallBlockedReason &&
+                    state?.updateInstallSupported !== false &&
+                    " Access pauses while Machine Control restarts, then turns back on."}
                 </p>
+              )}
+              {confirmUpdate && !updateInstallBlockedReason && update?.availableVersion && (
+                <div className="group-footer" role="alert">
+                  <p className="note">
+                    An agent task is running or waiting. Installing ends it;
+                    access turns back on after the restart.
+                  </p>
+                  <button onClick={() => void installUpdate(update.availableVersion!)}>
+                    Install anyway
+                  </button>
+                  <button onClick={() => setConfirmUpdate(false)}>Cancel</button>
+                </div>
+              )}
+              {update?.accessResume?.phase === "restoring" && (
+                <p className="note" role="status">
+                  Turning access back on after the update…
+                </p>
+              )}
+              {update?.accessResume?.phase === "restored" && (
+                <p className="note" role="status">
+                  Access was turned back on after the update.
+                </p>
+              )}
+              {update?.accessResume?.phase === "failed" && (
+                <div className="group-footer">
+                  <p className="note" role="status">
+                    Access could not be turned back on after the update
+                    {update.accessResume.error
+                      ? `: ${update.accessResume.error}`
+                      : "."}
+                  </p>
+                  <button onClick={() => navigate("access")}>Go to Access</button>
+                </div>
               )}
               {update?.availableVersion &&
                 state?.updateInstallSupported !== false &&
@@ -1883,11 +1933,6 @@ function App() {
                     >
                       {updateInstallBlockedReason}
                     </p>
-                    {grant && !standing && !state?.pending && (
-                      <button onClick={() => navigate("access")}>
-                        Go to Access
-                      </button>
-                    )}
                   </div>
                 )}
               {update?.phase === "up_to_date" && update.reason === "manual" && (

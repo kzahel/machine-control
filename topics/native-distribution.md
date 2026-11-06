@@ -95,12 +95,35 @@ requests use that same controller. Discovery does not focus, download, install,
 restart, approve, or revoke access. Installation stays an explicit local operator
 action behind the resident's access/approval replacement gate.
 
-**Current (public 0.5.5 and later):** The shared Settings UI explains why
-an available update cannot be installed, including enabled access, standing
-appliance policy, pending
-approval, and an operation in progress. Enabled access includes a Go to Access
-button so the operator can stop access before installation. The explanation
-is also associated with the disabled install button for assistive technology.
+**Decision (unreleased, after 0.7.1):** Enabled operator access no longer
+blocks **Install and restart**. After a verified download, the native client
+records the live Desktop/Browser surface choices, stops access through the
+platform Stop path, waits until the resident reports every consent Off, and
+only then enters the unchanged `prepare_update` replacement gate. The updated
+client replays those choices as ordinary `surface.configure` commands, so the
+unlocked-console, audit and presentation gates still apply. Agent tasks and
+pending approvals end and are not restored. The record is one-shot, `0600` on
+Unix, bound to the installed version, and expires after ten minutes. Timed
+consent keeps its original wall-clock end. If replacement fails, access is
+restored immediately. Settings reports restoration or its failure. Standing
+appliance policy, a pending legacy approval and in-progress operations still
+block installation, and the resident gate still refuses live access.
+
+**Open:** The restore record is not authenticated against other same-user
+processes. A same-user process that can forge it and force a relaunch within
+its window can re-enable the recorded kinds of access without a click. This
+does not weaken the existing no same-user containment claim, but an OS
+keychain-bound nonce could narrow it.
+
+**Proposal:** Idle automatic updates reuse this path: install only when no
+agent task is active or waiting, no approval is pending, and the person has
+opted in. Then restart into the same access state.
+
+**Current (public 0.5.5 to 0.7.1):** The shared Settings UI explains why an
+available update cannot be installed, including enabled access, standing
+appliance policy, pending approval, and an operation in progress. Enabled
+access includes a Go to Access button so the operator can stop access before
+installation.
 
 **Current:** Public desktop 0.5.3 ships this integration for Mac/Windows/Linux;
 older released clients keep their shipped behavior until updated.
