@@ -10,6 +10,7 @@ sequence = 0
 remaining = 60
 resumed_polls = 0
 activations = 0
+ending_polls = 0
 mode = os.environ.get("MC_ADMISSION_FIXTURE", "ready")
 version = "v1" if mode == "legacy-v1" else "v2"
 schema = "machine-control-admission/" + version
@@ -52,6 +53,11 @@ for line in sys.stdin.buffer:
         state = "paused" if resumed_polls == 1 else "offered"
     elif operation == "control.cancel":
         state = "ended"
+    elif ending_polls and operation in {"control.status", "control.heartbeat"}:
+        # The resident ends the owner through its policy after replying.
+        ending_polls -= 1
+        if ending_polls == 0:
+            state, terminal = "ended", "audit_storage_unavailable"
     elif operation == "control.heartbeat" and mode == "renewable-clock" and state == "active":
         # Advance a deterministic provider clock across the old task cutoff.
         remaining -= 600
@@ -79,6 +85,14 @@ for line in sys.stdin.buffer:
             data = dict(schema="machine-control/v0", accepted=False, operation=request["request"]["operation"],
                 errorCode="control_session_ended", delivery="refused", effect="refused", uncertainty="none",
                 retrySafety="safe_not_dispatched")
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
+            continue
+        if mode == "audit-ends-later":
+            event("refused")
+            ending_polls = 2
+            data = dict(schema="machine-control/v0", accepted=False, operation=request["request"]["operation"],
+                errorCode="audit_storage_unavailable", delivery="confirmed", effect="not_applicable",
+                uncertainty="audit_result_not_persisted", retrySafety="not_needed")
             print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
             continue
         if mode == "profile-capability-refused":

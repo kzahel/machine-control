@@ -449,6 +449,27 @@ def raw_channel_frames(target, frames, *, reply_timeout=15.0):
     return replies
 
 
+# Refusals whose condition also ends the owner. Residents end it through
+# their policy shortly after replying, so the view may still read active.
+OWNER_ENDING_REFUSALS = frozenset({"audit_storage_unavailable", "locked_use_guard_failed"})
+
+
+def ended_owner(session, error_code, *, settle=3.0):
+    """Report whether a refused action also ended this owner; never retry it."""
+    deadline = time.monotonic() + (settle if error_code in OWNER_ENDING_REFUSALS else 0)
+    while True:
+        try:
+            view = session.status()
+        except mc.ClientError:
+            # The heartbeat records the ended view before it closes the owner.
+            view = session.view
+        if isinstance(view, dict) and view.get("state") == "ended":
+            return {"state": "ended", "terminalReason": view.get("terminalReason")}
+        if session.failure is not None or time.monotonic() >= deadline:
+            return None
+        time.sleep(0.25)
+
+
 def handle_control(alias, target, arguments):
     if arguments == ["status"]:
         return mc.send_resident_request(alias, target, {"operation":"status"})
@@ -517,15 +538,9 @@ def handle_control(alias, target, arguments):
             while True:
                 value = session.call(request)
                 if not value["accepted"]:
-                    # A refusal may also have ended this owner (for example
-                    # audit_storage_unavailable); report why, without retrying.
-                    try:
-                        owner = session.status()
-                    except mc.ClientError:
-                        owner = None
-                    if owner and owner.get("state") == "ended":
-                        value = {**value, "controlOwner": {"state": "ended",
-                                 "terminalReason": owner.get("terminalReason")}}
+                    owner = ended_owner(session, value.get("errorCode"))
+                    if owner is not None:
+                        value = {**value, "controlOwner": owner}
                 # Stream replies are one JSON line each, available before the
                 # next input. Confirmed delivery with an unverifiable effect
                 # needs a follow-up observation under the same owner. Preserve
