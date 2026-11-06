@@ -93,6 +93,27 @@ class AccessTests(unittest.TestCase):
         self.access.send('approve',intentId=pending['intentId'])
         self.assertIsNone(self.access.pending);self.assertIsNone(self.refusal(active))
 
+    def test_snapshot_serves_the_last_full_projection_without_calling_policy(self):
+        self.assertEqual(self.access.snapshot()['surfaces']['desktop']['mode'],'automatic')
+        calls=[];call=self.host.call
+        self.host.call=lambda frame,**options:calls.append(frame) or call(frame,**options)
+        self.access.fact('input',False)
+        self.assertEqual(self.access.snapshot()['surfaces']['desktop']['mode'],'automatic')
+        self.assertEqual([frame['method'] for frame in calls],['access.input-ready'])
+        # Mutations return full projections, so the snapshot never predates them.
+        self.access.configure('desktop','off',None)
+        self.assertEqual(self.access.snapshot()['surfaces']['desktop']['mode'],'off')
+        self.assertIn('experienceVersion',self.access.snapshot())
+        self.assertTrue(self.access.status_current)
+        # A query-only reply that changes the projection supersedes it.
+        self.access.fact('desktop',(False,False))
+        self.assertFalse(self.access.status_current)
+        self.access.state();self.assertTrue(self.access.status_current)
+
+    def test_snapshot_without_policy_is_off(self):
+        self.host.stop()
+        self.assertFalse(self.access.snapshot()['available'])
+
     def test_dead_policy_stays_off_and_does_not_replay(self):
         self.active();self.host.stop();self.access.stop()
         self.assertFalse(self.access.state()['available'])

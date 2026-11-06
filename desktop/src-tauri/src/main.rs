@@ -151,21 +151,34 @@ fn check_update(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<V
 }
 
 /// Run one operator command on the native thread from a blocking worker.
-/// Never call this from the macOS main thread.
+/// Never call this from the macOS main thread. A status read skipped while
+/// other operator work held the resident (`busy`) is retried, never mistaken
+/// for a state without access.
 pub(crate) fn native_blocking(app: &tauri::AppHandle, command: Value) -> Result<Value, String> {
-    let (send, receive) = std::sync::mpsc::channel();
-    schedule_native(app, move || {
-        let _ = send.send(native_command(command));
-    })?;
-    receive
-        .recv_timeout(std::time::Duration::from_secs(15))
-        .map_err(|_| "Native operation did not complete".to_string())?
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    loop {
+        let (send, receive) = std::sync::mpsc::channel();
+        let request = command.clone();
+        schedule_native(app, move || {
+            let _ = send.send(native_command(request));
+        })?;
+        let reply = receive
+            .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+            .map_err(|_| "Native operation did not complete".to_string())??;
+        if reply["busy"] != true {
+            return Ok(reply);
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err("Resident is busy; try again".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 }
 
 /// Use the same platform Stop path as the tray, which is asynchronous on
 /// Windows, then wait until the resident reports every consent Off.
 fn stop_access_for_update(app: &tauri::AppHandle, target: &str) -> Result<Option<Value>, String> {
-    let state = native_blocking(app, json!({"method":"state"}))?["state"].clone();
+    let state = native_blocking(app, json!({"method":"state", "fresh":true}))?["state"].clone();
     // Standing policy is not operator consent; the native update gate decides.
     if update_resume::standing(&state) || !update_resume::access_on(&state) {
         return Ok(None);
@@ -183,7 +196,7 @@ fn stop_access_for_update(app: &tauri::AppHandle, target: &str) -> Result<Option
         native_blocking(app, json!({"method":"stop"}))?;
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         loop {
-            let reply = native_blocking(app, json!({"method":"state"}))?;
+            let reply = native_blocking(app, json!({"method":"state", "fresh":true}))?;
             if !update_resume::access_on(&reply["state"]) {
                 return Ok(());
             }
@@ -648,6 +661,10 @@ fn main() {
                     let Ok(Ok(value)) = receive.recv() else {
                         continue;
                     };
+                    // A skipped poll carries no state; keep the last status.
+                    if value["busy"] == true {
+                        continue;
+                    }
                     let pending = value["state"]["pending"]["id"]
                         .as_str()
                         .unwrap_or("")

@@ -10,6 +10,10 @@
   install the Chrome extension when none is connected, to update one too
   old for profiles, or to enable the profile in the extension's side
   panel, plus brief troubleshooting steps.
+- Settings and the menu bar/tray status no longer wait for the shared access
+  policy process. A slow policy process under heavy load could previously
+  freeze Settings on macOS or make Machine Control give up on its resident
+  on Linux and Windows.
 
 ## [0.7.1]
 

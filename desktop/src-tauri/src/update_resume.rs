@@ -209,7 +209,7 @@ pub fn restore_after_failure(
         return;
     };
     let restoring = surfaces_label(&entries);
-    let state = send(json!({"method":"state"}))
+    let state = send(json!({"method":"state", "fresh":true}))
         .map(|reply| reply["state"].clone())
         .unwrap_or(Value::Null);
     match apply(&mut entries, &state, now(), send) {
@@ -241,7 +241,7 @@ pub fn resume(app: tauri::AppHandle) {
         let deadline = Instant::now() + RESTORE_WINDOW;
         let mut error = String::from("Machine Control was not ready");
         loop {
-            match crate::native_blocking(&app, json!({"method":"state"})) {
+            match crate::native_blocking(&app, json!({"method":"state", "fresh":true})) {
                 Ok(reply) => {
                     let state = &reply["state"];
                     let result = apply(&mut entries, state, now(), |command| {

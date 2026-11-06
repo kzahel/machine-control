@@ -426,6 +426,18 @@ pub fn command(command: Value) -> Result<Value, String> {
             .unwrap_or("Native operation failed")
             .into());
     }
+    if command["method"] == "state"
+        && reply["state"]["stateAgeMs"]
+            .as_u64()
+            .is_some_and(|age| age > 30_000)
+    {
+        // Status polls read a snapshot the resident's monitor refreshes about
+        // once a second. A monitor that stopped refreshing is lost.
+        crate::diagnostics::record("companion.state_timeout");
+        STOP_WINDOW.store(0, Ordering::Release);
+        owner.take();
+        return Err("Resident stopped responding; restart Machine Control".into());
+    }
     if command["method"] == "state" {
         reply["state"]["uac"]["setupError"] =
             json!(UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())?.clone());

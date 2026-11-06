@@ -76,6 +76,7 @@ class Desktop:
         self.stopped=False;self.channels=set();self.inhibit=threading.Event()
         self.configuration_sessions={'desktop':None,'browser':None}
         self.notice_pending=False;self.notice_seconds=10
+        self.operator_state=None
         self.policy=Policy(self.scheduler.post,self.policy_event,self.policy_failed)
         self.grants=Access(self.policy,self.policy_changed)
         self.access_preferences=AccessPreferences(self.presentation.root,instance)
@@ -163,6 +164,13 @@ class Desktop:
     def publish(self):
         self.notice_pending=False
         if self.stopped:return False
+        try:return self.publish_notice()
+        except Exception:
+            # Never re-stamp a status that failed to refresh as current.
+            self.grants.status_current=False;raise
+        finally:self.publish_operator_state()
+
+    def publish_notice(self):
         if hasattr(self,'browser'):self.browser.sync()
         value=self.grants.state()
         callers={channel.intent:'Local process '+str(channel.pid)+' (identity unverified)' for channel in self.channels}
@@ -173,6 +181,24 @@ class Desktop:
         with self.safety_condition:
             self.safety_state=value;self.safety_condition.notify()
         return False
+
+    def publish_operator_state(self):
+        """Encode the operator status reply on the coordinator. The operator
+        reader answers status polls from it without waiting for coordinator
+        work, which can include synchronous calls into the policy process.
+        Each reply carries its age, so a stalled coordinator is visible, and
+        the generation it was built under. A failed rebuild keeps the previous
+        reply, whose age then grows until the supervisor restarts the resident."""
+        try:
+            # A query-only reply may have changed the generation after the
+            # last full projection; never pair it with an older status.
+            state=self.state(fresh=self.policy.alive and not self.grants.status_current)
+            generation=self.grants.generation
+            encoded=encode({"ok":True,"coordinatorGeneration":generation,"state":state})
+            if not encoded.endswith(b'}}\n'):raise ValueError('operator_state_encoding')
+            self.operator_state=(time.monotonic(),encoded[:-3],generation)
+        except Exception:
+            pass
 
     def activity_changed(self,generation,deliberate):
         if not self.policy.alive:return
@@ -240,8 +266,8 @@ class Desktop:
         self.emergency_fence();self.grants.stop(reason);self.browser.stop_access()
         self.changed()
 
-    def state(self):
-        admission=self.grants.state()
+    def state(self,fresh=False):
+        admission=self.grants.state() if fresh else self.grants.snapshot()
         return dict(deployment=self.grants.deployment(),accessPolicy=admission,admission=admission,
             nativeApproval=True,presentation=self.presentation.state(),platform='linux',
             manualUntilStoppedSupported=True,pauseSupported=True,
@@ -275,7 +301,7 @@ class Desktop:
         if method == "update_sync":
             return {"ok": True, "checkRequested": self.updates.sync(command.get("state"))}
         if method == "state":
-            return {"ok": True, "state": self.state()}
+            return {"ok": True, "state": self.state(command.get("fresh") is True)}
         if method == "logs.query":
             return {"ok": True, "history": self.journal.query(command.get("offset", 0), command.get("operation", ""), command.get("outcome", ""), command.get("stream", "audit"))}
         if method == "logs.debug":
@@ -716,6 +742,16 @@ class Desktop:
                 if command and command.get("method")=="stop":self.emergency_fence()
                 if command is None:
                     break
+                cached = self.operator_state
+                # A reply built under an older generation is never served: the
+                # supervisor would see its generation go backwards.
+                if (command.get("method") == "state" and command.get("fresh") is not True and
+                        cached is not None and cached[2] == self.grants.generation):
+                    published, prefix, _ = cached
+                    age = int((time.monotonic() - published) * 1000)
+                    sys.stdout.buffer.write(prefix + b',"stateAgeMs":%d}}\n' % age)
+                    sys.stdout.buffer.flush()
+                    continue
                 complete = threading.Event()
                 replies = []
 
@@ -725,6 +761,11 @@ class Desktop:
                     except Exception as error:
                         reply = {"ok": False, "error": str(error)}
                     reply["coordinatorGeneration"] = self.grants.generation
+                    # The next status poll must not predate this command. A
+                    # superseded status is rebuilt by the publish() this
+                    # command's change already queued, never before replying.
+                    if self.grants.status_current or not self.policy.alive:
+                        self.publish_operator_state()
                     replies.append(reply)
                     complete.set()
                     return False

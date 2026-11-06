@@ -124,6 +124,13 @@ final class BrowserRelay {
                 guard let host = self?.host else { throw SharedPolicyError(code: "control_policy_unavailable") }
                 return try host.call($0)
             }
+            broker.admission.bindBackground { [weak self] frame, done in
+                guard let host = self?.host else {
+                    DispatchQueue.main.async { done(.failure(SharedPolicyError(code: "control_policy_unavailable"))) }
+                    return
+                }
+                host.request(frame) { result in DispatchQueue.main.async { done(result) } }
+            }
         } catch { problem = (error as? SharedPolicyError)?.code ?? "policy_startup_failed"; host?.stop() }
     }
     var available: Bool { host?.alive == true }

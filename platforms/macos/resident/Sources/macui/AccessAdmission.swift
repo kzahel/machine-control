@@ -24,6 +24,16 @@ final class AccessAdmission {
     private var desktopFingerprint: Data?
     private(set) var revision = 0
     private(set) var availabilityRevision = 0
+    // Operator status presentation reads the last full projection and never
+    // waits for the policy process. The pipe is FIFO, so a background status
+    // reply is stale only if a full projection requested later replaced the
+    // cache first; `fullReplies` counts those synchronous replacements.
+    private var request: (([String: Any], @escaping (Result<[String: Any], Error>) -> Void) -> Void)?
+    private(set) var cachedStatus: [String: Any]?
+    private var fullReplies = 0
+    private var binding = 0
+    private(set) var polling = false
+    private var presenting = 0
 
     func bind(_ call: @escaping ([String: Any]) throws -> [String: Any]) throws {
         guard invoke == nil else { throw SharedPolicyError(code: "control_policy_already_bound") }
@@ -39,8 +49,12 @@ final class AccessAdmission {
             }
         }
     }
+    /// Asynchronous route for background refreshes; completions run on main.
+    func bindBackground(_ request: @escaping ([String: Any], @escaping (Result<[String: Any], Error>) -> Void) -> Void) {
+        self.request = request; binding += 1
+    }
     func invalidate() {
-        invoke = nil
+        invoke = nil; request = nil; cachedStatus = nil; polling = false; binding += 1
         let ended = sessions; sessions.removeAll()
         for (id, session) in ended {
             if let requirement = requirements[id], requirement.surfaces.contains("desktop") {
@@ -52,6 +66,15 @@ final class AccessAdmission {
         changed?()
     }
     private func send(_ method: String, _ fields: [String: Any] = [:]) throws -> [String: Any] {
+        if presenting > 0, invoke != nil, method == "query" || method == "state", var cached = cachedStatus {
+            if method == "query" {
+                // Status omits query's activeDesktop; derive it from requests.
+                cached["activeDesktop"] = (cached["requests"] as? [[String: Any]] ?? []).contains {
+                    $0["sessionId"] is String && ($0["surfaces"] as? [String] ?? []).contains("desktop")
+                }
+            }
+            return cached
+        }
         guard let invoke else { throw SharedPolicyError(code: "control_policy_unavailable") }
         var frame = fields; frame["method"] = "access." + method
         let result: [String: Any]
@@ -75,6 +98,7 @@ final class AccessAdmission {
     }
     private func observe(_ result: [String: Any]) {
         if let value = result["revision"] as? Int { revision = value }
+        if result["experienceVersion"] != nil { cachedStatus = result; fullReplies += 1 }
         func request(_ value: [String: Any]) {
             guard let id = value["intentId"] as? String else { return }
             let session = value["sessionId"] as? String
@@ -264,8 +288,33 @@ final class AccessAdmission {
     func deferRequest(_ id: String, seconds: Int?) throws {
         _ = try send("defer", ["intentId": id, "milliseconds": seconds.map { Int($0 * 1000) } as Any? ?? NSNull()]); changed?()
     }
+    /// Run operator status presentation over the cached projection, then
+    /// refresh it in the background. The first call populates it directly.
+    func presentation<T>(_ body: () throws -> T) rethrows -> T {
+        presenting += 1
+        defer { presenting -= 1; poll() }
+        return try body()
+    }
+    /// Refresh the presentation cache in the background. Owner-ended
+    /// cancellation stays with refresh(), which the resident tick runs.
+    func poll() {
+        guard !polling, invoke != nil, let request else { return }
+        polling = true
+        let issued = fullReplies, bound = binding
+        // Only the presentation cache changes here. Synchronous replies keep
+        // owning session tracking and change notification.
+        request(["method": "access.state"]) { [weak self] result in
+            // A reply from before invalidation or rebinding is never cached.
+            guard let self, self.binding == bound else { return }
+            self.polling = false
+            if case .success(let value) = result, self.fullReplies == issued, self.invoke != nil,
+               value["experienceVersion"] != nil {
+                self.cachedStatus = value
+            }
+        }
+    }
     func refresh() {
-        guard !refreshing, invoke != nil else { return }
+        guard !refreshing, presenting == 0, invoke != nil else { return }
         refreshing = true; defer { refreshing = false }
         for (id, requirement) in Array(requirements) {
             if requirement.check() != nil { _ = try? send("cancel", ["owner": requirement.owner, "intentId": id]) }

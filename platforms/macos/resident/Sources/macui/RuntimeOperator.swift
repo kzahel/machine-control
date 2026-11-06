@@ -77,6 +77,35 @@ extension ResidentRuntime {
                 try self.server.broker.resume(surface:resumeDesktop ? "desktop" : "all")
             }, completion:completion)
     }
+    /// Status poll projection; admission reads come from the cached view.
+    private func operatorState(_ server: ResidentServer) -> [String: Any] {
+        let setup = currentSetupState(browserConnected: server.browser.connected, probeScreen: false)
+        var state: [String: Any] = ["deployment": server.broker.statusJSON,
+            "accessChoices":NSNull(),
+            "permissions": ["accessibility": setup.accessibility, "screenRecording": setup.screen == .allowed],
+            "browser": server.browser.statusJSON, "activity": server.broker.audit.reversed().prefix(30).map(\.json),
+            "logging": server.broker.journal?.health ?? [:],
+            "stopShortcutAvailable": stopShortcutAvailable(),
+            "manualUntilStoppedSupported": true,
+            "pauseSupported": true,
+            "admission": server.admissionPresentation,
+            "accessPolicy":server.admissionPresentation,
+            "controlPolicy": ["supported":true, "mode":"announce", "noticeSeconds":server.noticeSeconds],
+            "physicalActivity": server.activity.status,
+            "observations": ["session":server.service.sessionObservation.metadata,
+                             "helper":server.service.helperObservation.metadata],
+            "desktopCallerTrust": server.callerTrust.status,
+            "lockedUse": server.lockedUse.status,
+            "browserWhileLocked": server.browserWhileLockedStatus,
+            "presentation":presentationJSON, "nativeApproval":true,
+            "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
+        if let pending = approver.request {
+            state["pending"] = ["id": pending.id, "reason": pending.reason, "caller": pending.caller.summary,
+                "scopes": pending.scopes.sorted().map(\.rawValue), "duration": pending.durationSeconds]
+        }
+        return ["ok": true, "state": state]
+    }
+
     /// In-process operator authority; never registered on the agent socket.
     func operatorCommand(_ command: [String:Any]) -> [String:Any] {
         precondition(Thread.isMainThread)
@@ -93,31 +122,8 @@ extension ResidentRuntime {
                     }
                     return ["ok": true, "checkRequested": server.updates.sync(state)]
                 case "state":
-                    let setup = currentSetupState(browserConnected: server.browser.connected, probeScreen: false)
-                    var state: [String: Any] = ["deployment": server.broker.statusJSON,
-                        "accessChoices":NSNull(),
-                        "permissions": ["accessibility": setup.accessibility, "screenRecording": setup.screen == .allowed],
-                        "browser": server.browser.statusJSON, "activity": server.broker.audit.reversed().prefix(30).map(\.json),
-                        "logging": server.broker.journal?.health ?? [:],
-                        "stopShortcutAvailable": stopShortcutAvailable(),
-                        "manualUntilStoppedSupported": true,
-                        "pauseSupported": true,
-                        "admission": server.admissionPresentation,
-                        "accessPolicy":server.admissionPresentation,
-                        "controlPolicy": ["supported":true, "mode":"announce", "noticeSeconds":server.noticeSeconds],
-                        "physicalActivity": server.activity.status,
-                        "observations": ["session":server.service.sessionObservation.metadata,
-                                         "helper":server.service.helperObservation.metadata],
-                        "desktopCallerTrust": server.callerTrust.status,
-                        "lockedUse": server.lockedUse.status,
-                        "browserWhileLocked": server.browserWhileLockedStatus,
-                        "presentation":presentationJSON, "nativeApproval":true,
-                        "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
-                    if let pending = approver.request {
-                        state["pending"] = ["id": pending.id, "reason": pending.reason, "caller": pending.caller.summary,
-                            "scopes": pending.scopes.sorted().map(\.rawValue), "duration": pending.durationSeconds]
-                    }
-                    return ["ok": true, "state": state]
+                    if command["fresh"] as? Bool == true { return operatorState(server) }
+                    return server.broker.admission.presentation { operatorState(server) }
                 case "presentation":
                     guard let name = command["profile"] as? String, let profile = PresentationProfile(rawValue:name) else {
                         throw MacUIError.usage("Choose personal, minimal or appliance presentation")

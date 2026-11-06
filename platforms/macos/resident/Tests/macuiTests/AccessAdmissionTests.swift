@@ -37,6 +37,61 @@ final class AccessAdmissionTests: XCTestCase {
         admission.receive(["type":"access.event", "event":"yielded", "intentId":id, "sessionId":session])
         XCTAssertEqual(endings,before,"A queued old event cannot end the newly accepted native owner")
     }
+    func testStatusPresentationUsesCachedProjectionAndDropsOnlyOvertakenBackgroundReplies() throws {
+        let fixture = try SharedPolicyFixture(), admission = fixture.admission, host = fixture.host
+        let lock = NSLock()
+        var replies: [() -> Void] = []
+        admission.bindBackground { frame, done in
+            host.request(frame) { result in lock.lock(); replies.append { done(result) }; lock.unlock() }
+        }
+        func settle() {
+            let deadline = Date().addingTimeInterval(5)
+            while admission.polling && Date() < deadline {
+                lock.lock(); let ready = replies; replies.removeAll(); lock.unlock()
+                ready.forEach { $0() }
+                if admission.polling { Thread.sleep(forTimeInterval: 0.01) }
+            }
+            XCTAssertFalse(admission.polling)
+        }
+        func cached() -> [String: Any]? { (admission.cachedStatus?["surfaces"] as? [String: [String: Any]])?["desktop"] }
+        let mode = { (admission.status["surfaces"] as? [String: [String: Any]])?["desktop"]?["mode"] as? String }
+        try admission.configure("desktop", mode: "automatic", seconds: nil)
+        XCTAssertEqual(admission.presentation { mode() }, "automatic")
+        XCTAssertEqual(admission.presentation { admission.activeDesktop }, false)
+        XCTAssertTrue(admission.polling, "Presentation refreshes its cache in the background")
+        // A newer full projection supersedes the background reply requested before it.
+        try admission.configure("desktop", mode: "off", seconds: nil)
+        settle()
+        XCTAssertEqual(cached()?["mode"] as? String, "off")
+        XCTAssertEqual(admission.presentation { mode() }, "off")
+        settle()
+        admission.setInputReady(false)
+        XCTAssertEqual(admission.cachedStatus?["humanInputReady"] as? Bool, true, "query replies do not replace the cache")
+        _ = admission.presentation { mode() }
+        // A synchronous housekeeping query is not a full projection, so the
+        // background reply requested before it still refreshes the cache.
+        admission.setReady("browser", false)
+        settle()
+        XCTAssertEqual(admission.cachedStatus?["humanInputReady"] as? Bool, false)
+        // Cached query derives activeDesktop from an active desktop session.
+        try admission.configure("desktop", mode: "automatic", seconds: nil)
+        admission.setInputReady(true); admission.setReady("browser", true)
+        let offer = try admission.submit(owner: "one", requestID: "cached", resources: ["desktop"], wait: 120,
+                                         duration: 60, reason: "Fixture", authority: { nil })
+        let id = try XCTUnwrap(offer["intentId"] as? String)
+        _ = try admission.accept(owner: "one", id: id, generation: try XCTUnwrap(offer["offerGeneration"] as? Int))
+        try admission.configure("browser", mode: "off", seconds: nil)
+        XCTAssertEqual(admission.presentation { admission.activeDesktop }, true)
+        // Invalidation clears the cache and drops a reply already in flight.
+        admission.invalidate()
+        XCTAssertNil(admission.cachedStatus)
+        XCTAssertFalse(admission.polling)
+        lock.lock(); let late = replies; replies.removeAll(); lock.unlock()
+        Thread.sleep(forTimeInterval: 0.2)
+        lock.lock(); let later = replies; replies.removeAll(); lock.unlock()
+        (late + later).forEach { $0() }
+        XCTAssertNil(admission.cachedStatus)
+    }
     func testSynchronousCancelPreservesCleanEndingBeforeQueuedEvent() throws {
         let fixture = try SharedPolicyFixture(), admission = fixture.admission
         try admission.configure("desktop", mode:"automatic", seconds:nil)

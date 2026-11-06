@@ -280,12 +280,26 @@ pub fn command(command: Value) -> Result<Value, String> {
             .unwrap_or("Native operation failed")
             .into());
     }
+    if command["method"] == "state" && stalled(&reply) {
+        // The resident answers status polls from a snapshot its coordinator
+        // refreshes about once a second. One that stopped refreshing is lost.
+        crate::diagnostics::record("companion.timeout");
+        owner.take();
+        return Err("Resident stopped responding; restart Machine Control".into());
+    }
     if command["method"] == "state" {
         reply["state"]["version"] = json!(app.package_info().version.to_string());
         reply["state"]["sourceRevision"] = json!(env!("MC_SOURCE_REVISION"));
         reply["state"]["updateInstallSupported"] = json!(std::env::var_os("APPIMAGE").is_some());
     }
     Ok(reply)
+}
+
+/// Whether a status reply comes from a snapshot too old to show live state.
+fn stalled(reply: &Value) -> bool {
+    reply["state"]["stateAgeMs"]
+        .as_u64()
+        .is_some_and(|age| age > 30_000)
 }
 
 pub fn shutdown() {

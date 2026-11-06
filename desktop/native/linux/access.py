@@ -16,6 +16,9 @@ class Access:
         self.updating=False;self.ready=False;self.locked=False;self.session=None
         self.browser_while_locked=False
         self.view=self.offline()
+        # Last full status projection. The coordinator refreshes it about once
+        # a second (publish) and after each change, so presentation never waits.
+        self.status=None;self.status_current=False
 
     @staticmethod
     def offline():
@@ -34,6 +37,8 @@ class Access:
         revision=self.view.get('revision')
         self.view=value
         desktop_changed=self.fingerprint!=fingerprint
+        if 'experienceVersion' in value:self.status=value;self.status_current=True
+        elif desktop_changed or revision!=value.get('revision'):self.status_current=False
         if desktop_changed:
             self.fingerprint=fingerprint;self.generation=uuid.uuid4().hex
         if desktop_changed or revision!=value.get('revision'):self.changed(desktop_changed)
@@ -49,6 +54,11 @@ class Access:
         if not self.host.alive:return self.offline()
         self.refresh()
         return self.send('state')
+
+    def snapshot(self):
+        """The last full projection; the first call populates it directly."""
+        if not self.host.alive:return self.offline()
+        return self.status if self.status is not None else self.state()
 
     def refresh(self):
         for owner,record in list(self.owners.items()):
