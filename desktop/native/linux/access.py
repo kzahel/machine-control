@@ -121,8 +121,9 @@ class Access:
         if owner in self.owners:self.send('cancel',owner=owner,intentId=self.owners[owner]['intent'])
 
     def close(self,owner):
-        self.owners.pop(owner,None)
-        if self.host.alive:self.send('close',owner=owner)
+        # Only owners that completed submit exist in the policy host; a refused
+        # or already-closed channel has nothing to close there.
+        if self.owners.pop(owner,None) is not None and self.host.alive:self.send('close',owner=owner)
 
     def stop(self,_reason='stopped'):
         if self.host.alive:self.send('stop')

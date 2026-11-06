@@ -253,6 +253,13 @@ class AccessTests(unittest.TestCase):
         self.assertIsNone(channel.intent)
         return reply['errorCode']
 
+    def test_closing_unopened_or_closed_owners_sends_nothing(self):
+        sent=[];original=self.access.send
+        self.access.send=lambda method,**fields:(sent.append(method),original(method,**fields))[1]
+        self.access.close('never-opened')
+        self.submit('twice');self.access.close('twice');self.access.close('twice')
+        self.assertEqual(sent.count('close'),1)
+
     def test_open_refusals_use_the_common_vocabulary(self):
         for fields,code in [
             (dict(schema='machine-control-admission/v9'),'unsupported_admission_schema'),
