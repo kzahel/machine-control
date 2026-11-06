@@ -35,6 +35,8 @@ type UpdateState = {
     phase: "restoring" | "restored" | "failed";
     surfaces: string[];
     error?: string;
+    /** Set when the resident restarted on its own rather than for an update. */
+    reason?: "resident_restart";
   } | null;
 };
 type State = {
@@ -255,6 +257,10 @@ function App() {
     if (page === "activity") void loadHistory();
   }, [page, historyOffset, historyOperation, historyOutcome, historyStream]);
   const update = state?.updates;
+  const residentRestart =
+    update?.accessResume?.reason === "resident_restart" ? update.accessResume : null;
+  const updateResume =
+    update?.accessResume?.reason === "resident_restart" ? null : update?.accessResume;
   const installUpdate = async (version: string) => {
     setConfirmUpdate(false);
     setBusy(true);
@@ -586,6 +592,28 @@ function App() {
         {notice && (
           <div role="status" className="message">
             {notice}
+          </div>
+        )}
+        {residentRestart?.phase === "restoring" && (
+          <div role="status" className="message">
+            Machine Control restarted its background service. Turning access
+            back on…
+          </div>
+        )}
+        {residentRestart?.phase === "restored" && (
+          <div role="status" className="message">
+            Machine Control restarted its background service and turned access
+            back on.
+          </div>
+        )}
+        {residentRestart?.phase === "failed" && (
+          <div role="alert" className="message error">
+            Machine Control restarted its background service but could not
+            turn access back on
+            {residentRestart.error ? `: ${residentRestart.error}` : "."}{" "}
+            {page !== "access" && (
+              <button onClick={() => navigate("access")}>Go to Access</button>
+            )}
           </div>
         )}
         {state?.accessPolicy?.schema === "machine-control-admission/v2" &&
@@ -1901,22 +1929,22 @@ function App() {
                   <button onClick={() => setConfirmUpdate(false)}>Cancel</button>
                 </div>
               )}
-              {update?.accessResume?.phase === "restoring" && (
+              {updateResume?.phase === "restoring" && (
                 <p className="note" role="status">
                   Turning access back on after the update…
                 </p>
               )}
-              {update?.accessResume?.phase === "restored" && (
+              {updateResume?.phase === "restored" && (
                 <p className="note" role="status">
                   Access was turned back on after the update.
                 </p>
               )}
-              {update?.accessResume?.phase === "failed" && (
+              {updateResume?.phase === "failed" && (
                 <div className="group-footer">
                   <p className="note" role="status">
                     Access could not be turned back on after the update
-                    {update.accessResume.error
-                      ? `: ${update.accessResume.error}`
+                    {updateResume.error
+                      ? `: ${updateResume.error}`
                       : "."}
                   </p>
                   <button onClick={() => navigate("access")}>Go to Access</button>

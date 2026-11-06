@@ -97,7 +97,7 @@ extension ResidentRuntime {
             "desktopCallerTrust": server.callerTrust.status,
             "lockedUse": server.lockedUse.status,
             "browserWhileLocked": server.browserWhileLockedStatus,
-            "presentation":presentationJSON, "nativeApproval":true,
+            "presentation":presentationJSON, "nativeApproval":true, "stops": server.broker.stops,
             "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
         if let pending = approver.request {
             state["pending"] = ["id": pending.id, "reason": pending.reason, "caller": pending.caller.summary,

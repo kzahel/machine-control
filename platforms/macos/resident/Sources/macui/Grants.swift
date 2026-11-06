@@ -188,6 +188,9 @@ final class GrantBroker {
     private(set) var desktopConsentID = UUID().uuidString
     private(set) var browserConsentID = UUID().uuidString
     private(set) var lastEnded: (reason: String, at: Date)?
+    /// Every revocation, so the supervisor never restores access stopped
+    /// after its last observation.
+    private(set) var stops = 0
     private(set) var audit: [AuditEntry] = []
     var desktopRouteReady = false
     var browserRouteReady = false
@@ -288,6 +291,7 @@ final class GrantBroker {
         journal?.errorCode == nil ? nil : "audit_storage_unavailable"
     }
     func revoke(reason: String, consent: ConsentDisposition = .retain) {
+        stops += 1
         fence(); admission.stop(reason); lastEnded = (reason, now())
         journal?.event("access." + DesktopJournal.token(reason)); notify()
     }

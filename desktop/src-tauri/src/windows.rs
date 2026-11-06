@@ -30,6 +30,7 @@ static STOP_PROCESS: AtomicU32 = AtomicU32::new(0);
 static EPOCH: AtomicU64 = AtomicU64::new(0);
 static JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
 static EXITING: AtomicBool = AtomicBool::new(false);
+static RECOVERING: AtomicBool = AtomicBool::new(false);
 pub fn epoch() -> u64 {
     EPOCH.load(Ordering::Acquire)
 }
@@ -37,6 +38,7 @@ pub fn epoch() -> u64 {
 /// Private inherited handshake identifies the native Stop message window.
 /// Posting never waits for IPC, provider work, or a Tauri event-loop reply.
 pub fn stop() -> Result<Value, String> {
+    crate::recovery::person_acted();
     EPOCH.fetch_add(1, Ordering::AcqRel);
     let window = STOP_WINDOW.load(Ordering::Acquire);
     let mut owner = 0;
@@ -100,7 +102,7 @@ impl Runtime {
     fn call(&mut self, command: &Value) -> Result<Value, String> {
         if self.child.try_wait().map_err(|e| e.to_string())?.is_some() {
             crate::diagnostics::record("companion.exited");
-            return Err("Resident stopped; restart Machine Control".into());
+            return Err("Resident stopped; restarting it".into());
         }
         let line = serde_json::to_vec(command).map_err(|e| e.to_string())?;
         if line.len() > 65536 {
@@ -139,7 +141,7 @@ impl Runtime {
                 Some("state") => "companion.state_timeout",
                 _ => "companion.timeout",
             });
-            "Resident did not respond; restart Machine Control".to_string()
+            "Resident did not respond; restarting it".to_string()
         })??;
         Ok(reply)
     }
@@ -161,11 +163,53 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         .map_err(|_| "Operator already initialized")?;
     let app = app.clone();
     std::thread::spawn(move || {
-        if spawn_runtime(&app).is_err() {
+        if spawn_runtime(&app, true).is_err() {
             crate::diagnostics::record("resident.unavailable");
+            recover();
         }
     });
     Ok(())
+}
+
+/// The resident was lost: restart it with backoff, then turn its access
+/// back on unless a person acted since it was last observed.
+pub fn recover() {
+    if EXITING.load(Ordering::Acquire) || RECOVERING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let Some(app) = APP.get().cloned() else {
+        RECOVERING.store(false, Ordering::Release);
+        return;
+    };
+    let mut plan = crate::recovery::plan(&app.package_info().version.to_string());
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(crate::recovery::backoff());
+            // Exit, protected helper setup and an already restored resident
+            // each own the runtime instead.
+            if EXITING.load(Ordering::Acquire)
+                || UAC_SETUP
+                    .lock()
+                    .map(|setup| setup.is_some())
+                    .unwrap_or(true)
+                || RUNTIME.lock().map(|owner| owner.is_some()).unwrap_or(true)
+            {
+                break;
+            }
+            match spawn_runtime(&app, false) {
+                Ok(()) => {
+                    crate::recovery::resident_started();
+                    crate::diagnostics::record("resident.restarted");
+                    if let Some(plan) = plan.take() {
+                        crate::recovery::restore(app.clone(), plan);
+                    }
+                    break;
+                }
+                Err(_) => crate::diagnostics::record("resident.restart_failed"),
+            }
+        }
+        RECOVERING.store(false, Ordering::Release);
+    });
 }
 
 fn bundled_runtime(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -187,7 +231,8 @@ pub fn instance() -> String {
     launch_option("--instance").unwrap_or_else(|| "desktop".into())
 }
 
-fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
+/// `interactive` launches may open Settings; a supervised restart never does.
+fn spawn_runtime(app: &tauri::AppHandle, interactive: bool) -> Result<(), String> {
     let bundled = bundled_runtime(app)?;
     let mut resolver = Command::new(&bundled)
         .arg("uac-resolve")
@@ -292,9 +337,10 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     );
     *RUNTIME.lock().map_err(|e| e.to_string())? = Some(runtime);
     let args: Vec<_> = std::env::args().collect();
-    if args.iter().any(|arg| arg == "--settings" || arg == "--gui")
-        || (hello["presentation"]["profile"] == "personal"
-            && !args.iter().any(|arg| arg == "--background"))
+    if interactive
+        && (args.iter().any(|arg| arg == "--settings" || arg == "--gui")
+            || (hello["presentation"]["profile"] == "personal"
+                && !args.iter().any(|arg| arg == "--background")))
     {
         let ui = app.clone();
         let _ = app.run_on_main_thread(move || {
@@ -366,7 +412,7 @@ pub fn command(command: Value) -> Result<Value, String> {
                 *UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())? = None;
             }
             Err(error) => {
-                spawn_runtime(app)?;
+                spawn_runtime(app, true).inspect_err(|_| recover())?;
                 return Err(error.to_string());
             }
         }
@@ -383,7 +429,7 @@ pub fn command(command: Value) -> Result<Value, String> {
                             .into(),
                     );
                 }
-                spawn_runtime(app)?;
+                spawn_runtime(app, true).inspect_err(|_| recover())?;
                 if ENROLL_SETUP.swap(false, Ordering::AcqRel) && status.success() {
                     let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
                     let runtime = owner.as_mut().ok_or("Resident unavailable")?;
@@ -419,6 +465,8 @@ pub fn command(command: Value) -> Result<Value, String> {
             // replay mutating requests. Drop the complete owned process job.
             STOP_WINDOW.store(0, Ordering::Release);
             owner.take();
+            drop(owner);
+            recover();
             return Err(error);
         }
     };
@@ -438,7 +486,9 @@ pub fn command(command: Value) -> Result<Value, String> {
         crate::diagnostics::record("companion.state_timeout");
         STOP_WINDOW.store(0, Ordering::Release);
         owner.take();
-        return Err("Resident stopped responding; restart Machine Control".into());
+        drop(owner);
+        recover();
+        return Err("Resident stopped responding; restarting it".into());
     }
     if command["method"] == "state" {
         reply["state"]["uac"]["setupError"] =

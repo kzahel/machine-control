@@ -2,7 +2,8 @@
 
 Topic: `runtime-and-presentation`
 
-Status: **Open — reproduced on Linux and Windows ARM64 VMs; not repaired.**
+Status: **Repaired in source — three reviewed commits on 2026-11-06; VM
+acceptance under load pending.**
 
 ## Observations
 
@@ -44,7 +45,44 @@ platform restarts the companion afterwards. The 1-second `state` poll in
 The deadline is a deliberate fence against stale replies. The gap is that
 missing it is treated as permanent failure, with no recovery or backoff.
 
-## Proposed repairs
+## Repair
+
+The repair landed as three commits (`git log --grep "Topic:
+runtime-and-presentation"`):
+
+1. **Status polls no longer wait for the policy process.** Linux answers
+   `state` on its stdin reader from a reply the coordinator pre-encodes
+   about once a second and after each command. Windows reads a snapshot
+   its monitor builds. macOS presents a cached full projection that is
+   refreshed in the background. Each cached reply carries `stateAgeMs`,
+   and the supervisor treats a snapshot older than 30 seconds as a lost
+   resident. `fresh` state keeps the synchronous path for the update flow.
+2. **Deadlines outlast inner calls.** Ordinary companion calls get 15
+   seconds and `hello` 30 seconds on both platforms, so a policy call that
+   is slow but within its own 5-second limit no longer ends the resident.
+   A policy reply later than that still ends the policy process, which now
+   leads to the restart below. Linux status polls return `busy` rather than
+   queueing behind a command.
+3. **Supervised restart.** A lost Linux or Windows resident is restarted
+   with backoff (1, 2, 5, 15, then 60 seconds; escalating while losses
+   recur within five minutes). A resident whose policy process fails ends
+   itself so it restarts with a fresh one (not for unavailable audit
+   storage, which would recur); macOS restarts the app instead, never in
+   its first minute and at most once per ten minutes across launches. The
+   supervisor remembers the last live status poll (at most 3 seconds old)
+   that no person's action overtook, and replays its surface choices after
+   the restart through the same restore path as an update. Operator
+   commands (before and after they run), app Stop, and a live count of
+   stops each resident reports, including its hotkey, native notices and
+   safety revocations, cancel the restoration. Linux no longer quits when
+   its resident fails to start.
+
+Not changed: stale Linux sockets were already handled at startup (a
+refused `desktop.sock` is removed and `operator.sock` is always rebound);
+a graceful close before the kill now usually removes them anyway. The
+slow operations themselves were not measured.
+
+## Original proposals
 
 - Restart the companion under supervision after a timeout, bounded and with
   backoff. Increase the runtime generation so stale references are still

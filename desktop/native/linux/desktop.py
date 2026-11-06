@@ -77,6 +77,9 @@ class Desktop:
         self.configuration_sessions={'desktop':None,'browser':None}
         self.notice_pending=False;self.notice_seconds=10
         self.operator_state=None
+        # Stops counted where they arrive, so the supervisor can tell that a
+        # person stopped access even while the coordinator is busy.
+        self.stops=0
         self.policy=Policy(self.scheduler.post,self.policy_event,self.policy_failed)
         self.grants=Access(self.policy,self.policy_changed)
         self.access_preferences=AccessPreferences(self.presentation.root,instance)
@@ -156,6 +159,11 @@ class Desktop:
         if self.policy.alive:self.policy._fail(code)
         self.journal.diagnostic('resident.policy',code)
         self.changed()
+        if code!='audit_storage_unavailable':
+            # A lost policy process cannot be rebound in place. End this
+            # resident; the supervisor restarts it and restores its access.
+            # Unavailable audit storage would recur, so it stays degraded.
+            self.scheduler.post(lambda:self.shutdown() or False)
 
     def changed(self):
         if not self.notice_pending:
@@ -193,6 +201,7 @@ class Desktop:
             # A query-only reply may have changed the generation after the
             # last full projection; never pair it with an older status.
             state=self.state(fresh=self.policy.alive and not self.grants.status_current)
+            state.pop('stops',None)  # Read live when each reply is sent.
             generation=self.grants.generation
             encoded=encode({"ok":True,"coordinatorGeneration":generation,"state":state})
             if not encoded.endswith(b'}}\n'):raise ValueError('operator_state_encoding')
@@ -259,6 +268,7 @@ class Desktop:
         return None
 
     def emergency_fence(self):
+        self.stops+=1
         self.inhibit.set();self.work.cancel()
         for authority in list(self.browser.authorities.values()):authority['revoked'].set()
 
@@ -268,6 +278,7 @@ class Desktop:
 
     def state(self,fresh=False):
         admission=self.grants.state() if fresh else self.grants.snapshot()
+        stops=self.stops
         return dict(deployment=self.grants.deployment(),accessPolicy=admission,admission=admission,
             nativeApproval=True,presentation=self.presentation.state(),platform='linux',
             manualUntilStoppedSupported=True,pauseSupported=True,
@@ -281,7 +292,7 @@ class Desktop:
             portal=dict(state=self.portal.state,error=self.portal.error,pointer=bool(self.portal.devices&2),keyboard=bool(self.portal.devices&1)),
             browser=self.browser.state(),browserWhileLocked=dict(supported=True,enabled=self.browser_preference.enabled),
             socket=str(self.endpoint),startOnLogin=self.startup.enabled,stopShortcutAvailable=self.shortcut.available,
-            stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health)
+            stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health,stops=stops)
 
     def notice_capability(self):
         return dict(route='freedesktop_notifications_wayland_controls',requiresNotificationActions=True,
@@ -590,6 +601,8 @@ class Desktop:
             request = read_frame(SocketFrames(client))
             if not request or request.get("method") not in {"presentation", "presentation.status", "stop"}:
                 return
+            if request.get("method") == "stop":
+                self.emergency_fence()
             event = threading.Event()
             reply = []
             cancelled = threading.Event()
@@ -749,7 +762,7 @@ class Desktop:
                         cached is not None and cached[2] == self.grants.generation):
                     published, prefix, _ = cached
                     age = int((time.monotonic() - published) * 1000)
-                    sys.stdout.buffer.write(prefix + b',"stateAgeMs":%d}}\n' % age)
+                    sys.stdout.buffer.write(prefix + b',"stateAgeMs":%d,"stops":%d}}\n' % (age, self.stops))
                     sys.stdout.buffer.flush()
                     continue
                 complete = threading.Event()

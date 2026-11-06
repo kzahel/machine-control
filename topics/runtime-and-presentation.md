@@ -65,6 +65,19 @@ retain physical capacity; native approval children retain their slot through
 kernel reaping. Disposable Settings and local recovery remain independent of
 public-socket saturation and provider work.
 
+**Current (resident supervision):** Status polls never wait for the shared
+policy process. Linux serves a coordinator-published reply from its operator
+reader, Windows a monitor-built snapshot, and macOS a cached projection
+refreshed in the background. Each reply reports its age. Linux and Windows
+companion calls outlast the resident's inner policy calls (15 seconds; 30 for
+startup) and still end the companion when missed, because the operator pipe
+has no request IDs. A lost resident, a snapshot older than 30 seconds, or a
+lost policy process leads to a supervised restart with backoff; macOS
+restarts the app, at most once per ten minutes. The supervisor then restores
+the last live surface choices unless a person acted, or any stop was counted
+inside the resident, after they were observed. The incident and evidence
+are in the [companion-deadline gap](../gaps/2026-11-06-companion-deadline-drops-resident.md).
+
 ## Product direction
 
 **Proposal:** the [desktop access experience](desktop-access-experience.md)

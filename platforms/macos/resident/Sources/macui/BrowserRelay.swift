@@ -104,6 +104,8 @@ final class BrowserRelay {
     private var generation = UUID().uuidString
     private var nativeState: String?
     private var problem: String?
+    /// The policy process failed after starting. The app restarts to recover.
+    private(set) var runtimeLost = false
     private var queuedBytes = 0
 
     init(service: ResidentService, broker: GrantBroker, policyDirectory: URL? = nil,
@@ -141,6 +143,7 @@ final class BrowserRelay {
          "profileSelectionSupported": true, "profiles": profiles,
          "approvedProfiles": host?.state["selectedProfiles"] ?? [],
          "sharedRuntime": "typescript_node", "runtimeProblem": problem as Any? ?? NSNull(),
+         "runtimeLost": runtimeLost,
          "problems": peers.values.compactMap { peer -> [String: Any]? in
              peer.problem.map { ["reason": $0] }
          },
@@ -444,6 +447,8 @@ final class BrowserRelay {
     }
     private func failed(_ code: String) {
         problem = code; stopped = true; generation = UUID().uuidString
+        // Unavailable audit storage would recur after a restart.
+        if code != "resident_stopping" && code != "audit_storage_unavailable" { runtimeLost = true }
         for peer in Array(peers.values) { disconnect(peer) }
         host?.stop()
         endAudits(); authorities.removeAll(); broker.admission.invalidate()

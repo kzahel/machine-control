@@ -240,16 +240,68 @@ pub fn resume(app: tauri::AppHandle) {
         return;
     };
     let version = app.package_info().version.to_string();
-    let Some(mut entries) = validate(&plan, &version, now()) else {
-        crate::diagnostics::record("update.access.restore_skipped");
+    // A resident that lost its policy process on macOS restarts the app.
+    let restart = plan["reason"] == RESIDENT_RESTART;
+    let Some(entries) = validate(&plan, &version, now()) else {
+        crate::diagnostics::record(if restart {
+            "resident.access.restore_skipped"
+        } else {
+            "update.access.restore_skipped"
+        });
         return;
     };
+    // A person's action after launch supersedes the recorded choices.
+    let ticket = crate::recovery::ticket();
+    restore(app, entries, restart, move || {
+        crate::recovery::ticket() == ticket
+    });
+}
+
+pub const RESIDENT_RESTART: &str = "resident_restart";
+
+/// Replay surface choices once the resident is ready, retrying for a bounded
+/// window. `wanted` is checked before each attempt; a person's later action
+/// cancels the restoration.
+pub fn restore(
+    app: tauri::AppHandle,
+    mut entries: Vec<Value>,
+    restart: bool,
+    wanted: impl Fn() -> bool + Send + 'static,
+) {
     let restoring = surfaces_label(&entries);
-    crate::updates::set_access_resume(json!({"phase":"restoring", "surfaces":restoring}));
+    let phase = move |phase: &str, surfaces: Vec<Value>, error: Option<String>| {
+        let mut value = json!({"phase":phase, "surfaces":surfaces});
+        if let Some(error) = error {
+            value["error"] = json!(error);
+        }
+        if restart {
+            value["reason"] = json!(RESIDENT_RESTART);
+        }
+        value
+    };
+    let (restored, failed, skipped) = if restart {
+        (
+            "resident.access.restored",
+            "resident.access.restore_failed",
+            "resident.access.restore_skipped",
+        )
+    } else {
+        (
+            "update.access.restored",
+            "update.access.restore_failed",
+            "update.access.restore_skipped",
+        )
+    };
+    crate::updates::set_access_resume(phase("restoring", restoring.clone(), None));
     std::thread::spawn(move || {
         let deadline = Instant::now() + RESTORE_WINDOW;
         let mut error = String::from("Machine Control was not ready");
         loop {
+            if !wanted() {
+                crate::diagnostics::record(skipped);
+                crate::updates::set_access_resume(Value::Null);
+                return;
+            }
             match crate::native_blocking(&app, json!({"method":"state", "fresh":true})) {
                 Ok(reply) => {
                     let state = &reply["state"];
@@ -257,10 +309,8 @@ pub fn resume(app: tauri::AppHandle) {
                         crate::native_blocking(&app, command)
                     });
                     if entries.is_empty() {
-                        crate::diagnostics::record("update.access.restored");
-                        crate::updates::set_access_resume(
-                            json!({"phase":"restored", "surfaces":restoring}),
-                        );
+                        crate::diagnostics::record(restored);
+                        crate::updates::set_access_resume(phase("restored", restoring, None));
                         return;
                     }
                     if let Err(e) = result {
@@ -270,9 +320,12 @@ pub fn resume(app: tauri::AppHandle) {
                 Err(e) => error = e,
             }
             if Instant::now() >= deadline {
-                crate::diagnostics::record("update.access.restore_failed");
-                crate::updates::set_access_resume(json!({"phase":"failed",
-                    "surfaces":surfaces_label(&entries), "error":error}));
+                crate::diagnostics::record(failed);
+                crate::updates::set_access_resume(phase(
+                    "failed",
+                    surfaces_label(&entries),
+                    Some(error),
+                ));
                 return;
             }
             std::thread::sleep(Duration::from_secs(2));

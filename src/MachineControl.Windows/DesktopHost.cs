@@ -97,8 +97,19 @@ internal static class DesktopHost
         }
         var monitor = Task.Run(async () =>
         {
+            var policySeen = false;
             while (!stop.IsCancellationRequested)
             {
+                if (browser.PolicyAvailable) policySeen = true;
+                else if (policySeen)
+                {
+                    // A lost policy process cannot be rebound in place. End this
+                    // resident; the supervisor restarts it and restores access.
+                    broker.Admission.Invalidate();
+                    broker.Stop("resident_policy_disconnected");
+                    journal.Diagnostic("desktop.supervisor", "resident_policy_lost");
+                    return;
+                }
                 // A command waiting for its effect is published before housekeeping.
                 Publish(due: false);
                 try
@@ -158,6 +169,7 @@ internal static class DesktopHost
                             var direct = current is null || command["fresh"]?.GetValue<bool>() == true;
                             var state = direct ? BuildState() : current!.State.DeepClone().AsObject();
                             state["stateAgeMs"] = direct ? 0 : Environment.TickCount64 - current!.At;
+                            state["stops"] = broker.Stops;
                             reply = new { ok = true, state };
                             break;
                         case "logs.query":

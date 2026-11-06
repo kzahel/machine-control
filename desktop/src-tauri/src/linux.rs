@@ -6,7 +6,7 @@ use std::{
     os::unix::{net::UnixStream, process::CommandExt},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc, Mutex, OnceLock,
     },
     time::Duration,
@@ -22,10 +22,12 @@ pub fn epoch() -> u64 {
 
 static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+static EXITING: AtomicBool = AtomicBool::new(false);
+static RECOVERING: AtomicBool = AtomicBool::new(false);
 
 struct Runtime {
     child: Child,
-    input: ChildStdin,
+    input: Option<ChildStdin>,
     replies: mpsc::Receiver<Result<Value, String>>,
 }
 
@@ -49,25 +51,26 @@ impl Runtime {
     fn call_within(&mut self, command: &Value, deadline: Duration) -> Result<Value, String> {
         if self.child.try_wait().map_err(|e| e.to_string())?.is_some() {
             crate::diagnostics::record("companion.exited");
-            return Err("Resident stopped; restart Machine Control".into());
+            return Err("Resident stopped; restarting it".into());
         }
         let bytes = serde_json::to_vec(command).map_err(|e| e.to_string())?;
         if bytes.len() > 65536 {
             return Err("Operator command is too large".into());
         }
-        self.input.write_all(&bytes).map_err(|e| e.to_string())?;
-        self.input.write_all(b"\n").map_err(|e| e.to_string())?;
-        self.input.flush().map_err(|e| e.to_string())?;
+        let input = self.input.as_mut().ok_or("Resident input closed")?;
+        input.write_all(&bytes).map_err(|e| e.to_string())?;
+        input.write_all(b"\n").map_err(|e| e.to_string())?;
+        input.flush().map_err(|e| e.to_string())?;
         self.replies
             .recv_timeout(deadline)
             .map_err(|error| match error {
                 mpsc::RecvTimeoutError::Timeout => {
                     crate::diagnostics::record("companion.timeout");
-                    "Resident did not respond; restart Machine Control".to_owned()
+                    "Resident did not respond; restarting it".to_owned()
                 }
                 mpsc::RecvTimeoutError::Disconnected => {
                     crate::diagnostics::record("companion.exited");
-                    "Resident closed its operator channel; restart Machine Control".to_owned()
+                    "Resident closed its operator channel; restarting it".to_owned()
                 }
             })?
     }
@@ -75,6 +78,15 @@ impl Runtime {
 
 impl Drop for Runtime {
     fn drop(&mut self) {
+        // Closing input lets a responsive resident remove its sockets and
+        // revoke access itself before the kill.
+        drop(self.input.take());
+        for _ in 0..100 {
+            if self.child.try_wait().ok().flatten().is_some() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
@@ -166,6 +178,46 @@ pub fn sanitize_system_command(command: &mut Command) -> Result<(), String> {
 pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     APP.set(app.clone())
         .map_err(|_| "Operator already initialized")?;
+    spawn(app)
+}
+
+/// The resident was lost: restart it with backoff, then turn its access
+/// back on unless a person acted since it was last observed.
+pub fn recover() {
+    if EXITING.load(Ordering::Acquire) || RECOVERING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let Some(app) = APP.get().cloned() else {
+        RECOVERING.store(false, Ordering::Release);
+        return;
+    };
+    let mut plan = crate::recovery::plan(&app.package_info().version.to_string());
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(crate::recovery::backoff());
+            if EXITING.load(Ordering::Acquire) {
+                break;
+            }
+            match spawn(&app) {
+                Ok(()) => {
+                    crate::recovery::resident_started();
+                    crate::diagnostics::record("resident.restarted");
+                    if let Some(plan) = plan.take() {
+                        crate::recovery::restore(app.clone(), plan);
+                    }
+                    break;
+                }
+                Err(_) => crate::diagnostics::record("resident.restart_failed"),
+            }
+        }
+        RECOVERING.store(false, Ordering::Release);
+    });
+}
+
+fn spawn(app: &tauri::AppHandle) -> Result<(), String> {
+    if EXITING.load(Ordering::Acquire) {
+        return Err("Operator exiting".into());
+    }
     let directory = app
         .path()
         .resource_dir()
@@ -233,7 +285,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     });
     let mut runtime = Runtime {
         child,
-        input,
+        input: Some(input),
         replies,
     };
     let executable = std::env::var_os("APPIMAGE")
@@ -256,7 +308,11 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     if reply["ok"] != true {
         return Err("Resident handshake failed".into());
     }
-    *RUNTIME.lock().map_err(|e| e.to_string())? = Some(runtime);
+    let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
+    if EXITING.load(Ordering::Acquire) {
+        return Err("Operator exiting".into());
+    }
+    *owner = Some(runtime);
     Ok(())
 }
 
@@ -293,6 +349,8 @@ pub fn command(command: Value) -> Result<Value, String> {
         Err(error) => {
             crate::diagnostics::record("companion.protocol_error");
             owner.take();
+            drop(owner);
+            recover();
             return Err(error);
         }
     };
@@ -314,7 +372,9 @@ pub fn command(command: Value) -> Result<Value, String> {
         // refreshes about once a second. One that stopped refreshing is lost.
         crate::diagnostics::record("companion.timeout");
         owner.take();
-        return Err("Resident stopped responding; restart Machine Control".into());
+        drop(owner);
+        recover();
+        return Err("Resident stopped responding; restarting it".into());
     }
     if command["method"] == "state" {
         reply["state"]["version"] = json!(app.package_info().version.to_string());
@@ -332,6 +392,7 @@ fn stalled(reply: &Value) -> bool {
 }
 
 pub fn shutdown() {
+    EXITING.store(true, Ordering::Release);
     if let Ok(mut owner) = RUNTIME.lock() {
         if let Some(mut runtime) = owner.take() {
             let _ = runtime.call(&json!({"method":"quit"}));
@@ -347,6 +408,7 @@ pub fn shutdown() {
 }
 
 pub fn stop_from_shortcut() -> Result<(), String> {
+    crate::recovery::person_acted();
     EPOCH.fetch_add(1, Ordering::AcqRel);
     let directory = std::env::var("XDG_RUNTIME_DIR").map_err(|e| e.to_string())?;
     let mut socket = UnixStream::connect(format!(
@@ -393,7 +455,7 @@ mod tests {
         let input = child.stdin.take().unwrap();
         let mut runtime = Runtime {
             child,
-            input,
+            input: Some(input),
             replies,
         };
         assert_eq!(

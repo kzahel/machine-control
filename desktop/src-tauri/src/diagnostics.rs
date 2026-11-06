@@ -75,6 +75,12 @@ pub fn record(code: &str) {
             | "update.access.restored"
             | "update.access.restore_failed"
             | "update.access.restore_skipped"
+            | "resident.restarted"
+            | "resident.restart_failed"
+            | "resident.policy_lost"
+            | "resident.access.restored"
+            | "resident.access.restore_failed"
+            | "resident.access.restore_skipped"
     ) {
         return;
     }

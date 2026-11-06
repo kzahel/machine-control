@@ -17,6 +17,10 @@
 - Give the Linux and Windows resident longer to answer than its own policy
   calls, and 30 seconds to start on Linux, so a slow moment is reported
   instead of ending the resident.
+- If the background resident stops responding or loses its policy process,
+  Machine Control restarts it and turns the same Desktop and Browser access
+  back on, unless you changed access in the meantime. On macOS this restarts
+  the app. A Linux resident that fails to start no longer quits the app.
 
 ## [0.7.1]
 

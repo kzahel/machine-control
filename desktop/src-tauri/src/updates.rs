@@ -150,6 +150,10 @@ pub fn begin_install(version: &str) -> Result<(), String> {
 pub fn installing() {
     state().phase = "installing";
 }
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn is_installing() -> bool {
+    state().installing
+}
 /// Live access around an operator-initiated update; see `update_resume`.
 pub fn set_access_resume(value: Value) {
     state().access_resume = Some(value);

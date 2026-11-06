@@ -16,6 +16,7 @@ mod linux;
 #[cfg(target_os = "macos")]
 mod mac_instance;
 mod native_queue;
+mod recovery;
 mod restart;
 mod update_resume;
 mod updates;
@@ -261,6 +262,24 @@ async fn operator_command(
             return Err("Operator window required".into());
         }
     }
+    // A person's action supersedes access a resident restart would restore,
+    // including any status observed while it was running.
+    let acts = !matches!(
+        command["method"].as_str(),
+        Some("state" | "update_sync" | "logs.query" | "logs.preview" | "logs.location")
+            | Some("logs.open" | "logs.export")
+    );
+    if acts {
+        recovery::person_acted();
+    }
+    let reply = operator_dispatch(app, command).await;
+    if acts {
+        recovery::person_acted();
+    }
+    reply
+}
+
+async fn operator_dispatch(app: tauri::AppHandle, command: Value) -> Result<Value, String> {
     #[cfg(target_os = "linux")]
     if command["method"] == "stop" {
         linux::stop_from_shortcut()?;
@@ -566,6 +585,7 @@ fn main() {
         ])
         .setup(move |app| {
             diagnostics::start();
+            recovery::started();
             #[cfg(target_os = "linux")]
             {
                 let handle = app.handle().clone();
@@ -586,8 +606,18 @@ fn main() {
                             }
                         }
                         Err(error) => {
+                            // Keep the app: the supervisor restarts the
+                            // resident with backoff. An interactive launch
+                            // shows Settings, which reports it as unavailable.
                             eprintln!("{error}");
-                            handle.exit(1);
+                            diagnostics::record("resident.unavailable");
+                            linux::recover();
+                            if !launch.iter().any(|arg| arg == "--background") {
+                                let ui = handle.clone();
+                                let _ = handle.run_on_main_thread(move || {
+                                    let _ = show_settings(&ui, None);
+                                });
+                            }
                         }
                     }
                 });
@@ -656,6 +686,7 @@ fn main() {
                 let mut previous_pending = String::new();
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(1));
+                    let ticket = recovery::ticket();
                     let (send, receive) = std::sync::mpsc::channel();
                     if schedule_native(&handle, move || {
                         let _ = send.send(native_command(json!({"method":"state"})));
@@ -671,6 +702,14 @@ fn main() {
                     if value["busy"] == true {
                         continue;
                     }
+                    #[cfg(target_os = "macos")]
+                    if value["state"]["browser"]["runtimeLost"] == true {
+                        // Checked before observing: this state already shows
+                        // access off, and the last observation is restored.
+                        recovery::restart_after_policy_loss(&handle);
+                        continue;
+                    }
+                    recovery::observe(&value["state"], ticket);
                     let pending = value["state"]["pending"]["id"]
                         .as_str()
                         .unwrap_or("")
@@ -790,6 +829,7 @@ fn main() {
                         let _ = show_settings(app, Some(event.id.as_ref()));
                     }
                     "stop" => {
+                        recovery::person_acted();
                         #[cfg(target_os = "linux")]
                         tauri::async_runtime::spawn_blocking(|| {
                             let _ = linux::stop_from_shortcut();

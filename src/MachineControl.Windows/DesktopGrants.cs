@@ -19,6 +19,11 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private bool _ready, _preparedConsole, _lockedConsole, _browserWhileLocked, _updating;
     private string? _consoleIdentity, _browserConsentConsole, _lastEnded;
     private long _desktopConsentRevision;
+    private long _stops;
+    /// Stops counted before any policy call, read live by status replies. Stops
+    /// the supervisor itself causes (exit, policy loss) are not counted: they
+    /// must not cancel the access restore that follows a resident restart.
+    internal long Stops => Interlocked.Read(ref _stops);
     private AccessAdmission? _admission;
     private DesktopActivityPolicy? _activityPolicy;
     private readonly Queue<object> _activity = new();
@@ -212,6 +217,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     }
     internal void Stop(string reason)
     {
+        if (reason is not ("resident_policy_disconnected" or "operator_disconnected" or "operator_quit"))
+            Interlocked.Increment(ref _stops);
         lock (Gate)
         {
             _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n");
