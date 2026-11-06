@@ -289,6 +289,14 @@ final class AdmissionChannel {
         } catch { reply(id, error:String(describing:error)) }
     }
     deinit { close() }
+    /// Mirrors every static refusal in `control.renew`: delegated and outer
+    /// owners never renew, and a covered owner renews only through a live
+    /// helper connection that supports covered renewal.
+    var renewable: Bool {
+        delegation == nil && outer == nil &&
+            (coveredSessionID == nil || (coveredOwner >= 0 &&
+                server?.service.displayedUnlockStatus["coveredRenewal"] as? String == "owner_connection/v1"))
+    }
     func reply(_ id: String, data: [String:Any]? = nil, error: String? = nil) {
         guard !closed else { return }
         do {
@@ -296,10 +304,10 @@ final class AdmissionChannel {
             if data?["schema"] as? String == AccessAdmission.schema {
                 data?["requestSequencing"] = "strict"
                 if outer != nil { data?["outerRecovery"] = "borrowed_exact_claim/v1" }
-                if delegation == nil && outer == nil,
-                   coveredSessionID == nil || server?.service.displayedUnlockStatus["coveredRenewal"] as? String == "owner_connection/v1" {
-                    data?["renewal"] = "owner_connection/v1"
-                }
+                // The shared view always offers renewal; advertise it only
+                // when control.renew below could succeed for this owner.
+                if renewable { data?["renewal"] = "owner_connection/v1" }
+                else { data?.removeValue(forKey:"renewal") }
                 if let delegation {
                     data?["ownerAssurance"] = "verified_desktop_integration"
                     data?["desktopSession"] = ["sessionId":delegation.session, "sessionGeneration":delegation.generation]

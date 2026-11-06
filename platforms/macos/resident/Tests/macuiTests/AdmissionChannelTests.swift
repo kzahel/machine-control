@@ -201,6 +201,57 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(effects,0)
     }
 
+    func testRenewalIsAdvertisedOnlyWhenTheOwnerCanRenew() throws {
+        // A plain owner keeps the shared renewal advertisement in every view.
+        let plain = try connect(), offer = open(plain,"plain-renewal")
+        XCTAssertEqual(offer["renewal"] as? String,"owner_connection/v1")
+        let active = command(plain,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        XCTAssertEqual(active["renewal"] as? String,"owner_connection/v1")
+        XCTAssertEqual((command(plain,"control.heartbeat")["data"] as? [String:Any])?["renewal"] as? String,"owner_connection/v1")
+        _ = command(plain,"control.cancel")
+
+        // A covered owner whose helper lacks covered renewal must not offer it.
+        var pair: [Int32] = [-1,-1]
+        XCTAssertEqual(socketpair(AF_UNIX, SOCK_STREAM, 0, &pair), 0)
+        defer { Darwin.close(pair[0]) }
+        server.coveredActivation = { channel,_ in
+            channel.coveredSessionID = "fixture-covered"; channel.coveredOwner = pair[1]
+        }
+        server.coveredPreparation = { _ in .ready }
+        let covered = try connect(), coveredOffer = open(covered,"covered-renewal")
+        let coveredActive = command(covered,"control.accept",["offerGeneration":coveredOffer["offerGeneration"]!])
+        XCTAssertEqual(coveredActive["accepted"] as? Bool,true, "Accept refused: \(coveredActive)")
+        XCTAssertNil((coveredActive["data"] as? [String:Any])?["renewal"])
+        for operation in ["control.status", "control.heartbeat"] {
+            XCTAssertNil((command(covered,operation)["data"] as? [String:Any])?["renewal"])
+        }
+        let refused = command(covered,"control.renew",["sessionId":(coveredActive["data"] as! [String:Any])["sessionId"]!,
+            "resourceGenerations":(coveredActive["data"] as! [String:Any])["resourceGenerations"]!,"durationSeconds":120])
+        XCTAssertEqual(refused["errorCode"] as? String,"control_renewal_unavailable")
+
+        // With helper support the same covered owner advertises renewal again.
+        server.service.helperObservation = BackgroundObservation(label:"test.admission.helper",
+            timeout:1, unknown:{ ["coveredRenewal":"owner_connection/v1"] }, read:{ ["coveredRenewal":"owner_connection/v1"] })
+        XCTAssertEqual((command(covered,"control.status")["data"] as? [String:Any])?["renewal"] as? String,"owner_connection/v1")
+
+        // A natively delegated owner never renews, so it never advertises.
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-renew-delegated-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        server.callerTrust = DesktopCallerTrust(directory:directory.path)
+        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+        server.callerTrust.peerValid = { _,_ in true }
+        server.callerTrust.peerStillValid = { _,_ in true }
+        let delegated = try connect()
+        let delegatedOffer = exchange(delegated,["operation":"control.open", "schema":AccessAdmission.schema,
+            "requestId":"delegated-renewal", "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120,
+            "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]])
+        XCTAssertEqual(delegatedOffer["accepted"] as? Bool,true, "Delegated open refused: \(delegatedOffer)")
+        XCTAssertNil((delegatedOffer["data"] as? [String:Any])?["renewal"])
+        XCTAssertNil((command(delegated,"control.heartbeat")["data"] as? [String:Any])?["renewal"])
+        XCTAssertEqual(effects,0)
+    }
+
     func testLeaseRenewalCanAcknowledgeWhileTheSameOwnersActionIsPending() throws {
         let client = try connect(), offer = open(client,"pending-renewal")
         let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
