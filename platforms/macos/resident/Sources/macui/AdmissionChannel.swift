@@ -61,13 +61,25 @@ final class AdmissionChannel {
     init(_ descriptor: Int32, caller: CallerIdentity, server: ResidentServer) {
         self.descriptor = descriptor; self.caller = caller; self.server = server
     }
+    /// Typed operations an owner may narrow its task to. Unknown names are
+    /// refused rather than classified as ordinary control.
+    static let knownOperations: Set<String> = [
+        "applications", "windows", "snapshot", "capture",
+        "action", "application.launch", "application.activate", "application.terminate",
+        "dialog.choose", "window.close", "input.key", "input.text", "input.click",
+        "input.move", "input.drag", "input.scroll", "outer.prepare", "outer.begin", "outer.step",
+        "browser.tabs", "browser.wait", "browser.navigate", "browser.snapshot", "browser.click",
+        "browser.type", "browser.key", "browser.capture", "browser.dialog", "browser.release",
+        "browser.upload", "browser.cdp", "browser.eval", "browser.endpoint"]
     func open(_ request: [String:Any]) throws {
         guard let server, caller.uid == getuid(), caller.pid > 0,
-              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "surfaces", "profileIds", "operations", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation", "preparedConsole"]),
-              request["schema"] as? String == AccessAdmission.schema,
-              let names = request["surfaces"] as? [String], (1...2).contains(names.count), Set(names).count == names.count,
-              names.allSatisfy({ ["desktop", "browser"].contains($0) }),
-              let duration = admissionInteger(request["durationSeconds"]),
+              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "surfaces", "profileIds", "operations", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation", "preparedConsole"]) else {
+            throw MacUIError.usage("invalid_admission_request")
+        }
+        guard request["schema"] as? String == AccessAdmission.schema else { throw MacUIError.usage("unsupported_admission_schema") }
+        guard let names = request["surfaces"] as? [String], (1...2).contains(names.count), Set(names).count == names.count,
+              names.allSatisfy({ ["desktop", "browser"].contains($0) }) else { throw MacUIError.usage("invalid_admission_surfaces") }
+        guard let duration = admissionInteger(request["durationSeconds"]),
               let wait = admissionInteger(request["waitSeconds"]),
               let reason = request["reason"] as? String,
               let requestID = request["requestId"] as? String, order.accept(request) else { throw MacUIError.usage("invalid_admission_request") }
@@ -79,7 +91,8 @@ final class AdmissionChannel {
         guard surfaces.contains("browser") || profileIDs.isEmpty else { throw MacUIError.usage("invalid_browser_profiles") }
         if let value = request["operations"] {
             guard let list = value as? [String], (1...64).contains(list.count), Set(list).count == list.count,
-                  list.allSatisfy({ if case let .scoped(scope) = operationClass($0) { return scopes.contains(scope) }; return false }) else {
+                  list.allSatisfy({ guard Self.knownOperations.contains($0) else { return false }
+                      if case let .scoped(scope) = operationClass($0) { return scopes.contains(scope) }; return false }) else {
                 throw MacUIError.usage("invalid_admission_operations")
             }
             operations = list
@@ -196,6 +209,10 @@ final class AdmissionChannel {
         guard let server, let id = request["requestId"] as? String, order.accept(request) else { close(); return }
         do {
             let operation = request["operation"] as? String ?? ""
+            guard ["control.status", "control.heartbeat", "control.accept", "control.cancel",
+                   "control.renew", "control.dispatch"].contains(operation) else {
+                throw MacUIError.usage("unsupported_admission_operation")
+            }
             // Clock/authority expiry is checked by inspect/cancel themselves.
             // Polls must not multiply OS/helper probes by the waiter count.
             // Revalidate native availability immediately before effects.
@@ -237,11 +254,13 @@ final class AdmissionChannel {
                 // Extending this same live lease must remain possible while
                 // its one provider action is pending. It dispatches no new
                 // action and changes neither session nor resource generation.
-                guard delegation == nil, outer == nil,
-                      let session = request["sessionId"] as? String,
-                      let generations = request["resourceGenerations"] as? [String:Int],
-                      let duration = ControlSessionLease.duration(request["durationSeconds"]) else {
-                    throw MacUIError.action("control_renewal_unavailable")
+                guard delegation == nil, outer == nil else { throw MacUIError.action("control_renewal_unavailable") }
+                guard let session = request["sessionId"] as? String,
+                      let generations = request["resourceGenerations"] as? [String:Int] else {
+                    throw MacUIError.usage("invalid_admission_request")
+                }
+                guard let duration = ControlSessionLease.duration(request["durationSeconds"]) else {
+                    throw MacUIError.usage("invalid_renewal_duration")
                 }
                 let seconds = Double(duration)
                 guard server.broker.journal?.event("control.renew.intent") != false else {

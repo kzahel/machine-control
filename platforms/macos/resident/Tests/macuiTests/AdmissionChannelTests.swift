@@ -284,6 +284,36 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(effects,0)
     }
 
+    func testRefusalsUseTheCommonVocabulary() throws {
+        let base: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema,
+            "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120]
+        let cases: [(String, [String:Any])] = [
+            ("unsupported_admission_schema", ["schema":"machine-control-admission/v1"]),
+            ("invalid_admission_surfaces", ["surfaces":["screen"]]),
+            ("invalid_admission_surfaces", ["surfaces":[String]()]),
+            ("exact_browser_profile_required", ["surfaces":["browser"]]),
+            ("invalid_browser_profiles", ["profileIds":["fixture-profile"]]),
+            ("invalid_admission_operations", ["operations":["browser.tabs"]]),
+            ("invalid_admission_operations", ["operations":["fixture.unknown"]]),
+        ]
+        for (code, change) in cases {
+            var request = base.merging(change) { $1 }; request["requestId"] = UUID().uuidString
+            let reply = exchange(try connect(), request)
+            XCTAssertEqual(reply["schema"] as? String, AdmissionChannel.schema)
+            XCTAssertEqual(reply["errorCode"] as? String, code, "For \(change)")
+        }
+        let client = try connect(), offer = open(client,"vocabulary")
+        XCTAssertEqual(command(client,"control.fixture")["errorCode"] as? String,"unsupported_admission_operation")
+        XCTAssertEqual(command(client,"control.fixture",["extra":true])["errorCode"] as? String,"unsupported_admission_operation")
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        for duration: Any in [0, 901, 1.5, "60", true] {
+            let reply = command(client,"control.renew",["sessionId":active["sessionId"]!,
+                "resourceGenerations":active["resourceGenerations"]!,"durationSeconds":duration])
+            XCTAssertEqual(reply["errorCode"] as? String,"invalid_renewal_duration", "For \(duration)")
+        }
+        XCTAssertEqual(effects,0)
+    }
+
     func testOpenRefusalsUseTheChannelSchema() throws {
         // One process may hold four live channels; the fifth is refused.
         for index in 0..<4 { _ = open(try connect(),"limit-\(index)") }
