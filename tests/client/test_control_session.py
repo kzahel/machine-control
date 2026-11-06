@@ -47,7 +47,10 @@ class ControlSessionTests(unittest.TestCase):
         mc.require_browser_profile_selection({"accepted": True, "data": {"browser": {"profileSelectionSupported": True}}})
         self.assertEqual(mc.browser_request(["tabs", "--profile", "Work profile"], "windows"),
                          {"operation": "browser.tabs", "browserProfileId": "Work profile"})
-        with self.assertRaises(mc.ClientError): mc.browser_request(["tabs", "--profile", "Work"], "macos")
+        # Capability, not platform name, decides support (Tactical 159).
+        for platform in ("macos", "linux"):
+            self.assertEqual(mc.browser_request(["tabs", "--profile", "Work"], platform),
+                             {"operation": "browser.tabs", "browserProfileId": "Work"})
 
     def test_resumed_wait_uses_the_new_server_waiting_period(self):
         with self.session("resumed") as owner:

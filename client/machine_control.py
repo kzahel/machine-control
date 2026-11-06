@@ -2950,8 +2950,8 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
             raise ClientError("usage", "browser upload --file paths must be absolute")
     request: dict[str, Any] = {"operation": f"browser.{command}"}
     if options.profile is not None:
-        if target_platform not in (None, "windows"):
-            raise ClientError("unsupported_browser_profile_selection", "This target has not adopted named browser profiles")
+        # The resident's advertised profileSelectionSupported capability, not
+        # the platform name, decides support (send_resident_request checks it).
         if not options.profile or len(options.profile) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in options.profile):
             raise ClientError("usage", "--profile requires a profile ID or exact unique name")
         request["browserProfileId"] = options.profile
