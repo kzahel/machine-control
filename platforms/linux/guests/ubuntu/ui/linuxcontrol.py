@@ -86,6 +86,29 @@ class ControlFailure(RuntimeError):
         self.code = code
 
 
+# Common request names (contracts/request-v0.schema.json) and the appliance's
+# historical names. Drag starts at the common x/y.
+COMMON_FIELDS = {"deltaX": "dx", "deltaY": "dy", "applicationId": "desktopId"}
+DRAG_FIELDS = {"x": "x1", "y": "y1"}
+
+
+def normalize_request(request: dict[str, Any]) -> dict[str, Any]:
+    """Map common field names to internal ones; refuse conflicting duplicates."""
+    aliases = dict(COMMON_FIELDS)
+    if request.get("operation") == "input.drag":
+        aliases.update(DRAG_FIELDS)
+    result = dict(request)
+    for common, internal in aliases.items():
+        if common not in request:
+            continue
+        if internal in request and request[internal] != request[common]:
+            raise ControlFailure(
+                "invalid_request", f"Conflicting {common} and {internal} values"
+            )
+        result[internal] = result.pop(common)
+    return result
+
+
 class Resident:
     def __init__(self) -> None:
         self.generation = str(uuid.uuid4())
@@ -350,11 +373,11 @@ class Resident:
         desktop_id = str(request.get("desktopId") or "")
         if not query and not desktop_id:
             raise ControlFailure(
-                "invalid_request", "Application target or desktopId is required"
+                "invalid_request", "Application target or applicationId is required"
             )
         if desktop_id:
             if not re.fullmatch(r"[A-Za-z0-9_.-]+", desktop_id):
-                raise ControlFailure("invalid_request", "Desktop ID is invalid")
+                raise ControlFailure("invalid_request", "Application ID is invalid")
             self.before_effect()
             completed = subprocess.run(
                 ["/usr/bin/gtk-launch", desktop_id],
@@ -404,12 +427,12 @@ class Resident:
             except Exception as error:
                 raise ControlFailure(
                     "activation_unsupported",
-                    "GNOME Wayland rejected AT-SPI top-level activation; use desktopId",
+                    "GNOME Wayland rejected AT-SPI top-level activation; use applicationId",
                 ) from error
             if not focused:
                 raise ControlFailure(
                     "activation_unsupported",
-                    "GNOME Wayland rejected AT-SPI top-level activation; use desktopId",
+                    "GNOME Wayland rejected AT-SPI top-level activation; use applicationId",
                 )
         effect = "active" in linuxui.state_names(window) or "focused" in linuxui.state_names(
             window
@@ -869,6 +892,7 @@ class Resident:
                 "application.activate": self.application_activate,
                 "application.terminate": self.application_terminate,
             }
+            request = normalize_request(request)
             if operation.startswith("input."):
                 result = self.input(request)
                 result["elapsedMs"] = int((time.monotonic() - started) * 1000)
