@@ -2484,7 +2484,9 @@ def command_help(arguments: list[str]) -> str | None:
         return (
             "grant request --scope observe|control|browser|devtools... --reason TEXT\n"
             "    [--duration D] [--timeout D]\n"
-            "  Ask the person at the target to approve access; waits for the decision.\n"
+            "  Legacy per-request grant. Current residents refuse it\n"
+            "  (legacy_grant_request_unsupported); open a live task with `control\n"
+            "  stream|call --surface desktop|browser`, which waits for Ask first approval.\n"
             "grant status\n  The active grant, if any.\n"
             "grant revoke\n  End the active grant. Revoke only a grant this task requested.\n"
         )
@@ -2743,9 +2745,45 @@ def _desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
     )
 
 
+LOGO_KEY = {"macos": "cmd", "windows": "win", "linux": "super"}
+MODIFIER_ALIASES = {"control": "ctrl", "option": "alt", "opt": "alt"}
+LOGO_ALIASES = {"cmd", "command", "meta", "super", "win", "windows"}
+
+
+def normalize_key_chord(platform: str, chord: str) -> str:
+    """Map common key names onto each resident's vocabulary.
+
+    Separators are `+` everywhere. The logo modifier keeps its physical
+    meaning (Command, Windows or Super); it is never remapped to Control.
+    """
+    if platform not in LOGO_KEY or len(chord) <= 1 or "+" not in chord and chord.lower() not in (
+            LOGO_ALIASES | {"return", "esc", "escape"}):
+        return chord
+    parts = chord.split("+")
+    if len(parts) > 1 and parts[-1] == "":
+        # A trailing empty part means the key itself is "+".
+        parts = parts[:-1]
+        parts[-1] += "+"
+    def name(part: str, final: bool) -> str:
+        lowered = part.lower()
+        if lowered in LOGO_ALIASES:
+            return LOGO_KEY[platform]
+        if not final:
+            return MODIFIER_ALIASES.get(lowered, lowered)
+        if lowered == "return":
+            return "enter"
+        if lowered in ("esc", "escape"):
+            return "esc" if platform == "linux" else "escape"
+        # With modifiers, a letter names the physical key; Shift is explicit.
+        return lowered if len(parts) > 1 and len(part) == 1 else part
+    return "+".join(name(part, index == len(parts) - 1) for index, part in enumerate(parts))
+
+
 def translate_request(platform: str, request: dict[str, Any]) -> dict[str, Any]:
     translated = dict(request)
     operation = str(request.get("operation", ""))
+    if operation == "input.key" and isinstance(request.get("key"), str):
+        translated["key"] = normalize_key_chord(platform, request["key"])
     if platform == "windows":
         operation_map = {
             "application.launch": "app.launch",
@@ -2823,12 +2861,12 @@ def add_client_projection(
     if value.get("errorCode") == "approval_required" and isinstance(
         data.get("requiredScope"), str
     ):
+        surface = "browser" if data["requiredScope"] in ("browser", "devtools") else "desktop"
         value["client"]["remediation"] = {
             "command": [
-                "grant", "request", "--scope", data["requiredScope"],
-                "--reason", "REASON",
+                "control", "stream", "--surface", surface, "--reason", "REASON",
             ],
-            "note": "A person at the target must approve the request.",
+            "note": "Open one live task; under Ask first the operator approves it.",
         }
     return value
 
@@ -4016,7 +4054,7 @@ Commands:
                                     Use `workspace --help` for claim composition
   grant request --scope observe|control|browser|devtools... --reason TEXT
         [--duration D] [--timeout D] | grant status | grant revoke
-                                    Ask a person at the target for access
+                                    Legacy grants; use control stream|call
   update check|status             Queue desktop update discovery or read status
   browser tabs|wait|navigate|snapshot|click|type|key|capture|upload|cdp|eval
         |endpoint|release   (browser --help or browser CMD --help)

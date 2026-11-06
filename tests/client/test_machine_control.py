@@ -1507,7 +1507,7 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertEqual(value["client"]["remediation"]["command"][:4],
-                         ["grant", "request", "--scope", "control"])
+                         ["control", "stream", "--surface", "desktop"])
 
     def test_desktop_target_does_not_replace_machine_target(self):
         result, value = self.run_cli(
@@ -1629,6 +1629,26 @@ class ClientTests(unittest.TestCase):
                 ["fixture-command", "argument"], "direct"
             )
         self.assertEqual(command, ["fixture-command", "argument"])
+
+
+class KeyChordTranslationTests(unittest.TestCase):
+    def test_common_names_map_to_each_resident_vocabulary(self):
+        cases = {
+            "macos": {"Command+Shift+T": "cmd+shift+t", "win+r": "cmd+r", "return": "enter", "esc": "escape"},
+            "windows": {"cmd+r": "win+r", "control+a": "ctrl+a", "option+f4": "alt+f4", "esc": "escape"},
+            "linux": {"cmd+l": "super+l", "escape": "esc", "meta": "super", "ctrl+Return": "ctrl+enter"},
+        }
+        for platform, expected in cases.items():
+            for chord, result in expected.items():
+                self.assertEqual(machine_control.translate_request(
+                    platform, {"operation": "input.key", "key": chord})["key"], result, (platform, chord))
+
+    def test_literal_keys_and_unknown_platforms_are_unchanged(self):
+        for chord in ("+", "a", "A", "ctrl++"):
+            self.assertEqual(machine_control.normalize_key_chord("windows", chord), chord)
+        self.assertEqual(machine_control.normalize_key_chord("chromeos", "cmd+l"), "cmd+l")
+        # The logo modifier is never silently turned into Control.
+        self.assertNotIn("ctrl", machine_control.normalize_key_chord("windows", "cmd+c"))
 
 
 class RegistryResolutionTests(unittest.TestCase):
