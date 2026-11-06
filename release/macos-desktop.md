@@ -45,7 +45,9 @@ forwards optional anonymous check metadata, and does not forward website
 credentials. Publication alone does not deploy the server or website.
 The first installed production-feed update is tracked in tactical 052. Native code requires
 access and pending approvals to be off before bundle replacement, and verifies
-the updater signature and its trusted version.
+the updater signature and its trusted version. From the release after 0.7.1 the
+client stops live operator access itself after a verified download and restores
+it after relaunch; see the native-distribution topic.
 
 ## Verify completion
 

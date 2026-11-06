@@ -310,6 +310,62 @@ a separate counter marker, capture hash, stale reference refusal and cleanup.
 Both release the local target-use claim in `finally`. This harness does not
 replace signed installation, browser, YA model/media or update acceptance.
 
+## Installed update and browser acceptance
+
+[`desktop-update.ps1`](desktop-update.ps1) and
+[`browser-installed.ps1`](browser-installed.ps1) are independent interactive
+actors for an exact signed per-user installation of the 0.7 surface model.
+Both dot-source [`desktop-update-common.ps1`](desktop-update-common.ps1):
+operator choices use the real Settings UI through UI Automation (the
+`Agent access`, `Desktop access` and `Browser access` switches, the mode and
+`Access lifetime` selects, `Discard`), and agent work uses the ordinary
+admission channel. WebView2 exposes collapsed selects without options and
+ignores `SetValue`, so the actor focuses the select and uses target-local
+keyboard selection; it never expands the native popup or walks the whole
+desktop tree. Run them in the interactive Medium session with Windows
+PowerShell `-STA`, for example from an interactive Limited scheduled task at
+normal priority. Start the installed app with `--settings`; a bare launch
+from a scheduled/automation context can exit without opening Settings.
+
+`desktop-update.ps1 -Scenario Resume` turns Desktop on (default Ask, 15
+minutes) and proves that **Install and restart** is enabled with the access
+pause note, that the client records a one-shot, version-bound
+`update-access-resume.json` with the original wall-clock end, and that the
+updated client consumes it, reports restoration, restores the same mode and
+keeps the remaining time rather than resetting it. It also checks the new
+generation, stale-generation refusal, exact incoming source and survival of an
+independent user app. `-ConfirmAgentTask` opens a Desktop task (accepted
+in Automatic mode, because an unaccepted offer expires after its offer window;
+waiting in Ask mode) and checks **Install anyway**/**Cancel**; `-TamperFlag` asks the fixture feed for
+modified installer bytes once and proves a rejected download records no plan
+and never stops access. `-Scenario Off` proves that Off stays Off and that no
+plan or access-stop diagnostic is recorded. Each scenario consumes one
+sender-to-incoming update; reinstall the sender between runs.
+
+`browser-installed.ps1` verifies the exact package (CI inventories are
+taken after the installed-CLI smoke and also list bundled-Python bytecode
+caches the installer never writes; those entries are optional, every other
+entry and every installed file must match), bundled-extension host
+registration, a separately identified test browser with an actor-owned
+profile, Settings-approved exact profile, independent page effects, capture
+bytes, Stop and stale references through ordinary owned Browser tasks, and
+restart with access off. With `-UpdateVersion`, it updates with Browser on
+until stopped (plus Desktop timed unless `-UpdateDesktopMode none`) and an
+active Browser task, then checks confirmation, the plan, restored Browser
+mode and profile, Desktop remaining time, preserved startup entry and browser
+registration, browser survival and reconnect, stale pre-update references,
+the retained page and a fresh effect. The legacy grant/approval,
+`-Lock` and `-RemoteProbe` cases were removed with the v1 grant model.
+
+[`update-feed-fixture.py`](update-feed-fixture.py) serves a release-staged
+`latest.json` (formed as `desktop/scripts/release.py` stages it, with only the
+installer URL pointing at the fixture) and the exact signed installer over
+target-local HTTPS. The installed app keeps its production endpoint: the
+controller temporarily maps that host to loopback and trusts a fixture CA in a
+disposable target, deletes its controller copies of fixture keys, and keeps
+evidence private. The controller owns doctor, claims, the disposable
+workspace, staging, task/process cleanup and power restoration.
+
 `cli-installed.py` under `tests/desktop` separately copies the entire client
 payload to an unrelated path and checks offline discovery, runtime isolation
 and bundled claims. Windows x64 execution passes in a claimed appliance with

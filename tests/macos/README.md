@@ -172,14 +172,36 @@ still exercises tray navigation and production update discovery separately.
 When the candidate occupies the canonical installation, supply a separate
 source-native appliance with `--operator-app` and `--operator-socket`.
 
-`tauri-update.py` uses that same separate observer to check production update
-discovery, disabled installation during active access, explicit Stop, signed
-replacement, relaunch, permission readiness, access revocation, and stale
-reference refusal. Supply the authenticated sender and expected release
-versions. `--verify-restart-before` and `--verify-restart-after` also exercise
-the Permissions Restart button. `--legacy-reopen` permits one native reopen
-for published 0.3.3/0.3.4 senders and reports it separately from automatic
-relaunch. The caller owns installation, fixture setup, and restoration.
+`tauri-update.py` is a self-contained controller/guest harness for the 0.7
+operator update contract. Run it under `machine-control --target macos run`
+with two authenticated candidate package directories (older `--sender`,
+newer `--incoming`), the expected `--team-id`, the canonical
+`--admin-secret-file` locator and a new private `--output`. It verifies both
+packages, then in the guest backs up the installed app, policy, LaunchAgent,
+operator files, app data, preferences, hosts and certificate trust; starts the
+same separate appliance observer; and serves the production update route
+(the shared server's per-platform signed metadata fields, 204 for current
+clients, and the signed archive)
+on guest loopback through a temporary hosts entry and temporarily trusted
+fixture certificate. The sender keeps its production endpoint and
+signed-version requirement.
+
+The guest first proves Off before update stays Off. It then enables timed
+Desktop Ask and until-stopped Browser Automatic for one exact Chrome for
+Testing profile in real Settings, opens an approved Desktop task, and checks:
+installation stays enabled with the pause note; Install anyway/Cancel
+confirmation; a tampered archive fails without stopping access, ending the
+task or writing a plan; the one-shot mode-`0600` plan carries the original
+Desktop wall-clock end and Browser profile; the sender reports every surface
+Off before replacement; automatic relaunch of the exact incoming
+version/source with retained permissions and a new generation; restoration of
+the same modes, end and profile; plan deletion; the Settings confirmation;
+installed CLI identity replacement; stale-reference refusal; and usable
+Browser access. Removing fixture trust raises the System Certificate Trust
+Settings prompt, cleared once through the observer's lease and one-shot
+credential transport. Standing-policy blocking and post-stop install failure
+are not exercised here. The harness restores the original guest state and
+power state. The pre-0.7 grant-model options were removed.
 
 The macOS corpus drives the target-resident facade owned by
 `platforms/macos`. `conformance.sh` runs the same request vocabulary

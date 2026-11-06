@@ -211,8 +211,11 @@ The shared update server consumes the same `latest.json` and product registratio
 for `darwin-aarch64`, `darwin-x86_64`, `windows-aarch64`, `windows-x86_64`,
 `linux-aarch64`, and `linux-x86_64`.
 The website proxies supported target/architecture requests to the existing
-product route. Installation remains explicit and refuses active access or
-pending approvals. Website deployment and installed production-feed acceptance
+product route. Installation remains explicit. From the release after 0.7.1 it
+stops live operator access after a verified download and the updated client
+restores the same surface choices; pending legacy approvals, in-progress
+operations and standing policy still block it. Website deployment and
+installed production-feed acceptance
 are verified separately from package publication.
 
 Public 0.5.4 has focused ARM64 Windows installed grant and production-update

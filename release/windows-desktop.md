@@ -150,9 +150,13 @@ Signed runs require the bundled provider for fixture observation and capture.
 `-AllowUnsigned` is only for explicitly labelled developer evidence.
 
 `tests/windows/desktop-update.ps1` uses the installed native UI against a
-controller-owned HTTPS fixture feed. It checks active-access exclusion, automatic
-relaunch, revoked grants, new generation, and preservation of a user app.
-Restore temporary fixture trust and DNS/hosts configuration after the run.
+target-local HTTPS fixture feed (`update-feed-fixture.py`). It checks that
+Install stays enabled with live access, that access stops after a verified
+download and the updated client restores the same surface modes and original
+timed end, that a tampered download leaves access untouched, Off-to-Off,
+agent-task confirmation, automatic relaunch, new generation, and preservation
+of a user app. Restore temporary fixture trust and DNS/hosts configuration
+after the run, or run it in a disposable workspace.
 
 `tests/windows/desktop-cli.ps1` proves local doctor, claim/release, off-state
 refusal, and, with an independently armed grant and `-Fixture`, packaged Cua
