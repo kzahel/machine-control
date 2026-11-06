@@ -183,7 +183,14 @@ internal sealed class AccessAdmission(object? gate = null)
             catch (Exception ex) when (PolicyLoss(ex)) { return "control_policy_unavailable"; }
         }
     }
-    internal void Cancel(string owner, string id) => Call("cancel", new() { ["owner"] = owner, ["intentId"] = id });
+    /// Ends an owned intent. A platform safety reason (for example
+    /// `locked_use_guard_failed`) replaces the caller-looking `cancelled`.
+    internal void Cancel(string owner, string id, string? reason = null)
+    {
+        var fields = new JsonObject { ["owner"] = owner, ["intentId"] = id };
+        if (reason is not null) fields["reason"] = reason;
+        Call("cancel", fields);
+    }
     internal void Disconnect(string owner)
     {
         lock (Gate) { if (_owners.Remove(owner) && _invoke is not null) Call("close", new() { ["owner"] = owner }); }

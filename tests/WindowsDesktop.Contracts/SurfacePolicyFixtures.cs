@@ -49,6 +49,27 @@ internal static class SurfacePolicyFixtures
             }
         grants.ConfigureSurface("desktop", "automatic", 0, "until_stopped");
         grants.ConfigureSurface("browser", "automatic", 0, "until_stopped", ["fixture-profile"]);
+        {
+            // Tactical 159 decision 3: a locked-use guard failure ends the task
+            // and fences dispatch, but it is not a person's Stop.
+            var stops = grants.Stops;
+            var guarded = View(grants.Admission.Submit("fixture", "guard-failure", ["desktop"], 300, 60, "Guard failure fixture"));
+            var id = guarded.GetProperty("intentId").GetString()!;
+            var active = View(grants.Admission.Accept("fixture", id, View(grants.Admission.Inspect("fixture", id)).GetProperty("offerGeneration").GetInt64()));
+            var fence = new ControlOwnership("fixture", id, active.GetProperty("sessionId").GetString()!, active.GetProperty("resourceGenerations").Deserialize<Dictionary<string, long>>()!, StartedLocked: true);
+            var generation = grants.Generation;
+            Require(grants.Authorize(new Request { Operation = "type", ControlOwnership = fence }) is null, "Guarded owner authorized before failure");
+            Require(grants.EndTask(fence, "locked_use_guard_failed"), "Guard failure ends the owned task");
+            var ended = View(grants.Admission.Inspect("fixture", id));
+            Require(ended.GetProperty("state").GetString() == "ended" && ended.GetProperty("terminalReason").GetString() == "locked_use_guard_failed",
+                "Guard failure is the task's terminal reason, not cancelled");
+            Require(grants.Authorize(new Request { Operation = "type", ControlOwnership = fence }) is not null && grants.Generation != generation,
+                "Guard failure fences dispatch and rotates the desktop generation");
+            Require(grants.Admission.Enabled("desktop") && grants.Admission.Enabled("browser") && grants.Stops == stops,
+                "Guard failure retains saved consent and the Browser surface and is not a person's Stop");
+            Require(!grants.EndTask(new ControlOwnership("fixture", "missing", "x", new()), "locked_use_guard_failed"), "Unknown task end is harmless");
+            grants.Admission.Disconnect("fixture");
+        }
         var protectedDesktopCeiling = grants.DesktopConsentRevision;
         grants.ConfigureSurface("browser", "automatic", 0, "until_stopped", ["fixture-profile"]);
         Require(grants.DesktopConsentRevision == protectedDesktopCeiling,

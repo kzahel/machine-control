@@ -270,6 +270,22 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         }
     }
 
+    /// A guard failure ends this task and fences its dispatch. The relock
+    /// barrier holds new work until the guardian's independently observed
+    /// lock; saved consent and the Browser surface are retained, as on macOS.
+    private void GuardFailed(Lease lease)
+    {
+        lock (grants.Gate)
+        {
+            if (_lease == lease && !lease.Ending)
+            {
+                lease.Ending = true;
+                grants.Admission.Pause("desktop", "relock_pending");
+            }
+            grants.EndTask(lease.Request.ControlOwnership!, "locked_use_guard_failed");
+        }
+    }
+
     private async Task ServeGuardAsync(Lease lease)
     {
         using var guardStop = CancellationTokenSource.CreateLinkedTokenSource(stop, lease.Done.Token);
@@ -328,13 +344,13 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                 catch (Exception error) when (error is IOException or InvalidDataException or JsonException or OperationCanceledException or UnauthorizedAccessException or ArgumentException or FormatException or System.Security.Cryptography.CryptographicException)
                 {
                     grants.Journal?.Diagnostic("locked_use.guard", phase + "." + error.GetType().Name);
-                    lock (grants.Gate) grants.Stop("locked_use_guard_failed");
+                    GuardFailed(lease);
                 }
             }
         }
         catch (OperationCanceledException) when (guardToken.IsCancellationRequested) { }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { lock (grants.Gate) grants.Stop("locked_use_guard_failed"); }
+        { GuardFailed(lease); }
         finally { lease.Done.Dispose(); }
     }
 }

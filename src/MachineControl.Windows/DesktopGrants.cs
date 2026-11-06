@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -224,6 +225,24 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n");
             ++_desktopConsentRevision; _lastEnded = reason; _browserConsentConsole = null;
             _admission?.Stop(reason); BrowserPolicy?.Stop(); Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
+        }
+    }
+    /// Ends one owned task for a platform safety reason without touching
+    /// surface consent. Dispatch is fenced: the desktop generation changes so
+    /// earlier references and admitted generations are stale.
+    internal bool EndTask(ControlOwnership owner, string reason)
+    {
+        lock (Gate)
+        {
+            _generation = Guid.NewGuid().ToString("n");
+            Journal?.QueueEvent("task." + DesktopJournal.Token(reason));
+            try { Admission.Cancel(owner.Owner, owner.Intent, reason); return true; }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or OperationCanceledException or ArgumentException)
+            {
+                // The owner already closed or the policy is gone; either way
+                // the intent no longer authorizes anything.
+                return false;
+            }
         }
     }
     internal (bool Revoked, bool Retained) RevokeFromCaller() => (false, Admission.Enabled("desktop") || Admission.Enabled("browser"));

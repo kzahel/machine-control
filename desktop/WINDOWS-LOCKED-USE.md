@@ -100,8 +100,12 @@ temporary use. Covers stay alive until independent locked-session readback,
 including resident/service failure. Native capture excludes the cover and
 injected agent input passes through it. This distinction is
 not an authentication boundary against other privileged software. Hook failure
-and monitor stalls fail closed. After a service crash, restart the app and
-enable access again; the old task cannot resume automatically. Manual Pause
+and monitor stalls fail closed. A guard failure, including a protected
+service crash, ends the task with `locked_use_guard_failed`, fences its
+dispatch and holds the relock barrier until Windows is observed locked again.
+It is not a Stop: saved Desktop and Browser consent stay as they were, so
+a fresh task may start after relock without re-enabling access. The old task
+never resumes automatically. Manual Pause
 requires explicit Resume. Covered physical takeover retains consent and
 permits a fresh task after observed relock and 30 seconds of conservative
 session quiet. If the owner unlocks to work, access stays paused until relock
