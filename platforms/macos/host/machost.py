@@ -93,6 +93,23 @@ def readiness(value: Any) -> str:
     return "ready" if value == "ready" else "unavailable"
 
 
+def surface_check(data: dict[str, Any]) -> dict[str, str]:
+    """Report the person's surface modes; per-request grants no longer exist."""
+    admission = data.get("admission") if isinstance(data.get("admission"), dict) else {}
+    surfaces = admission.get("surfaces") if isinstance(admission.get("surfaces"), dict) else None
+    if surfaces is None:
+        return {"id": "grant", "status": "warn", "summary": "Surface access state is unavailable"}
+    enabled = []
+    for name in ("desktop", "browser"):
+        view = surfaces.get(name) if isinstance(surfaces.get(name), dict) else {}
+        if view.get("mode") in {"ask", "automatic"} and view.get("expired") is not True:
+            enabled.append(f"{name.capitalize()} {view['mode']}")
+    if not enabled:
+        return {"id": "grant", "status": "warn",
+                "summary": "Desktop and Browser access are Off; the person enables a surface in Machine Control"}
+    return {"id": "grant", "status": "pass", "summary": "Surface access: " + ", ".join(enabled)}
+
+
 def doctor() -> int:
     checks: list[dict[str, str]] = []
     states = {
@@ -135,16 +152,7 @@ def doctor() -> int:
             checks.append({"id":"browser", "status":"warn", "summary":"Browser requests have timed out; connection alone does not establish route health"})
         checks.append({"id": "resident", "status": "pass",
                        "summary": "Machine Control resident is reachable"})
-        policy = deployment.get("policy", {}) if isinstance(deployment, dict) else {}
-        mode = policy.get("grantMode", "unknown")
-        grant = deployment.get("grant") if isinstance(deployment, dict) else None
-        if mode == "approval":
-            checks.append({"id": "grant", "status": "pass" if grant else "warn",
-                           "summary": "An approved grant is active" if grant else
-                           "No grant is active; request one with grant request"})
-        else:
-            checks.append({"id": "grant", "status": "pass",
-                           "summary": f"The {policy.get('preset', 'unknown')} policy grants standing access"})
+        checks.append(surface_check(data))
     except (OSError, ValueError) as error:
         checks.append({"id": "resident", "status": "fail",
                        "summary": f"Machine Control resident is unavailable: {error.__class__.__name__}"})

@@ -162,6 +162,30 @@ final class LockedUseTests: XCTestCase {
         XCTAssertEqual(use.status["phase"] as? String,"ready")
     }
 
+    func testIdlePhasesUseTheCommonVocabulary() throws {
+        // contracts/locked-use-status-v1: Windows and macOS share these.
+        let common: Set<String> = ["off", "ready", "paused", "recovering", "waiting_for_lock", "unlocking", "active", "relocking"]
+        let name = "locked-use-test-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName:name)!
+        defer { defaults.removePersistentDomain(forName:name) }
+        let permission = Permission(); permission.ready = true
+        let service = ResidentService()
+        let use = MacLockedUse(broker:GrantBroker(policy:.workstation(issue:nil)), service:service,
+            preferences:defaults, permission:permission, setupObservation:{ ["desktopState":"unlocked"] })
+        var helper: [String:Any] = ["profile":"locked_use", "policy":"disabled", "installation":"healthy",
+            "callerEligibility":"allowed", "lockedUsePaused":false, "coveredSession":false]
+        service.helperObservation.replace(with:helper)
+        XCTAssertEqual(use.status["phase"] as? String,"off")
+        try use.configure(enabled:true)
+        helper["policy"] = "enabled"; helper["lockedUsePaused"] = true
+        service.helperObservation.replace(with:helper)
+        XCTAssertEqual(use.status["phase"] as? String,"paused")
+        helper["lockedUsePaused"] = false; service.helperObservation.replace(with:helper)
+        XCTAssertEqual(use.status["phase"] as? String,"ready")
+        for phase in [use.status["phase"] as? String ?? ""] { XCTAssertTrue(common.contains(phase)) }
+        XCTAssertTrue(common.contains(use.phase))
+    }
+
     func testUnavailableAdmissionObservationDoesNotDisableAnAdmittedLease() throws {
         let name = "locked-use-test-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName:name)!
