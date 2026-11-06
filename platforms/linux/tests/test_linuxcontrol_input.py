@@ -16,6 +16,7 @@ def load():
     gi.require_version = lambda *_: None
     repository = types.ModuleType("gi.repository")
     repository.Gdk = types.SimpleNamespace()
+    repository.Gio = types.SimpleNamespace()
     gi.repository = repository
     linuxui = types.ModuleType("linuxui")
     linuxui.UIError = type("UIError", (Exception,), {})
@@ -107,6 +108,39 @@ class CommonFieldTests(unittest.TestCase):
         self.assertTrue(result["accepted"], result)
         self.assertEqual(run.call_args.args[0], ["/usr/bin/gtk-launch", "org.example.App"])
         self.assertEqual(result["data"]["desktopId"], "org.example.App")
+
+
+class StatusTests(unittest.TestCase):
+    def status(self, active):
+        resident = Recorder()
+        reply = types.SimpleNamespace(unpack=lambda: (active,))
+        bus = types.SimpleNamespace(call_sync=lambda *args: reply)
+        if isinstance(active, Exception):
+            bus = types.SimpleNamespace(call_sync=mock.Mock(side_effect=active))
+        gio = types.SimpleNamespace(
+            bus_get_sync=lambda *_: bus,
+            BusType=types.SimpleNamespace(SESSION=1),
+            DBusCallFlags=types.SimpleNamespace(NONE=0),
+        )
+        roots = mock.patch.object(
+            linuxcontrol.linuxui, "desktop", create=True, return_value=None
+        )
+        apps = mock.patch.object(
+            linuxcontrol.linuxui, "application_roots", create=True, return_value=[]
+        )
+        with mock.patch.object(linuxcontrol, "Gio", gio), roots, apps:
+            return resident.handle({"operation": "status"})["data"]
+
+    def test_desktop_state_follows_the_screen_shield(self):
+        self.assertEqual(self.status(True)["desktopState"], "locked")
+        self.assertEqual(self.status(False)["desktopState"], "unlocked")
+        self.assertEqual(self.status(RuntimeError("no bus"))["desktopState"], "unknown")
+
+    def test_common_deployment_describes_the_standing_appliance(self):
+        deployment = self.status(False)["deployment"]
+        self.assertEqual(deployment["policy"]["protectedAdministration"], False)
+        self.assertEqual(deployment["availability"], {"paused": False, "blockingReasons": []})
+        self.assertIs(deployment["browserOnlyWhileLocked"], False)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ from typing import Any
 import gi
 
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk
+from gi.repository import Gdk, Gio
 
 import linuxui
 
@@ -217,6 +217,27 @@ class Resident:
             result["bounds"] = info["bounds"]
         return result
 
+    def desktop_state(self) -> str:
+        """Common desktopState from the session's GNOME screen shield."""
+        try:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            value = bus.call_sync(
+                "org.gnome.ScreenSaver",
+                "/org/gnome/ScreenSaver",
+                "org.gnome.ScreenSaver",
+                "GetActive",
+                None,
+                None,
+                Gio.DBusCallFlags.NONE,
+                1000,
+                None,
+            ).unpack()[0]
+        except Exception:
+            return "unknown"
+        if type(value) is not bool:
+            return "unknown"
+        return "locked" if value else "unlocked"
+
     def status(self, request: dict[str, Any]) -> dict[str, Any]:
         root = linuxui.desktop()
         applications = linuxui.application_roots(root)
@@ -231,6 +252,18 @@ class Resident:
             "displayGeometry": self.display_geometry(),
             "residentPid": os.getpid(),
             "uptimeMs": int((time.monotonic() - self.started) * 1000),
+            "desktopState": self.desktop_state(),
+            # The dedicated appliance admits its claimed same-user callers
+            # without per-surface consent: a standing appliance policy.
+            "deployment": {
+                "policy": {
+                    "preset": "appliance",
+                    "grantMode": "standing",
+                    "protectedAdministration": False,
+                },
+                "availability": {"paused": False, "blockingReasons": []},
+                "browserOnlyWhileLocked": False,
+            },
         }
         return result
 

@@ -92,14 +92,25 @@ def doctor():
         if status.get("accepted") is not True or data.get("desktopProduct") is not True:
             raise ValueError("Desktop resident unavailable")
         states["resident"] = "ready"
-        states["desktop"] = "unlocked" if data["ready"] else "no_session"
+        desktop = data.get("desktopState")
+        if desktop is None:  # Residents before the common status projection.
+            desktop = "unlocked" if data["ready"] else "no_session"
+        states["desktop"] = desktop if desktop in {"unlocked", "locked", "no_session"} else "unknown"
         for name in ["semantic", "capture", "input"]:
             states[name] = data[name + "State"]
-        extensions["deployment"] = {k: data[k] for k in ["policy", "grant", "pendingRequest"]}
+        deployment = data.get("deployment") if isinstance(data.get("deployment"), dict) else {}
+        extensions["deployment"] = {**deployment, **{k: data[k] for k in ["grant", "pendingRequest"] if k in data}}
+        if isinstance(data.get("browserWhileLocked"), dict):
+            extensions["browserWhileLocked"] = data["browserWhileLocked"]
         extensions["runtimeGeneration"] = status["generation"]
         checks.append(dict(id="resident", status="pass", summary="Desktop resident is reachable"))
-        checks.append(dict(id="grant", status="pass" if data["grant"] else "warn",
-                           summary="Access requires a native operator grant"))
+        surfaces = data.get("admission", {}).get("surfaces", {})
+        modes = {name: surfaces.get(name, {}).get("mode", "off") for name in ("desktop", "browser")}
+        enabled = [name for name, mode in modes.items() if mode != "off"]
+        checks.append(dict(id="access", status="pass" if enabled else "warn",
+                           summary=("Access is on for " + " and ".join(enabled) + " (" +
+                                    ", ".join(f"{name}: {modes[name]}" for name in enabled) + ")") if enabled
+                           else "Access is Off; turn on Desktop or Browser in Machine Control"))
     except (OSError, ValueError, KeyError):
         checks.append(dict(id="resident", status="fail", summary="Desktop resident or identity is unavailable"))
     ready = states["resident"] == "ready" and states["desktop"] == "unlocked"

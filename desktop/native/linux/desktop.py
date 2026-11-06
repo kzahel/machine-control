@@ -230,6 +230,7 @@ class Desktop:
         self.grants.locked=self.locked;self.grants.session=self.session_identity
         self.grants.browser_while_locked=self.browser_preference.enabled
         known=self.session_identity is not None and time.monotonic()-self.session_observed<=2
+        self.grants.browser_bound=known and self.configuration_sessions['browser']==self.session_identity
         self.grants.fact('input',known and self.activity.healthy(self.session_identity))
         notice_health=self.safety_available and time.monotonic()-self.safety_observed<=2
         healthy=notice_health and self.journal.health['available'] and not self.grants.updating
@@ -269,6 +270,26 @@ class Desktop:
         self.changed()
         return True
 
+    def desktop_state(self):
+        """Common desktopState from the bound GNOME/logind observation."""
+        if self.locked:return 'locked'
+        if self.unlocked:return 'unlocked'
+        return 'no_session' if self.session_identity is None else 'unknown'
+
+    def locked_desktop_refusal(self):
+        """A positively observed lock refuses Desktop work; Browser-only
+        access may continue when its locked preference is active."""
+        if not self.locked:return None
+        return 'desktop_locked_browser_only' if self.grants.browser_only_while_locked else 'desktop_unavailable'
+
+    def browser_while_locked_state(self):
+        return dict(supported=True,enabled=self.browser_preference.enabled,
+            active=self.grants.browser_only_while_locked,requiresUnlockedApproval=True,route='chrome.extension/cdp')
+
+    def common_deployment(self):
+        value=self.grants.deployment()
+        return {key:value[key] for key in ('policy','availability','browserOnlyWhileLocked')}
+
     def native_authority(self,_surfaces):
         if not self.policy.alive:return 'control_policy_unavailable'
         if not self.journal.health['available']:return 'audit_storage_unavailable'
@@ -297,7 +318,7 @@ class Desktop:
                 'setupState':'authorizing' if self.activity_setup else 'idle','setupError':self.activity_setup_error},
             permissions=dict(accessibility=self.unlocked,screenRecording=self.portal.ready),
             portal=dict(state=self.portal.state,error=self.portal.error,pointer=bool(self.portal.devices&2),keyboard=bool(self.portal.devices&1)),
-            browser=self.browser.state(),browserWhileLocked=dict(supported=True,enabled=self.browser_preference.enabled),
+            browser=self.browser.state(),browserWhileLocked=self.browser_while_locked_state(),desktopState=self.desktop_state(),
             socket=str(self.endpoint),startOnLogin=self.startup.enabled,stopShortcutAvailable=self.shortcut.available,
             stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health,stops=stops)
 
@@ -461,7 +482,11 @@ class Desktop:
         result=self.provider.envelope(request,operation)
         result.update(delivery='not_applicable',effect='not_applicable')
         if operation in ('status','grant.status'):
+            # Older readers use the spread deployment keys; the common
+            # projection is desktopState plus the nested deployment.
             result['data']={**self.grants.deployment(),'admission':self.grants.state(),
+                'desktopState':self.desktop_state(),'deployment':self.common_deployment(),
+                'browserWhileLocked':self.browser_while_locked_state(),
                 'desktopProduct':True,'ready':self.grants.ready,'sourceRevision':self.identity.get('sourceRevision'),
                 'semanticState':'ready' if self.unlocked else 'unavailable',
                 'captureState':'ready' if self.portal.ready else 'unavailable',
@@ -483,6 +508,10 @@ class Desktop:
     def handle(self,request,caller,complete,caller_pid=None):
         request['requestId']=request.get('requestId') or uuid.uuid4().hex
         operation=request.get('operation','')
+        started=time.monotonic();finish=complete
+        def complete(value):
+            # The common client requires every v0 result to carry elapsedMs.
+            value.setdefault('elapsedMs',int((time.monotonic()-started)*1000));finish(value)
         if operation in ('status','capabilities','grant.status'):
             complete(self.discovery(request));return
         if operation=='browser.profiles':self.browser.execute(request,complete);return
@@ -524,9 +553,11 @@ class Desktop:
         # Observation and Node ownership are revalidated before any effect.
         def observed(unlocked,locked,identity):
             self.apply_session(unlocked,locked,identity)
-            refusal=channel.authority() or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
-            if refusal or not unlocked:
-                finish(self.provider.fail(request,operation,refusal or 'desktop_unavailable','Desktop owner unavailable'));return
+            refusal=channel.authority()
+            if not refusal and not unlocked:refusal=self.locked_desktop_refusal() or 'desktop_unavailable'
+            refusal=refusal or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
+            if refusal:
+                finish(self.provider.fail(request,operation,refusal,'Desktop owner unavailable'));return
             self.provider_work(request,complete,channel,fence)
         try:desktop_session.observe(self.portal.bus,observed)
         except GLib.Error:observed(False,False,None)

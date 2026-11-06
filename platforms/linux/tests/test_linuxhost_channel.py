@@ -34,4 +34,42 @@ class HostClaimCheckerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'claim ended'):check()
 
 
+
+class HostDoctorTests(unittest.TestCase):
+    def doctor(self,data):
+        status=dict(schema='machine-control/v0',accepted=True,generation='g',data=data)
+        output=[]
+        with mock.patch.object(host,'resource_id',return_value='a'*64),mock.patch.object(host,'call',return_value=status),\
+                mock.patch('builtins.print',side_effect=output.append):
+            host.doctor()
+        return json.loads(output[0])
+
+    def data(self,**fields):
+        value=dict(desktopProduct=True,ready=False,semanticState='ready',captureState='ready',inputState='ready',
+            grant=None,pendingRequest=None,policy={},admission=dict(surfaces=dict(desktop=dict(mode='off'),browser=dict(mode='off'))))
+        value.update(fields);return value
+
+    def test_desktop_state_maps_directly_including_locked(self):
+        for state in ('locked','unlocked','no_session','unknown'):
+            self.assertEqual(self.doctor(self.data(desktopState=state))['states']['desktop'],state)
+        self.assertEqual(self.doctor(self.data(desktopState='bogus'))['states']['desktop'],'unknown')
+        # Older residents without desktopState keep the readiness fallback.
+        self.assertEqual(self.doctor(self.data(ready=True))['states']['desktop'],'unlocked')
+
+    def test_access_check_reads_surface_modes_not_per_request_grants(self):
+        checks={c['id']:c for c in self.doctor(self.data(desktopState='unlocked'))['checks']}
+        self.assertNotIn('grant',checks);self.assertEqual(checks['access']['status'],'warn')
+        on=self.data(desktopState='unlocked',admission=dict(surfaces=dict(desktop=dict(mode='ask'),browser=dict(mode='off'))))
+        checks={c['id']:c for c in self.doctor(on)['checks']}
+        self.assertEqual(checks['access']['status'],'pass');self.assertIn('desktop: ask',checks['access']['summary'])
+        self.assertNotIn('grant',json.dumps(checks['access']).lower())
+
+    def test_common_deployment_is_reported(self):
+        deployment=dict(policy=dict(preset='workstation',grantMode='surface_modes',protectedAdministration=False),
+            availability=dict(paused=False,blockingReasons=[]),browserOnlyWhileLocked=False)
+        value=self.doctor(self.data(desktopState='unlocked',deployment=deployment))
+        self.assertEqual(value['extensions']['deployment']['policy'],deployment['policy'])
+        self.assertIn('availability',value['extensions']['deployment'])
+
+
 if __name__=='__main__':unittest.main()

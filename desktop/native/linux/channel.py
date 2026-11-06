@@ -193,6 +193,9 @@ class Channel:
                 if not isinstance(action,dict) or not isinstance(action.get('operation'),str):raise ValueError('invalid_control_action')
                 action={**action,'requestId':request['requestId']}
                 operation=action['operation']
+                if not operation.startswith('browser.') and operation!='capabilities':
+                    refusal=self.owner.locked_desktop_refusal()
+                    if refusal:raise ValueError(refusal)
                 refusal=access.authorize(self.label,fence['sessionId'],fence['resourceGenerations'],operation)
                 if refusal:raise ValueError(refusal)
                 self.dispatching=True

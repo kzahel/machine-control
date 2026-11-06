@@ -133,6 +133,64 @@ class AccessTests(unittest.TestCase):
         view=self.access.send('inspect',owner='one',intentId=self.access.owners['one']['intent'])
         self.assertEqual(view['terminalReason'],'cancelled')
 
+    def test_common_deployment_projection(self):
+        deployment=self.access.deployment()
+        self.assertEqual(deployment['policy'],dict(grantMode='surface_modes',preset='workstation',
+            protectedAdministration=False,protectedOperations=False))
+        self.assertEqual(deployment['availability'],dict(paused=False,blockingReasons=[]))
+        self.assertIn('grant',deployment)  # Compatibility key for older readers.
+        self.access.pause('desktop',seconds=30);self.access.fact('desktop',(False,False))
+        self.assertEqual(self.access.availability(),dict(paused=True,blockingReasons=['manual','resource_unavailable']))
+        self.host.stop()
+        self.assertEqual(self.access.availability()['blockingReasons'],['control_policy_unavailable'])
+
+    def test_browser_only_while_locked_requires_lock_preference_binding_and_consent(self):
+        self.access.state()
+        self.assertFalse(self.access.browser_only_while_locked)
+        self.access.locked=True;self.access.browser_while_locked=True
+        self.assertFalse(self.access.browser_only_while_locked)
+        self.access.browser_bound=True
+        self.assertTrue(self.access.browser_only_while_locked)
+        self.assertTrue(self.access.deployment()['browserOnlyWhileLocked'])
+        self.access.configure('browser','off',None);self.access.state()
+        self.assertFalse(self.access.browser_only_while_locked)
+
+    def test_desktop_state_and_locked_refusal(self):
+        import ast
+        source=Path(__file__).resolve().parents[2]/'desktop/native/linux/desktop.py'
+        cls=next(n for n in ast.parse(source.read_text()).body if isinstance(n,ast.ClassDef) and n.name=='Desktop')
+        methods=[n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name in ('desktop_state','locked_desktop_refusal')]
+        namespace={};exec(compile(ast.Module(body=methods,type_ignores=[]),str(source),'exec'),namespace)
+        state=lambda **f:namespace['desktop_state'](SimpleNamespace(**f))
+        self.assertEqual(state(locked=True,unlocked=False,session_identity=('1',1,':1')),'locked')
+        self.assertEqual(state(locked=False,unlocked=True,session_identity=('1',1,':1')),'unlocked')
+        self.assertEqual(state(locked=False,unlocked=False,session_identity=None),'no_session')
+        self.assertEqual(state(locked=False,unlocked=False,session_identity=('1',1,':1')),'unknown')
+        refusal=lambda locked,browser:namespace['locked_desktop_refusal'](SimpleNamespace(locked=locked,
+            grants=SimpleNamespace(browser_only_while_locked=browser)))
+        self.assertIsNone(refusal(False,True))
+        self.assertEqual(refusal(True,True),'desktop_locked_browser_only')
+        self.assertEqual(refusal(True,False),'desktop_unavailable')
+
+    def test_locked_desktop_dispatch_is_refused_before_shared_authority(self):
+        server,client=socket.socketpair();client.settimeout(2)
+        self.addCleanup(server.close);self.addCleanup(client.close)
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+            scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
+            channels=set(),changed=lambda:None,locked_desktop_refusal=lambda:'desktop_locked_browser_only')
+        channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
+        channel.authority=lambda:None
+        self.addCleanup(channel.close)
+        def call(sequence,operation,**fields):
+            channel.handle(dict(requestSequence=sequence,requestId=str(sequence),operation=operation,**fields))
+            body=b''
+            while not body.endswith(b'\n'):body+=client.recv(65536)
+            return json.loads(body)
+        call(1,'control.open',schema='machine-control-admission/v2',surfaces=['desktop'],reason='Lock fixture',
+            waitSeconds=5,durationSeconds=60)
+        refused=call(2,'control.dispatch',sessionId='s',resourceGenerations={},request=dict(operation='capture'))
+        self.assertEqual(refused['errorCode'],'desktop_locked_browser_only')
+
     def test_snapshot_without_policy_is_off(self):
         self.host.stop()
         self.assertFalse(self.access.snapshot()['available'])

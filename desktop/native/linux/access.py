@@ -17,7 +17,7 @@ class Access:
         self.generation=uuid.uuid4().hex
         self.desktop_consent=uuid.uuid4().hex
         self.updating=False;self.ready=False;self.locked=False;self.session=None
-        self.browser_while_locked=False
+        self.browser_while_locked=False;self.browser_bound=False
         self.view=self.offline()
         # Last full status projection. The coordinator refreshes it about once
         # a second (publish) and after each change, so presentation never waits.
@@ -152,7 +152,20 @@ class Access:
     @property
     def paused(self):return bool(self.view.get('surfaces',{}).get('desktop',{}).get('pauses'))
     @property
-    def browser_only_while_locked(self):return self.locked and self.browser_while_locked
+    def browser_only_while_locked(self):
+        """Browser consent given on this console stays usable while it is locked."""
+        browser=self.view.get('surfaces',{}).get('browser',{})
+        return bool(self.locked and self.browser_while_locked and self.browser_bound and
+                    browser.get('mode','off')!='off' and not browser.get('expired'))
+
+    def availability(self):
+        """Common Desktop availability: pauses plus readiness, as on macOS/Windows."""
+        desktop=self.view.get('surfaces',{}).get('desktop')
+        if not self.host.alive or not isinstance(desktop,dict):reasons=['control_policy_unavailable']
+        else:
+            reasons=sorted({row['reason'] for row in desktop.get('pauses',[]) if isinstance(row.get('reason'),str)}|
+                           (set() if desktop.get('ready') else {'resource_unavailable'}))
+        return dict(paused=bool(reasons),blockingReasons=reasons)
 
     def deployment(self):
         grant=self.grant
@@ -160,5 +173,9 @@ class Access:
             lifetime='until_stopped' if grant['expires'] is None else 'timed',
             remainingSeconds=None if grant['expires'] is None else max(0,grant['expires']-time.monotonic()),
             origin='person',binding='desktop_surface_consent_projection')
-        return dict(policy=dict(grantMode='surface_modes',preset='workstation',protectedOperations=False),
-            grant=projected,pendingRequest=None,armed=None,paused=self.paused,generation=self.generation)
+        # protectedOperations and the top-level grant/paused keys remain for
+        # older readers; policy/availability/browserOnlyWhileLocked are common.
+        return dict(policy=dict(grantMode='surface_modes',preset='workstation',protectedAdministration=False,
+                protectedOperations=False),
+            grant=projected,pendingRequest=None,armed=None,paused=self.paused,generation=self.generation,
+            availability=self.availability(),browserOnlyWhileLocked=self.browser_only_while_locked)
