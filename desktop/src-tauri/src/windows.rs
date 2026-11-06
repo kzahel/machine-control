@@ -98,8 +98,24 @@ struct Runtime {
     replies: mpsc::Receiver<Result<Value, String>>,
     _job: Arc<Job>,
 }
+/// Native startup includes bounded session/STA initialization and the policy
+/// child's own 15-second handshake. Ordinary operator calls outlast the
+/// resident's 5-second policy calls, so a slow policy is reported by the
+/// resident instead of ending it.
+fn deadline(command: &Value) -> Duration {
+    if command["method"] == "hello" {
+        Duration::from_secs(30)
+    } else {
+        Duration::from_secs(15)
+    }
+}
+
 impl Runtime {
     fn call(&mut self, command: &Value) -> Result<Value, String> {
+        self.call_within(command, deadline(command))
+    }
+
+    fn call_within(&mut self, command: &Value, timeout: Duration) -> Result<Value, String> {
         if self.child.try_wait().map_err(|e| e.to_string())?.is_some() {
             crate::diagnostics::record("companion.exited");
             return Err("Resident stopped; restarting it".into());
@@ -110,15 +126,6 @@ impl Runtime {
         }
         // Covers blocked writes as well as reads. Terminating our private job
         // closes the pipe; a late reply can never be reused for another call.
-        // Native startup includes bounded session/STA initialization and the
-        // policy child's own 15-second handshake. Ordinary operator calls
-        // outlast the resident's 5-second policy calls, so a slow policy is
-        // reported by the resident instead of ending it.
-        let timeout = if command["method"] == "hello" {
-            Duration::from_secs(30)
-        } else {
-            Duration::from_secs(15)
-        };
         let (finished, deadline) = mpsc::channel::<()>();
         let job = self._job.clone();
         std::thread::spawn(move || {
@@ -630,10 +637,20 @@ mod tests {
             true
         );
         drop(startup);
+        assert_eq!(
+            deadline(&json!({"method":"state"})),
+            Duration::from_secs(15)
+        );
+        assert_eq!(
+            deadline(&json!({"method":"hello"})),
+            Duration::from_secs(30)
+        );
         let mut ready = delayed_reply();
         let started = std::time::Instant::now();
-        assert!(ready.call(&json!({"method":"state"})).is_err());
-        assert!(started.elapsed() < Duration::from_secs(9));
+        assert!(ready
+            .call_within(&json!({"method":"state"}), Duration::from_secs(3))
+            .is_err());
+        assert!(started.elapsed() < Duration::from_secs(6));
         drop(ready);
     }
 
@@ -668,7 +685,12 @@ mod tests {
             _job: job,
         };
         let started = std::time::Instant::now();
-        assert!(runtime.call(&json!({"payload":"x".repeat(65000)})).is_err());
+        assert!(runtime
+            .call_within(
+                &json!({"payload":"x".repeat(65000)}),
+                Duration::from_secs(5)
+            )
+            .is_err());
         assert!(started.elapsed() < Duration::from_secs(9));
         // The caller treats every protocol failure as terminal and drops the
         // owner. Keep the kernel process handle to independently prove exit.
