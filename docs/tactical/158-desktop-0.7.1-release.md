@@ -3,7 +3,8 @@
 Owning topics: [desktop-access-experience](../../topics/desktop-access-experience.md),
 [native-distribution](../../topics/native-distribution.md).
 
-Status: **Preparing the exact signed candidate.**
+Status: **Complete through publication dispatch.** Exact signed acceptance
+passes and hosted publication is queued; completion is not monitored.
 
 ## Objective
 
@@ -83,3 +84,31 @@ The fix is accepted after Opus review; desktop build, both UI fixture suites,
 23 Mac fixture tests and 95 release tests pass (one platform-specific skip).
 The next native campaign additionally requires Settings content through AX
 after leaving Access, while preserving the Activity AX assertion.
+
+## Final result and limits
+
+Release source `6f8ab4a79cd76dbe4e55860bd2c6045fceb0aadf` passes source CI and
+the [complete six-target signed candidate](https://github.com/kzahel/machine-control/actions/runs/42153074110).
+The exact Mac ARM64 app and bundled SDK pass 224 campaign checks, including
+native AX access to Settings and Activity after the visibility repair,
+file-dialog effects, clean/crash no-replay behavior, protected watchdog faults,
+900-second expiry and 960-second same-owner renewal. The browser slice runs
+19 cycles with the required 120-second soak.
+
+A fresh sequential workspace passes all 18 protected/native Stop checks,
+clean relaunch and actual normal boots. Settings and exact profile choices
+remain, while both surfaces return Off and authority is not restored. Both
+scopes complete successfully and release their exact claim and workspace;
+the qualifying receipt is issued only after that verified disposal. Private
+journals close ready; raw evidence and credential locators stay private.
+
+This is a one-display, SIP-disabled ARM64 VM qualification. It does not
+establish Intel GUI execution, physical input/lid/multiple-display behavior,
+SIP-enabled execution, or a new Windows/Linux GUI matrix. All six architectures
+pass signed package verification separately from those GUI coverage limits.
+
+The official three-argument release script runs once, validates the exact
+receipt, pushes immutable `desktop-v0.7.1` at that source and queues
+[publication](https://github.com/kzahel/machine-control/actions/runs/42161984039)
+from the accepted candidate bytes. CI owns publication. No personal
+installation, post-publication download or publication monitoring is performed.

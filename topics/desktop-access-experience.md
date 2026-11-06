@@ -299,6 +299,10 @@ the installed app and publication are separate.
 
 **Current:** the source UI and native adapters implement the design with the
 existing presentation profiles and version-2 agent states. Time choices and
-minimum-width layout are covered by focused fixtures; exact icon artwork and
-broader native/package qualification remain later work. Explicit foreground
-Browser opt-ins retain the interference boundary recorded above.
+minimum-width layout are covered by focused fixtures. The 0.7.1 candidate
+subsequently passes required packaged Mac acceptance, including native AX
+Settings/Activity content after removing inactive Access DOM while preserving
+form state. [Tactical 158](../docs/tactical/158-desktop-0.7.1-release.md) records
+the bounded profile, six-target package verification and queued publication.
+Broader platform GUI and physical-input qualification remain separate.
+Explicit foreground Browser opt-ins retain the interference boundary above.
