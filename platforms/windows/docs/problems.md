@@ -4,6 +4,49 @@ This is a living record of concrete gaps encountered while using WinVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Observed 2026-11-06 during targeted-typing verification
+
+### Notepad with spell check corrupted typed text
+
+Status: **substitution fixed; occasional loss remains open.** Typing into
+Windows 11 Notepad (11.2607, ARM64 appliance, spell check on) sometimes
+produced the wrong characters. "the quick brown fox 0123" became "the iiick
+nnnnn 11111123". The resident reported the text as delivered, with an
+unverifiable effect.
+
+- **Cause.** The failures followed word boundaries and depended on Notepad's
+  spell check, not on window activation:
+  - With spell check off, worded text was correct 60 of 60 times.
+  - Text without spaces was correct 30 of 30 times, even with background
+    activation.
+  - Turning autocorrect off alone did not help.
+  - A WinForms fixture never failed.
+  - Keys that arrive while Notepad's text pipeline is behind are processed
+    late. A Unicode packet (`VK_PACKET`) does not carry its character in the
+    key message, so the late keys came out as the most recent character or
+    were lost.
+- **Fix.** `type` now sends each character the receiving keyboard layout
+  produces with at most Shift as a layout keystroke. The result reports this
+  as `windows.native/send_input_layout_keys` and gives the counts in
+  `data.textInput`. Unicode packets remain for other characters, and for all
+  text when a modifier is held, Caps Lock is on, or an input method is open.
+- **Results.** Before the fix, targeted typing from the background failed 4
+  of 9 times. Afterwards, every Notepad and fixture scenario showed no
+  substituted characters in 10 attempts each.
+- **Still open.** Notepad with spell check still drops a few layout
+  keystrokes near word boundaries: about 3% of short strings in the guest,
+  and 2 of 30 resident attempts. The effect stays `unverifiable`. When the
+  exact text matters, read the result back, or use `set_value` where the
+  control supports it.
+
+### Non-ASCII text arguments reach the guest mis-encoded
+
+Status: **open.** `desktop input text "é"` arrived at the resident as two
+UTF-16 units (mojibake) through the common CLI and through `winvm control`
+with a raw UTF-8 JSON argument. The same request with the character escaped
+as `\u00e9` in ASCII JSON arrived intact. The controller-to-guest argument
+path needs an explicit UTF-8 contract.
+
 ## Observed 2026-09-26 during an agent-driven factory rebuild
 
 ### A retained appliance had no stored password

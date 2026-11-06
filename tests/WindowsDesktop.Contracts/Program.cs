@@ -37,6 +37,7 @@ await RetainedPipeProxyFixtures.RunAsync();
 CompanionBinaryIdentityFixtures.Run();
 ApplicationTargetFixtures.Run();
 KeyChordFixtures.Run();
+TextStrokeFixtures.Run();
 await GuardianJsonFixtures.RunAsync();
 for (var cause = 0; cause <= 11; ++cause)
 {

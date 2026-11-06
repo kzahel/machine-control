@@ -1475,16 +1475,22 @@ internal static partial class DesktopController
         if (PrepareKeyboardTarget(request, generation, desktopName, desktop, timer, out var activated) is { } untargeted)
             return untargeted;
         var receiver = KeyboardReceiver();
-        SendText(request.Text);
+        var delivery = SendText(request.Text);
         return Success(
             request,
             generation,
             desktopName,
             timer,
-            "windows.native/send_input_unicode",
+            TextStrokes.Route(delivery.Strokes),
             "confirmed",
             "unverifiable",
-            new { textLength = request.Text.Length, keyboardReceiver = receiver, target = ResolvedTargetData(request, activated) });
+            new
+            {
+                textLength = request.Text.Length,
+                keyboardReceiver = receiver,
+                target = ResolvedTargetData(request, activated),
+                textInput = delivery.Summary(),
+            });
     }
 
     private static Result WindowState(
@@ -2706,15 +2712,16 @@ internal static partial class DesktopController
         ushort ScanCode,
         bool Extended = false);
 
-    private static void SendText(string value)
+    private static TextDelivery SendText(string value)
     {
+        var delivery = new TextDelivery();
         var segment = new StringBuilder();
         for (var index = 0; index < value.Length; index++)
         {
             var character = value[index];
             if (character is '\r' or '\n')
             {
-                SendUnicodeSegment(segment.ToString());
+                SendTextSegment(segment.ToString(), delivery);
                 segment.Clear();
                 Thread.Sleep(100);
                 SendKey("enter");
@@ -2731,7 +2738,8 @@ internal static partial class DesktopController
             }
             segment.Append(character);
         }
-        SendUnicodeSegment(segment.ToString());
+        SendTextSegment(segment.ToString(), delivery);
+        return delivery;
     }
 
     private static void SendUnicodeSegment(string value)
