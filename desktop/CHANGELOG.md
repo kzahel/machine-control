@@ -14,6 +14,9 @@
   policy process. A slow policy process under heavy load could previously
   freeze Settings on macOS or make Machine Control give up on its resident
   on Linux and Windows.
+- Give the Linux and Windows resident longer to answer than its own policy
+  calls, and 30 seconds to start on Linux, so a slow moment is reported
+  instead of ending the resident.
 
 ## [0.7.1]
 

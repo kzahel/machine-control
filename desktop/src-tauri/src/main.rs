@@ -155,7 +155,8 @@ fn check_update(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<V
 /// other operator work held the resident (`busy`) is retried, never mistaken
 /// for a state without access.
 pub(crate) fn native_blocking(app: &tauri::AppHandle, command: Value) -> Result<Value, String> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    // Longer than one companion call, which may hold the resident for 15 s.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     loop {
         let (send, receive) = std::sync::mpsc::channel();
         let request = command.clone();
@@ -164,9 +165,14 @@ pub(crate) fn native_blocking(app: &tauri::AppHandle, command: Value) -> Result<
         })?;
         let reply = receive
             .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
-            .map_err(|_| "Native operation did not complete".to_string())??;
-        if reply["busy"] != true {
-            return Ok(reply);
+            .map_err(|_| "Native operation did not complete".to_string())?;
+        // Windows bounds how long a call waits for its command gate.
+        let busy = match &reply {
+            Ok(value) => value["busy"] == true,
+            Err(error) => error == "Resident is busy; try again",
+        };
+        if !busy {
+            return reply;
         }
         if std::time::Instant::now() >= deadline {
             return Err("Resident is busy; try again".into());
@@ -566,7 +572,7 @@ fn main() {
                 let launch = args.clone();
                 tauri::async_runtime::spawn_blocking(move || {
                     let result = linux::start(&handle)
-                        .and_then(|_| linux::command(json!({"method":"state"})));
+                        .and_then(|_| linux::command(json!({"method":"state", "fresh":true})));
                     match result {
                         Ok(state) => {
                             if launch.iter().any(|arg| arg == "--settings")

@@ -110,11 +110,12 @@ impl Runtime {
         // closes the pipe; a late reply can never be reused for another call.
         // Native startup includes bounded session/STA initialization and the
         // policy child's own 15-second handshake. Ordinary operator calls
-        // retain their shorter deadline after the resident is ready.
+        // outlast the resident's 5-second policy calls, so a slow policy is
+        // reported by the resident instead of ending it.
         let timeout = if command["method"] == "hello" {
             Duration::from_secs(30)
         } else {
-            Duration::from_secs(5)
+            Duration::from_secs(15)
         };
         let (finished, deadline) = mpsc::channel::<()>();
         let job = self._job.clone();
@@ -314,7 +315,8 @@ pub fn command(command: Value) -> Result<Value, String> {
         return Err("Operator work cancelled by Stop".into());
     }
     // Reject overload instead of growing a queue behind a slow companion.
-    let Some(_permit) = command_permit(command["method"].as_str().unwrap_or(""))? else {
+    let skippable = command["fresh"] != true;
+    let Some(_permit) = command_permit(command["method"].as_str().unwrap_or(""), skippable)? else {
         // A skipped metadata poll has no new state or authority. Let Settings
         // retain its form until the next poll instead of treating contention
         // with operator/update work as a lost resident.
@@ -468,7 +470,12 @@ pub fn shutdown() {
 
 static COMMAND_GATE: Mutex<()> = Mutex::new(());
 
-fn command_permit(method: &str) -> Result<Option<std::sync::MutexGuard<'static, ()>>, String> {
+/// `skippable` status polls return no permit while the gate is held. Callers
+/// that need state (`fresh`) wait like an operator command.
+fn command_permit(
+    method: &str,
+    skippable: bool,
+) -> Result<Option<std::sync::MutexGuard<'static, ()>>, String> {
     // Housekeeping never queues ahead of the person. A real operator command
     // gets a short bounded opportunity to acquire IPC on its background worker.
     let until = std::time::Instant::now() + Duration::from_millis(500);
@@ -477,7 +484,7 @@ fn command_permit(method: &str) -> Result<Option<std::sync::MutexGuard<'static, 
             Ok(permit) => return Ok(Some(permit)),
             Err(std::sync::TryLockError::Poisoned(_)) => return Err("Operator unavailable".into()),
             Err(std::sync::TryLockError::WouldBlock) => {
-                if matches!(method, "state" | "update_sync") {
+                if skippable && matches!(method, "state" | "update_sync") {
                     return Ok(None);
                 }
                 if method == "logs.diagnostic" || std::time::Instant::now() >= until {
@@ -520,15 +527,16 @@ mod tests {
     fn housekeeping_refuses_and_operator_admission_remains_bounded() {
         let _occupied = COMMAND_GATE.lock().unwrap();
         let started = std::time::Instant::now();
-        assert!(command_permit("state").unwrap().is_none());
-        assert!(command_permit("update_sync").unwrap().is_none());
+        assert!(command_permit("state", true).unwrap().is_none());
+        assert!(command_permit("update_sync", true).unwrap().is_none());
         assert_eq!(
             command(json!({"method":"state"})).unwrap(),
             json!({"ok":true,"busy":true})
         );
         assert!(started.elapsed() < Duration::from_millis(250));
-        assert!(command_permit("pause").is_err());
-        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(command_permit("pause", true).is_err());
+        assert!(command_permit("state", false).is_err());
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     fn delayed_reply() -> Runtime {

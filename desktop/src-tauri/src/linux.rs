@@ -29,8 +29,24 @@ struct Runtime {
     replies: mpsc::Receiver<Result<Value, String>>,
 }
 
+/// Startup includes the policy process's own 15-second handshake. Ordinary
+/// calls outlast the resident's 5-second policy calls, so a slow policy is
+/// reported by the resident instead of ending it. Missing the deadline still
+/// ends the companion: a late reply must never answer a later command.
+fn deadline(command: &Value) -> Duration {
+    if command["method"] == "hello" {
+        Duration::from_secs(30)
+    } else {
+        Duration::from_secs(15)
+    }
+}
+
 impl Runtime {
     fn call(&mut self, command: &Value) -> Result<Value, String> {
+        self.call_within(command, deadline(command))
+    }
+
+    fn call_within(&mut self, command: &Value, deadline: Duration) -> Result<Value, String> {
         if self.child.try_wait().map_err(|e| e.to_string())?.is_some() {
             crate::diagnostics::record("companion.exited");
             return Err("Resident stopped; restart Machine Control".into());
@@ -43,7 +59,7 @@ impl Runtime {
         self.input.write_all(b"\n").map_err(|e| e.to_string())?;
         self.input.flush().map_err(|e| e.to_string())?;
         self.replies
-            .recv_timeout(Duration::from_secs(5))
+            .recv_timeout(deadline)
             .map_err(|error| match error {
                 mpsc::RecvTimeoutError::Timeout => {
                     crate::diagnostics::record("companion.timeout");
@@ -246,7 +262,20 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
 
 pub fn command(command: Value) -> Result<Value, String> {
     let app = APP.get().ok_or("Operator unavailable")?;
-    let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
+    // Status polls never queue behind an operator command, which may take up
+    // to the full deadline. A skipped poll carries no state; Settings and the
+    // tray keep their last view. Callers that need state ask for `fresh`.
+    let mut owner = if matches!(command["method"].as_str(), Some("state" | "update_sync"))
+        && command["fresh"] != true
+    {
+        match RUNTIME.try_lock() {
+            Ok(owner) => owner,
+            Err(std::sync::TryLockError::WouldBlock) => return Ok(json!({"ok":true,"busy":true})),
+            Err(std::sync::TryLockError::Poisoned(error)) => return Err(error.to_string()),
+        }
+    } else {
+        RUNTIME.lock().map_err(|e| e.to_string())?
+    };
     let runtime = owner.as_mut().ok_or("Resident unavailable")?;
     if command.get("operatorEpoch").is_some() && command["operatorEpoch"].as_u64() != Some(epoch())
     {
@@ -367,12 +396,20 @@ mod tests {
             input,
             replies,
         };
+        assert_eq!(
+            deadline(&json!({"method":"state"})),
+            Duration::from_secs(15)
+        );
+        assert_eq!(
+            deadline(&json!({"method":"hello"})),
+            Duration::from_secs(30)
+        );
         let started = std::time::Instant::now();
         assert!(runtime
-            .call(&json!({"method":"state"}))
+            .call_within(&json!({"method":"state"}), Duration::from_secs(1))
             .unwrap_err()
             .contains("did not respond"));
-        assert!(started.elapsed() < Duration::from_secs(7));
+        assert!(started.elapsed() < Duration::from_secs(3));
         drop(runtime);
         let mut poll = libc::pollfd {
             fd: handle.as_raw_fd(),

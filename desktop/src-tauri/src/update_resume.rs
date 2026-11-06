@@ -209,9 +209,18 @@ pub fn restore_after_failure(
         return;
     };
     let restoring = surfaces_label(&entries);
-    let state = send(json!({"method":"state", "fresh":true}))
-        .map(|reply| reply["state"].clone())
-        .unwrap_or(Value::Null);
+    // A person's newer choice wins only if the current state is known; a
+    // briefly busy resident is retried rather than read as all-off.
+    let mut state = Value::Null;
+    for _ in 0..3 {
+        if let Ok(reply) = send(json!({"method":"state", "fresh":true})) {
+            if reply["busy"] != true {
+                state = reply["state"].clone();
+                break;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
     match apply(&mut entries, &state, now(), send) {
         Ok(()) => {
             crate::diagnostics::record("update.access.restored");
