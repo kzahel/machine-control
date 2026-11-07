@@ -2,24 +2,85 @@
 
 Topic: `caller-authorization`
 
-Status: native Mac broker/provenance/proxy source implemented; signed installed
-session-origin and effect qualification active.
+Status: Only verified callers implemented and live-tested on macOS (opt-in,
+default off); Windows and Linux open. Native YA delegation retired.
 
 **Decision (2026-11-07), [Tactical 161](../docs/tactical/161-verified-callers.md):**
 native YepAnywhere delegation (Tactical 086/087) is retired. It was unused, and
 it only restricted YA's own agents: no renewal, no Browser, and a lockstep
 30-second relay. Every other same-user process kept the plain path. The last
-revision is tagged `delegation-v1-final`.
+revision is tagged `delegation-v1-final`. The decisions further below about
+trusted YA Desktop delegation are history; Tactical 161 keeps their lessons.
 
-The replacement is an opt-in **Only verified callers** mode on the ordinary
-socket, macOS first:
-- The connecting process must be Machine Control's own signed client.
-- Within a bounded ancestry walk, it must lead to an operator-approved signed
-  host app. An unapproved app gets a first-use native prompt.
+## Only verified callers
 
-This is a picket fence against drive-by use, not same-user containment. The
-decisions below about trusted YA Desktop delegation are history; see Tactical
-161 for the lessons kept.
+**Current, macOS `live-tested`:** an opt-in mode on the ordinary resident
+socket. It is a picket fence that keeps Machine Control from lending its
+Accessibility and Screen Recording access to processes not started from an
+app the operator approved. It applies to every caller, including the plain
+CLI, so there is no bypass path.
+
+- **Peer:** the kernel audit token of the connection must belong to Machine
+  Control's own executable or its bundled Python. Both are Apple-anchored to
+  the resident's own Team ID and must be inside its own bundle.
+- **Host:** a walk of at most 12 ancestors finds the nearest Apple-anchored,
+  Team ID–signed, non-platform process. Each parent must have started no later
+  than its child and keep the same start time across its signature check, so a
+  reused PID cannot be spliced in. Admission requires a host that satisfies an
+  approved requirement of exactly one Team ID plus one signing identifier.
+- **Refusal:** `caller_not_verified` with `data.reason` and
+  `data.callerHost: {name, publisher, approvable}` (null when no host was
+  found). `status`, `capabilities` and `browser.profiles` stay open so an
+  agent can diagnose a refusal. The [contract](../contracts/caller-verification-v1.schema.json)
+  also covers `status.data.callerVerification`.
+- **Operator:** the mode and approvals change only from the native operator
+  surface. An unapproved signed host gets one debounced native “Allow callers
+  from APP?” prompt; Allow stores its requirement, and Settings lists and
+  removes approvals. A refused request is never replayed. Enabling the mode
+  ends owners admitted without verification, and removing an approval ends
+  owners it admitted.
+
+**Decision — what counts as a host:**
+- **Platform binaries are never hosts.** Shells, interpreters and Apple apps
+  such as Terminal are intermediates. They have no Team ID to approve, and
+  Terminal runs `.command` files that any same-user process can `open`, so
+  approving it would admit everything.
+- **Unsigned or ad-hoc command-line tools are intermediates**, like shells.
+  An unsigned or ad-hoc app bundle is a host that cannot be approved.
+- **Machine Control's own launcher and bundled runtime are intermediates.**
+- **A Team ID–signed command-line tool is a host**, not only an `.app`. For
+  example, a signed agent binary is named as the host. A signed general
+  interpreter is named the same way, and approving it approves everything it
+  runs; the prompt names it so the operator can decline.
+
+**Decision — builds:** a source, ad-hoc or unbundled build has no publisher to
+anchor its own clients to. It reports `supported: false` with an
+`unsupportedReason` and cannot enable the mode; a persisted “on” stays enforced
+and refuses until the operator turns it off.
+
+**Current — limits (`limits: ["same_user_not_contained"]`):**
+- Anything an approved app runs, including agents, shells and scripts, passes.
+  So does same-user code that changes that app's environment, such as shell
+  startup files or tools on `PATH`.
+- An approved app that runs commands for other processes lends its approval.
+- Same-user code can delete the mode file in the support directory and
+  restart Machine Control. An existing file that cannot be trusted fails
+  closed, but deletion means off.
+- Anything that reaches launchd without an approved host is refused. This
+  includes launchd jobs, cron, daemons and children whose app exited.
+- A Mac App Store re-signed app may not match the stored requirement form.
+  This was not tested.
+
+**Open — remote placement:** with the mode on, every `tart exec` caller's host
+is the Tart guest agent, a third-party, hardened, Team ID–signed binary.
+Approving it admits every caller of that transport. SSH callers descend from
+platform `sshd` and read as detached. Remote use of a verified target therefore
+needs an explicit decision before this mode is recommended for remotely driven
+appliances.
+
+**Open — other platforms:** Windows (Authenticode plus parent chain) follows.
+Linux is to report `supported: false`. Neither resident projects
+`callerVerification` yet; the common schema keeps it optional.
 
 ## Motivation and current boundary
 

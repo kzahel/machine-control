@@ -111,4 +111,5 @@ The [live admission channel schema](access-admission-channel-v1.schema.json) and
   `data` of a `caller_not_verified` refusal (Tactical 161). Status names
   approved apps by display name and publisher only. The mode is a picket fence
   against callers not started from an approved app, never same-user
-  containment; platforms without it report `supported: false`.
+  containment. macOS projects it today; other residents omit it until they
+  implement it, then report `supported: false` where unavailable.

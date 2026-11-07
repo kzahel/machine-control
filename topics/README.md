@@ -59,8 +59,8 @@ its `Topic:` trailers.
   takeover/cooldown; bounded Windows, macOS and Linux acceptance complete.
 - **High-priority validation in progress:**
   [`caller-authorization.md`](caller-authorization.md): authenticated local
-  callers, automatic grants for trusted YA Desktop and session revocation,
-  preserving native approval requests; npm CLI authentication follows next.
+  callers; opt-in Only verified callers is live-tested on macOS (native YA
+  delegation retired), with Windows/Linux and remote placement open.
 - [`architecture.md`](architecture.md): target-native component, provisional
   provider composition, fork/replacement gates, trust, deployment-profile,
   facade, and failure-boundary decisions.

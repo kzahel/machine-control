@@ -1,8 +1,8 @@
 # Implementation Tacticals
 
 - [161 — Verified callers replace native delegation](161-verified-callers.md)
-  (active): retire the unused YA delegation transport; add an opt-in
-  verified-caller mode on the ordinary socket, macOS first.
+  (macOS complete; Windows/Linux open): retire the unused YA delegation
+  transport; add an opt-in verified-caller mode on the ordinary socket.
 
 - [160 — Windows prepared-owner renewal](160-windows-prepared-owner-renewal.md)
   (active): lift the 900-second ceiling on Windows locked tasks with

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "caller-verification-v1.schema.json",
   "title": "Only verified callers status and refusal (v1)",
-  "description": "`status.data.callerVerification` and the `data` of a `caller_not_verified` refusal (Tactical 161). The mode is opt-in and changed only from the native operator surface. It is a picket fence against callers that were not started from an operator-approved app, not same-user containment. Platforms without an implementation report supported=false and mode off.",
+  "description": "`status.data.callerVerification` and the `data` of a `caller_not_verified` refusal (Tactical 161). The mode is opt-in and changed only from the native operator surface. It is a picket fence against callers that were not started from an operator-approved app, not same-user containment. A resident that projects it without an implementation reports supported=false and mode off.",
   "$ref": "#/$defs/status",
   "$defs": {
     "status": {

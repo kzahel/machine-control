@@ -7,7 +7,7 @@ Retires: [Tactical 086](086-native-desktop-delegation.md) and
 revisions are tagged `delegation-v1-final` here and `mc-delegation-v1-final` in
 YepAnywhere.
 
-Status: **active.**
+Status: **macOS complete; Windows and Linux open.**
 
 ## Objective
 
@@ -128,4 +128,45 @@ approved-host list, plus the status projection.
 
 ## Result
 
-Pending.
+Steps 1–3 are complete for macOS. Windows and Linux remain open in the
+[topic](../../topics/caller-authorization.md#only-verified-callers), which
+owns the current contract, host rules and limits.
+
+- **Removal:** 00f4d96 and aab96bb; tag `delegation-v1-final`.
+- **macOS source:** 8fe2e7e (resident gate, store, prompt and tests),
+  46c36a2 (contract, instructions, help and doctor), 7868a6f (Settings) and
+  ccb4269 (the SDK keeps channel refusal data).
+- **Decisions made during implementation:**
+  - Platform binaries, including Terminal, are never hosts.
+  - Unsigned or ad-hoc command-line tools are intermediates; an unsigned app
+    bundle is a host that cannot be approved.
+  - A Team ID–signed command-line tool, such as an agent binary or a general
+    interpreter, is a host.
+  - Machine Control's bundled Python is an accepted peer. It runs arbitrary
+    scripts, so the host check is the gate.
+  - Source and ad-hoc builds report `supported: false`.
+  - Machine Control's own browser provider keeps its separate identity check.
+- **Tests:** 17 deterministic Swift tests cover requirement match and
+  mismatch, the 12-hop bound, PID reuse by start time, detached and unsigned
+  hosts, non-Machine Control peers, the discovery allowance, mode off,
+  per-host prompt debounce, persistence hardening, the verification deadline
+  and slot limit, and connection teardown. Client tests cover instructions,
+  help, the doctor projection and SDK refusal data.
+- **Live, on a disposable isolated macOS workspace** with a Developer ID-signed
+  candidate and an independent observer resident pressing the real native UI:
+  - With the mode off, a control call was accepted and conformance passed 7/7
+    before and after.
+  - The mode was enabled through the Settings switch.
+  - A `launchctl submit` job refused with `detached` while `status` worked.
+  - An ad-hoc app bundle refused as `unsigned_host`, not approvable.
+  - A non-Machine Control peer under an approved host refused as
+    `peer_not_machine_control`.
+  - An unapproved signed fixture host refused with a presented, then pending,
+    prompt. After Allow in the native prompt, `macui`, the bundled-Python
+    adapter and an SDK owner with a real `applications` result all passed.
+  - A second host that was declined reported `recently_declined`.
+  - The remote `tart exec` route refused, naming the Tart guest agent.
+  - The mode and approval survived a resident restart; the store was `0600`
+    in a `0700` directory.
+  - Remove in Settings and turning the mode off restored ordinary behavior.
+- **Open:** remote placement under the mode, Windows and Linux.

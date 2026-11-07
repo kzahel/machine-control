@@ -438,6 +438,15 @@ not authenticated YA session delegation.
 removed; [Tactical 161](../../docs/tactical/161-verified-callers.md) replaces
 it with an opt-in verified-caller mode on the ordinary socket.
 
+**Current, `live-tested` on a disposable signed Mac workspace:** with Only
+verified callers on, the resident checks the peer's kernel audit token against
+its own Team ID and bundle. It then walks at most 12 ancestors, binding each by
+PID and start time, to the nearest Apple-anchored, Team ID–signed,
+non-platform host. Detached, unsigned-bundle and non-Machine Control peers
+refuse; an approved host passes. `tart exec` callers name the Tart guest agent
+as their host. The [topic](../../topics/caller-authorization.md#only-verified-callers)
+owns the host rules and the same-user limits.
+
 **Current, bounded `live-tested`:** native MC trust, authenticated signed YA
 origin, installed CLI routing and the full signed MC operator app pass ordinary
 independent effects, Pause/fresh Resume, Stop/restart and caller/lifecycle
