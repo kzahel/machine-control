@@ -117,6 +117,8 @@ final class ResidentServer {
     let broker: GrantBroker
     let updates = DesktopUpdates()
     let activity = PhysicalAvailability()
+    /// Opt-in Only verified callers (Tactical 161); off by default.
+    lazy var callerGate = CallerVerificationGate(directory:(socketPath as NSString).deletingLastPathComponent)
     var presentationStatus: () -> [String:Any] = { [:] }
     let nativeProvider: NativeProviderExecutor
     func referencedProcess(_ reference: String) -> pid_t? { nativeProvider.referenceOwners[reference] }
@@ -143,7 +145,36 @@ final class ResidentServer {
         guard let channel = channels.values.first(where:{ $0.intentID == intent }) else { return "Local process" }
         return channel.caller.summary
     }
-    func callerAssurance(for intent: String) -> String { "Same-user caller; identity unverified." }
+    func callerAssurance(for intent: String) -> String {
+        guard let host = channels.values.first(where:{ $0.intentID == intent })?.verifiedHost else {
+            return "Same-user caller; identity unverified."
+        }
+        return "Started from \(host.name), an approved app; not a sandbox."
+    }
+    /// Enabling the mode ends connections admitted without verification, and
+    /// removing an approval ends connections it admitted.
+    func callerVerificationChanged() {
+        for channel in Array(channels.values) {
+            if let host = channel.verifiedHost {
+                if callerGate.store.enforced && !callerGate.stillApproved(host) { channel.close() }
+            } else if callerGate.store.enforced { channel.close() }
+        }
+    }
+    func callerRefusal(_ request: [String:Any], reason: String, host: CallerHost?) -> [String:Any] {
+        let message: String
+        switch reason {
+        case "unapproved_host": message = "Ask the operator to approve \(host?.name ?? "the calling app") in Machine Control"
+        case "unsigned_host": message = "The calling app has no verifiable publisher and cannot be approved"
+        case "detached": message = "The caller was not started from an app; background processes cannot pass"
+        case "peer_not_machine_control": message = "Connect through Machine Control's own installed client"
+        case "verification_unsupported": message = "This Machine Control build cannot verify callers"
+        default: message = "Machine Control could not verify this caller"
+        }
+        var result = service.refusal(request, code:"caller_not_verified", message:message,
+                                     data:callerGate.refusalData(reason:reason, host:host))
+        result["retrySafety"] = "safe_not_dispatched"
+        return result
+    }
     var admissionPresentation: [String:Any] {
         var status = broker.admission.status
         if let requests = status["requests"] as? [[String:Any]] {
@@ -602,6 +633,37 @@ final class ResidentServer {
         }
         let caller = CallerIdentity.of(socket: client)
         let claimID = request["claimId"] as? String
+        if callerGate.requiresVerification(operation) {
+            // Read only the frame; act on nothing until this connection's
+            // caller is verified. The verdict is cached for this connection.
+            keepOpen = true
+            let parsed = request
+            callerGate.verify(client) { [weak self] verdict in
+                guard let self else { Darwin.close(client); return }
+                switch verdict {
+                case let .refused(reason, host) where self.callerGate.requiresVerification(operation):
+                    _ = self.broker.journal?.begin(parsed, caller:caller)
+                    self.respond(client, parsed, self.callerRefusal(parsed, reason:reason, host:host),
+                                 caller:caller, claimID:claimID, channel:operation == "control.open")
+                    Darwin.close(client)
+                case let .verified(host):
+                    autoreleasepool { self.route(client, request:parsed, caller:caller, verifiedHost:host) }
+                case .refused:
+                    autoreleasepool { self.route(client, request:parsed, caller:caller, verifiedHost:nil) }
+                }
+            }
+            return
+        }
+        keepOpen = true
+        route(client, request:request, caller:caller, verifiedHost:nil)
+    }
+
+    private func route(_ client: Int32, request original: [String:Any], caller: CallerIdentity, verifiedHost: CallerHost?) {
+        var keepOpen = false
+        defer { if !keepOpen { Darwin.close(client) } }
+        var request = original
+        let operation = request["operation"] as? String ?? ""
+        let claimID = request["claimId"] as? String
         if broker.journal?.begin(request, caller: caller) == false, !["grant.revoke", "server.stop", "session.control.end"].contains(operation) {
             respond(client, request, service.refusal(request, code: "audit_storage_unavailable", message: "Audit storage unavailable"),
                     caller: caller, claimID: claimID, channel: operation == "control.open")
@@ -617,6 +679,7 @@ final class ResidentServer {
                         caller:caller, claimID:claimID, channel:true); return
             }
             let channel = AdmissionChannel(client, caller:caller, server:self)
+            channel.verifiedHost = verifiedHost
             // Transfer descriptor ownership before opening: an immediately
             // disconnected peer must not leave a resurrected channel or cause
             // both the server defer and source cancellation to close this fd.
@@ -749,6 +812,7 @@ final class ResidentServer {
             data["browserWhileLocked"] = browserWhileLockedStatus
             data["physicalActivity"] = activity.status
             data["admission"] = broker.admission.status
+            data["callerVerification"] = callerGate.status
             data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
             let browser = browser.statusJSON
             data["browser"] = browser
@@ -848,8 +912,9 @@ final class ResidentServer {
             let id = UUID()
             // A refused control.open still answers in the admission channel
             // schema so the client can read the refusal code.
-            let wire = channel ? AdmissionChannel.refusal(request["requestId"] as? String ?? "",
-                code:response["errorCode"] as? String ?? "control_refused") : response
+            let code = response["errorCode"] as? String ?? "control_refused"
+            let wire = channel ? AdmissionChannel.refusal(request["requestId"] as? String ?? "", code:code,
+                data:code == "caller_not_verified" ? response["data"] as? [String:Any] : nil) : response
             let reply = try SocketReply(client:client, data:encodeJSONLine(wire))
             replies[id] = reply
             reply.completed = { [weak self] in self?.replies.removeValue(forKey:id) }

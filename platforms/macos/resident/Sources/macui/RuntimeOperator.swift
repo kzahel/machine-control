@@ -95,6 +95,7 @@ extension ResidentRuntime {
             "observations": ["session":server.service.sessionObservation.metadata,
                              "helper":server.service.helperObservation.metadata],
             "lockedUse": server.lockedUse.status,
+            "callerVerification": server.callerGate.operatorStatus,
             "browserWhileLocked": server.browserWhileLockedStatus,
             "presentation":presentationJSON, "nativeApproval":true, "stops": server.broker.stops,
             "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
@@ -171,6 +172,21 @@ extension ResidentRuntime {
                         throw MacUIError.usage("Choose whether locked use is enabled")
                     }
                     try server.lockedUse.configure(enabled:enabled)
+                case "caller_verification":
+                    // Operator surface only; no agent request changes this mode.
+                    guard !updating, let enabled = command["enabled"] as? Bool else {
+                        throw MacUIError.usage("Choose whether only verified callers are allowed")
+                    }
+                    try server.callerGate.configure(enabled:enabled)
+                    server.broker.journal?.event(enabled ? "caller_verification.enabled" : "caller_verification.disabled")
+                    server.callerVerificationChanged()
+                case "caller_verification.remove":
+                    guard let team = command["teamId"] as? String, let identifier = command["identifier"] as? String else {
+                        throw MacUIError.usage("Choose an approved app")
+                    }
+                    try server.callerGate.store.remove(team:team, identifier:identifier)
+                    server.broker.journal?.event("caller_verification.removed")
+                    server.callerVerificationChanged()
                 case "browser_while_locked":
                     guard !updating, let enabled = command["enabled"] as? Bool else {
                         throw MacUIError.usage("Choose whether approved browser access continues while locked")

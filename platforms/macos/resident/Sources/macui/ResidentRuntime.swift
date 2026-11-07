@@ -28,6 +28,7 @@ final class ResidentRuntime {
     }
     var updating = false
     let operatorDependency = OperatorDependency()
+    let callerPanels = CallerApprovalPanels()
     // A typed test seam; never exposed through launch arguments or IPC.
     var resumeHelper: (([String:Any], @escaping () -> String?) throws -> Void)
     var stopShortcutAvailable: () -> Bool = { false }
@@ -62,6 +63,21 @@ final class ResidentRuntime {
         if policy.grantMode == .approval { server.approver = approver }
         let notice = preferences.object(forKey:"machineControl.admissionNoticeSeconds") as? Int ?? 10
         server.noticeSeconds = (0...60).contains(notice) ? Double(notice) : 10
+        // First-use caller prompts appear only on the operator's own unlocked,
+        // uncovered desktop; otherwise the refusal reports them unavailable.
+        let panels = callerPanels
+        let prompts = server.callerGate.prompts
+        prompts.present = { [weak server] host, completion in
+            guard let server, server.approvalDesktopUnlocked(), !server.lockedUse.isCovered else { return false }
+            return panels.present(host, completion:completion)
+        }
+        prompts.approved = { [weak server] _ in
+            server?.broker.journal?.event("caller_verification.approved")
+            server?.callerVerificationChanged()
+        }
+        prompts.failed = { [weak server] _ in
+            server?.broker.journal?.diagnostic("caller_verification.approve", code:"storage_unavailable")
+        }
     }
 
     func start() throws {
@@ -112,6 +128,7 @@ final class ResidentRuntime {
     }
     func stopAccess() {
         operatorDependency.cancel("stopped_by_person")
+        callerPanels.dismissAll()
         if let pending = approver.request {
             try? approver.decide(id:pending.id, scopes:[], duration:0, allow:false)
         }

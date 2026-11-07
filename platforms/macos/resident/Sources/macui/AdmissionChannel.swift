@@ -31,6 +31,8 @@ final class AdmissionChannel {
     static let schema = "machine-control-admission-channel/v2"
     let descriptor: Int32
     let caller: CallerIdentity
+    /// Set only when Only verified callers admitted this connection.
+    var verifiedHost: CallerHost?
     let owner = UUID().uuidString
     var intentID = ""
     var scopes: Set<GrantScope> = []
@@ -263,8 +265,8 @@ final class AdmissionChannel {
                 server?.service.displayedUnlockStatus["coveredRenewal"] as? String == "owner_connection/v1"))
     }
     /// A channel-schema refusal for a frame answered outside a live channel.
-    static func refusal(_ id: String, code: String) -> [String:Any] {
-        ["schema":schema, "requestId":id, "accepted":false, "errorCode":code, "data":NSNull()]
+    static func refusal(_ id: String, code: String, data: [String:Any]? = nil) -> [String:Any] {
+        ["schema":schema, "requestId":id, "accepted":false, "errorCode":code, "data":data as Any? ?? NSNull()]
     }
     func reply(_ id: String, data: [String:Any]? = nil, error: String? = nil) {
         guard !closed else { return }
