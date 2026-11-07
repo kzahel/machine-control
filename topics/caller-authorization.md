@@ -5,6 +5,22 @@ Topic: `caller-authorization`
 Status: native Mac broker/provenance/proxy source implemented; signed installed
 session-origin and effect qualification active.
 
+**Decision (2026-11-07), [Tactical 161](../docs/tactical/161-verified-callers.md):**
+native YepAnywhere delegation (Tactical 086/087) is retired. It was unused, and
+it only restricted YA's own agents: no renewal, no Browser, and a lockstep
+30-second relay. Every other same-user process kept the plain path. The last
+revision is tagged `delegation-v1-final`.
+
+The replacement is an opt-in **Only verified callers** mode on the ordinary
+socket, macOS first:
+- The connecting process must be Machine Control's own signed client.
+- Within a bounded ancestry walk, it must lead to an operator-approved signed
+  host app. An unapproved app gets a first-use native prompt.
+
+This is a picket fence against drive-by use, not same-user containment. The
+decisions below about trusted YA Desktop delegation are history; see Tactical
+161 for the lessons kept.
+
 ## Motivation and current boundary
 
 **Decision:** Prioritize preventing unrelated local processes from using
