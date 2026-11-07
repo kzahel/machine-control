@@ -77,7 +77,7 @@ def guest(stage, claim):
                 home / 'Library/WebKit/org.machine-control.app',
                 home / 'Library/HTTPStorages/org.machine-control.app',
                 home / 'Library/Saved Application State/org.machine-control.app.savedState']
-    operator_files = ['operator-consent.json', 'presentation.json', 'desktop-caller-trust.json']
+    operator_files = ['operator-consent.json', 'presentation.json']
     hosts = Path('/etc/hosts')
     feed = json.loads((stage / 'feed/feed.json').read_text())
     sender_app = stage / 'sender/Machine Control.app'

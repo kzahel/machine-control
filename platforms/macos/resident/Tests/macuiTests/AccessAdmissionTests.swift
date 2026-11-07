@@ -52,7 +52,7 @@ final class AccessAdmissionTests: XCTestCase {
         refusal = nil
         let second = try admission.submit(owner:"two",requestID:"other",resources:["desktop"],wait:120,duration:60,reason:"Fixture",authority:{ refusal })
         let next = try XCTUnwrap(second["intentId"] as? String)
-        refusal = "desktop_delegation_requires_own_console"
+        refusal = "console_session_changed"
         XCTAssertEqual(try admission.inspect(owner:"two",id:next)["terminalReason"] as? String,"cancelled")
     }
     func testStatusPresentationUsesCachedProjectionAndDropsOnlyOvertakenBackgroundReplies() throws {

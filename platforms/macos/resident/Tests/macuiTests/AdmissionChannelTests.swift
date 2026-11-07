@@ -43,44 +43,27 @@ final class AdmissionChannelTests: XCTestCase {
         clients = []; server.stop(); unlink(path)
         server = nil; broker = nil
     }
-    func testSlowSealedVerificationDoesNotBlockDiscoveryAndStopFencesItsReturn() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-slow-seal-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
-        defer { try? FileManager.default.removeItem(at:directory) }
-        server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-        let started = expectation(description:"background sealed verification")
-        let release = DispatchSemaphore(value:0)
-        defer { release.signal() }
-        server.callerTrust.peerValid = { _,_ in
-            XCTAssertFalse(Thread.isMainThread)
-            started.fulfill()
-            _ = release.wait(timeout:.now() + 4)
-            return true
+    func testRetiredDelegationFrameRefusesAndNeverBecomesAPlainOwner() throws {
+        let retired: [String:Any] = ["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture",
+            "sessionGeneration":UUID().uuidString]
+        for extra in [[:], ["preparedConsole":true], ["desktopDelegation":NSNull()]] as [[String:Any]] {
+            var request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema,
+                "requestId":UUID().uuidString, "surfaces":["desktop"], "reason":"fixture",
+                "durationSeconds":60, "waitSeconds":120, "desktopDelegation":retired]
+            request.merge(extra) { $1 }
+            let client = try connect(), response = exchange(client, request)
+            XCTAssertEqual(response["accepted"] as? Bool,false, "For \(extra)")
+            XCTAssertEqual(response["errorCode"] as? String,"desktop_delegation_retired", "For \(extra)")
+            XCTAssertTrue(response["data"] is NSNull, "For \(extra)")
+            // The refused connection is closed rather than kept as an owner.
+            var input = pollfd(fd:client, events:Int16(POLLIN), revents:0), byte: UInt8 = 0
+            XCTAssertEqual(poll(&input, 1, 2000), 1)
+            XCTAssertEqual(Darwin.read(client, &byte, 1), 0)
         }
-        server.callerTrust.peerStillValid = { _,_ in true }
-        let fd = try connect()
-        let request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema,
-            "requestId":"slow-verification", "surfaces":["desktop"], "reason":"fixture",
-            "durationSeconds":60, "waitSeconds":120,
-            "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]]
-        try writeSocket(fd, data:encodeJSONLine(request))
-        wait(for:[started], timeout:1)
-        let status = exchange(try connect(), ["operation":"desktop.delegation.status", "requestId":"parallel-discovery"])
-        XCTAssertEqual((status["data"] as? [String:Any])?["enabled"] as? Bool,true)
-        server.revoke(reason:"stopped_by_person")
-        release.signal()
-        let done = expectation(description:"verification refuses after Stop")
-        DispatchQueue.global().async {
-            if let bytes = try? readSocket(fd), let reply = (try? JSONSerialization.jsonObject(with:bytes)) as? [String:Any] {
-                XCTAssertEqual(reply["errorCode"] as? String,"desktop_trust_not_enabled")
-            } else { XCTFail("Missing refusal") }
-            done.fulfill()
-        }
-        wait(for:[done], timeout:2)
+        XCTAssertEqual((broker.admission.status["requests"] as? [[String:Any]] ?? []).count,0)
+        _ = open(try connect(),"plain-after-retired")
         XCTAssertEqual(effects,0)
     }
-
 
     func testPreparedRequestMustBeAnExactDesktopBoolean() throws {
         let requests: [[String:Any]] = [
@@ -104,7 +87,6 @@ final class AdmissionChannelTests: XCTestCase {
     func testPlainPreparedOwnerIsTheCoveredOwnerAFlaglessOwnerGets() throws {
         var covered: [String] = []
         server.coveredActivation = { channel,_ in
-            XCTAssertNil(channel.delegation)
             covered.append(channel.preparedConsole ? "prepared" : "flagless")
         }
         func run(_ id: String, prepared: Bool) throws -> [String:Any] {
@@ -125,83 +107,14 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(try run("plain-prepared", prepared:true)["accepted"] as? Bool,true)
         XCTAssertEqual(try run("plain-flagless", prepared:false)["accepted"] as? Bool,true)
         XCTAssertEqual(covered,["prepared","flagless"])
-        // Locked use disabled: the explicit request refuses as on the delegated
-        // path; the flagless compatibility owner is unchanged.
+        // Locked use disabled: the explicit request refuses; the flagless
+        // compatibility owner is unchanged.
         server.preparedConsoleReady = { false }
         let refused = try run("plain-prepared-disabled", prepared:true)
         XCTAssertEqual(refused["errorCode"] as? String,"locked_use_disabled")
         XCTAssertEqual(try run("plain-flagless-disabled", prepared:false)["accepted"] as? Bool,true)
         XCTAssertEqual(covered,["prepared","flagless","flagless"])
         XCTAssertEqual(effects,0)
-    }
-
-    func testDelegatedPreparedOwnerKeepsItsProfile() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-prepared-delegated-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
-        defer { try? FileManager.default.removeItem(at:directory) }
-        server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-        server.callerTrust.peerValid = { _,_ in true }
-        server.callerTrust.peerStillValid = { _,_ in true }
-        var covered = 0
-        server.preparedConsoleReady = { true }
-        server.coveredActivation = { channel,_ in XCTAssertTrue(channel.preparedConsole); covered += 1 }
-        func delegated(_ id: String, prepared: Bool) throws -> [String:Any] {
-            var request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema, "requestId":id,
-                "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120,
-                "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]]
-            if prepared { request["preparedConsole"] = true }
-            let client = try connect(), offer = exchange(client, request)
-            XCTAssertEqual(offer["accepted"] as? Bool,true, "Open refused: \(offer)")
-            let view = offer["data"] as? [String:Any] ?? [:]
-            let accepted = command(client,"control.accept",["offerGeneration":view["offerGeneration"] ?? -1])
-            _ = command(client,"control.cancel")
-            return view.merging(["acceptedCode":accepted["errorCode"] ?? NSNull()]) { $1 }
-        }
-        let prepared = try delegated("delegated-prepared", prepared:true)
-        XCTAssertEqual(prepared["authorizationProfile"] as? String,"prepared_console_with_explicit_consent")
-        XCTAssertTrue(prepared["acceptedCode"] is NSNull, "Delegated prepared accept refused: \(prepared)")
-        // Ordinary delegated owners never enter covered activation.
-        let ordinary = try delegated("delegated-ordinary", prepared:false)
-        XCTAssertEqual(ordinary["authorizationProfile"] as? String,"ordinary_local_desktop")
-        XCTAssertEqual(covered,1)
-        XCTAssertEqual(effects,0)
-    }
-
-    func testDelegationDiscoveryReflectsCurrentOperatorChoiceWithoutCreatingAnIntent() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-profile-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
-        defer { try? FileManager.default.removeItem(at:directory) }
-        server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        func enabled() throws -> Bool? {
-            let reply = exchange(try connect(), ["operation":"desktop.delegation.status", "requestId":UUID().uuidString])
-            return (reply["data"] as? [String:Any])?["enabled"] as? Bool
-        }
-        XCTAssertEqual(try enabled(), false)
-        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-        XCTAssertEqual(try enabled(), true)
-        server.callerTrust.stop()
-        XCTAssertEqual(try enabled(), false)
-        XCTAssertEqual(effects,0)
-    }
-
-    func testOperatorMenuAndHotkeyStopSuspendDurableDesktopTrust() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-stop-trust-fixture-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
-        defer { try? FileManager.default.removeItem(at:directory) }
-        server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        for reason in ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey"] {
-            try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-            server.revoke(reason:reason)
-            XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,false)
-            XCTAssertTrue(DesktopCallerTrust(directory:directory.path).suspended)
-        }
-        // Neither quitting nor an agent's revoke suspends the person's trust.
-        for reason in ["operator_quit", "revoked_by_caller"] {
-            try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-            server.revoke(reason:reason)
-            XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
-        }
     }
 
     func testInputCancellationUsesCurrentLeaseLatchAcrossSessions() {
@@ -315,21 +228,6 @@ final class AdmissionChannelTests: XCTestCase {
         helper(["coveredRenewal":"owner_connection/v1"])
         XCTAssertEqual((command(covered,"control.status")["data"] as? [String:Any])?["renewal"] as? String,"owner_connection/v1")
 
-        // A natively delegated owner never renews, so it never advertises.
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-renew-delegated-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
-        defer { try? FileManager.default.removeItem(at:directory) }
-        server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-        server.callerTrust.peerValid = { _,_ in true }
-        server.callerTrust.peerStillValid = { _,_ in true }
-        let delegated = try connect()
-        let delegatedOffer = exchange(delegated,["operation":"control.open", "schema":AccessAdmission.schema,
-            "requestId":"delegated-renewal", "surfaces":["desktop"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120,
-            "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]])
-        XCTAssertEqual(delegatedOffer["accepted"] as? Bool,true, "Delegated open refused: \(delegatedOffer)")
-        XCTAssertNil((delegatedOffer["data"] as? [String:Any])?["renewal"])
-        XCTAssertNil((command(delegated,"control.heartbeat")["data"] as? [String:Any])?["renewal"])
         XCTAssertEqual(effects,0)
     }
 

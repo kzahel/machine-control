@@ -1,6 +1,8 @@
 # Prepared console delegation
 
-Status: active.
+Status: **retired** by [Tactical 161](161-verified-callers.md); the source was
+removed at operator request and its last revision is tagged
+`delegation-v1-final`. Plain `preparedConsole` owners remain supported.
 Owning topics: [caller authorization](../../topics/caller-authorization.md),
 [access admission and pause](../../topics/access-admission-and-pause.md) and
 [Mac locked use](../../topics/macos-locked-use.md).

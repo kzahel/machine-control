@@ -70,7 +70,9 @@ Source anchors:
   [server](../platforms/macos/resident/Sources/macui/Server.swift),
   [grant classification](../platforms/macos/resident/Sources/macui/Grants.swift),
   [admission channel](../platforms/macos/resident/Sources/macui/AdmissionChannel.swift),
-  [caller trust](../platforms/macos/resident/Sources/macui/DesktopCallerTrust.swift).
+  caller trust (`DesktopCallerTrust.swift`, removed by
+  [Tactical 161](tactical/161-verified-callers.md); last source at tag
+  `delegation-v1-final`).
 - Windows: [host adapter](../platforms/windows/host/winhost.py),
   [user host](../src/MachineControl.Windows/UserHost.cs),
   [desktop grants](../src/MachineControl.Windows/DesktopGrants.cs),

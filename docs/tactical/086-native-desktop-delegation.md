@@ -1,9 +1,11 @@
 # Native desktop delegation
 
-Status: active; full signed native ordinary path and operator controls proved;
-bounded negative/lifecycle and native input/capture qualification proved;
-bounded busy-owner qualification proved; additional replacement/scope and
-covered composition remain open.
+Status: **retired** by [Tactical 161](161-verified-callers.md); the source was
+removed at operator request and its last revision is tagged
+`delegation-v1-final`. Before retirement: full signed native ordinary path and
+operator controls proved; bounded negative/lifecycle and native input/capture
+qualification proved; bounded busy-owner qualification proved; additional
+replacement/scope and covered composition remained open.
 Owning topics: [caller authorization](../../topics/caller-authorization.md) and
 [access admission and pause](../../topics/access-admission-and-pause.md).
 Dependency: [trusted Desktop access](071-desktop-caller-authorization.md).
@@ -128,7 +130,8 @@ keepalives were necessary; stale ownership still expired under the unchanged
 five-second watchdog.
 
 **Current, bounded full signed-app acceptance (2026-10-04):** the checked-in
-[native delegation runner](../../tests/macos/native-delegation/README.md) passes
+native delegation runner (`tests/macos/native-delegation/` at tag
+`delegation-v1-final`) passes
 with signed YA `158e7a1c9` and signed MC `4cf7881`. The separate appliance
 resident used native AX to enroll trust through the actual signed MC checkbox,
 Pause, Resume and Stop; no positive receiver hook or native setter was injected.

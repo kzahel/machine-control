@@ -48,15 +48,10 @@ final class AdmissionChannel {
     var coveredOwner: Int32 = -1
     var coveredSessionID: String?
     var outer: OuterRecovery?
-    private(set) var delegation: DesktopDelegation?
-    private var trustRevision = ""
     private(set) var preparedConsole = false
     private(set) var surfaces: [String] = []
     private(set) var profileIDs: [String] = []
     private var operations: [String]?
-    private static let verificationSlots = DispatchSemaphore(value:4)
-    private var verificationTimeout: DispatchWorkItem?
-
 
     init(_ descriptor: Int32, caller: CallerIdentity, server: ResidentServer) {
         self.descriptor = descriptor; self.caller = caller; self.server = server
@@ -72,8 +67,11 @@ final class AdmissionChannel {
         "browser.type", "browser.key", "browser.capture", "browser.dialog", "browser.release",
         "browser.upload", "browser.cdp", "browser.eval", "browser.endpoint"]
     func open(_ request: [String:Any]) throws {
+        // The trusted desktop delegation profile was retired. A frame that
+        // still names it must never be admitted as a plain owner.
+        guard request["desktopDelegation"] == nil else { throw MacUIError.permission("desktop_delegation_retired") }
         guard let server, caller.uid == getuid(), caller.pid > 0,
-              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "surfaces", "profileIds", "operations", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation", "preparedConsole"]) else {
+              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "surfaces", "profileIds", "operations", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "preparedConsole"]) else {
             throw MacUIError.usage("invalid_admission_request")
         }
         guard request["schema"] as? String == AccessAdmission.schema else { throw MacUIError.usage("unsupported_admission_schema") }
@@ -97,16 +95,9 @@ final class AdmissionChannel {
             }
             operations = list
         }
-        if request["desktopDelegation"] != nil {
-            guard request["outerRecovery"] == nil, server.broker.policy.grantMode == .approval else {
-                throw MacUIError.permission("desktop_delegation_profile_denied")
-            }
-            delegation = try DesktopDelegation.parse(request["desktopDelegation"])
-        }
         if let value = request["preparedConsole"] {
-            // A plain caller's flag explicitly requests the same covered owner
-            // a flagless plain Desktop owner receives; it adds no authority.
-            // A delegated caller's flag selects the prepared-console profile.
+            // The flag explicitly requests the same covered owner a flagless
+            // Desktop owner receives; it adds no authority.
             guard let boolean = value as? NSNumber, CFGetTypeID(boolean) == CFBooleanGetTypeID(), boolean.boolValue,
                   request["outerRecovery"] == nil, scopes == [.observe,.control] else {
                 throw MacUIError.usage("invalid_prepared_console_request")
@@ -117,40 +108,6 @@ final class AdmissionChannel {
             guard scopes == Set([.observe, .control]) else { throw MacUIError.usage("invalid_outer_scopes") }
             let binding = try OuterClaimBinding.parse(request["outerRecovery"])
             outer = server.outerRecoveryFactory(binding)
-        }
-        if delegation != nil {
-            let (revision, requirement, verify) = try server.callerTrust.verification(scopes:scopes)
-            guard Self.verificationSlots.wait(timeout:.now()) == .success else { throw MacUIError.action("desktop_verification_busy") }
-            let pinned = dup(descriptor)
-            guard pinned >= 0 else { Self.verificationSlots.signal(); throw MacUIError.action("control_transport_unavailable") }
-            do { try closeOnExec(pinned) }
-            catch { Darwin.close(pinned); Self.verificationSlots.signal(); throw error }
-            // EOF or a premature frame ends pending verification. A duplicate
-            // pins the exact peer even if timeout closes the original socket.
-            let source = DispatchSource.makeReadSource(fileDescriptor:descriptor, queue:.main)
-            source.setEventHandler { [weak self] in self?.close() }
-            source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
-            self.source = source; source.resume()
-            let timeout = DispatchWorkItem { [weak self] in self?.close() }
-            verificationTimeout = timeout
-            DispatchQueue.main.asyncAfter(deadline:.now() + 8, execute:timeout)
-            DispatchQueue.global(qos:.userInitiated).async { [weak self] in
-                let valid = verify(pinned, requirement)
-                Darwin.close(pinned); Self.verificationSlots.signal()
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, !self.closed, let server = self.server else { return }
-                    self.verificationTimeout?.cancel(); self.verificationTimeout = nil
-                    do {
-                        guard valid else { throw MacUIError.permission("desktop_caller_identity_denied") }
-                        if let refusal = server.callerTrust.refusal(descriptor:self.descriptor, revision:revision, scopes:self.scopes) {
-                            throw MacUIError.permission(refusal)
-                        }
-                        self.trustRevision = revision
-                        try self.completeOpen(request, duration:duration, wait:wait, reason:reason, requestID:requestID)
-                    } catch { self.reply(requestID, error:String(describing:error)); self.close() }
-                }
-            }
-            return
         }
         try completeOpen(request, duration:duration, wait:wait, reason:reason, requestID:requestID)
     }
@@ -163,30 +120,16 @@ final class AdmissionChannel {
             wait:Double(wait), duration:Double(duration), reason:reason,
             authority:{ [weak broker, weak self, scopes] in
                 guard let broker, let self else { return "resident_stopped" }
-                if self.delegation != nil {
-                    guard let server = self.server else { return "resident_stopped" }
-                    if let refusal = server.callerTrust.refusal(descriptor:self.descriptor, revision:self.trustRevision, scopes:scopes, checkPeer:false) { return refusal }
-                    if broker.journal?.errorCode != nil { return "audit_storage_unavailable" }
-                    if (server.grantConsoleObservation()["uid"] as? NSNumber)?.uint32Value != getuid() { return "desktop_delegation_requires_own_console" }
-                    if self.preparedConsole {
-                        if let refusal = server.preparedConsoleAuthority(scopes:scopes) { return refusal }
-                    } else if !server.approvalDesktopUnlocked() { return "desktop_delegation_requires_unlocked_console" }
-                } else {
-                    if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
-                }
+                if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
                 do { try self.outer?.binding.validate(); return nil }
                 catch { return String(describing:error) }
             },
             profileIDs:profileIDs, operations:operations)
         intentID = view["intentId"] as! String
-        if let source {
-            source.setEventHandler { [weak self] in self?.readable() }
-        } else {
-            let source = DispatchSource.makeReadSource(fileDescriptor:descriptor, queue:.main)
-            source.setEventHandler { [weak self] in self?.readable() }
-            source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
-            self.source = source; source.resume()
-        }
+        let source = DispatchSource.makeReadSource(fileDescriptor:descriptor, queue:.main)
+        source.setEventHandler { [weak self] in self?.readable() }
+        source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
+        self.source = source; source.resume()
         reply(requestID, data:view)
     }
     private func readable() {
@@ -223,10 +166,6 @@ final class AdmissionChannel {
             // Revalidate native availability immediately before effects.
             if ["control.accept", "control.dispatch", "control.renew"].contains(operation) {
                 server.refreshAdmission()
-                if delegation != nil, let refusal = server.callerTrust.refusal(descriptor:descriptor, revision:trustRevision, scopes:scopes) {
-                    try? server.broker.admission.cancel(owner:owner, id:intentID)
-                    throw MacUIError.permission(refusal)
-                }
             }
             let common: Set<String> = ["operation", "requestId", "requestSequence"]
             let allowed = common.union(operation == "control.accept" ? ["offerGeneration"] :
@@ -244,7 +183,7 @@ final class AdmissionChannel {
                 let view = try outer.map { try $0.binding.transaction(accept) } ?? accept()
                 if surfaces.contains("desktop") { server.activity.arm(baseline:physicalBaseline) }
                 do {
-                    if surfaces.contains("desktop") && outer == nil && (delegation == nil || preparedConsole) {
+                    if surfaces.contains("desktop") && outer == nil {
                         if preparedConsole && !server.preparedConsoleReady() { throw MacUIError.action("locked_use_disabled") }
                         try server.activateCovered(self, view:view)
                     }
@@ -259,7 +198,7 @@ final class AdmissionChannel {
                 // Extending this same live lease must remain possible while
                 // its one provider action is pending. It dispatches no new
                 // action and changes neither session nor resource generation.
-                guard delegation == nil, outer == nil else { throw MacUIError.action("control_renewal_unavailable") }
+                guard outer == nil else { throw MacUIError.action("control_renewal_unavailable") }
                 guard let session = request["sessionId"] as? String,
                       let generations = request["resourceGenerations"] as? [String:Int] else {
                     throw MacUIError.usage("invalid_admission_request")
@@ -299,12 +238,11 @@ final class AdmissionChannel {
                 if !["capabilities", "browser.profiles"].contains(operation) {
                     guard case let .scoped(scope) = operationClass(operation), scopes.contains(scope),
                           !["session.control", "permissions.request"].contains(operation),
-                          operations == nil || operations!.contains(operation),
-                          !(delegation != nil && operation.hasPrefix("outer.")) else {
+                          operations == nil || operations!.contains(operation) else {
                         throw MacUIError.action("operation_not_permitted_by_control_channel")
                     }
                 }
-                if let refusal = server.broker.authorize(operation, controlled:true, delegatedScopes:delegation == nil ? nil : scopes) { throw MacUIError.action(refusal.code) }
+                if let refusal = server.broker.authorize(operation, controlled:true) { throw MacUIError.action(refusal.code) }
                 action["requestId"] = id
                 dispatching = true
                 server.dispatchControlled(self, action:action, session:session, generations:generations) { [weak self] result in
@@ -316,11 +254,11 @@ final class AdmissionChannel {
         } catch { reply(id, error:String(describing:error)) }
     }
     deinit { close() }
-    /// Mirrors every static refusal in `control.renew`: delegated and outer
-    /// owners never renew, and a covered owner renews only through a live
-    /// helper connection that supports covered renewal.
+    /// Mirrors every static refusal in `control.renew`: outer owners never
+    /// renew, and a covered owner renews only through a live helper
+    /// connection that supports covered renewal.
     var renewable: Bool {
-        delegation == nil && outer == nil &&
+        outer == nil &&
             (coveredSessionID == nil || (coveredOwner >= 0 &&
                 server?.service.displayedUnlockStatus["coveredRenewal"] as? String == "owner_connection/v1"))
     }
@@ -339,11 +277,6 @@ final class AdmissionChannel {
                 // when control.renew below could succeed for this owner.
                 if renewable { data?["renewal"] = "owner_connection/v1" }
                 else { data?.removeValue(forKey:"renewal") }
-                if let delegation {
-                    data?["ownerAssurance"] = "verified_desktop_integration"
-                    data?["desktopSession"] = ["sessionId":delegation.session, "sessionGeneration":delegation.generation]
-                    data?["authorizationProfile"] = preparedConsole ? "prepared_console_with_explicit_consent" : "ordinary_local_desktop"
-                }
             }
             let frame = try encodeJSONLine([
                 "schema":Self.schema, "requestId":id, "accepted":error == nil,
@@ -399,7 +332,6 @@ final class AdmissionChannel {
     func close() {
         guard !closed else { return }; closed = true
         outer?.invalidate()
-        verificationTimeout?.cancel(); verificationTimeout = nil
         writeSource?.cancel(); writeSource = nil
         writeTimeout?.cancel(); writeTimeout = nil
         outgoing.removeAll()

@@ -380,14 +380,6 @@ checks. It uses temporary signed fixtures and installed YA's Bun to compare
 specific executable trust with overly broad publisher trust. It performs no
 desktop actions and does not exercise production grants or session delegation.
 
-## Signed native desktop delegation
-
-[Native delegation acceptance](native-delegation/README.md) runs the actual
-signed YA/native CLI/signed MC operator path in an exclusively claimed Mac
-appliance. It proves independent AX effects, native trust enrollment,
-Pause/fresh Resume, Stop and unrelated-process refusal using an owned protocol
-provider. It does not run an LLM or qualify covered/hardware/distribution use.
-
 
 `runtime-presentation.py` qualifies one presentation profile on an installed
 signed workstation candidate in a claimed dedicated VM. Supply the app,

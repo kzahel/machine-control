@@ -94,10 +94,6 @@ The [live admission channel schema](access-admission-channel-v1.schema.json) and
   controller-local VM claim binding. It is not a public target projection or
   authenticated caller credential.
 
-- [Desktop delegation v1](desktop-delegation-v1.schema.json) carries bounded
-  attribution on a separately authenticated native broker channel. Its public
-  fields never confer authority.
-
 - [Admission channel v2](admission-channel-v2.schema.json) describes the live
   owner channel on every desktop resident: open/command frames, the reply
   envelope used for every reply after `control.open` (refusals included), the

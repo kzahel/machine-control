@@ -12,7 +12,7 @@ enum OperationClass: Equatable {
 
 func operationClass(_ operation: String) -> OperationClass {
     switch operation {
-    case "capabilities", "status", "desktop.delegation.status":
+    case "capabilities", "status":
         return .discovery
     case "grant.request", "grant.status", "grant.revoke":
         return .grantManagement
@@ -261,8 +261,7 @@ final class GrantBroker {
         admission.resume(surface, reason: "local_use_episode"); admission.resume(surface, reason: "physical_takeover")
         journal?.event("access.resumed")
     }
-    func authorize(_ operation: String, controlled: Bool = false,
-                   delegatedScopes: Set<GrantScope>? = nil) -> GrantRefusal? {
+    func authorize(_ operation: String, controlled: Bool = false) -> GrantRefusal? {
         switch operationClass(operation) {
         case .discovery, .grantManagement, .lifecycle, .providerRegistration: return nil
         case .protected:
@@ -276,9 +275,6 @@ final class GrantBroker {
             let surface = Self.browserScopes.contains(scope) ? "browser" : "desktop"
             guard admission.enabled(surface) else { return GrantRefusal("surface_disabled", "This surface is Off", requiredScope: scope) }
             guard controlled else { return GrantRefusal("control_session_required", "Open one live surface task", requiredScope: scope) }
-            if let delegatedScopes, !delegatedScopes.contains(scope) {
-                return GrantRefusal("desktop_trust_scope_denied", "Caller authority does not include this operation")
-            }
             guard surface == "browser" ? browserRouteReady : desktopRouteReady else {
                 return GrantRefusal(surface == "desktop" && browserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable",
                     "The native route is temporarily unavailable", requiredScope: scope)

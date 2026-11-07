@@ -715,7 +715,6 @@ fn main() {
                         .unwrap_or("")
                         .to_owned();
                     let active = !value["state"]["deployment"]["grant"].is_null()
-                        || value["state"]["desktopCallerTrust"]["enabled"] == true
                         || value["state"]["accessPolicy"]["surfaces"]
                             .as_object()
                             .is_some_and(|surfaces| {

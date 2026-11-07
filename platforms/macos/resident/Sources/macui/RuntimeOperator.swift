@@ -94,7 +94,6 @@ extension ResidentRuntime {
             "physicalActivity": server.activity.status,
             "observations": ["session":server.service.sessionObservation.metadata,
                              "helper":server.service.helperObservation.metadata],
-            "desktopCallerTrust": server.callerTrust.status,
             "lockedUse": server.lockedUse.status,
             "browserWhileLocked": server.browserWhileLockedStatus,
             "presentation":presentationJSON, "nativeApproval":true, "stops": server.broker.stops,
@@ -145,24 +144,6 @@ extension ResidentRuntime {
                     server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
                 case "stop":
                     stopAccess()
-                case "desktop_caller_trust":
-                    server.service.refreshSession()
-                    guard server.broker.policy.grantMode == .approval,
-                          server.service.observedDesktopState == "unlocked",
-                          (server.service.observedConsoleSession["uid"] as? NSNumber)?.uint32Value == getuid(),
-                          let enabled = command["enabled"] as? Bool else {
-                        throw MacUIError.permission("desktop_trust_operator_unavailable")
-                    }
-                    if enabled {
-                        guard (server.broker.admission.status["active"] as? Int ?? 0) == 0,
-                              let names = command["scopes"] as? [String], !names.isEmpty,
-                              names.allSatisfy({ GrantScope(rawValue:$0) != nil }) else {
-                            throw MacUIError.usage("Choose trusted scopes while no agent is active")
-                        }
-                        try server.callerTrust.enroll(VerifiedDesktopIntegration.yepAnywhere(), scopes:Set(names.compactMap(GrantScope.init(rawValue:))))
-                    } else { server.callerTrust.remove() }
-                    server.broker.refreshAvailability()
-                    server.service.invalidateReferences()
                 case "finish_exit": server.broker.journal?.finishRuntime()
                 case "prepare_exit":
                     operatorDependency.cancel("operator_quit")

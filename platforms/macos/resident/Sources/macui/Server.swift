@@ -115,7 +115,6 @@ final class ResidentServer {
     let socketPath: String
     let service: ResidentService
     let broker: GrantBroker
-    var callerTrust: DesktopCallerTrust
     let updates = DesktopUpdates()
     let activity = PhysicalAvailability()
     var presentationStatus: () -> [String:Any] = { [:] }
@@ -142,11 +141,9 @@ final class ResidentServer {
     private var replies: [UUID:SocketReply] = [:]
     func callerSummary(for intent: String) -> String {
         guard let channel = channels.values.first(where:{ $0.intentID == intent }) else { return "Local process" }
-        return channel.delegation.map { "YepAnywhere session " + $0.session } ?? channel.caller.summary
+        return channel.caller.summary
     }
-    func callerAssurance(for intent: String) -> String {
-        channels.values.first(where:{ $0.intentID == intent })?.delegation == nil ? "Same-user caller; identity unverified." : "Verified YepAnywhere session"
-    }
+    func callerAssurance(for intent: String) -> String { "Same-user caller; identity unverified." }
     var admissionPresentation: [String:Any] {
         var status = broker.admission.status
         if let requests = status["requests"] as? [[String:Any]] {
@@ -154,7 +151,6 @@ final class ResidentServer {
                 var result = request
                 let id = request["intentId"] as? String ?? ""
                 result["caller"] = callerSummary(for:id)
-                result["ownerAssurance"] = channels.values.first(where:{ $0.intentID == id })?.delegation == nil ? "cooperative_same_user" : "verified_desktop_integration"
                 return result
             }
         }
@@ -192,14 +188,6 @@ final class ResidentServer {
     func refreshAdmission() { tick() }
     lazy var preparedConsoleReady: () -> Bool = { [weak self] in self?.lockedUse.enabled == true }
     lazy var admittedPreparedRouteReady: () -> Bool = { [weak self] in self?.lockedUse.admittedRouteReady == true }
-    func preparedConsoleAuthority(scopes: Set<GrantScope>) -> String? {
-        if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
-        guard let grant = broker.activeGrant,
-              grantConsoleBinding?.matches(grantID:grant.id, observation:grantConsoleObservation()) == true else {
-            return "console_session_changed"
-        }
-        return nil
-    }
     func activateCovered(_ channel: AdmissionChannel, view: [String:Any]) throws {
         if let coveredActivation { try coveredActivation(channel, view); return }
         guard service.observedDesktopState == "locked" else { return }
@@ -324,8 +312,7 @@ final class ResidentServer {
                     guard let self, let channel else { return "owner_disconnected" }
                     if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
                         session:session, generations:generations, operation:operation) { return refusal }
-                    return self.broker.authorize(operation, controlled:true,
-                        delegatedScopes:channel.delegation == nil ? nil : channel.scopes)?.code
+                    return self.broker.authorize(operation, controlled:true)?.code
                 })
             if let refusal = browser.forward(-1, action, caller:channel.caller, claimID:nil,
                 authority:authority, completion:finish) { finish(refusal) }
@@ -340,7 +327,7 @@ final class ResidentServer {
                     guard let self, let channel else { return GrantRefusal("owner_disconnected", "Owner disconnected") }
                     if let code = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
                         session:session, generations:generations, operation:operation) { return GrantRefusal(code, "Control owner changed") }
-                    return self.broker.authorize(operation, controlled:true, delegatedScopes:channel.delegation == nil ? nil : channel.scopes)
+                    return self.broker.authorize(operation, controlled:true)
                         ?? self.lockedUse.refusal(request) ?? self.screenedRequest(request)
                 }, custom:controlledProvider, completion:finish)
         }
@@ -401,7 +388,6 @@ final class ResidentServer {
          preferences: UserDefaults = .standard, policyDirectory: URL? = nil) {
         self.preferences = preferences
         self.socketPath = socketPath
-        callerTrust = DesktopCallerTrust(directory:(socketPath as NSString).deletingLastPathComponent)
         self.service = service
         nativeProvider = NativeProviderExecutor(runtimeGeneration:service.generation)
         service.referencesInvalidated = { [weak nativeProvider] in nativeProvider?.invalidate() }
@@ -616,17 +602,6 @@ final class ResidentServer {
         }
         let caller = CallerIdentity.of(socket: client)
         let claimID = request["claimId"] as? String
-        // Cheap discovery must not invoke helper readiness, OS observations or
-        // sealed-bundle verification while another owner is controlling.
-        if operation == "desktop.delegation.status" {
-            var data = callerTrust.status
-            data["enabled"] = broker.policy.grantMode == .approval && data["enabled"] as? Bool == true
-            let response = caller.uid == getuid()
-                ? service.acceptance(request, data:data)
-                : service.refusal(request, code:"desktop_caller_identity_denied", message:"Local caller required")
-            respond(client, request, response, caller:caller, claimID:claimID)
-            return
-        }
         if broker.journal?.begin(request, caller: caller) == false, !["grant.revoke", "server.stop", "session.control.end"].contains(operation) {
             respond(client, request, service.refusal(request, code: "audit_storage_unavailable", message: "Audit storage unavailable"),
                     caller: caller, claimID: claimID, channel: operation == "control.open")
@@ -774,7 +749,7 @@ final class ResidentServer {
             data["browserWhileLocked"] = browserWhileLockedStatus
             data["physicalActivity"] = activity.status
             data["admission"] = broker.admission.status
-            data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
+            data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
             let browser = browser.statusJSON
             data["browser"] = browser
             if updates.request(check:false) != nil {
@@ -826,7 +801,6 @@ final class ResidentServer {
     func revoke(reason: String) {
         nativeProvider.invalidate()
         broker.fence()
-        if GrantBroker.personStopReasons.contains(reason) { callerTrust.stop() }
         lockedUse.end(reason)
         broker.revoke(reason: reason)
         browser.stopAccess()
@@ -963,7 +937,6 @@ func runResident(socketPath: String) throws -> Never {
     setup.browserConnected = { [weak server] in server?.browser.connected == true }
     let menu = StatusMenuController(broker: broker, approval: approval, setup: setup)
     runtime.stopShortcutAvailable = { [weak menu] in menu?.stopShortcutAvailable == true }
-    menu.trustedAccess = { [weak server] in server?.callerTrust.status["enabled"] as? Bool == true }
     menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
     menu.onResume = { [weak runtime] in
         runtime?.operatorCommand(["method":"resume"]) { [weak server] result in
@@ -1042,18 +1015,12 @@ func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = [], excluding: Set<
 
 /// Byte transport only. Liveness and activation belong to the client runtime;
 /// EOF on either direction promptly closes the owning resident connection.
-func runAdmissionProxy(socketPath: String, trustedDesktop: Bool = false) throws {
+func runAdmissionProxy(socketPath: String) throws {
     let fd = try residentSocket(); defer { Darwin.close(fd) }
     var (address, length) = try unixAddress(socketPath)
     guard withSockAddr(&address, length:length, { Darwin.connect(fd, $0, $1) }) == 0 else { throw MacUIError.action("resident_unavailable") }
     var uid: uid_t = 0, gid: gid_t = 0
     guard getpeereid(fd, &uid, &gid) == 0, uid == getuid(), uid != 0 else { throw MacUIError.permission("same_user_resident_required") }
-    if trustedDesktop {
-        let integration = try VerifiedDesktopIntegration.yepAnywhere()
-        guard VerifiedDesktopIntegration.peer(fd, matches:integration.requirement) else {
-            throw MacUIError.permission("desktop_proxy_identity_denied")
-        }
-    }
     var timeout = timeval(tv_sec:5, tv_usec:0)
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue:timeout)))
     let parent = getppid()

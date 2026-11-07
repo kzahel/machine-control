@@ -434,6 +434,10 @@ not authenticated YA session delegation.
 
 ## Caller authentication gap
 
+**Current (2026-11-07):** the native YA delegation route described next was
+removed; [Tactical 161](../../docs/tactical/161-verified-callers.md) replaces
+it with an opt-in verified-caller mode on the ordinary socket.
+
 **Current, bounded `live-tested`:** native MC trust, authenticated signed YA
 origin, installed CLI routing and the full signed MC operator app pass ordinary
 independent effects, Pause/fresh Resume, Stop/restart and caller/lifecycle
@@ -1007,6 +1011,10 @@ operator cleanup before its active owner channel closed. See
 this does not qualify the revised locked takeover/resumption path.
 
 ## Native delegated ordinary control
+
+**Current (2026-11-07):** removed at operator request; see
+[Tactical 161](../../docs/tactical/161-verified-callers.md). The evidence
+below describes the retired route at tag `delegation-v1-final`.
 
 **Current (2026-10-04), bounded `live-tested`:** a signed YA native launch,
 credentialed session origin and installed signed MC CLI reached a conformance

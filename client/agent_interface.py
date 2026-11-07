@@ -187,16 +187,8 @@ Use it only where status reports protectedAdministration: true. Older
 scope-based resident channels cannot silently satisfy the unified v2 contract;
 update the resident instead.
 
-A trusted native desktop integration can bind a local control channel to
-its selected live agent process. The installed identity negotiates this
-capability; a proxy pathname or session label alone grants nothing. Use
-`control call` or the ControlSession SDK for delegated ordinary desktop work.
-A delegated Mac channel uses the same --prepared-console request to compose
-its trust with separately approved desktop consent and prepared locked-use
-control; trust alone cannot unlock or arm locked control.
 Pause preserves consent but ends current control; wait for a fresh session
-before new work and never replay an uncertain mutation. Closing the agent
-ends its delegated tasks, while separately approved MC access remains valid.
+before new work and never replay an uncertain mutation.
 
 MC access/arming never implies administrator authority. Native sudo is a
 separately advertised helper with OS authentication. Never request or pass a

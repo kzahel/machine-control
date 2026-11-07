@@ -3,7 +3,7 @@ import XCTest
 @testable import macui
 
 final class DesktopJournalTests: XCTestCase {
-    func testDelegationDiscoveryDoesNotWriteOrGrowAuditHistory() throws {
+    func testDiscoveryDoesNotWriteOrGrowAuditHistory() throws {
         let root = try temporary()
         let journal = DesktopJournal(root:root)
         func segments() throws -> [String:Data] {
@@ -13,8 +13,8 @@ final class DesktopJournalTests: XCTestCase {
         }
         let baseline = try segments()
         for _ in 0..<1000 {
-            XCTAssertTrue(journal.begin(["operation":"desktop.delegation.status"]))
-            XCTAssertTrue(journal.record(["operation":"desktop.delegation.status", "accepted":true]))
+            XCTAssertTrue(journal.begin(["operation":"status"]))
+            XCTAssertTrue(journal.record(["operation":"status", "accepted":true]))
         }
         XCTAssertEqual(try segments(), baseline)
         XCTAssertTrue(journal.begin(["operation":"grant.request", "requestId":"fixture"]))

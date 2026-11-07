@@ -448,29 +448,6 @@ fieldset.group {
   margin-inline: 0;
   min-width: 0;
 }
-.ya-row {
-  padding: 0 12px 8px;
-}
-.ya-row .scope {
-  min-height: 28px;
-}
-.badge {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #8a5a14;
-  background: #f6ecd9;
-  border-radius: 4px;
-  padding: 2px 5px;
-}
-.caveats {
-  margin: 2px 0 0 22px;
-  padding-left: 14px;
-}
-.caveats li + li {
-  margin-top: 2px;
-}
 .access-config .scope-list {
   display: grid;
   grid-template-columns: 1fr 1fr;

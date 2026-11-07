@@ -53,7 +53,6 @@ export type ControlRequest = {
   waitRemainingSeconds?: number;
   held?: boolean;
   caller?: string;
-  ownerAssurance?: string;
 };
 type Act = (command: Record<string, unknown>) => Promise<boolean>;
 type AccessPreferences = {
@@ -1050,10 +1049,7 @@ export function SurfaceActivity({
             <details className="task-details">
               <summary>Details</summary>
               <p className="note">
-                {request.caller ?? "Local process"} ·{" "}
-                {request.ownerAssurance === "verified_desktop_integration"
-                  ? "Verified desktop integration"
-                  : "Identity unverified"}
+                {request.caller ?? "Local process"} · Identity unverified
               </p>
             </details>
             <p className="note">

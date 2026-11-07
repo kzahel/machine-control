@@ -189,9 +189,8 @@ protected cleanup/relock, then release the target-use claim. Request
 every desktop platform. From a plain CLI or SDK caller it is an explicit
 request for the same covered owner a flagless plain Desktop owner receives; it
 adds no authority. It requires a Desktop-only owner and refuses at acceptance
-with `locked_use_disabled` when locked use is not enabled. A natively
-delegated channel keeps its prepared-console profile. Flagless plain owners
-remain accepted for compatibility.
+with `locked_use_disabled` when locked use is not enabled. Flagless plain
+owners remain accepted for compatibility.
 
 Disconnection or five seconds without a heartbeat ends the lease. Rediscover
 references after lock/unlock and completion. Use `macos-native` while covered;

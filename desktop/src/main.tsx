@@ -63,16 +63,8 @@ type State = {
       reason: string;
       noticeRemainingSeconds: number | null;
       maximumDurationSeconds: number;
-      ownerAssurance?: string;
       caller?: string;
     }[];
-  };
-  desktopCallerTrust?: {
-    supported: boolean;
-    enabled: boolean;
-    suspended: boolean;
-    storageInvalid: boolean;
-    scopes?: Scope[];
   };
   updates?: UpdateState;
   platform?: string;
@@ -214,7 +206,6 @@ function App() {
   );
   const [browserProfileIds, setBrowserProfileIds] = useState<string[]>(initialChoices?.browserProfileIds ?? []);
   const [pendingBrowserProfileIds, setPendingBrowserProfileIds] = useState<string[]>([]);
-  const [yaChoice, setYaChoice] = useState(false);
   const [pauseMenu, setPauseMenu] = useState(false);
   const [confirmUpdate, setConfirmUpdate] = useState(false);
   const [duration, setDuration] = useState(
@@ -407,10 +398,9 @@ function App() {
   const updateStopsAccess = !!grant || unifiedOn;
   const updateEndsTask =
     (state?.admission?.active ?? 0) > 0 || (state?.admission?.waiting ?? 0) > 0;
-  const trustedAccess = state?.desktopCallerTrust?.enabled === true;
   const availability = state?.deployment.availability;
   const blocks = availability?.blockingReasons ?? [];
-  const on = !!grant || trustedAccess || unifiedOn;
+  const on = !!grant || unifiedOn;
   // Physical activity only delays a waiting agent; these hold access itself.
   const paused =
     (on || standing) &&
@@ -424,29 +414,15 @@ function App() {
     );
   const agentWaiting =
     on && !paused && (state?.admission?.waiting ?? 0) > 0 && blocks.length > 0;
-  const trustSupported =
-    mac && !standing && state?.desktopCallerTrust?.supported === true;
-  // Experimental: verified YepAnywhere desktop sessions under separate trust.
-  const yaOnly = grant ? false : trustedAccess || (trustSupported && yaChoice);
-  const trustScopes: Scope[] = ["observe", "control"];
-  const shownScopes = grant
-    ? grant.scopes
-    : trustedAccess
-      ? (state?.desktopCallerTrust?.scopes ?? trustScopes)
-      : scopes;
-  const armScopes = yaOnly
-    ? scopes.filter((s) => trustScopes.includes(s))
-    : scopes;
+  const shownScopes = grant ? grant.scopes : scopes;
   const lockedOff = "Turn access off to change this";
   const switchReason = standing
     ? "Managed by appliance policy"
     : on
       ? "Turn access off"
-      : armScopes.length === 0
+      : scopes.length === 0
         ? "Choose at least one permission"
-        : yaOnly && state?.admission?.active
-          ? "Wait for the current agent to finish"
-          : "Turn access on";
+        : "Turn access on";
   const lockedUse =
     (mac || windows) && !standing && (unifiedPolicy || state?.deployment.policy.grantMode === "approval")
       ? state.lockedUse
@@ -480,11 +456,8 @@ function App() {
             grant.lifetime === "until_stopped"
               ? "until you turn it off"
               : `${Math.ceil((grant.remainingSeconds ?? 0) / 60)} min left`,
-            ...(trustedAccess ? ["plus YepAnywhere sessions"] : []),
           ].join(" · ")
-        : trustedAccess
-          ? "YepAnywhere app only (experimental) · until you turn it off"
-          : "";
+        : "";
   const ready =
     state?.permissions.accessibility && state?.permissions.screenRecording;
   const selected = (values: Scope[], setter: (v: Scope[]) => void, s: Scope) =>
@@ -497,11 +470,7 @@ function App() {
       <main className="control-notice" aria-live="polite">
         <h2>Computer control is about to start</h2>
         <p>{request?.reason ?? "Waiting for the current request…"}</p>
-        <p className="note">
-          {request?.ownerAssurance === "verified_desktop_integration"
-            ? "Verified YepAnywhere session"
-            : "Same-user caller; identity unverified."}
-        </p>
+        <p className="note">Same-user caller; identity unverified.</p>
         {request && (
           <p>
             Starts in {Math.ceil(request.noticeRemainingSeconds ?? 0)}s ·
@@ -714,28 +683,21 @@ function App() {
                     !state ||
                     standing ||
                     (!on &&
-                      (armScopes.length === 0 ||
-                        (!!state.browser.profileSelectionSupported && armScopes.some(scope => scope === "browser" || scope === "devtools") && (!browserProfileIds.length || !browserProfileIds.every(id => state.browser.profiles?.some(profile => profile.profileId === id && profile.enabled)))) ||
-                        (yaOnly && !!state.admission?.active)))
+                      (scopes.length === 0 ||
+                        (!!state.browser.profileSelectionSupported && scopes.some(scope => scope === "browser" || scope === "devtools") && (!browserProfileIds.length || !browserProfileIds.every(id => state.browser.profiles?.some(profile => profile.profileId === id && profile.enabled))))))
                   }
                   onClick={() =>
                     void act(
                       on
                         ? { method: "stop" }
-                        : yaOnly
-                          ? {
-                              method: "desktop_caller_trust",
-                              enabled: true,
-                              scopes: armScopes,
-                            }
-                          : {
-                              method: "arm",
-                              scopes: armScopes,
-                              browserProfileIds,
-                              duration,
-                              lifetime:
-                                duration === 0 ? "until_stopped" : "timed",
-                            },
+                        : {
+                            method: "arm",
+                            scopes,
+                            browserProfileIds,
+                            duration,
+                            lifetime:
+                              duration === 0 ? "until_stopped" : "timed",
+                          },
                     )
                   }
                 >
@@ -800,23 +762,15 @@ function App() {
                 {profilePicker(scopes, browserProfileIds, setBrowserProfileIds, true)}
                 <div className="scope-list">
                   {availableScopes.map((s) => {
-                    const unavailable = yaOnly && !trustScopes.includes(s);
                     return (
                       <label
                         className="scope"
                         key={s}
-                        title={
-                          on
-                            ? lockedOff
-                            : unavailable
-                              ? "Not available with YepAnywhere-only access"
-                              : undefined
-                        }
+                        title={on ? lockedOff : undefined}
                       >
                         <input
                           type="checkbox"
-                          checked={!unavailable && shownScopes.includes(s)}
-                          disabled={unavailable}
+                          checked={shownScopes.includes(s)}
                           onChange={() =>
                             rememberChoices(
                               scopes.includes(s)
@@ -850,9 +804,7 @@ function App() {
                             ? windows
                               ? "Requires Windows 10 version 2004 or later and one display"
                               : "Requires macOS 14 or later"
-                            : yaOnly
-                              ? "Not available with YepAnywhere-only access"
-                              : state?.pending
+                            : state?.pending
                                 ? "Answer the pending request first"
                                 : lockedUse.enabled
                                   ? undefined
@@ -867,10 +819,9 @@ function App() {
                     >
                       <input
                         type="checkbox"
-                        checked={lockedUse.enabled && !yaOnly}
+                        checked={lockedUse.enabled}
                         disabled={
                           busy ||
-                          yaOnly ||
                           !lockedUse.supported ||
                           (!lockedUse.enabled &&
                             (!lockedUse.permissionReady ||
@@ -893,9 +844,7 @@ function App() {
                         ? windows
                           ? "Requires one display and active desktop composition"
                           : "Requires macOS 14 or later"
-                        : yaOnly
-                          ? "Not with YepAnywhere-only"
-                          : lockedUse.setupState === "approval"
+                        : lockedUse.setupState === "approval"
                             ? "Approve in System Settings"
                             : lockedUse.setupState === "capture"
                               ? "Approve the screen capture prompt"
@@ -913,7 +862,6 @@ function App() {
                         (windows &&
                           lockedUse.credentialSource !==
                             "service_enrolled_password")) &&
-                      !yaOnly &&
                       ["idle", "approval"].includes(lockedUse.setupState) && (
                         <button
                           aria-label={
@@ -944,7 +892,7 @@ function App() {
                       )}
                   </div>
                 )}
-                {lockedUse?.setupError && !yaOnly && (
+                {lockedUse?.setupError && (
                   <p className="note group-note">{lockedUse.setupError}</p>
                 )}
                 {windows && lockedUse && (
@@ -995,87 +943,44 @@ function App() {
                       </button>
                     </div>
                   )}
-                {trustSupported && (
-                  <div className="ya-row">
-                    <label className="scope" title={on ? lockedOff : undefined}>
-                      <input
-                        type="checkbox"
-                        aria-label="Only the YepAnywhere app (experimental)"
-                        checked={yaOnly}
-                        onChange={(e) => setYaChoice(e.target.checked)}
-                      />
-                      Only the YepAnywhere app
-                      <span className="badge">Experimental</span>
-                    </label>
-                    {yaOnly && (
-                      <ul className="note caveats">
-                        <li>
-                          Only agents started by the YepAnywhere desktop app in
-                          /Applications. Not the YepAnywhere CLI or other
-                          servers.
-                        </li>
-                        <li>
-                          View and control the unlocked screen only. No browser
-                          access or locked-screen use.
-                        </li>
-                        <li>
-                          No time limit: stays on until you turn access off.
-                        </li>
-                        <li>
-                          Restart YepAnywhere sessions after changing this.
-                        </li>
-                      </ul>
-                    )}
-                  </div>
-                )}
                 {!on && (
                   <div className="group-footer">
-                    {yaOnly ? (
-                      <span className="note">Until you turn access off</span>
-                    ) : (
-                      <label className="duration">
-                        For
-                        <select
-                          aria-label="Access duration"
-                          value={duration}
-                          onChange={(e) =>
-                            rememberChoices(scopes, Number(e.target.value))
-                          }
-                        >
-                          <option value={60}>1 minute</option>
-                          <option value={300}>5 minutes</option>
-                          <option value={900}>15 minutes</option>
-                          <option value={1800}>30 minutes</option>
-                          <option value={3600}>1 hour</option>
-                          {duration !== 0 &&
-                            ![60, 300, 900, 1800, 3600].includes(duration) && (
-                              <option value={duration}>
-                                {duration % 3600 === 0
-                                  ? `${duration / 3600} hours`
-                                  : `${duration} seconds`}
-                              </option>
-                            )}
-                          {state?.manualUntilStoppedSupported && (
-                            <option value={0}>Until I turn it off</option>
+                    <label className="duration">
+                      For
+                      <select
+                        aria-label="Access duration"
+                        value={duration}
+                        onChange={(e) =>
+                          rememberChoices(scopes, Number(e.target.value))
+                        }
+                      >
+                        <option value={60}>1 minute</option>
+                        <option value={300}>5 minutes</option>
+                        <option value={900}>15 minutes</option>
+                        <option value={1800}>30 minutes</option>
+                        <option value={3600}>1 hour</option>
+                        {duration !== 0 &&
+                          ![60, 300, 900, 1800, 3600].includes(duration) && (
+                            <option value={duration}>
+                              {duration % 3600 === 0
+                                ? `${duration / 3600} hours`
+                                : `${duration} seconds`}
+                            </option>
                           )}
-                        </select>
-                      </label>
-                    )}
+                        {state?.manualUntilStoppedSupported && (
+                          <option value={0}>Until I turn it off</option>
+                        )}
+                      </select>
+                    </label>
                   </div>
                 )}
               </fieldset>
             )}
-            {!standing && (on || !yaOnly) && (
+            {!standing && (
               <p className="note">
                 {on
                   ? "Turn access off to change these."
                   : "Any agent or script running as your user can use this access."}
-              </p>
-            )}
-            {state?.desktopCallerTrust?.storageInvalid && (
-              <p className="note">
-                YepAnywhere trust storage needs attention. YepAnywhere access is
-                blocked.
               </p>
             )}
             {state && !ready && (

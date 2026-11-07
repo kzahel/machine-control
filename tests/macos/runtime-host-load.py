@@ -107,7 +107,7 @@ def main():
         raise AssertionError("Status did not recover")
 
     def worker(index):
-        operations = ["grant.status", "status", "desktop.delegation.status", "grant.status"]
+        operations = ["grant.status", "status", "capabilities", "grant.status"]
         iteration = index
         while not stop.is_set():
             operation = operations[iteration % len(operations)]

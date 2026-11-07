@@ -99,10 +99,6 @@
           "const": true,
           "description": "Request a locked-console Desktop owner (Desktop surface only)."
         },
-        "desktopDelegation": {
-          "type": "object",
-          "description": "macOS native delegation; see desktop-delegation-v1."
-        },
         "outerRecovery": {
           "type": "object",
           "description": "macOS borrowed outer recovery; see outer-borrow-v1."

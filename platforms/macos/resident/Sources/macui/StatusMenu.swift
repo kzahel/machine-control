@@ -13,7 +13,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     var onRevoke: ((String) -> Void)?
     var onResume: (() throws -> Void)?
     var onResumeSurface: ((String) throws -> Void)?
-    var trustedAccess: () -> Bool = { false }
     var onConfigure: ((String, String, Int?, [String]) throws -> Void)?
     var browserProfiles: () -> [[String:Any]] = { [] }
     private var chosenProfiles = Set<String>()
