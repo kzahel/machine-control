@@ -240,7 +240,11 @@ class ControlSession:
         if isinstance(reply, BaseException):
             raise reply
         if reply["accepted"] is not True:
-            raise mc.ClientError(reply.get("errorCode") or "control_refused", "Control request refused")
+            # Typed refusal data, such as caller_not_verified's callerHost,
+            # stays visible to the caller; the request is never replayed.
+            data = reply.get("data")
+            raise mc.ClientError(reply.get("errorCode") or "control_refused", "Control request refused",
+                                 data=data if isinstance(data, dict) else None)
         return reply.get("data")
 
     def _keepalive(self):

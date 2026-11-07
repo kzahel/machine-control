@@ -41,6 +41,11 @@ for line in sys.stdin.buffer:
     if mode == "malformed":
         print('{"schema":"obsolete"}', flush=True)
         break
+    if operation == "control.open" and mode == "caller-not-verified":
+        print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=False,
+            errorCode="caller_not_verified", data={"reason":"unapproved_host", "approvalPrompt":"presented",
+            "callerHost":{"name":"Agent", "publisher":"Example Inc", "approvable":True}})), flush=True)
+        break
     if operation == "control.open" and mode in {"paused", "outer-paused"}:
         state = "paused"
     elif operation == "control.open" and mode == "renewable-clock":

@@ -31,6 +31,15 @@ class ControlSessionTests(unittest.TestCase):
         self.assertNotIn('browser.click',events)
         self.assertNotIn('effect',events)
 
+    def test_caller_verification_refusal_keeps_its_host_data(self):
+        with self.assertRaises(mc.ClientError) as error:
+            with self.session("caller-not-verified") as owner:
+                owner.wait()
+        self.assertEqual(error.exception.code, "caller_not_verified")
+        self.assertEqual(error.exception.data["callerHost"]["name"], "Agent")
+        self.assertTrue(error.exception.data["callerHost"]["approvable"])
+        self.assertEqual(self.record.read_text().splitlines().count("control.open"), 1)
+
     def test_explicit_profile_refuses_legacy_resident_before_action(self):
         with self.session() as owner:
             owner.wait()
