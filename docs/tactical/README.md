@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [160 — Windows prepared-owner renewal](160-windows-prepared-owner-renewal.md)
+  (active): lift the 900-second ceiling on Windows locked tasks with
+  acknowledged guardian/service extensions.
+
 - [159 — Platform contract alignment](159-platform-contract-alignment.md)
   (active): repair accidental macOS/Windows/Linux divergences in the agent
   surface and verify each on its dedicated VM.
