@@ -95,7 +95,8 @@ schema, so nothing enforces a common shape.
 These are not repair items; each has a recorded decision or OS constraint:
 
 - Delegation and outer recovery are macOS-only (Tactical 086/087).
-- Windows prepared owners do not renew yet.
+- Windows prepared owners did not renew yet; Tactical 160 has since added
+  acknowledged renewal.
 - Linux has no unlock or locked use.
 - Windows credentials use DPAPI enrollment, while macOS uses a password-free
   authorization plug-in.

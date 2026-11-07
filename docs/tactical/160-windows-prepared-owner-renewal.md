@@ -6,7 +6,8 @@ Related: [Tactical 144](144-renewable-control-owners.md) (macOS renewal),
 [Tactical 159](159-platform-contract-alignment.md),
 [Tactical 134](134-windows-native-unlock-enrollment.md) (enrollment).
 
-Status: **active.**
+Status: **complete** for the source runtime on the enrolled Windows VM; signed
+package qualification is separate.
 
 ## Objective
 
@@ -82,4 +83,45 @@ Three independent fixed 900-second bounds end every prepared task:
 
 ## Result
 
-Pending.
+**Current (2026-11-07):** `31aef6e` implements the design in all three layers.
+- The resident commits renewal only after the guardian acknowledges it.
+  Without an acknowledgement within 5 seconds it refuses with
+  `control_renewal_unavailable`, and the original deadline stands.
+- The service's 900-second watch and its 920-second connection timeout move
+  only on acknowledgement.
+- The guardian's deadline only moves forward, never once ending or expired.
+  An invalid extension exits with reason 12, `extension_invalid`.
+- Views carry `renewal` only after the guardian reports support at start.
+
+`WindowsDesktop.Contracts` passes, `WindowsUnlock.Contracts` and full
+`dotnet format --verify-no-changes` pass natively on Windows, and the ARM64 and
+x64 publishes pass.
+
+Live on the enrolled `windows` VM, with a source runtime and a matching
+protected helper; enrollment was preserved by cancelling the update prompt
+with its hashes unchanged:
+
+- **Renewal:** one `control stream --prepared-console --duration 5m` owner
+  unlocked at acceptance (independent session-lock read) and renewed 5 times,
+  about every 200 seconds. WinForms fixture effects at 10, 300, 850, 965 and
+  1,000 seconds all read back from the fixture's own file, with the console
+  unlocked at 965 and 1,000 seconds. The guardian ran about 1,016 seconds.
+  The console relocked about 6 seconds after stdin closed.
+- **Guard failure:** suspending the resident broke the guard pipe. The next
+  dispatch refused with `locked_use_guard_failed`, and the console relocked
+  within about 7 seconds. Desktop stayed Automatic, locked use returned to
+  `ready`, and a fresh prepared task unlocked, acted and relocked.
+- **Conformance:** the runner passed 7/7 on the locked desktop profile.
+
+**Not live:**
+- The renewal-refusal cell needs a test-only guardian hook to withhold an
+  acknowledgement, so it is covered by contract tests only.
+
+**Open follow-ups:**
+- The first prepared owner after a fresh resident start once failed with
+  `enrolled_unlock_refused`. A guard-pipe reply exceeded the service's
+  2-second timeout before any credential was read. Later owners succeeded.
+  This may be the flakiness recorded in Tactical 134.
+- Code review suggests the resident may hold the relock barrier
+  indefinitely if the service or guardian dies without reporting completion.
+  This is unverified.

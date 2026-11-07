@@ -440,8 +440,10 @@ and prompt cleanup; this is client evidence, not new native/package acceptance.
 **Current, Windows v2 source:** ordinary owners can explicitly renew their
 finite lease and task deadline on the same connection, preserving the owner
 and generations under the original consent. Heartbeats and resumed waits do
-not renew. Prepared Windows owners refuse renewal until the separate native
-guardian can acknowledge it.
+not renew. Prepared Windows owners renew only after the protected service and
+relock guardian acknowledge each finite extension; [Tactical 160](../docs/tactical/160-windows-prepared-owner-renewal.md)
+records a live owner renewed five times to about 1,016 seconds, with
+independent effects and relock.
 
 **Current, unreleased Mac source:** typed same-connection renewal pins the grant
 and its monotonic ceiling and requires protected acknowledgements. Existing

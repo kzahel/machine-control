@@ -177,8 +177,8 @@ Desktop owner with `control stream|call --surface desktop --prepared-console`
 Windows. Once accepted, the console is unlocked behind covers and relocks when
 the owner ends; no separate unlock request is needed. Keep the task owner
 alive; closing, expiry or a safety failure triggers native cleanup/relock.
-Windows prepared owners do not renew yet, so keep each task within 900
-seconds. Linux has no locked use and refuses with locked_use_unsupported.
+Prepared owners renew automatically on macOS and Windows, so a long locked
+task needs no new owner. Linux has no locked use and refuses with locked_use_unsupported.
 Report setup refusals such as locked_use_disabled, prepared_console_unavailable
 or desktop_unavailable to the operator; do not work around them. macOS still
 accepts a flagless owner on a locked console for older clients. On macOS,

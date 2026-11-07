@@ -6,8 +6,7 @@ Owning topics: [access-admission-and-pause](../../topics/access-admission-and-pa
 [windows-resident-control](../../topics/windows-resident-control.md),
 [linux-resident-control](../../topics/linux-resident-control.md).
 
-Status: **complete except the Windows enrolled unlock and guard-failure cells,
-which await protected-helper enrollment on the VM.**
+Status: **complete.** The Windows enrolled cells passed under Tactical 160.
 
 ## Objective
 
@@ -197,10 +196,12 @@ Live on the `windows` VM:
 - Locked-console refusals matched decision 2.
 - Doctor reported `locked` and `unlocked`.
 
-**Open:** unlock at `control.accept` and guard-failure retention are covered by
-contract tests only. The VM's protected helper must match the source runtime.
-That needs native re-enrollment, and the Tactical 134 enrollment harness has
-not completed acceptance there.
+**Current (2026-11-07):** both enrolled cells pass live under
+[Tactical 160](160-windows-prepared-owner-renewal.md#result):
+- A prepared owner started locked unlocked at `control.accept`.
+- A broken guard pipe ended the task with `locked_use_guard_failed`; the
+  console relocked within about 7 seconds. Desktop stayed Automatic and a
+  fresh prepared task worked.
 
 ### Linux
 
@@ -270,7 +271,8 @@ contract; use one `control stream` for related steps.
 - macOS keeps `grantMode: "surface_modes"` because live harnesses rely on it.
 - An appliance policy with `protectedOperations: false` therefore looks like a
   workstation to the desktop UI. This is a recorded open edge.
-- Windows prepared owners still do not renew.
+- Windows prepared-owner renewal moved to Tactical 160, where it is now
+  implemented.
 - Plain Windows owners without the flag still refuse on a locked console,
   because that route uses a stored credential.
 

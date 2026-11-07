@@ -75,8 +75,9 @@ retain finite behavior. Keep the target claim renewed separately, or use a
 Ordinary Windows v2 owners support same-connection `renew()`, retaining their
 session/generation fence under the original consent.
 Only renewal can extend the finite task deadline; heartbeat and resumption
-cannot. Prepared Windows owners do not advertise renewal because their native
-guardian has a separate hard deadline. The Mac adapter supports protected
+cannot. Prepared Windows owners advertise renewal only once their native
+guardian reports support. Each extension is acknowledged by the protected
+service and guardian before it commits (Tactical 160). The Mac adapter supports protected
 renewal when its actual helper acknowledges it. Earlier Mac v1 sustained
 renewal evidence is in [Tactical 144](tactical/144-renewable-control-owners.md);
 v2 native adoption and its qualification limits are in
