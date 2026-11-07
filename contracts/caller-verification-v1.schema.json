@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "caller-verification-v1.schema.json",
+  "title": "Only verified callers status and refusal (v1)",
+  "description": "`status.data.callerVerification` and the `data` of a `caller_not_verified` refusal (Tactical 161). The mode is opt-in and changed only from the native operator surface. It is a picket fence against callers that were not started from an operator-approved app, not same-user containment. Platforms without an implementation report supported=false and mode off.",
+  "$ref": "#/$defs/status",
+  "$defs": {
+    "status": {
+      "type": "object",
+      "required": ["mode", "supported", "approvedHosts", "limits"],
+      "properties": {
+        "schema": {"const": "machine-control-caller-verification/v1"},
+        "mode": {"enum": ["off", "verified_only"]},
+        "supported": {
+          "type": "boolean",
+          "description": "Whether this build and platform can verify callers. A source or ad-hoc build reports false with unsupportedReason."
+        },
+        "unsupportedReason": {
+          "type": "string",
+          "examples": ["development_signature", "unbundled_build", "storage_unavailable", "platform_unsupported"]
+        },
+        "storageInvalid": {
+          "const": true,
+          "description": "The saved choice could not be trusted; the resident enforces verified_only until the operator changes it."
+        },
+        "approvedHosts": {
+          "type": "array",
+          "maxItems": 64,
+          "description": "Display labels only, never requirements or signing identifiers.",
+          "items": {"$ref": "#/$defs/hostLabel"}
+        },
+        "limits": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Always includes same_user_not_contained.",
+          "items": {"type": "string"}
+        },
+        "discoveryOperations": {
+          "type": "array",
+          "description": "Operations that remain available to unverified callers so they can diagnose a refusal.",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "hostLabel": {
+      "type": "object",
+      "required": ["name", "publisher"],
+      "properties": {
+        "name": {"type": "string", "maxLength": 80},
+        "publisher": {"type": "string", "maxLength": 80}
+      }
+    },
+    "refusal": {
+      "type": "object",
+      "description": "data of a result or admission-channel reply whose errorCode is caller_not_verified.",
+      "required": ["reason", "callerHost"],
+      "properties": {
+        "reason": {
+          "enum": ["unapproved_host", "unsigned_host", "detached", "peer_not_machine_control",
+                   "ancestry_too_deep", "process_changed", "verification_unsupported",
+                   "verification_timeout", "verification_busy", "resident_stopping"]
+        },
+        "callerHost": {
+          "oneOf": [
+            {"type": "null", "description": "No host app was found, for example a detached background process."},
+            {
+              "type": "object",
+              "required": ["name", "publisher", "approvable"],
+              "properties": {
+                "name": {"type": "string", "maxLength": 80},
+                "publisher": {"type": "string", "maxLength": 80},
+                "approvable": {"type": "boolean"}
+              }
+            }
+          ]
+        },
+        "approvalPrompt": {
+          "enum": ["presented", "pending", "recently_declined", "unavailable"],
+          "description": "For an approvable host: whether a native Allow prompt is on the operator's screen. The refused request is never replayed."
+        },
+        "callerVerification": {"$ref": "#/$defs/status"}
+      }
+    }
+  }
+}

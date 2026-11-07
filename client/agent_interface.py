@@ -120,6 +120,16 @@ Inspect status/capabilities and the independent Desktop/Browser modes:
   machine-control --target host --claim CLAIM_ID desktop capabilities
   machine-control --target host --claim CLAIM_ID browser profiles
 
+If a request refuses with caller_not_verified, the operator turned on Only
+verified callers: Machine Control accepts only callers started from an app
+the operator approved. Status, capabilities and browser profiles still work.
+Read data.callerHost and data.reason. When callerHost.approvable is true, ask
+the operator to approve that app (name and publisher) in the Machine Control
+prompt or Settings, then retry once; the refused request was not run and is
+never replayed. Processes detached from an app (launchd jobs, cron, daemons,
+or a child whose app exited), unsigned apps and clients other than Machine
+Control's own cannot pass. Do not work around the refusal.
+
 An operator chooses Off, Ask first or Automatic for each surface in Settings.
 Off refuses quietly. Ask first requests approval for one task. Automatic warns
 before disruptive use and then starts unless the operator defers. Browser

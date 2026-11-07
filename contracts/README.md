@@ -106,3 +106,9 @@ The [live admission channel schema](access-admission-channel-v1.schema.json) and
   `deployment.policy.protectedAdministration` and a common locked-use `phase`.
   `tests/conformance/platform_contract.py` checks a claimed target against
   these contracts through the ordinary CLI (Tactical 159).
+- [Caller verification v1](caller-verification-v1.schema.json) describes the
+  opt-in Only verified callers mode: `status.data.callerVerification` and the
+  `data` of a `caller_not_verified` refusal (Tactical 161). Status names
+  approved apps by display name and publisher only. The mode is a picket fence
+  against callers not started from an approved app, never same-user
+  containment; platforms without it report `supported: false`.

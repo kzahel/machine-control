@@ -2343,7 +2343,13 @@ APPLICATION_TARGET = (
 )
 
 DESKTOP_USAGE = {
-    "status": "desktop status\n  Resident, session, lock-screen, grant and readiness state.",
+    "status": (
+        "desktop status\n  Resident, session, lock-screen, grant and readiness state.\n"
+        "  data.callerVerification reports Only verified callers (macOS). With it\n"
+        "  on, other requests from a caller not started from an approved app\n"
+        "  refuse caller_not_verified; status and capabilities still work. Ask\n"
+        "  the operator to approve data.callerHost when it is approvable."
+    ),
     "capabilities": "desktop capabilities\n  Operations, routes, fidelity and privilege this target supports.",
     "applications": "desktop applications\n  Running applications with names, application IDs and pids.",
     "windows": "desktop windows [--target APP]\n  Top-level windows, optionally for one application.\n  "
@@ -4082,6 +4088,7 @@ Commands:
   control stream --reason TEXT [--surface desktop|browser] [--prepared-console]
                                     JSON lines; one live owner
   control frames                    Diagnostic: raw channel frames from stdin
+                                    caller_not_verified: see agent instructions
   mcp [--reason TEXT] [--observe action|explicit]
                                     Candidate persistent Python MCP session
   desktop status|capabilities|applications|windows|snapshot|action|capture

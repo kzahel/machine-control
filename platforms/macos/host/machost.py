@@ -144,6 +144,20 @@ def doctor() -> int:
         }.items():
             if isinstance(data.get(name), dict):
                 extensions[name] = {key:data[name][key] for key in fields if key in data[name]}
+        verification = data.get("callerVerification")
+        if isinstance(verification, dict):
+            # Display labels only; refusals and status never carry requirements.
+            extensions["callerVerification"] = {key: verification[key] for key in
+                ("mode", "supported", "unsupportedReason", "storageInvalid", "approvedHosts", "limits")
+                if key in verification}
+            if isinstance(verification.get("approvedHosts"), list):
+                extensions["callerVerification"]["approvedHosts"] = [
+                    {key: host.get(key) for key in ("name", "publisher")}
+                    for host in verification["approvedHosts"] if isinstance(host, dict)]
+            if verification.get("mode") == "verified_only":
+                checks.append({"id": "caller_verification", "status": "pass",
+                               "summary": "Only verified callers is on; requests must come from an app the operator "
+                                          "approved, and other callers refuse with caller_not_verified"})
         locked_use = extensions.get("lockedUse", {})
         if locked_use.get("enabled") or locked_use.get("phase") in {"paused", "recovering"}:
             checks.append({"id":"locked_use", "status":"pass" if locked_use.get("phase") == "ready" else "warn",

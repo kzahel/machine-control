@@ -21,6 +21,9 @@
     },
     "lockedUse": {
       "$ref": "locked-use-status-v1.schema.json"
+    },
+    "callerVerification": {
+      "$ref": "caller-verification-v1.schema.json"
     }
   }
 }
