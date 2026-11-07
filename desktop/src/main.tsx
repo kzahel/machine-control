@@ -126,6 +126,18 @@ type State = {
     enabled: boolean;
     active: boolean;
   };
+  callerVerification?: {
+    mode: "off" | "verified_only";
+    supported: boolean;
+    unsupportedReason?: string;
+    storageInvalid?: boolean;
+    approvedHosts: {
+      teamId: string;
+      identifier: string;
+      name: string;
+      publisher: string;
+    }[];
+  };
   uac?: {
     installed: boolean;
     enabled: boolean;
@@ -1641,6 +1653,84 @@ function App() {
                   locked. Desktop control and new approvals still require
                   unlocking. Pause, Stop and expiry still apply.
                 </p>
+              </section>
+            )}
+            {mac && state?.callerVerification && (
+              <section className="group" aria-label="Verified callers">
+                <h2 className="group-title">Callers</h2>
+                <label
+                  className="scope"
+                  title={
+                    !state.callerVerification.supported &&
+                    state.callerVerification.mode === "off"
+                      ? "Requires the signed Machine Control app"
+                      : undefined
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    aria-label="Only verified callers"
+                    checked={state.callerVerification.mode === "verified_only"}
+                    disabled={
+                      busy ||
+                      !!update?.installing ||
+                      (!state.callerVerification.supported &&
+                        state.callerVerification.mode === "off")
+                    }
+                    onChange={(event) =>
+                      void act({
+                        method: "caller_verification",
+                        enabled: event.target.checked,
+                      })
+                    }
+                  />
+                  Only verified callers
+                </label>
+                <p className="note group-note">
+                  Machine Control accepts requests only from programs started
+                  by an app you approve. The first time another signed app
+                  asks, you choose whether to allow it. Background jobs and
+                  unsigned apps are refused. This is not a sandbox: anything
+                  an approved app runs can use Machine Control.
+                </p>
+                {state.callerVerification.storageInvalid && (
+                  <p className="note group-note">
+                    The saved choice could not be read, so only verified
+                    callers are allowed. Turn this off to reset it.
+                  </p>
+                )}
+                {!state.callerVerification.supported && (
+                  <p className="note group-note">
+                    Unavailable in this build
+                    {state.callerVerification.unsupportedReason
+                      ? ` (${state.callerVerification.unsupportedReason})`
+                      : ""}
+                    .
+                  </p>
+                )}
+                {state.callerVerification.approvedHosts.map((host) => (
+                  <div
+                    className="setting-row"
+                    key={`${host.teamId}/${host.identifier}`}
+                  >
+                    <span className="row-label">
+                      {host.name} · {host.publisher}
+                    </span>
+                    <button
+                      aria-label={`Remove ${host.name}`}
+                      disabled={busy}
+                      onClick={() =>
+                        void act({
+                          method: "caller_verification.remove",
+                          teamId: host.teamId,
+                          identifier: host.identifier,
+                        })
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </section>
             )}
             {!unifiedPolicy && state?.controlPolicy?.supported && (
