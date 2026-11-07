@@ -6,8 +6,8 @@ Owning topics: [access-admission-and-pause](../../topics/access-admission-and-pa
 [windows-resident-control](../../topics/windows-resident-control.md),
 [linux-resident-control](../../topics/linux-resident-control.md).
 
-Status: **active — repairs committed; platform VM verification complete except
-the Windows enrolled unlock/guard cells; client VM pass in progress.**
+Status: **complete except the Windows enrolled unlock and guard-failure cells,
+which await protected-helper enrollment on the VM.**
 
 ## Objective
 
@@ -225,7 +225,45 @@ Commits: `a23d972` `browser --profile`, `53a9794` key names and grant
 guidance, `303af1c` one locked route in the instructions and help, `ca234d0`
 owner-ended reason, dash arguments and the `consoleUnlock` view.
 
-343 client tests pass. Live client checks are in progress.
+345 client tests pass. Live on the VMs:
+- Key translation works on all three platforms: Windows `control+a`,
+  `cmd+r`→`win+r` (the Run dialog opened, not Ctrl) and `esc`; Linux
+  `escape`, `ctrl+Return` and `cmd` (GNOME Overview); macOS `Command+A` and
+  `return`.
+- Dash-prefixed `--argument` values reach Windows programs.
+- `controlOwner` reports `audit_storage_unavailable` after an audit
+  write-deny. The first attempt failed because the resident ends the owner
+  about 0.5 seconds after replying; `8173b95` bounds the recheck.
+- On a locked Windows desktop profile, `--prepared-console` without
+  enrollment refuses `prepared_console_unavailable`, and a plain owner
+  refuses `prepared_console_required`.
+- `browser --profile` now reaches the resident's profile check. The success
+  path was skipped because no VM has a connected, approved browser profile.
+
+### Follow-up repairs found during verification
+
+- `c7bcf9d`: the Linux desktop relay dropped a reply sent just before the
+  resident closed, so CLI `--prepared-console` showed
+  `control_transport_closed`. After the fix: `locked_use_unsupported` 12/12
+  live, and the new relay test fails on the old relay.
+- `002decf`: the Linux resident closed policy owners it never opened. Each
+  connection close logged an `admission_owner_mismatch` traceback; 11 before,
+  0 after.
+- `9ad0c4a`: Windows targeted typing into Notepad garbled text. This was not
+  caused by activation. Notepad spell check combined with `VK_PACKET`
+  Unicode input loses characters at word boundaries. Layout-typeable
+  characters are now sent as real keystrokes, and the route is reported in
+  `data.textInput`. Targeted Notepad errors went from 5/19 to 0/20, and the
+  WinForms fixture had 0 errors throughout. Notepad still drops an occasional
+  untargeted keystroke (about 3%), recorded in
+  `platforms/windows/docs/problems.md`.
+- `6221e35`: non-ASCII text arrived garbled at Windows residents because
+  requests carried raw UTF-8 through adapter argv. Requests are now
+  ASCII-escaped JSON. "Ab café €5! naïve ✓" read back exactly 5/5.
+
+One-shot `desktop snapshot` references are stale in a later one-shot
+`desktop action` on macOS. This is the documented owner-scoped reference
+contract; use one `control stream` for related steps.
 
 ### Decided, not changed
 
