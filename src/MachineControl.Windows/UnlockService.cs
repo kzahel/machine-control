@@ -49,6 +49,13 @@ internal sealed class UnlockProgress
     public string? WorkerFailure { get; set; }
     public int? NativeError { get; set; }
     public int? GuardianExitCode { get; set; }
+    /// The connection bound; an acknowledged guardian extension moves it.
+    public CancellationTokenSource? Lifetime { get; set; }
+    public void Extend(TimeSpan remaining)
+    {
+        try { Lifetime?.CancelAfter(remaining + TimeSpan.FromSeconds(20)); }
+        catch (ObjectDisposedException) { }
+    }
 }
 
 internal sealed class UnlockService(string instance)
@@ -93,7 +100,7 @@ internal sealed class UnlockService(string instance)
             await using var owned = pipe;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
             timeout.CancelAfter(TimeSpan.FromSeconds(instance == DesktopLockedUse.Instance ? 920 : 70));
-            var progress = new UnlockProgress();
+            var progress = new UnlockProgress { Lifetime = timeout };
             try { await HandleAsync(pipe, progress, timeout.Token); }
             catch (Exception error)
             {
@@ -167,7 +174,7 @@ internal sealed class UnlockService(string instance)
     private async Task HandleUnlockAsync(NamedPipeServerStream pipe, UnlockHello hello, UnlockProgress progress, CancellationToken stop)
     {
         var desktop = instance == DesktopLockedUse.Instance;
-        await using var control = desktop ? await DesktopUnlockControl.CreateAsync(pipe, hello, stop, code => progress.GuardianExitCode = code) : null;
+        await using var control = desktop ? await DesktopUnlockControl.CreateAsync(pipe, hello, stop, code => progress.GuardianExitCode = code, progress.Extend) : null;
         UnlockGrant grant;
         try { grant = UnlockPolicy.Read(instance); }
         catch (Exception)

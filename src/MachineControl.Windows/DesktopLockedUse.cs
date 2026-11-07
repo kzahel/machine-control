@@ -8,7 +8,7 @@ namespace MachineControl.Windows;
 /// The ordinary resident owns consent and task admission. Its SYSTEM-only
 /// callback retains live owner authority. The broker independently requires
 /// native enrollment or an approved controller plus stock field discovery.
-internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken stop)
+internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken stop) : IPreparedRenewal
 {
     private Lease? _lease;
     internal const string Instance = "desktop";
@@ -24,6 +24,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         internal bool Unlocked;
         internal bool Complete;
         internal bool ServiceStarted;
+        internal readonly ResidentExtensions Extensions = new();
     }
 
     internal static bool Prepared() => PreparationRefusal() is null;
@@ -102,6 +103,31 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         }
     }
 
+    public bool Supported(string owner)
+    {
+        lock (grants.Gate)
+            return _lease is { } lease && !lease.Ending && lease.Extensions.Supported &&
+                lease.Request.ControlOwnership?.Owner == owner;
+    }
+
+    /// Offers one finite extension to the bound service and guardian and waits
+    /// a bounded time for the guardian's echo. No credential use, no unlock.
+    public async Task<bool> ExtendAsync(string owner, int seconds, CancellationToken cancellation)
+    {
+        Lease lease;
+        (GuardianExtension Extension, Task<bool> Acknowledged) offer;
+        lock (grants.Gate)
+        {
+            if (_lease is not { } current || current.Ending || !current.Extensions.Supported ||
+                current.Request.ControlOwnership?.Owner != owner) return false;
+            if (current.Extensions.Issue(seconds) is not { } issued) return false;
+            lease = current; offer = issued;
+        }
+        var acknowledged = await lease.Extensions.AwaitAsync(offer.Extension, offer.Acknowledged, TimeSpan.FromSeconds(5), cancellation);
+        grants.Journal?.Diagnostic("locked_use.renewal", acknowledged ? "acknowledged" : "refused");
+        return acknowledged;
+    }
+
     internal void Tick()
     {
         Lease? observed;
@@ -116,6 +142,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                 grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is not null))
             {
                 lease.Ending = true;
+                lease.Extensions.Fail();
                 grants.Admission.Pause("desktop", "relock_pending");
             }
             if (lease.Ending && (lease.Complete || !lease.ServiceStarted) && locked)
@@ -284,6 +311,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                 if (_lease == lease)
                 {
                     lease.Ending = true;
+                    lease.Extensions.Fail();
                     grants.Admission.Pause("desktop", "relock_pending");
                 }
             }
@@ -297,6 +325,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
     {
         lock (grants.Gate)
         {
+            lease.Extensions.Fail();
             if (_lease == lease && !lease.Ending)
             {
                 lease.Ending = true;
@@ -347,16 +376,22 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                         if (frame.RootElement.TryGetProperty("complete", out var complete) && complete.GetBoolean())
                         {
                             lease.Ending = true; lease.Complete = true;
+                            lease.Extensions.Fail();
                             grants.Admission.Pause("desktop", "relock_pending");
                         }
+                        // Tactical 160: the service reports guardian support
+                        // and echoes the sequence the guardian acknowledged.
+                        if (frame.RootElement.TryGetProperty("extensionSupported", out var supports) && supports.ValueKind == JsonValueKind.True && !lease.Ending)
+                            lease.Extensions.Supported = true;
+                        if (!GuardianExtension.TryReadAcknowledgement(frame.RootElement, out var acknowledged))
+                            throw new InvalidDataException("guardian_extension_acknowledgement");
+                        if (acknowledged is { } sequence) lease.Extensions.Acknowledge(sequence);
                         var owner = lease.Request.ControlOwnership!;
-                        reply = new
-                        {
-                            allowed = _lease == lease && !lease.Ending && prepared &&
+                        var allowed = _lease == lease && !lease.Ending && prepared &&
                             policy == lease.ProtectedGrant &&
                             grants.PreparedConsole && grants.DesktopConsentRevision == lease.Revision &&
-                            grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is null
-                        };
+                            grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is null;
+                        reply = new { allowed, extension = allowed ? lease.Extensions.Pending : null };
                     }
                     phase = "reply";
                     await UnlockWire.WriteAsync(pipe, reply, deadline.Token);

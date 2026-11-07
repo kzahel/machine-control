@@ -40,7 +40,7 @@ internal static class AdmissionChannelFixtures
         var clients = new List<TcpClient>();
         var unlockCalls = 0;
         var unlockGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); unlockGate.SetResult();
-        async Task<(StreamReader Reader, StreamWriter Writer, JsonObject View)> Open(string id, bool prepared = false, bool enrolled = false, bool expectAccepted = true, List<string>? dispatched = null)
+        async Task<(StreamReader Reader, StreamWriter Writer, JsonObject View)> Open(string id, bool prepared = false, bool enrolled = false, bool expectAccepted = true, List<string>? dispatched = null, IPreparedRenewal? renewal = null)
         {
             var client = new TcpClient(); clients.Add(client);
             await client.ConnectAsync((IPEndPoint)listener.LocalEndpoint, stop.Token);
@@ -73,7 +73,7 @@ internal static class AdmissionChannelFixtures
                             return new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "confirmed" };
                         }
                         return await Effect(request, fence);
-                    }, stop.Token, preparedUnlockAvailable: () => enrolled);
+                    }, stop.Token, preparedUnlockAvailable: () => enrolled, preparedRenewal: renewal);
             }));
             Task<Result> Effect(Request request, ControlOwnership fence)
             {
@@ -206,6 +206,44 @@ internal static class AdmissionChannelFixtures
                 if (origin) Require(lastFence!.StartedLocked == true, "Locked-origin owner retains relock authority");
                 else Require(response["errorCode"]!.GetValue<string>() == "task_did_not_start_locked", "Unlocked origin refuses before credential preparation");
                 await Call(prepared, "control.cancel");
+            }
+            // Tactical 160: a locked-origin prepared owner renews only after
+            // its guardian acknowledges; a missing echo leaves its deadline.
+            foreach (var acknowledges in new[] { true, false })
+            {
+                grants.SetReady(true); grants.ConfigureSurface("desktop", "automatic", 900, "timed"); grants.SetReady(false, lockedConsole: true);
+                var guardian = new FixtureRenewal { Acknowledges = acknowledges };
+                var locked = await Open("prepared-renewal-" + acknowledges, prepared: true, renewal: guardian);
+                Require(!locked.View.ContainsKey("renewal"), "An offered prepared owner does not advertise renewal");
+                var owned = (await Call(locked, "control.accept", new() { ["offerGeneration"] = locked.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();
+                Require(!owned.ContainsKey("renewal"), "No renewal before the bound guardian reports extension support");
+                JsonObject Renewal(int seconds) => new()
+                {
+                    ["sessionId"] = owned["sessionId"]!.DeepClone(),
+                    ["resourceGenerations"] = owned["resourceGenerations"]!.DeepClone(),
+                    ["durationSeconds"] = seconds
+                };
+                var unsupported = await Call(locked, "control.renew", Renewal(120));
+                Require(unsupported["errorCode"]!.GetValue<string>() == "control_renewal_unavailable" && guardian.Offers == 0,
+                    "An unsupported guardian refuses renewal before any offer");
+                guardian.Extensions.Supported = true;
+                var supported = (await Call(locked, "control.status"))["data"]!.AsObject();
+                Require(supported["renewal"]?.GetValue<string>() == "owner_connection/v1", "Renewal is advertised once the guardian supports extension");
+                var before = supported["activeRemainingSeconds"]!.GetValue<double>();
+                var stale = Renewal(120); stale["sessionId"] = "stale-session";
+                Require(!(await Call(locked, "control.renew", stale))["accepted"]!.GetValue<bool>() && guardian.Offers == 0,
+                    "A stale owner fence refuses before any guardian offer");
+                Require((await Call(locked, "control.renew", Renewal(901)))["errorCode"]!.GetValue<string>() == "invalid_renewal_duration" && guardian.Offers == 0,
+                    "Renewal above 900 seconds refuses before any guardian offer");
+                var renewed = await Call(locked, "control.renew", Renewal(120));
+                var after = (await Call(locked, "control.status"))["data"]!["activeRemainingSeconds"]!.GetValue<double>();
+                Require(guardian.Offers == 1 && guardian.Extensions.Pending is null, "Exactly one finite extension is offered and settled");
+                if (acknowledges)
+                    Require(renewed["accepted"]!.GetValue<bool>() && after > before && after <= 120, "An acknowledged extension commits admission renewal");
+                else
+                    Require(renewed["errorCode"]!.GetValue<string>() == "control_renewal_unavailable" && after == before,
+                        "A missing acknowledgement refuses and leaves the original deadline");
+                await Call(locked, "control.cancel");
             }
             // Tactical 159 decisions 1 and 2: one prepared route and waiting
             // rather than refusing outside a locked Desktop request.

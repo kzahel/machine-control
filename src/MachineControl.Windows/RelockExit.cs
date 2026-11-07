@@ -6,7 +6,7 @@ namespace MachineControl.Windows;
 internal static class RelockExit
 {
     internal static int Encode(int status, int reason) => status | (reason << 8);
-    internal static bool Relocked(int code) => (code & 0xff) == 0 && code is >= 0 and <= 2816;
+    internal static bool Relocked(int code) => (code & 0xff) == 0 && code is >= 0 and <= 3072;
     internal static string Reason(int code) => (code >> 8) switch
     {
         0 => "unspecified",
@@ -21,6 +21,7 @@ internal static class RelockExit
         9 => "message_loop_timeout",
         10 => "authority_refused",
         11 => "heartbeat_connection_ended",
+        12 => "extension_invalid",
         _ => "unknown"
     };
 }

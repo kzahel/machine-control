@@ -42,7 +42,7 @@ this desktop profile.
 
 Open every Desktop owner with `prepared_console=True` (`control
 --prepared-console`), as on the other desktop platforms, with
-`surfaces=["desktop"]` and a finite duration of at most 900 seconds. Choose
+`surfaces=["desktop"]` and a finite interval of at most 900 seconds. Choose
 Desktop Automatic or approve the exact task under Desktop Ask first; helper
 setup grants neither. The flag is harmless when the console is unlocked or
 covered use is off: the owner is then an ordinary one.
@@ -53,8 +53,23 @@ enrolled unlock at `control.accept`. The accepted view reports
 `errorCode`); the owner's first actions wait for that outcome, so no separate
 unlock dispatch is needed. An explicit `session.unlock` afterwards is an
 idempotent no-op. No controller key, credential file or password is sent by
-the agent. Locked-origin prepared owners do not support renewal until the
-independent guardian can acknowledge an extended deadline.
+the agent.
+
+A live locked-origin owner renews like any other owner once its view carries
+`renewal: owner_connection/v1` (source; [Tactical 160](../docs/tactical/160-windows-prepared-owner-renewal.md)).
+`control stream` renews automatically. Each `control.renew` asks the protected
+service and the independent guardian to extend their own finite deadlines by
+at most 900 seconds from acknowledgement; admission commits only after the
+guardian's acknowledgement returns, within about five seconds. A missing or
+mismatched acknowledgement refuses with `control_renewal_unavailable` and the
+owner ends no later than its original deadline. The guardian never extends
+once ending or after its deadline passed, and ends on an invalid extension.
+Renewal uses no credential and dispatches no new unlock. Timed consent still
+ends at its original ceiling; choose Until I turn it off for work past it.
+Stop, Pause, consent replacement, takeover, disconnect, console change and
+helper loss still end the task at once. The view omits `renewal` until the
+bound guardian reports this protocol, so an older installed helper keeps the
+fixed 900-second task bound.
 
 A Desktop owner without the flag is refused with `prepared_console_required`
 while the console is locked, because it would use the stored credential.
@@ -101,7 +116,8 @@ bypass controller proof. Native enrollment instead uses `session.unlock`.
 Completion, owner disconnect, task or grant expiry, Pause, Stop, changed
 controller approval, or resident/service heartbeat loss requests stock Windows
 lock. The guardian is bound to the exact console account and logon session,
-has its own finite deadline, and retries lock until independently observed.
+has its own finite deadline (900 seconds, moved only by acknowledged
+renewal), and retries lock until independently observed.
 It must not lock a replacement user's session. These cleanup requests apply
 only to locked-origin tasks. Tasks that start unlocked finish without requesting
 lock, and an OS/user lock during ordinary work is left intact. A relock barrier prevents new

@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../src/MachineControl.Windows/GuardianJson.cs" Link="GuardianJson.cs" />
     <Compile Include="../../src/MachineControl.Windows/RelockExit.cs" Link="RelockExit.cs" />
+    <Compile Include="../../src/MachineControl.Windows/PreparedRenewal.cs" Link="PreparedRenewal.cs" />
     <Compile Include="../../src/MachineControl.Windows/RetainedPipeProxy.cs" Link="RetainedPipeProxy.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopWork.cs" Link="DesktopWork.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopPresentation.cs" Link="DesktopPresentation.cs" />

@@ -12,7 +12,8 @@ internal static class AdmissionChannel
     internal const string Schema = "machine-control-admission-channel/v2";
     internal static async Task RunAsync(Stream stream, StreamReader reader, JsonObject open,
         DesktopGrants grants, Func<Request, ControlOwnership, CancellationToken, Task<Result>> dispatch,
-        CancellationToken stop, Action? refreshConsole = null, Func<bool>? preparedUnlockAvailable = null)
+        CancellationToken stop, Action? refreshConsole = null, Func<bool>? preparedUnlockAvailable = null,
+        IPreparedRenewal? preparedRenewal = null)
     {
         var owner = Guid.NewGuid().ToString("n");
         var admission = grants.Admission;
@@ -46,8 +47,9 @@ internal static class AdmissionChannel
                     {
                         projection["requestSequencing"] = "strict";
                         // The protected guardian has a separate hard deadline.
-                        // Do not advertise renewal without its acknowledgement.
-                        if (prepared && startedLocked != false) projection.Remove("renewal");
+                        // Advertise renewal only when the bound service and
+                        // guardian can acknowledge an extension (Tactical 160).
+                        if (prepared && startedLocked != false && preparedRenewal?.Supported(owner) != true) projection.Remove("renewal");
                         if (consoleUnlock is { } unlock)
                             projection["consoleUnlock"] = !unlock.IsCompleted ? new JsonObject { ["state"] = "unlocking" }
                                 : unlock.IsCompletedSuccessfully && unlock.Result.Accepted ? new JsonObject { ["state"] = "unlocked" }
@@ -167,13 +169,23 @@ internal static class AdmissionChannel
                             }
                             await Reply(id, accepted); break;
                         case "control.renew":
-                            if (prepared && startedLocked != false) throw new InvalidOperationException("control_renewal_unavailable");
                             // Renewal preserves the owner fence and performs no
                             // provider work. It must progress during a long action.
                             var seconds = Required(request, "durationSeconds").GetValue<int>();
                             if (seconds is < 1 or > 900) throw new ArgumentException("invalid_renewal_duration");
-                            await Reply(id, admission.Renew(owner, intentId, Required(request, "sessionId").GetValue<string>(),
-                                Required(request, "resourceGenerations").Deserialize<Dictionary<string, long>>()!, seconds));
+                            var renewSession = Required(request, "sessionId").GetValue<string>();
+                            var renewGenerations = Required(request, "resourceGenerations").Deserialize<Dictionary<string, long>>()!;
+                            if (prepared && startedLocked != false)
+                            {
+                                // A locked-origin owner commits only after its
+                                // guardian acknowledged the same finite extension.
+                                // A refusal leaves the original deadline in force.
+                                if (preparedRenewal?.Supported(owner) != true) throw new InvalidOperationException("control_renewal_unavailable");
+                                var stale = admission.Authorize(owner, intentId, renewSession, renewGenerations);
+                                if (stale is not null) throw new InvalidOperationException(stale);
+                                if (!await preparedRenewal!.ExtendAsync(owner, seconds, lifetime.Token)) throw new InvalidOperationException("control_renewal_unavailable");
+                            }
+                            await Reply(id, admission.Renew(owner, intentId, renewSession, renewGenerations, seconds));
                             break;
                         case "control.cancel":
                             admission.Cancel(owner, intentId); await Reply(id, admission.Inspect(owner, intentId)); break;

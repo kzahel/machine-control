@@ -6,8 +6,11 @@ using System.Text.RegularExpressions;
 
 namespace MachineControl.Windows;
 
-internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, uint session, Action<int> exited) : IAsyncDisposable
+internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, uint session, Action<int> exited, Action<TimeSpan>? extended = null) : IAsyncDisposable
 {
+    // Tactical 160: the watch bound starts at 900 seconds from guardian
+    // readiness and moves only when the guardian acknowledges an extension.
+    private ServiceExtensions _extensions = new(Stopwatch.GetTimestamp(), Stopwatch.Frequency);
     private readonly CancellationTokenSource _end = new();
     private readonly CancellationTokenSource _watchStop = new();
     private NamedPipeServerStream? _guardian;
@@ -18,19 +21,24 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
     internal string Binding => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
         System.Text.Encoding.UTF8.GetBytes(guardPipe + ":" + residentPid.ToString(System.Globalization.CultureInfo.InvariantCulture)))).ToLowerInvariant();
 
-    internal static async Task<DesktopUnlockControl> CreateAsync(NamedPipeServerStream caller, UnlockHello hello, CancellationToken stop, Action<int> exited)
+    internal static async Task<DesktopUnlockControl> CreateAsync(NamedPipeServerStream caller, UnlockHello hello, CancellationToken stop, Action<int> exited, Action<TimeSpan>? extended = null)
     {
         if (hello.ResidentPid is not > 0 || hello.GuardPipe is null ||
             !Regex.IsMatch(hello.GuardPipe, "\\Amachine-control-locked-guard-[a-f0-9]{32}\\z"))
             throw new UnauthorizedAccessException("desktop_unlock_preparation_required");
         var peer = await DesktopUacNative.RequireResidentAsync(caller, stop, hello.ResidentPid);
-        var control = new DesktopUnlockControl(hello.GuardPipe, peer.Pid, peer.Session, exited);
+        var control = new DesktopUnlockControl(hello.GuardPipe, peer.Pid, peer.Session, exited, extended);
         try { if (!await control.QueryAsync(stop, attemptStarted: true)) throw new UnauthorizedAccessException("desktop_unlock_authority_refused"); }
         catch { await control.DisposeAsync(); throw; }
         return control;
     }
 
-    private async Task<bool> QueryAsync(CancellationToken stop, bool physicalTakeover = false, bool complete = false, bool attemptStarted = false, int? guardianPid = null, int? guardianExitCode = null)
+    private async Task<bool> QueryAsync(CancellationToken stop, bool physicalTakeover = false, bool complete = false, bool attemptStarted = false, int? guardianPid = null, int? guardianExitCode = null) =>
+        (await QueryExtensionAsync(stop, physicalTakeover, complete, attemptStarted, guardianPid, guardianExitCode)).Allowed;
+
+    /// Every resident query reports guardian extension support and the last
+    /// sequence the guardian acknowledged. The reply may offer one extension.
+    private async Task<(bool Allowed, GuardianExtension? Extension)> QueryExtensionAsync(CancellationToken stop, bool physicalTakeover = false, bool complete = false, bool attemptStarted = false, int? guardianPid = null, int? guardianExitCode = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
         timeout.CancelAfter(TimeSpan.FromSeconds(2));
@@ -38,9 +46,20 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
             System.Security.Principal.TokenImpersonationLevel.Identification);
         await pipe.ConnectAsync(timeout.Token);
         DesktopUacNative.RequireServer(pipe, residentPid);
-        await UnlockWire.WriteAsync(pipe, new { physicalTakeover, complete, attemptStarted, guardianPid, guardianExitCode }, timeout.Token);
+        await UnlockWire.WriteAsync(pipe, new
+        {
+            physicalTakeover,
+            complete,
+            attemptStarted,
+            guardianPid,
+            guardianExitCode,
+            extensionSupported = _extensions.Supported ? true : (bool?)null,
+            acknowledgedExtension = _extensions.Acknowledged
+        }, timeout.Token);
         using var reply = JsonDocument.Parse(await new GuardianJson(pipe).ReadAsync(timeout.Token));
-        return reply.RootElement.GetProperty("allowed").GetBoolean();
+        var allowed = reply.RootElement.GetProperty("allowed").GetBoolean();
+        if (!GuardianExtension.TryRead(reply.RootElement, out var extension)) throw new InvalidDataException("guardian_extension_invalid");
+        return (allowed, extension);
     }
 
     internal void Check()
@@ -67,31 +86,42 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
         await UnlockWire.WriteAsync(_guardian, new RelockStart(session, challenge.TargetUserSid, challenge.SessionLogonId, StartedLocked: true), timeout.Token);
         using var ready = JsonDocument.Parse(await _guardianJson.ReadAsync(timeout.Token));
         if (ready.RootElement.GetProperty("stage").GetString() != "ready") throw new IOException("relock_guardian_unavailable");
+        // The guardian records its protocol at start; the resident advertises
+        // renewal only after this service reports it.
+        _extensions = new(Stopwatch.GetTimestamp(), Stopwatch.Frequency)
+        {
+            Supported = ready.RootElement.TryGetProperty("extension", out var protocol) &&
+                protocol.ValueKind == JsonValueKind.String && protocol.GetString() == GuardianExtension.Protocol
+        };
         _watch = WatchAsync();
     }
 
     private async Task WatchAsync()
     {
-        var clock = Stopwatch.StartNew();
         try
         {
-            while (!_watchStop.IsCancellationRequested && clock.Elapsed < TimeSpan.FromSeconds(900))
+            while (!_watchStop.IsCancellationRequested && !_extensions.Expired(Stopwatch.GetTimestamp()))
             {
-                var allowed = await QueryAsync(_watchStop.Token);
+                var (allowed, offered) = await QueryExtensionAsync(_watchStop.Token);
+                // Forward each resident extension once, only while allowed.
+                var extension = allowed && _extensions.Supported ? _extensions.Forward(offered) : null;
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_watchStop.Token);
                 deadline.CancelAfter(TimeSpan.FromSeconds(2));
-                await UnlockWire.WriteAsync(_guardian!, new { allowed }, deadline.Token);
+                await UnlockWire.WriteAsync(_guardian!, new { allowed, extension }, deadline.Token);
                 using var pulse = JsonDocument.Parse(await _guardianJson!.ReadAsync(deadline.Token));
                 if (pulse.RootElement.GetProperty("physicalTakeover").GetBoolean())
                 {
                     _ = await QueryAsync(deadline.Token, physicalTakeover: true);
                     break;
                 }
+                if (!GuardianExtension.TryReadAcknowledgement(pulse.RootElement, out var echoed)) throw new InvalidDataException("guardian_extension_acknowledgement");
+                var now = Stopwatch.GetTimestamp();
+                if (_extensions.Acknowledge(echoed, now)) extended?.Invoke(_extensions.Remaining(now));
                 if (!allowed) break;
                 await Task.Delay(200, _watchStop.Token);
             }
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or OperationCanceledException or JsonException or InvalidOperationException) { }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or OperationCanceledException or JsonException or InvalidOperationException or InvalidDataException) { }
         finally { _end.Cancel(); }
     }
 

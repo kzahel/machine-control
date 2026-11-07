@@ -9,7 +9,9 @@ using Forms = System.Windows.Forms;
 namespace MachineControl.Windows;
 
 /// Runs on the bound console's Default desktop as SYSTEM. Heartbeat loss,
-/// physical input and a fixed maximum deadline all request the stock OS lock.
+/// physical input and a finite monotonic deadline all request the stock OS
+/// lock. The deadline starts at 900 seconds and moves only by an acknowledged
+/// extension of at most 900 seconds while the guardian is not ending.
 /// This worker outlives a crashed resident/service until relock is observed.
 internal static class DesktopRelockGuardian
 {
@@ -40,7 +42,7 @@ internal static class DesktopRelockGuardian
         var physical = 0;
         var heartbeat = Stopwatch.GetTimestamp();
         var monitorTick = heartbeat;
-        var clock = Stopwatch.StartNew();
+        var deadline = new GuardianDeadline(Stopwatch.GetTimestamp(), Stopwatch.Frequency);
         using var stop = new CancellationTokenSource();
         var thread = new Thread(() =>
         {
@@ -101,13 +103,13 @@ internal static class DesktopRelockGuardian
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         if (!await prepared.Task.WaitAsync(setup.Token)) throw new IOException("relock_input_monitor_unavailable");
-        await UnlockWire.WriteAsync(pipe, new { stage = "ready" }, setup.Token);
+        await UnlockWire.WriteAsync(pipe, new { stage = "ready", extension = GuardianExtension.Protocol }, setup.Token);
         var watchdog = Task.Run(async () =>
         {
             while (!result.Task.IsCompleted)
             {
                 if (!SameConsole(start)) { result.TrySetResult(1); break; }
-                if (clock.Elapsed.TotalSeconds >= 900) End(7);
+                if (deadline.Expired(Stopwatch.GetTimestamp())) End(7);
                 if (Stopwatch.GetElapsedTime(Volatile.Read(ref heartbeat)).TotalSeconds >= 3) End(8);
                 if (Stopwatch.GetElapsedTime(Volatile.Read(ref monitorTick)).TotalSeconds >= 2) End(9);
                 if (Volatile.Read(ref ending) != 0)
@@ -124,12 +126,25 @@ internal static class DesktopRelockGuardian
             {
                 while (!stop.IsCancellationRequested)
                 {
-                    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
-                    deadline.CancelAfter(TimeSpan.FromSeconds(3));
-                    using var pulse = JsonDocument.Parse(await frames.ReadAsync(deadline.Token));
+                    using var pulseDeadline = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+                    pulseDeadline.CancelAfter(TimeSpan.FromSeconds(3));
+                    using var pulse = JsonDocument.Parse(await frames.ReadAsync(pulseDeadline.Token));
                     if (!pulse.RootElement.GetProperty("allowed").GetBoolean()) End(10);
+                    // An unknown or invalid extension ends protected use. An
+                    // ending or expired guardian never acknowledges one.
+                    if (!GuardianExtension.TryRead(pulse.RootElement, out var extension)) End(12);
+                    else if (extension is not null)
+                        switch (deadline.Extend(extension, Stopwatch.GetTimestamp(), Volatile.Read(ref ending) != 0))
+                        {
+                            case ExtensionOutcome.Invalid: End(12); break;
+                            case ExtensionOutcome.Expired: End(7); break;
+                        }
                     Interlocked.Exchange(ref heartbeat, Stopwatch.GetTimestamp());
-                    await UnlockWire.WriteAsync(pipe, new { physicalTakeover = Volatile.Read(ref physical) != 0 }, deadline.Token);
+                    await UnlockWire.WriteAsync(pipe, new
+                    {
+                        physicalTakeover = Volatile.Read(ref physical) != 0,
+                        acknowledgedExtension = deadline.Acknowledged
+                    }, pulseDeadline.Token);
                 }
             }
             catch (Exception error) when (error is IOException or JsonException or OperationCanceledException or InvalidOperationException) { }

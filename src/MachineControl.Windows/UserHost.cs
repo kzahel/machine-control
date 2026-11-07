@@ -86,7 +86,8 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 await AdmissionChannel.RunAsync(server, reader, opening, grants,
                     (request, fence, cancellation) => ExecuteAsync(request, caller, cancellation, fence), stop.Token,
                     refreshConsole: () => DesktopSafety.RefreshAvailability(grants),
-                    preparedUnlockAvailable: () => DesktopLockedUse.Current?.LocallyEnrolled() == true);
+                    preparedUnlockAvailable: () => DesktopLockedUse.Current?.LocallyEnrolled() == true,
+                    preparedRenewal: DesktopLockedUse.Current);
                 return;
             }
             var request = Contract.ParseRequest(text.ToString());
