@@ -22,8 +22,7 @@ def identity(*, paths=False):
     value = {
         "schema": SCHEMA, "clientProtocol": 1, "residentProtocol": "machine-control/v0",
         "version": "0.3.0", "distribution": "source", "platform": platform.system().lower(),
-        "features": ["agent.instructions", "host.desktop", "host.browser", "host.claims"] +
-            (["desktop.delegation.v1"] if platform.system() == "Darwin" else []),
+        "features": ["agent.instructions", "host.desktop", "host.browser", "host.claims"],
     }
     if paths:
         value["paths"] = resolved_paths(value)
