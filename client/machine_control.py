@@ -3102,7 +3102,9 @@ def send_resident_request(
     if "browserProfileId" in request:
         _, capabilities, _ = run_adapter(target, ["control", '{"operation":"capabilities"}'], accept_json_failure=True)
         require_browser_profile_selection(validate_resident(capabilities, target["platform"]))
-    serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
+    # ASCII escapes survive every adapter argv/shell route; JSON decodes them
+    # identically. Raw UTF-8 was mangled on the way to Windows residents.
+    serialized = json.dumps(request, separators=(",", ":"))
     completed, parsed, elapsed_ms = run_adapter(
         target, ["control", serialized], accept_json_failure=True
     )
@@ -3352,7 +3354,9 @@ def handle_ios(
     if "browserProfileId" in request:
         _, capabilities, _ = run_adapter(target, ["control", '{"operation":"capabilities"}'], accept_json_failure=True)
         require_browser_profile_selection(validate_resident(capabilities, target["platform"]))
-    serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
+    # ASCII escapes survive every adapter argv/shell route; JSON decodes them
+    # identically. Raw UTF-8 was mangled on the way to Windows residents.
+    serialized = json.dumps(request, separators=(",", ":"))
     completed, parsed, elapsed_ms = run_adapter(
         target,
         ["control"],
@@ -3930,9 +3934,7 @@ def handle_desktop(
     raw = bool(arguments and arguments[0] in {"raw", "raw-local"})
     request, local = desktop_request(arguments)
     translated = request if raw else translate_request(target["platform"], request)
-    serialized = json.dumps(
-        translated, separators=(",", ":"), ensure_ascii=False
-    )
+    serialized = json.dumps(translated, separators=(",", ":"))
     command = "control-local" if local else "control"
     completed, parsed, elapsed_ms = run_adapter(
         target, [command, serialized], accept_json_failure=True

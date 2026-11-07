@@ -1638,6 +1638,26 @@ class ApplicationArgumentTests(unittest.TestCase):
         self.assertEqual(request["argumentsList"], ["--gui", "plain"])
 
 
+class RequestEncodingTests(unittest.TestCase):
+    def test_non_ascii_text_reaches_adapters_as_ascii_json(self):
+        captured = {}
+        def fake_adapter(target, arguments, **_):
+            captured["argv"] = arguments
+            return None, {"schema": "machine-control/v0", "accepted": True, "operation": "type"}, 1
+        target = {"platform": "windows", "profile": "fixture", "interface": "machine-control-v0"}
+        with mock.patch.object(machine_control, "run_adapter", side_effect=fake_adapter), \
+                mock.patch.object(machine_control, "validate_resident", side_effect=lambda value, _: value), \
+                mock.patch.object(machine_control, "add_client_projection", side_effect=lambda value, *a, **k: value), \
+                mock.patch.object(machine_control, "emit"):
+            try:
+                machine_control.handle_desktop("fixture", target, ["input", "text", "Ab caf\u00e9 \u20ac5"])
+            except Exception:
+                pass
+        argument = captured["argv"][-1]
+        self.assertTrue(argument.isascii(), argument)
+        self.assertEqual(json.loads(argument)["text"], "Ab caf\u00e9 \u20ac5")
+
+
 class KeyChordTranslationTests(unittest.TestCase):
     def test_common_names_map_to_each_resident_vocabulary(self):
         cases = {
