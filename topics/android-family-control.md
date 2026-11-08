@@ -369,3 +369,66 @@ Google sample for the HID Device API) as the primary plumbing reference and
 reports; Apache-2.0 code may be adapted here with its notice retained.
 `arnav-kr/Bluke` (AGPL-3.0) and Bluetooth Remote (GPL-3.0) are behavior
 references only; do not copy their code into this MIT repository.
+
+#### Trial: commercial HID app against the ChromeOS testbed (2026-11-08)
+
+Before building anything we paired the closed-source "Bluetooth Keyboard &
+Mouse" app (`io.appground.blek` 6.25.2) on an unrooted Android 16 handheld with
+the signed-in ChromeOS LTC testbed, which runs the Floss Bluetooth stack.
+The phone was driven over ADB; the Chromebook through `testbed --`.
+
+How each of the app's connection options fared:
+
+| App option | Who starts | Result on ChromeOS |
+| --- | --- | --- |
+| A, "Search device" | Phone scans | The Chromebook never showed up in the phone's system device chooser, which listed only a nearby BLE light. ChromeOS was not discoverable even with Bluetooth settings or its pairing dialog open (Floss `GetDiscoverable` returned false). |
+| B, "Turn on discoverability" | Chromebook scans | `btmon` on the Chromebook received the phone's inquiry results (class `0x5a020c`, Phone / Smart phone), but "Pair new device" never listed it in over 30 seconds. ChromeOS appears to filter phone-class devices out of that list. After bonding, Settings calls it "Device is a phone." |
+| C, MAC address | Phone pages | Failed with HCI reason 4 (Page Timeout). No connection request reached the Chromebook's HCI. |
+
+What worked: put the app in mode B, then start the bond from the Chromebook as
+root through Floss D-Bus:
+
+```sh
+gdbus call --system --dest org.chromium.bluetooth \
+  --object-path /org/chromium/bluetooth/hci0/adapter \
+  --method org.chromium.bluetooth.Bluetooth.CreateBond \
+  "{'address': <'PHONE_BT_ADDR'>, 'name': <'PHONE_NAME'>}" 1
+```
+
+Pairing used numeric comparison: the phone showed a six-digit code, we tapped
+Pair on the phone, and confirmed on the Chromebook with `SetPairingConfirmation`
+(same device dict, `true`). The bond completed and HID connected right away.
+
+What worked once connected:
+
+- **Typing:** keys typed one at a time arrived exactly.
+- **Burst typing lost text:** the app's "Direct" mode diffs Android IME text.
+  A single fast `adb shell input text` burst lost whole words: "QUICK brown fox
+  jumps 99" arrived as "QUICK own jumps " and "hello btkb test 123" as
+  "hello test".
+- **Touchpad:** pointer movement, left click, and the scroll strip all worked;
+  a test page received `mousemove`, `click`, and `wheel` events.
+
+Implications for our app:
+
+- Phone-class devices are effectively undiscoverable to the ChromeOS pairing
+  UI, and an unrooted app cannot change the adapter's class of device.
+  Classic `BluetoothHidDevice` therefore needs the host to start pairing:
+  - on a testbed we already control, the Floss D-Bus bond above (scriptable,
+    and worth adding as a ChromeOS target command);
+  - otherwise a host whose UI still lists phones.
+
+  For an unpaired, uncontrolled ChromeOS target, investigate a BLE HOGP
+  peripheral with a keyboard appearance, or the USB HID gadget already noted.
+- Defaulting to "discoverable and waiting" is the right default (option B).
+  The search flow (option A) depends on the host being discoverable, which
+  ChromeOS is not. The app should still show the handheld's name and status
+  prominently.
+- Never route agent text through an IME diff. Accept text over the control
+  socket and emit paced key-down/key-up HID reports. Then confirm a round
+  trip, for example by reading a field back on targets that allow it.
+- Gboard suggested the operator's account emails above the app's text field,
+  so an agent-only app should avoid showing an IME at all.
+- The app's own MAC entry uses a custom hex keypad that dropped fast ADB taps.
+  An agent-facing app should take addresses through its API, not through
+  on-screen widgets.
