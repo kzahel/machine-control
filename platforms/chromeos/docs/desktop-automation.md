@@ -101,6 +101,26 @@ access.
 - **Component extensions are invisible** — They don't appear in `chrome://extensions` or
   `chrome.developerPrivate.getExtensionsInfo()`. Only visible via CDP `Target.getTargets`
 
+### Sign-in screen
+
+The sign-in screen runs in a separate sign-in profile. On stable channel
+(verified on R150), that profile refuses to load Select-to-speak and
+Accessibility Common: Chrome logs `Denying load of Extension ... because of
+'signin_screen' requires canary channel or newer`. ChromeVox is allowed there.
+It runs as an MV2 background page
+(`chromevox/mv2/background/background.html`, CDP type `background_page`) that
+has `chrome.automation`, so the desktop commands accept that page as an
+automation host. The login UI then exposes each account as a button named by
+its email, and the selected account's `LoginAuthUserView` holds the
+`Enter your PIN` or `Password for EMAIL` field.
+
+ChromeVox's Ctrl+Alt+Z toggle on the sign-in screen is interpreted with the
+focused account's input method and internal-keyboard modifier remapping, both
+recorded in `Local State` `KnownUsers`. With a Search/Ctrl swap the physical
+keys are Search+Alt; with Dvorak, "z" is the QWERTY `/` key. `chromeos login`
+computes this, uses ChromeVox only while reading and selecting, and turns it
+off before typing.
+
 ### Example: Desktop Tree Output
 
 ```

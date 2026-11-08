@@ -418,13 +418,25 @@ _A11Y_EXT_IDS = [
     "klbcgckkldhdhonijdbnhhaiedfkllef",  # select_to_speak
 ]
 
+# ChromeVox also has chrome.automation. Unlike the extensions above, stable
+# ChromeOS allows it on the sign-in screen, where it runs as an MV2 background
+# page rather than a service worker.
+_CHROMEVOX_EXT_ID = "mndnfokpggljbaajbnioimlmbfngpief"
+
+
+def _is_chromevox_background(target):
+    url = target.get("url", "")
+    return (target.get("type") in ("background_page", "service_worker")
+            and _CHROMEVOX_EXT_ID in url and "/background/" in url)
+
 
 def _find_automation_target(port=CDP_PORT):
-    """Find an accessibility extension's service worker with chrome.automation.
+    """Find an accessibility extension context with chrome.automation.
 
     Piggybacks on ChromeOS built-in accessibility extensions (accessibility_common,
-    select_to_speak) which have chrome.automation desktop access. Requires at least
-    one accessibility feature to be enabled in ChromeOS Settings.
+    select_to_speak, or ChromeVox) which have chrome.automation desktop access.
+    Requires at least one accessibility feature to be enabled; on the sign-in
+    screen of stable ChromeOS only ChromeVox loads.
 
     MV3 service workers go idle and vanish from /json. If not found,
     uses browser-level CDP to discover and wake the target.
@@ -440,6 +452,9 @@ def _find_automation_target(port=CDP_PORT):
                     ws = t.get("webSocketDebuggerUrl")
                     if ws:
                         return ws
+        for t in targets:
+            if _is_chromevox_background(t) and t.get("webSocketDebuggerUrl"):
+                return t["webSocketDebuggerUrl"]
         return None
 
     ws = _scan_json()
@@ -475,7 +490,8 @@ def _find_automation_target(port=CDP_PORT):
             raise RuntimeError(
                 "No accessibility extension service worker found. "
                 "Enable an accessibility feature in ChromeOS Settings "
-                "(e.g. Large Cursor, Dictation, or Select-to-speak)"
+                "(e.g. Large Cursor, Dictation, or Select-to-speak; "
+                "on the sign-in screen only ChromeVox loads)"
             )
         # Attach to wake the service worker, then detach
         cdp.call("Target.attachToTarget", targetId=target_id, flatten=False)
@@ -492,6 +508,29 @@ def _find_automation_target(port=CDP_PORT):
         time.sleep(0.5)
 
     raise RuntimeError("Service worker woke but didn't appear in /json")
+
+
+def find_automation_target(port=CDP_PORT):
+    """Public form of the automation-host lookup; raises RuntimeError if none."""
+    return _find_automation_target(port)
+
+
+def desktop_evaluate(expression, port=CDP_PORT):
+    """Evaluate a promise-returning expression in the automation host.
+
+    The expression must resolve to a JSON string or plain value.
+    """
+    cdp = CDP(_find_automation_target(port))
+    try:
+        result = cdp.call("Runtime.evaluate", expression=expression,
+                          awaitPromise=True, returnByValue=True)
+    finally:
+        cdp.close()
+    exc = result.get("exceptionDetails")
+    if exc:
+        msg = exc.get("exception", {}).get("description", exc.get("text", "Unknown error"))
+        raise RuntimeError(f"desktop evaluation failed: {msg}")
+    return result.get("result", {}).get("value")
 
 
 def _js_escape(s):

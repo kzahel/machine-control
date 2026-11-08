@@ -197,20 +197,48 @@ still waits at the profile sign-in screen after reboot: browser automation,
 extensions, and Crostini are not usable until the profile is unlocked.
 
 ```bash
-bin/chromeos doctor  # Warns when no user session is active
-bin/chromeos login   # Hidden prompt; logs in the selected/last-used profile
-bin/chromeos doctor  # Browser checks now exercise the user session
+bin/chromeos login-status  # Sign-in screen, locked, or active; never changes state
+bin/chromeos login         # Sign in, or unlock the lock screen, with a PIN
+bin/chromeos doctor        # Browser checks now exercise the user session
+bin/chromeos lock          # Lock the active session (for example to test unlock)
 ```
 
-For non-interactive automation, pipe the PIN from an approved secret source:
+`login` signs in or unlocks one account, chosen by `--account EMAIL`, else
+`CHROMEOS_TESTBED_ACCOUNT`, else the last-used account. It reads the PIN from
+`--pin-stdin`, else the private file named by `CHROMEOS_TESTBED_PIN_FILE`
+(caller-owned mode `0600` in a mode-`0700` directory; requires an explicit
+account), else a hidden terminal prompt. Private inventory can declare that
+file as a `pin` credential so a registered target needs no prompt:
 
 ```bash
+machine-control --target YOUR_TARGET testbed -- login
 password-manager-read-command | bin/chromeos login --pin-stdin
 ```
 
+The whole flow runs on the Chromebook in one SSH session:
+
+1. session_manager reports whether the screen is the sign-in screen, the lock
+   screen, or an active session; an active session for the account needs no
+   PIN and another account's session is refused.
+2. `Local State` must record a PIN for the account, no forced online Google
+   re-authentication, and an auto-submit length equal to the PIN length.
+3. Stable ChromeOS blocks Select-to-speak and Accessibility Common on the
+   sign-in screen but allows ChromeVox, so `login` toggles ChromeVox with
+   Ctrl+Alt+Z, mapped through the focused account's layout and modifier
+   remapping, to obtain a `chrome.automation` host. An existing in-session
+   accessibility host is used on the lock screen.
+4. It selects and confirms the exact account (the one whose
+   `LoginAuthUserView` holds the auth field), switches from password to PIN
+   entry if needed, focuses the PIN field, and turns ChromeVox off before
+   anything is typed.
+5. It submits the PIN once and succeeds only when session_manager reports that
+   exact account signed in and unlocked. It never retries.
+
 Do not place the PIN in a positional argument, shell history, source file, or
-agent log. The CLI intentionally rejects positional PINs. It submits one
-attempt, verifies that the user vault mounted, and never retries a failed PIN.
+agent log. The CLI rejects positional PINs, and results and errors never
+contain the PIN. Password sign-in is not implemented; an account that only
+offers password entry, or must complete an online Google sign-in, is refused
+before anything is typed.
 
 If automatic SSH itself fails, use VT2 and the stateful fallback:
 

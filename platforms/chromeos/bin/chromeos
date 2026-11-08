@@ -24,7 +24,9 @@
 #   mouse-click [left|right|middle] [X Y]  Experimental virtual mouse click
 #   mouse-scroll DELTA  Scroll wheel (positive=up, negative=down)
 #   type "text"         Type text via keyboard
-#   login [--pin-stdin] [--timeout SEC]  Log in the selected profile with a PIN
+#   login [--account EMAIL] [--pin-stdin] [--timeout SEC]  Sign in or unlock one account with its PIN
+#   login-status [--account EMAIL]  Show sign-in/lock state without changing anything
+#   lock                Lock the active session
 #   shortcut [mod...] key  Keyboard key/shortcut (e.g. ctrl t, enter, alt left)
 #   vt2                 Switch the physical display to the VT2 developer console
 #   gui                 Switch the physical display back to the ChromeOS UI
@@ -105,21 +107,21 @@ ensure_client() {
     client_dir=$(dirname "$CLIENT_PATH")
 
     local current_hash
-    current_hash=$(cat "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" \
+    current_hash=$(cat "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$REPO_DIR/chromeos_login.py" \
         2>/dev/null | shasum -a 256 | cut -c1-16)
 
     # Check the actual remote files. A local-only cache could incorrectly skip
     # deployment after switching targets or deleting files on the Chromebook.
     local remote_hash
     remote_hash=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
-        "$REMOTE_PATH_SETUP; cat '$client_dir/client.py' '$client_dir/drm_screenshot.py' '$client_dir/cdp.py' 2>/dev/null | sha256sum | cut -c1-16" \
+        "$REMOTE_PATH_SETUP; cat '$client_dir/client.py' '$client_dir/drm_screenshot.py' '$client_dir/cdp.py' '$client_dir/chromeos_login.py' 2>/dev/null | sha256sum | cut -c1-16" \
         2>/dev/null || true)
     if [[ "$remote_hash" == "$current_hash" ]]; then
         return 0
     fi
 
     ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p '$client_dir'" 2>/dev/null
-    scp -q "${SSH_OPTS[@]}" "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$SSH_HOST:$client_dir/"
+    scp -q "${SSH_OPTS[@]}" "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$REPO_DIR/chromeos_login.py" "$SSH_HOST:$client_dir/"
 }
 
 cmd_doctor() {
@@ -330,99 +332,166 @@ chromeos_user_session_active() {
     [[ "$(printf '%s\n' "$mounted" | tail -n 1 | tr -d '\r')" == "true" ]]
 }
 
+# Render a login/lock/status response and return its success as the exit code.
+_print_login_response() {
+    local response="$1"
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin).get('ok') else 1)"
+        return
+    fi
+    echo "$response" | python3 -c '
+import json, sys
+try:
+    r = json.load(sys.stdin)
+except ValueError:
+    print("[FAIL] No response from the ChromeOS client.", file=sys.stderr)
+    sys.exit(1)
+if not r.get("ok"):
+    error = r.get("error", "unknown error")
+    code = r.get("code", "error")
+    print("[FAIL] %s (%s)" % (error, code), file=sys.stderr)
+    typed = r.get("typed")
+    if typed is True:
+        print("       The PIN was submitted once; no retry was attempted.", file=sys.stderr)
+    elif typed is False:
+        print("       Nothing was typed.", file=sys.stderr)
+    sys.exit(1)
+result = r.get("result")
+if result is None:
+    print("Screen: %s (session %s)" % (r.get("screen"), r.get("session") or "unknown"))
+    print("Active users: " + (", ".join(r.get("active_users", [])) or "none"))
+    if r.get("last_active_user"):
+        print("Last-used account: %s" % r["last_active_user"])
+    acct = r.get("account")
+    if acct and not acct.get("known"):
+        print("Account %s: not known on this device" % acct["email"])
+    elif acct:
+        print("Account %s: PIN configured=%s, online re-auth required=%s"
+              % (acct["email"], acct["pin_configured"], acct["online_reauth_required"]))
+    sys.exit(0)
+messages = {
+    "already-active": "ChromeOS session is already active for %s.",
+    "signed-in": "Signed in %s.",
+    "unlocked": "Unlocked %s.",
+    "locked": "Locked the session for %s.",
+    "already-locked": "The session for %s is already locked.",
+}
+line = messages.get(result, result + " %s") % r.get("account", "")
+elapsed = " (%ss)" % r["elapsed_s"] if "elapsed_s" in r else ""
+print("[OK] " + line + elapsed)
+'
+}
+
 cmd_login() {
-    local pin_stdin=0 timeout=15
+    local pin_stdin=0 timeout=20 account="${CHROMEOS_TESTBED_ACCOUNT:-}"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --pin-stdin) pin_stdin=1; shift ;;
+            --account) account="${2:?--account requires an email}"; shift 2 ;;
+            --account=*) account="${1#--account=}"; shift ;;
             --timeout=*) timeout="${1#--timeout=}"; shift ;;
             --timeout) timeout="${2:?--timeout requires seconds}"; shift 2 ;;
             --help|-h)
-                echo "Usage: chromeos login [--pin-stdin] [--timeout SEC]"
+                echo "Usage: chromeos login [--account EMAIL] [--pin-stdin] [--timeout SEC]"
                 echo
-                echo "Logs in the already-selected (normally last-used) ChromeOS profile."
-                echo "Without --pin-stdin, securely prompts for the PIN on a terminal."
+                echo "Signs in, or unlocks the lock screen of, one ChromeOS account with its PIN."
+                echo "The account defaults to CHROMEOS_TESTBED_ACCOUNT, then the last-used account."
+                echo "PIN source: --pin-stdin, else the private file named by"
+                echo "CHROMEOS_TESTBED_PIN_FILE, else a hidden terminal prompt."
+                echo "The flow confirms the account before typing, submits once, never retries,"
+                echo "and succeeds only when exactly that account is signed in and unlocked."
                 echo "Positional PIN arguments are intentionally not supported."
                 return 0
                 ;;
             *)
                 echo "Unknown option: $1" >&2
-                echo "PIN arguments are not accepted; use the hidden prompt or --pin-stdin." >&2
+                echo "PIN arguments are not accepted; use a configured PIN file, --pin-stdin, or the prompt." >&2
                 return 1
                 ;;
         esac
     done
 
-    if [[ ! "$timeout" =~ ^[0-9]+$ ]] || (( timeout < 1 || timeout > 60 )); then
-        echo "Error: --timeout must be an integer from 1 to 60 seconds." >&2
+    if [[ ! "$timeout" =~ ^[0-9]+$ ]] || (( timeout < 1 || timeout > 120 )); then
+        echo "Error: --timeout must be an integer from 1 to 120 seconds." >&2
         return 1
-    fi
-
-    if chromeos_user_session_active; then
-        echo "[OK] ChromeOS user session is already active."
-        return 0
-    fi
-
-    local pin=""
-    if (( pin_stdin )); then
-        if ! IFS= read -r pin; then
-            if [[ -z "$pin" ]]; then
-                echo "Error: no PIN received on stdin." >&2
-                return 1
-            fi
-        fi
     fi
 
     ensure_client
 
-    if (( ! pin_stdin )) && [[ -t 0 ]]; then
-        IFS= read -r -s -p "PIN for the selected ChromeOS profile: " pin
-        echo >&2
-    elif (( ! pin_stdin )); then
-        echo "Error: no interactive terminal for the hidden PIN prompt." >&2
-        echo "Pipe the PIN from an approved secret source and add --pin-stdin." >&2
-        return 1
+    # Settle the common case without reading any secret.
+    local status_request status
+    status_request=$(python3 -c 'import json,sys; print(json.dumps({"cmd": "login_status", "account": sys.argv[1]}))' "$account")
+    status=$(send_cmd "$status_request")
+    local screen
+    screen=$(echo "$status" | python3 -c '
+import json, sys
+try:
+    r = json.load(sys.stdin)
+except ValueError:
+    print("unavailable"); sys.exit()
+account = sys.argv[1].lower()
+users = r.get("active_users", [])
+if not r.get("ok"):
+    print("unavailable")
+elif r.get("screen") == "active" and (not account or account in users):
+    print("active:" + (account or users[0]))
+elif r.get("screen") != "signin" and account and account not in users:
+    print("other:" + ",".join(users))
+else:
+    print(r.get("screen", "unavailable"))
+' "$account")
+    case "$screen" in
+        active:*)
+            _print_login_response "{\"ok\": true, \"result\": \"already-active\", \"account\": \"${screen#active:}\", \"typed\": false}"
+            return
+            ;;
+        other:*)
+            _print_login_response "{\"ok\": false, \"code\": \"other-user-active\", \"error\": \"another account is signed in (${screen#other:})\", \"typed\": false}"
+            return
+            ;;
+        unavailable)
+            echo "[FAIL] Could not read ChromeOS session state from the device." >&2
+            return 1
+            ;;
+    esac
+
+    local request_args=(--account "$account" --timeout "$timeout")
+    if (( pin_stdin )); then
+        request_args+=(--stdin)
+    elif [[ -n "${CHROMEOS_TESTBED_PIN_FILE:-}" ]]; then
+        request_args+=(--pin-file "$CHROMEOS_TESTBED_PIN_FILE")
     fi
 
-    if [[ ! "$pin" =~ ^[0-9]{4,20}$ ]]; then
-        pin=""
-        unset pin
-        echo "Error: a ChromeOS PIN must contain 4-20 digits." >&2
-        return 1
+    # The request line (including the PIN) flows from the helper's stdout
+    # straight into the device client's stdin; it never becomes an argument.
+    local response
+    if ! response=$(python3 "$REPO_DIR/scripts/login_request.py" "${request_args[@]}" \
+        | ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+            "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH"); then
+        [[ -n "$response" ]] || return 1
     fi
+    _print_login_response "$response"
+}
 
-    # A modifier-only key wakes the display without entering a character.
-    send_cmd '{"cmd":"key","keys":[42]}' >/dev/null
-    sleep 1
-
-    # Clear a partially entered PIN, type the supplied PIN, and submit it in one
-    # SSH/client session. The PIN travels only over SSH stdin, never as a
-    # process argument or command-line option.
-    {
-        local i
-        for ((i=0; i<20; i++)); do
-            printf '%s\n' '{"cmd":"key","keys":[14]}'
-        done
-        printf '%s\n' "{\"cmd\":\"type\",\"text\":\"$pin\"}"
-        printf '%s\n' '{"cmd":"key","keys":[28]}'
-    } | ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
-        "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" >/dev/null
-
-    pin=""
-    unset pin
-
-    local attempt
-    for ((attempt=0; attempt<timeout*2; attempt++)); do
-        if chromeos_user_session_active; then
-            echo "[OK] ChromeOS login succeeded; the user vault is mounted."
-            return 0
-        fi
-        sleep 0.5
+cmd_login_status() {
+    local account="${CHROMEOS_TESTBED_ACCOUNT:-}"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --account) account="${2:?--account requires an email}"; shift 2 ;;
+            --account=*) account="${1#--account=}"; shift ;;
+            *) echo "Unknown option: $1" >&2; return 1 ;;
+        esac
     done
+    ensure_client
+    local request
+    request=$(python3 -c 'import json,sys; print(json.dumps({"cmd": "login_status", "account": sys.argv[1]}))' "$account")
+    _print_login_response "$(send_cmd "$request")"
+}
 
-    echo "[FAIL] ChromeOS login was not confirmed after ${timeout}s." >&2
-    echo "       Check the selected profile and PIN on the Chromebook; no retry was attempted." >&2
-    return 1
+cmd_lock() {
+    ensure_client
+    _print_login_response "$(send_cmd '{"cmd":"lock"}')"
 }
 
 cmd_wake() {
@@ -1635,6 +1704,8 @@ case "$cmd" in
     mouse-scroll) cmd_mouse_scroll "$@" ;;
     type)         cmd_type "$@" ;;
     login)        cmd_login "$@" ;;
+    login-status) cmd_login_status "$@" ;;
+    lock)         cmd_lock "$@" ;;
     shortcut)     cmd_shortcut "$@" ;;
     vt2)          cmd_vt2 "$@" ;;
     gui)          cmd_gui "$@" ;;

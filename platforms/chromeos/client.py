@@ -496,6 +496,19 @@ def press_keys(keycodes):
         os.close(fd)
 
 
+def type_keycodes(keycodes):
+    """Tap raw keycodes in order without layout translation."""
+    fd = os.open(KEYBOARD_DEV, os.O_WRONLY)
+    try:
+        for keycode in keycodes:
+            send_key_event(fd, keycode, 1)
+            time.sleep(0.02)
+            send_key_event(fd, keycode, 0)
+            time.sleep(0.03)
+    finally:
+        os.close(fd)
+
+
 def type_text(text):
     """Type text character by character (layout-aware)."""
     fd = os.open(KEYBOARD_DEV, os.O_WRONLY)
@@ -963,8 +976,43 @@ def cmd_desktop_action(msg):
         return {"error": f"desktop_action failed: {e}"}
 
 
+def cmd_login(msg):
+    """Sign in or unlock with a PIN carried only in this stdin request."""
+    import cdp
+    import chromeos_login
+    try:
+        return chromeos_login.login(msg, cdp=cdp, press=press_keys, type_keys=type_keycodes)
+    except chromeos_login.LoginError as e:
+        return chromeos_login.error_result(e)
+    except Exception as e:
+        # Unexpected failures report only the exception type: an arbitrary
+        # message could echo request data.
+        return {"error": f"login failed unexpectedly ({type(e).__name__})", "code": "internal", "typed": None}
+    finally:
+        msg.pop("pin", None)
+
+
+def cmd_login_status(msg):
+    import chromeos_login
+    try:
+        return chromeos_login.login_status(msg)
+    except chromeos_login.LoginError as e:
+        return chromeos_login.error_result(e)
+
+
+def cmd_lock(msg):
+    import chromeos_login
+    try:
+        return chromeos_login.lock_screen()
+    except chromeos_login.LoginError as e:
+        return chromeos_login.error_result(e)
+
+
 COMMANDS = {
     "ping": cmd_ping,
+    "login": cmd_login,
+    "login_status": cmd_login_status,
+    "lock": cmd_lock,
     "wake": cmd_wake,
     "tap": cmd_tap,
     "swipe": cmd_swipe,

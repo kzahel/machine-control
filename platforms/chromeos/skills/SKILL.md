@@ -30,7 +30,9 @@ chromeos fix-devtools        # Re-enable remote debugging after ChromeOS update
 chromeos deploy              # Deploy/update input client on Chromebook
 chromeos screenshot [file]   # Take screenshot, save locally
 chromeos type "text"         # Type text
-chromeos login [--pin-stdin] # Log in selected profile; hidden prompt by default
+chromeos login               # Sign in or unlock one account with its PIN (one attempt)
+chromeos login-status        # Sign-in screen, locked, or active; read-only
+chromeos lock                # Lock the active session
 chromeos shortcut ctrl t     # Keyboard shortcut (handles modifier remapping)
 chromeos info                # Device info (touch_max, keyboard layout)
 chromeos deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  # Deploy extension
@@ -95,22 +97,29 @@ until the selected user profile is unlocked. A driver needs the profile PIN
 before browser, extension, or Crostini automation can resume.
 
 ```bash
-chromeos doctor            # Warns that the user session is not active
-chromeos login             # Hidden interactive PIN prompt
+chromeos login-status      # Which screen is showing and who is signed in
+chromeos login             # Sign in, or unlock the lock screen
 chromeos doctor            # Verify post-login services
 ```
 
-For an automation driver, pipe the PIN from an approved secret source without
+For a registered target, private inventory supplies the account
+(`CHROMEOS_TESTBED_ACCOUNT`) and a `pin` credential file
+(`CHROMEOS_TESTBED_PIN_FILE`), so `machine-control --target NAME testbed -- login`
+needs no prompt. Otherwise pipe the PIN from an approved secret source without
 printing it:
 
 ```bash
-password-manager-read-command | chromeos login --pin-stdin
+password-manager-read-command | chromeos login --pin-stdin --account EMAIL
 ```
 
 Never pass the PIN as a command argument or include it in an agent/tool log.
-`chromeos login` intentionally has no positional PIN form. It acts on the
-already-selected (normally last-used) profile, clears partial input, submits
-only once, and verifies success by checking whether the user vault mounted.
+`chromeos login` has no positional PIN form. On the sign-in screen it briefly
+enables ChromeVox (the only accessibility extension stable ChromeOS loads
+there) to read the login UI, selects and confirms the exact account, requires
+PIN entry, and turns ChromeVox off before typing. It submits only once and
+succeeds only when session_manager reports that account signed in and
+unlocked. It refuses, before typing, when the account has no PIN, needs an
+online Google sign-in, offers only a password, or another account is active.
 
 If SSH is unreachable, use the VT2 fallback above, then re-run bootstrap to
 restore future automatic startup.

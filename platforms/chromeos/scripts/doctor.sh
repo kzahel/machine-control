@@ -179,7 +179,7 @@ if [ "$SESSION_MOUNTED" = "true" ]; then
     ok "ChromeOS user session active"
 else
     warn "ChromeOS is waiting at sign-in; browser and Crostini automation are unavailable" \
-         "Run: chromeos login (or pipe an approved secret source to chromeos login --pin-stdin)"
+         "Run: chromeos login (uses CHROMEOS_TESTBED_PIN_FILE when configured; else --pin-stdin or a hidden prompt)"
 fi
 
 # 5. Check rootfs writability
