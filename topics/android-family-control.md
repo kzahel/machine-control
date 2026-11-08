@@ -624,3 +624,38 @@ Other options: macOS and BlueZ resolve rotating addresses routinely and may
 reconnect where Floss does not (untested in LE mode). On ChromeOS without
 root, the alternatives are keeping the link up, re-pairing through the UI, or
 a USB HID gadget.
+
+How long an LE link lasts while nothing breaks it: 44 minutes idle with the
+handheld's screen off, still connected at the end, and a Shift tap every ten
+minutes was delivered each time (5 of 5). The link drops only when either
+side's Bluetooth restarts, the host sleeps, or the radio goes out of range.
+
+#### Hybrid: LE pairing plus classic HID (2026-11-08, negative)
+
+The idea was to pair over LE through the normal dialog while the classic HID
+device profile was also registered. Cross-transport key derivation then gives
+the host a classic link key for the handheld's stable identity address, and
+the host's SDP of that address would see the HID service. Classic HID can
+reconnect from the device side, so this would have avoided both root and
+rotating LE addresses. A throwaway build ran the GATT server and the classic
+registration together.
+
+- The dialog still listed one entry (as a game controller) and paired over
+  LE. The LE keys and HOGP cache went under the pairing-time random address.
+  The derived classic record under the identity address now listed HID
+  (0x1124) among its services, unlike in LE-only mode.
+- Floss did not treat that record as a bonded device: `GetBondedDevices`
+  listed only the random address, so Chrome's UI had nothing to connect over
+  classic. Clicking the paired entry after a dropped link made no connection
+  attempt at all.
+- Every classic HID connection the handheld started, both while LE was up
+  and after a Bluetooth restart, was refused: "hh_save_incoming_connection:
+  Unexpected incoming HID connection, wait for local connect request", then
+  rejected after a second. Floss accepts an incoming HID connection only from
+  a device it has itself added as a HID device, which happens when the host
+  opens HID (as `pair-floss` makes it do).
+
+So a classic HID host record still needs one host-initiated connection,
+which on ChromeOS needs root. The dual build was not kept. With root, classic
+`pair-floss` is already the better path: after it, the handheld reconnected
+by itself after a Bluetooth restart and typing resumed.

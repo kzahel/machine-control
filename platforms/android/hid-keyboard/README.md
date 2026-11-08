@@ -247,7 +247,8 @@ autocorrect on the target when exact text matters.
 
 ChromeOS testbed, LE transport: listed in and paired from the normal
 **Pair new device** dialog without root, 1000 random characters exact at about
-17 per second, click, right click, moves and wheel. No reconnection after the
+17 per second, click, right click, moves and wheel. The link stayed up for 44
+minutes idle with the handheld's screen off. No reconnection after the
 handheld's Bluetooth restarted (see above).
 
 Steam Deck in Gaming Mode: paired from Steam's settings with
@@ -271,7 +272,9 @@ the macOS counterpart of ChromeOS autocorrect.
 - The LE transport's pairing does not survive a dropped link on ChromeOS.
   Android requires `BLUETOOTH_PRIVILEGED` for a fixed advertising address.
   ChromeOS's `#bluetooth-use-llprivacy` flag gets the host's controller to
-  reconnect, but Floss then drops the link (see the topic notes). Also,
+  reconnect, but Floss then drops the link. Registering classic HID during
+  the LE pairing does not help either: Floss still refuses classic HID
+  connections the handheld starts (see the topic notes). Also,
   Android apps cannot set the LE appearance, so hosts show a generic or
   game-controller icon.
 - `delivery: sent` means the handheld's stack sent the report (over LE, as a
