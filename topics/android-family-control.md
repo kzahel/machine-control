@@ -482,3 +482,116 @@ Against the same testbed:
   `CreateBond`, both numeric-comparison confirmations and the host-side HID
   connect in about 13 seconds. It accepts the comparison without a person
   reading both codes, so it is only for controlled testbeds.
+
+#### Other hosts: Steam Deck and macOS (2026-11-08)
+
+The same classic app, unchanged, against two more hosts:
+
+- **Steam Deck (SteamOS, BlueZ 5.87, Gaming Mode):** Steam's Bluetooth
+  settings hide the phone-class handheld until **Show all devices** is turned
+  on. Then it pairs from Steam's own list with a Just Works prompt on the
+  handheld. As on ChromeOS, the first HID connection must come from the host:
+  the handheld's own `connect` reached the interrupt channel and BlueZ dropped
+  it (`hidp_add_connection ... Bad file descriptor`), leaving the handheld's
+  HID state stuck until the app re-registered. `bluetoothctl connect` from the
+  Deck worked. After that, the handheld reconnected by itself after an app
+  restart. All 95 printable ASCII characters arrived correctly in Steam's
+  search field (checked on a `gamescopectl screenshot`). Moves were one-to-one
+  (no acceleration in Gaming Mode), and click and wheel drove Steam's
+  settings. Steam switched its on-screen hints to keyboard keys.
+- **macOS 26:** System Settings lists the handheld under Nearby Devices with no
+  filtering, and Connect leads to numeric comparison. macOS, unlike ChromeOS
+  and BlueZ, accepted a first HID connection that the handheld opened. It
+  then launched Keyboard Setup Assistant for the unidentified keyboard; Quit
+  leaves the default layout. Typing follows the Mac's own input source, so a
+  Dvorak Mac needs `--layout dvorak`. 1000 random printable characters read
+  back exactly from a text view with substitutions off, once macOS's
+  "add period with double-space" was off too. That system substitution turned
+  two typed spaces into ". ", the macOS counterpart of ChromeOS autocorrect.
+  macOS also reconnects to the bonded handheld by itself whenever its classic
+  HID app registers, so with several bonded hosts the first to connect wins.
+- **Wheel:** macOS counts each wheel report as one notch whatever its value,
+  where Linux and ChromeOS add the values up. A 10-notch scroll sent as one
+  report scrolled by a single damped notch. The app now sends one report per
+  notch, 15 ms apart, which works everywhere and lets macOS accelerate.
+
+#### BLE (HID over GATT) without root (2026-11-08)
+
+Goal: pair with a ChromeOS host through its normal **Pair new device** dialog,
+with no root and no Floss D-Bus. The app gained a second transport,
+`hidctl.py transport ble`. It is a `BluetoothGattServer` with the HID
+service (report map, protocol mode, control point, keyboard input and LED
+output reports, mouse input report), plus Battery and Device Information
+services. A connectable `BluetoothLeAdvertiser` advertisement carries the HID
+service UUID and the device name. HID characteristics require an encrypted
+link, so the host pairs before it reads the report map.
+
+Results on the ChromeOS testbed:
+
+- **Discovery and pairing work without root.** ChromeOS lists LE devices that
+  advertise the HID service even though it hides the same phone over classic
+  Bluetooth. It labelled the handheld a "game controller", because Android
+  apps cannot set the advertised appearance. Pairing used numeric comparison
+  on both screens. The handheld shows its code dialog directly while it is
+  recently discoverable, and otherwise only a notification, which easily
+  times out. ChromeOS then showed "Customize your keyboard, Battery level
+  100%".
+- **Input works.** 1000 random printable characters read back exactly at about
+  17 per second, slightly slower than classic because each report waits for
+  `onNotificationSent`. Click, right click, moves and wheel worked.
+- **Android reports every LE link to the GATT server.** The Mac and other
+  bonded devices connected for their own reasons, so a connection alone must
+  not make a device the HID host. A first version also re-claimed remembered
+  hosts on any link. After a reinstall (below) it reported `delivery: sent`
+  for text that never arrived. After review, a device becomes the host only
+  by subscribing to an input report: either the host pinned at pairing, or a
+  device whose bond completed during the handheld's consent-gated
+  discoverable window. A second review pointed out that any already-bonded
+  device reconnecting during a window would otherwise qualify. Hosts
+  subscribe as soon as the link is encrypted, before Android announces the
+  bond, so the bond event also claims a device that has already subscribed.
+  The app advertises discoverably with its name only in that window, and
+  otherwise only while a pinned host is away. A report counts as sent only if
+  the host subscribed and Android confirmed the notification.
+- **Bluetooth broadcasts need an exported receiver.** The adapter state, scan
+  mode and bond broadcasts come from the Bluetooth stack, which runs as its
+  own app. A dynamic receiver registered `RECEIVER_NOT_EXPORTED` silently
+  received none of them. They are protected broadcasts, so registering
+  exported is safe.
+- **The first connection attempt sometimes fails.** Several attempts from the
+  pairing dialog failed at the link layer with
+  `HCI_ERR_CONN_FAILED_ESTABLISHMENT` before the handheld saw anything.
+  Selecting the device again, or turning Bluetooth off and on on both sides,
+  got through.
+- **No reconnection after the link drops.** Android apps advertise from a
+  rotating resolvable private address and cannot choose a stable one
+  (`setOwnAddressType` is a system API). Floss recorded the bond under the
+  private address seen at pairing and, after the handheld's Bluetooth
+  restarted, waited in `BTA_HH_W4_CONN_ST` for a background connection that
+  never matched. The handheld saw no connection attempt at all, and choosing
+  the device in ChromeOS's Bluetooth menu did not help.
+- **Process death can break the session silently.** Because the host holds
+  the LE link, it stays up when the app dies, and the HID service vanishes
+  from the GATT database until the app re-adds it. One force-stop restart
+  survived this. After a reinstall (`adb install -r`), Floss rediscovered in
+  the gap, found no HID service ("HID service not found", "Open failed"), and
+  did not retry when the service returned on the same link.
+- **Re-pairing needs both sides cleaned.** After forgetting the device only on
+  ChromeOS, new pairing attempts failed (`SMP_FAIL` or
+  `HCI_ERR_CONN_FAILED_ESTABLISHMENT`). The handheld then reported "Can't
+  connect". The dialog may also list a stale entry under an old private
+  address. What worked, all without root: forget on both sides, turn
+  Bluetooth off and on on both, and pair from a fresh dialog.
+- **A dual-mode bond is not enough for classic HID.** Pairing over LE also
+  produced a dual-mode bond: Floss linked BR/EDR to the handheld's identity
+  address. But after switching the app to classic, choosing the device in
+  ChromeOS's Bluetooth menu did not open classic HID, because ChromeOS knows
+  the device only as an LE HID device.
+
+Verdict: BLE mode makes the handheld usable on an uncontrolled ChromeOS
+machine for one session, such as initial setup driven by an agent watching a
+webcam, without root. For a long-lived pairing, the rooted classic path
+(`pair-floss`) is still the robust one, because it reconnects after radio
+restarts. Ideas not tried: a fixed static random address is unavailable to
+unprivileged apps; BlueZ or macOS may resolve the rotating address where Floss
+did not.

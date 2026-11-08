@@ -11,6 +11,7 @@ Text to type is read from standard input only, never from argv.
 Examples:
   hidctl.py --serial SERIAL install
   hidctl.py --serial SERIAL pair-floss --ssh CHROMEOS_ROOT_ALIAS
+  hidctl.py --serial SERIAL transport ble     # pair from the host's own UI
   hidctl.py --serial SERIAL status --wait-host 10
   printf 'echo hello\\n' | hidctl.py --serial SERIAL --host HOST_ADDR type
   hidctl.py --serial SERIAL --host HOST_ADDR key ctrl+alt+t
@@ -430,6 +431,9 @@ def parser() -> argparse.ArgumentParser:
     found = commands.add_parser("discoverable")
     found.add_argument("--seconds", type=int, default=120)
     found.add_argument("--no-allow", action="store_true", help="leave the consent dialog to a person")
+    mode = commands.add_parser("transport", help="switch between classic Bluetooth HID and HID over GATT (LE)")
+    mode.add_argument("mode", choices=("classic", "ble"))
+    mode.add_argument("--unpin", action="store_true", help="with ble: forget the paired LE host")
     connect = commands.add_parser("connect")
     connect.add_argument("address")
     connect.add_argument("--wait-ms", type=int, default=10000)
@@ -500,6 +504,11 @@ def run(args: argparse.Namespace, adb: Adb, stdin=sys.stdin) -> JSON:
         return request(adb, {"op": "disarm"}, auto_arm=False)
     if command == "cancel":
         return request(adb, {"op": "cancel"}, auto_arm=False)
+    if command == "transport":
+        body = {"op": "transport", "mode": args.mode}
+        if args.unpin:
+            body["unpin"] = True
+        return request(adb, body, 20, auto)
     if command == "unplug":
         return send({"op": "unplug", "confirmUnpair": True})
     if command == "connect":

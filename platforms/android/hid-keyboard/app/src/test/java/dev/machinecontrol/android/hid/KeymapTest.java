@@ -55,4 +55,12 @@ public final class KeymapTest {
         for (int step : steps) assertEquals(true, Math.abs(step) <= 127);
         assertEquals(1, Reports.stepCount(0));
     }
+
+    @Test public void scrollIsOneNotchPerReport() {
+        int[][] notches = Reports.notches(-3, 1);
+        assertEquals(3, notches.length);
+        assertArrayEquals(new int[] {-1, 1}, notches[0]);
+        assertArrayEquals(new int[] {-1, 0}, notches[2]);
+        assertEquals(0, Reports.notches(0, 0).length);
+    }
 }

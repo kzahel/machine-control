@@ -57,6 +57,17 @@ public final class Reports {
         return result;
     }
 
+    /** Wheel and pan as single-notch steps, both axes advancing together. */
+    public static int[][] notches(int wheel, int pan) {
+        int count = Math.max(Math.abs(wheel), Math.abs(pan));
+        int[][] result = new int[count][2];
+        for (int i = 0; i < count; i++) {
+            result[i][0] = i < Math.abs(wheel) ? Integer.signum(wheel) : 0;
+            result[i][1] = i < Math.abs(pan) ? Integer.signum(pan) : 0;
+        }
+        return result;
+    }
+
     private static byte clamp(int value) {
         return (byte) Math.max(-127, Math.min(127, value));
     }

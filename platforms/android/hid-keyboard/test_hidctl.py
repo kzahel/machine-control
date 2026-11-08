@@ -205,6 +205,18 @@ class HidctlTests(unittest.TestCase):
         self.run_cli(["unplug", "--confirm-unpair"], adb)
         self.assertEqual(self.app.requests[-1]["confirmUnpair"], True)
 
+    def test_transport_switch_sends_only_a_known_mode(self) -> None:
+        adb = FakeAdb([grant(self.app)])
+        reply, _ = self.run_cli(["transport", "ble"], adb)
+        self.assertTrue(reply["accepted"])
+        self.assertEqual(self.app.requests[-1]["op"], "transport")
+        self.assertEqual(self.app.requests[-1]["mode"], "ble")
+        self.assertNotIn("unpin", self.app.requests[-1])
+        self.run_cli(["transport", "ble", "--unpin"], adb)
+        self.assertTrue(self.app.requests[-1]["unpin"])
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            hidctl.parser().parse_args(["transport", "usb"])
+
     def test_serial_is_required(self) -> None:
         with self.assertRaises(hidctl.HidError):
             hidctl.Adb("")

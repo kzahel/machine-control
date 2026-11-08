@@ -69,12 +69,16 @@ public final class HidService extends Service {
     static final String ACTION_STOP = "dev.machinecontrol.android.hid.STOP";
     static final String SCHEMA = "mc-android-hid/v1";
     static final String PREF_OPERATOR_STOPPED = "operatorStopped";
+    static final String TRANSPORT_CLASSIC = "classic", TRANSPORT_BLE = "ble";
+    private static final String PREF_BLE_HOST = "bleHost";
     static final long GRANT_MILLIS = 60 * 60 * 1000;
     private static final long HELD_BUTTON_MILLIS = 15000;
     private static final int NOTIFICATION = 1;
     private static final int MAX_FRAME = 64 * 1024;
     private static final int MAX_CONNECTIONS = 4;
     private static final int AUTH_TIMEOUT_MILLIS = 5000;
+    private static final int SCROLL_NOTCH_MILLIS = 15;
+    private static final int MAX_SCROLL_NOTCHES = 200;
 
     interface Listener { void changed(); }
 
@@ -92,6 +96,9 @@ public final class HidService extends Service {
     private final AtomicInteger cancelEpoch = new AtomicInteger();
     private BluetoothAdapter adapter;
     private volatile BluetoothHidDevice hid;
+    private volatile BleHid ble;
+    private volatile String transport = TRANSPORT_CLASSIC;
+    private volatile int advertiseError;
     private volatile boolean registered;
     private volatile BluetoothDevice host;
     private volatile boolean bootProtocol;
@@ -132,7 +139,27 @@ public final class HidService extends Service {
     }
 
     private final BroadcastReceiver adapterChanges = new BroadcastReceiver() {
-        @Override public void onReceive(Context context, Intent intent) { changed(); }
+        @Override public void onReceive(Context context, Intent intent) {
+            // The GATT server dies with the adapter; the classic proxy recovers by itself.
+            if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(intent.getAction()) && TRANSPORT_BLE.equals(transport)) {
+                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+                if (state == BluetoothAdapter.STATE_TURNING_OFF) bleRestart(false);
+                else if (state == BluetoothAdapter.STATE_ON) bleRestart(true);
+            }
+            // LE pairing rides on the handheld's own discoverability, which needs a
+            // person's (or ADB's) consent through the system dialog.
+            BleHid running = ble;
+            if (BluetoothAdapter.ACTION_SCAN_MODE_CHANGED.equals(intent.getAction()) && running != null)
+                running.scanModeChanged();
+            if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(intent.getAction()) && running != null
+                    && intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR) == BluetoothDevice.BOND_BONDED) {
+                BluetoothDevice device = android.os.Build.VERSION.SDK_INT >= 33
+                    ? intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice.class)
+                    : legacyDevice(intent);
+                if (device != null) running.bonded(device);
+            }
+            changed();
+        }
     };
 
     private void setup() {
@@ -140,27 +167,132 @@ public final class HidService extends Service {
         if (adapter == null) return;
         IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
-        // Protected system broadcasts only; the exported flag exists from API 33.
-        if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(adapterChanges, filter, RECEIVER_NOT_EXPORTED);
+        filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+        // These are protected broadcasts that only the Bluetooth stack can send, but
+        // it runs as its own app, so a not-exported receiver would never get them.
+        if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(adapterChanges, filter, RECEIVER_EXPORTED);
         else registerReceiver(adapterChanges, filter);
-        adapter.getProfileProxy(this, new BluetoothProfile.ServiceListener() {
-            @Override public void onServiceConnected(int profile, BluetoothProfile proxy) {
-                hid = (BluetoothHidDevice) proxy;
-                register();
-            }
-            @Override public void onServiceDisconnected(int profile) {
-                hid = null;
-                registered = false;
-                host = null;
-                changed();
-            }
-        }, BluetoothProfile.HID_DEVICE);
+        startTransport();
         try {
             server = new ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"));
             new Thread(this::accept, "mc-hid-accept").start();
         } catch (IOException error) {
             server = null;
         }
+    }
+
+    /**
+     * Classic HID device profile or HID over GATT. Only one runs at a time; the
+     * choice persists so the service comes back in the same mode.
+     */
+    private synchronized void startTransport() {
+        transport = TRANSPORT_BLE.equals(prefs().getString("transport", TRANSPORT_CLASSIC))
+            ? TRANSPORT_BLE : TRANSPORT_CLASSIC;
+        if (TRANSPORT_BLE.equals(transport)) {
+            BleHid[] self = new BleHid[1];
+            BleHid started = new BleHid(this, getSystemService(BluetoothManager.class),
+                prefs().getString(PREF_BLE_HOST, null), bleEvents(self));
+            self[0] = started;
+            ble = started;
+            if (!started.start()) advertiseError = -4;
+            changed();
+            return;
+        }
+        adapter.getProfileProxy(this, new BluetoothProfile.ServiceListener() {
+            @Override public void onServiceConnected(int profile, BluetoothProfile proxy) {
+                if (!TRANSPORT_CLASSIC.equals(transport) || stopping) {
+                    adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, proxy);
+                    return;
+                }
+                hid = (BluetoothHidDevice) proxy;
+                register();
+            }
+            @Override public void onServiceDisconnected(int profile) {
+                if (!TRANSPORT_CLASSIC.equals(transport)) return;
+                hid = null;
+                registered = false;
+                host = null;
+                changed();
+            }
+        }, BluetoothProfile.HID_DEVICE);
+    }
+
+    private synchronized void stopTransport() { stopTransport(true); }
+
+    /** Releases everything on the current host, then tears the transport down. */
+    private synchronized void stopTransport(boolean release) {
+        BluetoothDevice connected = host;
+        if (release && connected != null) {
+            send(Reports.KEYBOARD_ID, Reports.keyboard(0, 0));
+            send(Reports.MOUSE_ID, Reports.mouse(0, 0, 0, 0, 0));
+        }
+        BleHid running = ble;
+        ble = null;
+        if (running != null) running.stop();
+        BluetoothHidDevice proxy = hid;
+        hid = null;
+        if (proxy != null) {
+            proxy.unregisterApp();
+            if (adapter != null) adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, proxy);
+        }
+        host = null;
+        registered = false;
+        synchronized (mouseLock) { buttons = 0; agentButtons = 0; }
+    }
+
+    /**
+     * Callbacks from a transport that has since been stopped arrive late (for
+     * example the classic unregister after a switch to LE) and must not touch
+     * the current transport's state.
+     */
+    private BleHid.Events bleEvents(BleHid[] self) {
+        return new BleHid.Events() {
+        private boolean stale() { return ble != self[0]; }
+        @Override public void connected(BluetoothDevice device) {
+            if (stale()) return;
+            host = device;
+            bootProtocol = false;
+            leds = -1;
+            changed();
+        }
+        @Override public void disconnected(BluetoothDevice device) {
+            if (stale()) return;
+            if (device.equals(host)) host = null;
+            synchronized (mouseLock) { buttons = 0; }
+            changed();
+        }
+        @Override public void leds(int value) {
+            if (stale()) return;
+            leds = value;
+            changed();
+        }
+        @Override public void protocol(boolean boot) { if (!stale()) bootProtocol = boot; }
+        @Override public void advertising(boolean on, int error) {
+            if (stale()) return;
+            advertiseError = error;
+            changed();
+        }
+        @Override public void pinned(String address) {
+            if (!stale()) prefs().edit().putString(PREF_BLE_HOST, address).apply();
+        }
+        };
+    }
+
+    @SuppressWarnings("deprecation")
+    private static BluetoothDevice legacyDevice(Intent intent) {
+        return intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+    }
+
+    private synchronized void bleRestart(boolean start) {
+        if (stopping || !TRANSPORT_BLE.equals(transport)) return;
+        // No release reports while the radio is going down; they would only time out.
+        if (ble != null) stopTransport(start);
+        if (start) startTransport();
+    }
+
+    private boolean isRegistered() {
+        BleHid running = ble;
+        return running != null ? running.ready() : registered;
     }
 
     private void register() {
@@ -170,7 +302,9 @@ public final class HidService extends Service {
             "MC HID", "Machine Control keyboard and mouse", "Machine Control",
             BluetoothHidDevice.SUBCLASS1_COMBO, Reports.DESCRIPTOR);
         proxy.registerApp(sdp, null, null, callbacks, new BluetoothHidDevice.Callback() {
+            private boolean stale() { return hid != proxy; }
             @Override public void onAppStatusChanged(BluetoothDevice plugged, boolean isRegistered) {
+                if (stale()) return;
                 registered = isRegistered;
                 if (isRegistered) {
                     BluetoothDevice target = plugged != null ? plugged : savedHost();
@@ -181,6 +315,7 @@ public final class HidService extends Service {
                 changed();
             }
             @Override public void onConnectionStateChanged(BluetoothDevice device, int state) {
+                if (stale()) return;
                 if (state == BluetoothProfile.STATE_CONNECTED) {
                     host = device;
                     bootProtocol = false;
@@ -204,15 +339,15 @@ public final class HidService extends Service {
                 else proxy.reportError(device, BluetoothHidDevice.ERROR_RSP_INVALID_RPT_ID);
             }
             @Override public void onSetReport(BluetoothDevice device, byte type, byte id, byte[] data) {
-                if (id == Reports.KEYBOARD_ID && data != null && data.length > 0) leds = data[0] & 0xff;
+                if (!stale() && id == Reports.KEYBOARD_ID && data != null && data.length > 0) leds = data[0] & 0xff;
                 BluetoothHidDevice proxy = hid;
                 if (proxy != null) proxy.reportError(device, BluetoothHidDevice.ERROR_RSP_SUCCESS);
             }
             @Override public void onSetProtocol(BluetoothDevice device, byte protocol) {
-                bootProtocol = protocol == BluetoothHidDevice.PROTOCOL_BOOT_MODE;
+                if (!stale()) bootProtocol = protocol == BluetoothHidDevice.PROTOCOL_BOOT_MODE;
             }
             @Override public void onInterruptData(BluetoothDevice device, byte id, byte[] data) {
-                if (id == Reports.KEYBOARD_ID && data != null && data.length > 0) {
+                if (!stale() && id == Reports.KEYBOARD_ID && data != null && data.length > 0) {
                     leds = data[0] & 0xff;
                     changed();
                 }
@@ -258,19 +393,7 @@ public final class HidService extends Service {
         if (adapter != null) unregisterReceiver(adapterChanges);
         current = null;
         try { if (server != null) server.close(); } catch (IOException ignored) { }
-        BluetoothHidDevice proxy = hid;
-        if (proxy != null) {
-            BluetoothDevice connected = host;
-            if (connected != null) {
-                proxy.sendReport(connected, Reports.KEYBOARD_ID, Reports.keyboard(0, 0));
-                proxy.sendReport(connected, Reports.MOUSE_ID, Reports.mouse(0, 0, 0, 0, 0));
-            }
-            proxy.unregisterApp();
-            if (adapter != null) adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, proxy);
-        }
-        hid = null;
-        host = null;
-        registered = false;
+        stopTransport();
         callbacks.shutdownNow();
         pointer.shutdownNow();
         connections.shutdownNow();
@@ -283,10 +406,19 @@ public final class HidService extends Service {
     String summary() {
         if (adapter == null) return "Bluetooth unavailable";
         if (!adapter.isEnabled()) return "Bluetooth is off";
-        if (!registered) return "Registering HID device…";
+        boolean le = TRANSPORT_BLE.equals(transport);
+        if (!isRegistered()) return le ? "Starting Bluetooth LE keyboard…" : "Registering HID device…";
         BluetoothDevice connected = host;
-        String self = "This handheld: " + adapter.getName();
+        String self = "This handheld: " + adapter.getName() + (le ? " (Bluetooth LE)" : "");
         if (connected != null) return "Connected to " + connected.getName() + "\n" + self;
+        if (le) {
+            BleHid running = ble;
+            String state = running == null || !running.ready() ? "LE keyboard failed (error " + advertiseError + ")"
+                : running.pairing() ? "Pairing open: choose this handheld in the host's Bluetooth settings"
+                : running.pinnedHost() != null ? "Waiting for the paired host to connect"
+                : "Not paired: tap Discoverable to let a host pair";
+            return state + "\n" + self;
+        }
         String scan = adapter.getScanMode() == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE
             ? "discoverable" : "not discoverable";
         return "Waiting for a host (" + scan + ")\n" + self;
@@ -320,6 +452,8 @@ public final class HidService extends Service {
     // ---- Report delivery ----
 
     private boolean send(int id, byte[] report) {
+        BleHid running = ble;
+        if (running != null) return running.send(id, report);
         BluetoothHidDevice proxy = hid;
         BluetoothDevice connected = host;
         if (proxy == null || connected == null) return false;
@@ -348,14 +482,17 @@ public final class HidService extends Service {
         return true;
     }
 
+    /**
+     * One report per notch: macOS counts each wheel report as a single notch
+     * whatever its value, while Linux and ChromeOS add the values up.
+     */
     boolean scroll(int wheel, int pan) {
-        int count = Reports.stepCount(wheel, pan);
-        int[] wheels = Reports.spread(wheel, count), pans = Reports.spread(pan, count);
-        for (int i = 0; i < count; i++) {
+        int[][] notches = Reports.notches(wheel, pan);
+        for (int i = 0; i < notches.length; i++) {
             synchronized (mouseLock) {
-                if (!send(Reports.MOUSE_ID, Reports.mouse(buttons, 0, 0, wheels[i], pans[i]))) return false;
+                if (!send(Reports.MOUSE_ID, Reports.mouse(buttons, 0, 0, notches[i][0], notches[i][1]))) return false;
             }
-            if (count > 1) SystemClock.sleep(8);
+            if (i + 1 < notches.length) SystemClock.sleep(SCROLL_NOTCH_MILLIS);
         }
         return true;
     }
@@ -633,7 +770,7 @@ public final class HidService extends Service {
     }
 
     private void requireConnected() throws Refusal {
-        if (hid == null || !registered) throw new Refusal("not_registered", "HID device is not registered");
+        if (!isRegistered()) throw new Refusal("not_registered", "HID device is not registered");
         if (host == null) throw new Refusal("no_host", "No host is connected");
     }
 
@@ -684,6 +821,7 @@ public final class HidService extends Service {
             case "ping": return ok(op);
             case "status": return status();
             case "connect": return connect(request);
+            case "transport": return switchTransport(request);
             case "cancel": {
                 cancelEpoch.incrementAndGet();
                 return ok(op);
@@ -691,6 +829,7 @@ public final class HidService extends Service {
             case "unplug": {
                 // Android implements HID disconnect as a virtual-cable unplug, which
                 // also removes the bond on the handheld. Re-pairing is then required.
+                requireClassic();
                 if (!request.optBoolean("confirmUnpair"))
                     throw new Refusal("confirmation_required", "Unplug removes the pairing; confirm explicitly");
                 BluetoothHidDevice proxy = hid;
@@ -734,8 +873,10 @@ public final class HidService extends Service {
             case "scroll": {
                 requireHost(request);
                 touchAgentButtons();
-                return delivered(op, scroll(bounded(request, "wheel", 0, -1000, 1000),
-                    bounded(request, "pan", 0, -1000, 1000))).put("buttonsHeld", agentButtonsHeld());
+                return delivered(op, scroll(
+                    bounded(request, "wheel", 0, -MAX_SCROLL_NOTCHES, MAX_SCROLL_NOTCHES),
+                    bounded(request, "pan", 0, -MAX_SCROLL_NOTCHES, MAX_SCROLL_NOTCHES)))
+                    .put("buttonsHeld", agentButtonsHeld());
             }
             case "click": {
                 requireHost(request);
@@ -765,7 +906,42 @@ public final class HidService extends Service {
         }
     }
 
+    private void requireClassic() throws Refusal {
+        if (!TRANSPORT_CLASSIC.equals(transport))
+            throw new Refusal("wrong_transport", "Only the classic transport supports this; LE hosts reconnect themselves");
+    }
+
+    private JSONObject switchTransport(JSONObject request) throws Exception {
+        String mode = request.optString("mode");
+        if (!TRANSPORT_CLASSIC.equals(mode) && !TRANSPORT_BLE.equals(mode))
+            throw new Refusal("bad_request", "mode must be classic or ble");
+        if (request.optBoolean("unpin")) {
+            if (!TRANSPORT_BLE.equals(mode)) throw new Refusal("bad_request", "unpin applies to ble");
+            prefs().edit().remove(PREF_BLE_HOST).apply();
+            BleHid running = ble;
+            if (running != null) running.unpin();
+        }
+        cancelEpoch.incrementAndGet();
+        // Wait for any keyboard request to stop before the transport goes away.
+        boolean locked = keyboardLock.tryLock(2, TimeUnit.SECONDS);
+        if (!locked) throw new Refusal("busy", "A keyboard request is still running");
+        try {
+            synchronized (this) {
+                if (!mode.equals(transport)) {
+                    stopTransport();
+                    prefs().edit().putString("transport", mode).apply();
+                    startTransport();
+                }
+            }
+        } finally {
+            keyboardLock.unlock();
+        }
+        changed();
+        return ok("transport").put("transport", mode);
+    }
+
     private JSONObject connect(JSONObject request) throws Exception {
+        requireClassic();
         BluetoothHidDevice proxy = hid;
         if (proxy == null || !registered) throw new Refusal("not_registered", "HID device is not registered");
         String address = request.optString("address").toUpperCase(Locale.ROOT);
@@ -780,11 +956,19 @@ public final class HidService extends Service {
     private JSONObject status() throws Exception {
         int led = leds;
         Object capsLock = led < 0 ? "unknown" : (Object) ((led & 2) != 0);
-        JSONObject result = ok("status").put("registered", registered)
+        BleHid running = ble;
+        JSONObject result = ok("status").put("registered", isRegistered()).put("transport", transport)
             .put("bluetoothOn", adapter != null && adapter.isEnabled())
             .put("expiresInSeconds", Math.max(0, (deadline - SystemClock.elapsedRealtime()) / 1000))
             .put("protocol", bootProtocol ? "boot" : "report")
             .put("capsLock", capsLock);
+        if (running != null) {
+            result.put("advertising", running.advertising()).put("advertiseError", advertiseError)
+                .put("pairing", running.pairing())
+                .put("leHost", running.pinnedHost() == null ? JSONObject.NULL : running.pinnedHost())
+                .put("subscribed", new JSONObject().put("keyboard", running.subscribed(Reports.KEYBOARD_ID))
+                    .put("mouse", running.subscribed(Reports.MOUSE_ID)));
+        }
         if (adapter != null && adapter.isEnabled()) {
             int mode = adapter.getScanMode();
             result.put("scanMode", mode == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE ? "discoverable"

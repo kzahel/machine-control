@@ -1,7 +1,8 @@
 # Android handheld as a Bluetooth keyboard and mouse
 
-`MC HID` turns an unrooted Android 12+ handheld into a classic Bluetooth HID
-keyboard and mouse for another machine, driven by agents over ADB. It exists
+`MC HID` turns an unrooted Android 12+ handheld into a Bluetooth keyboard and
+mouse for another machine, driven by agents over ADB. It speaks classic
+Bluetooth HID by default and HID over GATT (Bluetooth LE) on request. It exists
 so an agent can type into a target that has no other input path during
 bootstrap or recovery, without a person at the target's keyboard. The app is
 agent-first: a person gets only a status line, a Discoverable button, and an
@@ -20,6 +21,10 @@ all are addressed above. Design notes and the 2026-11-08 trials live in
   keyboard with LED output; report 2: five-button mouse with X, Y, wheel and
   horizontal pan), reconnects to the last host on start, and serves a
   loopback control socket.
+- `BleHid`: the LE transport. A GATT server with the HID, Battery and Device
+  Information services and the same report map, plus a connectable
+  advertisement carrying the HID service UUID. Hosts that hide phones from
+  their classic pairing lists, ChromeOS among them, list it.
 - `MainActivity` and `TouchpadView`: status, Discoverable, Stop, and a
   touchpad. One finger moves, a tap left-clicks, two fingers scroll, a
   two-finger tap right-clicks; Left and Right are press-and-hold buttons for
@@ -81,9 +86,23 @@ HID-device apps first; Android allows one registered HID app at a time.
 ## Pairing
 
 Pair once per host. Discoverability lasts two minutes; any device can try to
-pair in that window, so keep it short and pair only on a controlled bench. ChromeOS (Floss) hides phone-class devices from its own
-pairing UI and does not accept a first HID connection that the device starts,
-so on a ChromeOS testbed with root SSH the host does the work:
+pair in that window, so keep it short and pair only on a controlled bench.
+How each host pairs:
+
+| Host | Lists the handheld? | First HID connection | Notes |
+| --- | --- | --- | --- |
+| macOS | Yes, under Nearby Devices | Either side | Quit Keyboard Setup Assistant when it appears. |
+| SteamOS (BlueZ) | Only with **Show all devices** on | Host: `bluetoothctl connect ADDR` | A first connection from the handheld is dropped by BlueZ. |
+| ChromeOS (Floss), classic | No: phones are filtered out | Host | Needs root; use `pair-floss`. |
+| ChromeOS (Floss), LE | Yes, as a game controller | Host, automatically | No root; see the LE transport below. |
+
+After the first connection, the app reconnects to the saved classic host by
+itself when it starts, and `connect ADDRESS` asks for a connection
+explicitly. The first host to connect wins, and macOS reconnects on its own as
+soon as the app registers. With several bonded hosts in range, turn
+Bluetooth off on the hosts that should stay out.
+
+### ChromeOS with root (classic)
 
 ```sh
 hidctl.py --serial "$ANDROID_TEST_SERIAL" pair-floss --ssh CHROMEOS_ROOT_ALIAS
@@ -97,16 +116,63 @@ taps Pair only on a prompt that names the host's adapter, and succeeds only if
 the connected host is that adapter. It still accepts numeric comparison
 without a person reading both codes, which is only appropriate on a controlled
 testbed; the code is reported for the record.
-Hosts whose pairing UI lists phones can instead pair from their own UI while
-the handheld is discoverable.
 
-After that the app reconnects to the saved host by itself when it starts.
-`connect ADDRESS` asks for a connection explicitly.
+### ChromeOS without root (LE transport)
 
-`unplug --confirm-unpair` disconnects the host. Android implements HID
-disconnect as a virtual-cable unplug, which also removes the bond on the
-handheld, so pairing is needed again. There is deliberately no plain
-`disconnect`.
+```sh
+hidctl.py --serial "$ANDROID_TEST_SERIAL" transport ble
+hidctl.py --serial "$ANDROID_TEST_SERIAL" discoverable   # so Android shows its code dialog
+```
+
+Then on the host choose **Pair new device**, pick the handheld, and confirm
+the same six-digit code on both screens. If the host reports "Couldn't pair",
+select the device again; the first attempt sometimes fails before the
+handheld sees it. `transport classic` switches back, and the choice persists
+across restarts.
+
+LE pairing follows the same consent gate as classic. A new host can take the
+handheld only while it is discoverable (the system dialog, which `discoverable`
+accepts). Only then does the app advertise discoverably with its name, and
+Android shows its code dialog instead of a notification that times out
+quickly. A device whose bond completes during that window and that
+subscribes to an input report (within the window, or 30 seconds after the
+bond) becomes the host and is pinned (`leHost` in
+`status`). Afterwards only that host can claim the handheld, and the app
+advertises, slowly, connectably but not discoverably and without its name,
+only while the pinned host is away. Devices that were already bonded (a
+laptop or a watch reconnecting for its own reasons, even while the handheld
+is discoverable) can read the GATT database but cannot become the host.
+Pairing a different host in a later window replaces the pin, and
+`transport ble --unpin` clears it and drops input to the current host at once. Android's own Bluetooth settings page also
+makes the handheld discoverable while it is open. On Android 13 and earlier,
+every connectable advertisement is discoverable.
+
+A host becomes the host again only by writing its subscription. ChromeOS does
+that on every connection; a host that relies on the subscription stored from
+an earlier connection would get `no_host`. macOS and BlueZ are untested in LE
+mode.
+
+`status` reports `pairing`, `advertising`, `leHost` and `subscribed`
+(keyboard and mouse). A report counts as sent only if the host subscribed to
+it and Android reported the notification sent. After a timeout the next
+report first waits for the late confirmation, which narrows but does not
+fully close the chance of matching it to the wrong report.
+
+This is good for one session, such as initial setup by an agent watching the
+screen, but the pairing does not recover from a dropped link. Android apps
+advertise from a rotating private address, and Floss does not reconnect to
+it after the handheld's Bluetooth restarts. To use it again, forget the device
+on both sides, turn Bluetooth off and on on both, and pair from a fresh
+dialog. Killing the app while the link is up (for example `install`) can also
+leave the host with a dead HID session on a live link. Check `host` in
+`status` and read typed text back.
+
+### Unplug
+
+`unplug --confirm-unpair` disconnects a classic host. Android implements HID
+disconnect as a virtual-cable unplug, which removed the bond on the handheld
+with ChromeOS, so pairing was needed again (with macOS the bond was still
+listed afterwards). There is deliberately no plain `disconnect`.
 
 ## Use
 
@@ -123,11 +189,17 @@ hidctl.py $S type --layout dvorak < notes.txt
 hidctl.py $S key ctrl+l                  # chords; also enter, tab, f5, search
 hidctl.py $S move 200 -50
 hidctl.py $S click --button right
-hidctl.py $S scroll -- -3                # positive scrolls up
+hidctl.py $S scroll -- -3                # notches; positive scrolls up
 hidctl.py $S button left down; hidctl.py $S move 100 0; hidctl.py $S button left up
 hidctl.py $S cancel                      # stop a type or key request in progress
 hidctl.py $S release                     # cancel, then release every key and button
+hidctl.py --serial "$ANDROID_TEST_SERIAL" transport ble   # or classic
 ```
+
+Scrolling sends one report per notch, 15 ms apart (at most 200 notches), because
+macOS counts each wheel report as one notch whatever its value. Typing uses
+the host's own keyboard layout: pass `--layout dvorak` when the host's input
+source is Dvorak, whatever the handheld uses.
 
 A button held with `button down` is released automatically after 15 seconds
 without agent pointer activity (moves and scrolls keep it held), so a crashed
@@ -150,7 +222,9 @@ hold plus the gap and a shifted one three holds plus the gap, so random
 printable text measured about 20 characters per second. Use `--hold-ms` and
 `--gap-ms` to slow down for sluggish hosts.
 
-## Verified on the ChromeOS testbed (2026-11-08)
+## Verified hosts (2026-11-08)
+
+ChromeOS testbed, classic transport:
 
 - Fresh `pair-floss` pairing in about 13 seconds; reconnection after an app
   restart within about 5 seconds without host action.
@@ -171,6 +245,22 @@ ChromeOS autocorrects physical-keyboard text in ordinary fields ("teh" became
 into fields with `autocorrect=off`, a terminal, or turn off physical keyboard
 autocorrect on the target when exact text matters.
 
+ChromeOS testbed, LE transport: listed in and paired from the normal
+**Pair new device** dialog without root, 1000 random characters exact at about
+17 per second, click, right click, moves and wheel. No reconnection after the
+handheld's Bluetooth restarted (see above).
+
+Steam Deck in Gaming Mode: paired from Steam's settings with
+**Show all devices**, all printable ASCII exact in Steam's search field,
+one-to-one pointer moves, click and wheel in Steam's settings. The handheld
+reconnected by itself after an app restart.
+
+macOS: paired from System Settings; 1000 random characters exact into a text
+view with substitutions off, with `--layout dvorak` on a Dvorak Mac. Click,
+right click, moves and per-notch wheel (accelerated by macOS) worked. macOS's
+"add period with double-space" turns two spaces into ". " unless it is off,
+the macOS counterpart of ChromeOS autocorrect.
+
 ## Limits
 
 - Needs the target OS running with Bluetooth, and a pairing that a powerwash
@@ -178,3 +268,9 @@ autocorrect on the target when exact text matters.
   screens; those need a USB HID gadget.
 - Boot protocol is refused rather than emulated (`boot_protocol`).
 - Characters outside printable ASCII, tab and newline are refused.
+- The LE transport's pairing does not survive a dropped link on ChromeOS, and
+  Android apps cannot set the LE appearance, so hosts show a generic or
+  game-controller icon.
+- `delivery: sent` means the handheld's stack sent the report (over LE, as a
+  notification the host had subscribed to). A host whose HID session died on a
+  live link still receives notifications and ignores them, so verify effects.

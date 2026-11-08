@@ -122,7 +122,10 @@ public final class MainActivity extends Activity {
     }
 
     private boolean hasSavedHost() {
-        return getSharedPreferences("hid", MODE_PRIVATE).getString("host", null) != null;
+        // Either transport's host counts: LE pairing windows open whenever the
+        // handheld is discoverable, so do not offer one needlessly.
+        android.content.SharedPreferences prefs = getSharedPreferences("hid", MODE_PRIVATE);
+        return prefs.getString("host", null) != null || prefs.getString("bleHost", null) != null;
     }
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
