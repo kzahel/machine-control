@@ -161,6 +161,11 @@ workflow attempt, archive hash, seed/counts and cleanup status. No target names,
 endpoints, raw logs, screenshots or crash reports are accepted. Hosted CI verifies
 that receipt against the exact authenticated Mac archive before publication.
 
+A maintainer may explicitly waive the packaged Mac receipt for one release by
+passing `--waive-macos-acceptance` in place of the receipt path. The waiver
+still requires the exact successful candidate run, and CI still reverifies
+every package. It records only a workflow warning, never acceptance evidence.
+
 To publish those same bytes without another build:
 
 ```bash

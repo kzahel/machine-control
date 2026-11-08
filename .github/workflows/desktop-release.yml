@@ -18,7 +18,7 @@ on:
         required: false
         type: string
       macos_acceptance:
-        description: 'Minimized controller receipt for the exact packaged Mac candidate (required for new releases)'
+        description: 'Minimized controller receipt for the exact packaged Mac candidate (required for new releases; "waived" = explicit maintainer waiver)'
         default: ''
         required: false
         type: string
@@ -64,8 +64,12 @@ jobs:
           echo "package_run=$package_run" >> "$GITHUB_OUTPUT"
           if [ -n "$RELEASE_TAG" ] && python3 -c 'import os,sys;sys.exit(0 if tuple(map(int,os.environ["RELEASE_VERSION"].split("."))) >= (0,6,9) else 1)'; then
             test -n "$CANDIDATE_RUN"
-            python3 -c 'import os,pathlib;pathlib.Path("acceptance.json").write_text(os.environ["MACOS_ACCEPTANCE"])'
-            python3 desktop/scripts/packaged-acceptance.py acceptance.json --revision "$GITHUB_SHA" --version "$RELEASE_VERSION" --run "$package_run"
+            if [ "$MACOS_ACCEPTANCE" = waived ]; then
+              echo "::warning::Maintainer waived packaged Mac acceptance for $RELEASE_VERSION"
+            else
+              python3 -c 'import os,pathlib;pathlib.Path("acceptance.json").write_text(os.environ["MACOS_ACCEPTANCE"])'
+              python3 desktop/scripts/packaged-acceptance.py acceptance.json --revision "$GITHUB_SHA" --version "$RELEASE_VERSION" --run "$package_run"
+            fi
           fi
           python3 -c 'import os; v=tuple(map(int,os.environ["RELEASE_VERSION"].split(".")));print("linux=" + str(v >= (0,5,0)).lower())' >> "$GITHUB_OUTPUT"
       # The ~5-minute push checks already cover Linux, macOS and Windows.
@@ -148,8 +152,12 @@ jobs:
             python3 desktop/scripts/verify-package.py "candidates/macos-desktop-$target" --revision "$GITHUB_SHA" --team-id "$APPLE_TEAM_ID" --test-tampering
           done
           if [ -n "$RELEASE_TAG" ] && python3 -c 'import os,sys;sys.exit(0 if tuple(map(int,os.environ["RELEASE_VERSION"].split("."))) >= (0,6,9) else 1)'; then
-            python3 -c 'import os,pathlib;pathlib.Path("acceptance.json").write_text(os.environ["MACOS_ACCEPTANCE"])'
-            python3 desktop/scripts/packaged-acceptance.py acceptance.json --build candidates/macos-desktop-aarch64-apple-darwin/build.json --revision "$GITHUB_SHA" --version "$RELEASE_VERSION" --run "$PACKAGE_RUN"
+            if [ "$MACOS_ACCEPTANCE" = waived ]; then
+              echo "::warning::Publishing $RELEASE_VERSION without packaged Mac acceptance (maintainer waiver)"
+            else
+              python3 -c 'import os,pathlib;pathlib.Path("acceptance.json").write_text(os.environ["MACOS_ACCEPTANCE"])'
+              python3 desktop/scripts/packaged-acceptance.py acceptance.json --build candidates/macos-desktop-aarch64-apple-darwin/build.json --revision "$GITHUB_SHA" --version "$RELEASE_VERSION" --run "$PACKAGE_RUN"
+            fi
           fi
           for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
             python3 desktop/scripts/windows-package.py verify "candidates/windows-desktop-$target" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$PACKAGE_RUN" --target "$target" --test-tampering

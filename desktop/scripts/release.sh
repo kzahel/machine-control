@@ -2,7 +2,7 @@
 # A tagged desktop publication uses the protected main-only workflow.
 set -euo pipefail
 if [[ $# -lt 1 || $# -gt 3 || ! "$1" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-  echo 'Usage: desktop/scripts/release.sh MAJOR.MINOR.PATCH [CANDIDATE_RUN_ID ACCEPTANCE_JSON]' >&2
+  echo 'Usage: desktop/scripts/release.sh MAJOR.MINOR.PATCH [CANDIDATE_RUN_ID ACCEPTANCE_JSON|--waive-macos-acceptance]' >&2
   exit 1
 fi
 version="$1"
@@ -10,6 +10,12 @@ tag="desktop-v$version"
 candidate_run="${2:-}"
 acceptance_file="${3:-}"
 acceptance=''
+waived=''
+if [[ "$acceptance_file" == --waive-macos-acceptance ]]; then
+  waived=1
+  acceptance_file=''
+  acceptance=waived
+fi
 if [[ -n "$acceptance_file" && -z "$candidate_run" ]]; then
   echo 'An acceptance receipt requires its exact candidate run.' >&2
   exit 1
@@ -19,7 +25,7 @@ import sys
 sys.exit(0 if tuple(map(int,sys.argv[1].split('.'))) >= (0,6,9) else 1)
 PY
 then
-  if [[ -z "$candidate_run" || -z "$acceptance_file" ]]; then
+  if [[ -z "$candidate_run" || ( -z "$acceptance_file" && -z "$waived" ) ]]; then
     echo 'New releases require an accepted exact candidate and packaged VM receipt.' >&2
     exit 1
   fi
