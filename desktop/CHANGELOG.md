@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.7.2]
+
+- Access you turned on no longer turns itself off silently. On macOS an
+  ordinary network clock sync could look like a different login and stop
+  Desktop and Browser access; Windows did the same whenever another session
+  held the console or one session check failed, and Linux after a GNOME
+  Shell restart. Now only another login actually holding the screen
+  interrupts access, and only as a pause: agents see
+  `console_session_elsewhere`, and the same access resumes when your
+  session returns.
+- The macOS unlock helper no longer treats a clock sync as a different
+  login, which could refuse a locked-use unlock or skip a relock.
 - **Install and restart** works while access is on. Machine Control stops
   access, installs the update, restarts, and turns the same Desktop and
   Browser access back on, keeping any timed access's original end time.
