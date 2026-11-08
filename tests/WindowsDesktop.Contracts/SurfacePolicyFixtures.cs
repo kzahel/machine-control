@@ -121,6 +121,20 @@ internal static class SurfacePolicyFixtures
         grants.SetReady(false, true, "fixture-logon");
         grants.SetReady(false, true, "other-fixture-logon");
         Require(!grants.BrowserOnlyWhileLocked && grants.Authorize("browser.eval") is not null, "A different console cannot inherit browser consent");
+        Require(grants.ConsoleElsewhere && grants.Authorize("browser.eval", controlled: true) == "console_session_elsewhere",
+            "A different logon reports its own pause reason");
+        Require(grants.Admission.Enabled("desktop") && grants.Admission.Enabled("browser"),
+            "A different logon on the console pauses but never revokes consent");
+        grants.SetReady(true, true, "other-fixture-logon");
+        Require(grants.Authorize("type", controlled: true) == "console_session_elsewhere", "A different unlocked logon is not ready");
+        grants.SetReady(false, false, null, consoleElsewhere: true);
+        Require(grants.ConsoleElsewhere && grants.Admission.Enabled("browser"), "Another console session pauses without revoking");
+        grants.SetReady(false, false, null);
+        Require(!grants.ConsoleElsewhere && grants.Authorize("type", controlled: true) == "desktop_unavailable",
+            "Unknown console identity is unavailability, not replacement");
+        grants.SetReady(true, consoleIdentity: "fixture-logon");
+        Require(!grants.ConsoleElsewhere && grants.Authorize("browser.eval", controlled: true) is null &&
+            grants.Authorize("type", controlled: true) is null, "The approving logon's return resumes the same consent");
         grants.SetReady(true);
         grants.PrepareConsole(true);
         grants.ConfigureSurface("desktop", "automatic", 300, "timed");

@@ -15,7 +15,29 @@ def identity(properties, owner, uid):
     return (properties.get("Id"), stamp, owner)
 
 
+def inactive_own_logon(properties, uid):
+    """This user's graphical logon exists but another session holds the seat."""
+    user = properties.get("User", ())
+    return (properties.get("Active") is False and properties.get("Class") == "user"
+            and bool(user) and user[0] == uid)
+
+
+def same_logon(a, b):
+    """The logind session and its start identify the console. The screensaver
+    bus owner is only the lock-state source: a gnome-shell restart replaces it
+    without a new login, so it never makes the same login a different one."""
+    return a is not None and b is not None and tuple(a[:2]) == tuple(b[:2])
+
+
+def console_elsewhere(bindings, identity):
+    """A complete observation of a different login than any consent binding."""
+    return identity is not None and any(
+        binding is not None and not same_logon(binding, identity) for binding in bindings)
+
+
 def observe(bus, completed):
+    """`completed(unlocked, locked, identity, elsewhere=False)`; elsewhere is a
+    positive observation that another session holds this user's seat."""
     from gi.repository import Gio, GLib
     if os.environ.get("XDG_SESSION_TYPE") != "wayland" or "GNOME" not in os.environ.get("XDG_CURRENT_DESKTOP", ""):
         completed(False, False, None)
@@ -39,6 +61,9 @@ def observe(bus, completed):
             session_path = values[0]["Display"][1]
             def session(values):
                 properties = values[0]
+                if inactive_own_logon(properties, os.getuid()):
+                    completed(False, False, None, True)
+                    return
                 def owner(values):
                     key = identity(properties, values[0], os.getuid())
                     if key is None:

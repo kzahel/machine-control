@@ -17,7 +17,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private string _generation = Guid.NewGuid().ToString("n");
     private string _browserGeneration = Guid.NewGuid().ToString("n");
-    private bool _ready, _preparedConsole, _lockedConsole, _browserWhileLocked, _updating;
+    private bool _ready, _preparedConsole, _lockedConsole, _browserWhileLocked, _updating, _consoleElsewhere;
     private string? _consoleIdentity, _browserConsentConsole, _lastEnded;
     private long _desktopConsentRevision;
     // Plain (unprepared) Desktop intents. While one is live, a locked console
@@ -129,17 +129,31 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         Admission.SetReady("desktop", healthy && (_ready || LockedDesktopAdmissible), healthy && _ready);
         Admission.SetReady("browser", healthy && (_ready || BrowserOnlyWhileLocked), healthy && _ready);
     }
-    internal void SetReady(bool ready, bool lockedConsole = false, string? consoleIdentity = null)
+    /// Whether another logon session holds the console. Access is paused,
+    /// never revoked, and resumes when the approving logon returns.
+    internal bool ConsoleElsewhere { get { lock (Gate) return _consoleElsewhere; } }
+    internal void SetReady(bool ready, bool lockedConsole = false, string? consoleIdentity = null, bool consoleElsewhere = false)
     {
         lock (Gate)
         {
+            // An observation never revokes consent. A different logon on the
+            // console (positively reported, or a complete identity unlike the
+            // browser binding) pauses both surfaces; an unknown identity is
+            // only unavailability. Consent stays bound to its own logon.
+            var elsewhere = consoleElsewhere || (_browserConsentConsole is not null &&
+                consoleIdentity is not null && consoleIdentity != _browserConsentConsole);
+            ready &= !elsewhere; lockedConsole &= !elsewhere;
             if (_ready != ready || _consoleIdentity != consoleIdentity)
             { _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n"); }
             _ready = ready; _lockedConsole = lockedConsole; _consoleIdentity = consoleIdentity;
+            if (elsewhere != _consoleElsewhere)
+            {
+                _consoleElsewhere = elsewhere;
+                Journal?.QueueEvent(elsewhere ? "access.console_elsewhere" : "access.console_returned");
+            }
             // Input-desktop readiness can change before the WTS lock flag.
             // Keep same-logon consent while unavailable; PublishReady denies
             // effects until a positively observed route is ready again.
-            if (_browserConsentConsole is not null && consoleIdentity != _browserConsentConsole) Stop("console_session_changed");
             PublishReady();
         }
     }
@@ -202,7 +216,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (!Admission.Enabled(surface)) return "surface_disabled";
             if (!_ready && !(BrowserOnlyWhileLocked && BrowserScope(scope)) &&
                 !(controlled && operation is ("session.unlock.prepare" or "session.unlock") && _preparedConsole && _lockedConsole))
-                return BrowserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable";
+                return _consoleElsewhere ? "console_session_elsewhere" : BrowserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable";
             if (Admission.Blocks(surface).Length > 0) return "access_paused";
             if (BrowserScope(scope) && !nativeOnly && BrowserPolicy?.Allows(scope) != true) return "browser_runtime_unavailable";
             return null;
@@ -304,6 +318,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             pendingRequest = (string?)null,
             lastEnded = _lastEnded,
             browserOnlyWhileLocked = BrowserOnlyWhileLocked,
+            consoleElsewhere = _consoleElsewhere,
             effectiveScopes = EffectiveScopes(),
             availability = new { paused = Admission.Blocks("desktop").Length > 0, blockingReasons = Admission.Blocks("desktop") }
         };

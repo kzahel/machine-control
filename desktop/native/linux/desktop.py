@@ -230,7 +230,7 @@ class Desktop:
         self.grants.locked=self.locked;self.grants.session=self.session_identity
         self.grants.browser_while_locked=self.browser_preference.enabled
         known=self.session_identity is not None and time.monotonic()-self.session_observed<=2
-        self.grants.browser_bound=known and self.configuration_sessions['browser']==self.session_identity
+        self.grants.browser_bound=known and desktop_session.same_logon(self.configuration_sessions['browser'],self.session_identity)
         self.grants.fact('input',known and self.activity.healthy(self.session_identity))
         notice_health=self.safety_available and time.monotonic()-self.safety_observed<=2
         healthy=notice_health and self.journal.health['available'] and not self.grants.updating
@@ -240,16 +240,20 @@ class Desktop:
         # unmapped notice is a readiness floor until GTK acknowledges it.
         notice_ready=not self.unlocked or not state.get('requests') or self.notice_visible
         for surface in ('desktop','browser'):
-            bound=known and self.configuration_sessions[surface]==self.session_identity
+            bound=known and desktop_session.same_logon(self.configuration_sessions[surface],self.session_identity)
             ready=healthy and notice_ready and bound and (self.unlocked or surface=='browser' and self.locked and self.browser_preference.enabled)
             if surface=='desktop' and self.portal.state=='pending':ready=False
             self.grants.fact(surface,(bool(ready),bool(self.unlocked and notice_health)))
         self.browser.sync()
 
-    def apply_session(self,unlocked,locked,identity):
-        if identity is not None and any(binding is not None and binding!=identity for binding in self.configuration_sessions.values()):
-            self.stop_access('console_session_changed')
-            self.configuration_sessions={'desktop':None,'browser':None}
+    def apply_session(self,unlocked,locked,identity,elsewhere=False):
+        # Another login session on the screen pauses access; consent stays
+        # bound to the approving login and resumes when it returns. Never
+        # revoke consent from an observation alone.
+        elsewhere=elsewhere or desktop_session.console_elsewhere(self.configuration_sessions.values(),identity)
+        if elsewhere!=self.grants.console_elsewhere:
+            self.grants.console_elsewhere=elsewhere
+            self.journal.event('access.console_elsewhere' if elsewhere else 'access.console_returned')
         self.unlocked,self.locked,self.session_identity=unlocked,locked,identity
         self.session_observed=time.monotonic()
         if not unlocked and self.portal.state!='off':self.portal.close()
@@ -261,8 +265,8 @@ class Desktop:
             self.unlocked=False;self.locked=False;self.session_identity=None
         if not self.session_pending:
             self.session_pending=True
-            def observed(unlocked,locked,identity):
-                self.session_pending=False;self.apply_session(unlocked,locked,identity)
+            def observed(unlocked,locked,identity,elsewhere=False):
+                self.session_pending=False;self.apply_session(unlocked,locked,identity,elsewhere)
             try:desktop_session.observe(self.portal.bus,observed)
             except GLib.Error:observed(False,False,None)
         if self.policy.alive:
@@ -288,7 +292,7 @@ class Desktop:
 
     def common_deployment(self):
         value=self.grants.deployment()
-        return {key:value[key] for key in ('policy','availability','browserOnlyWhileLocked')}
+        return {key:value[key] for key in ('policy','availability','browserOnlyWhileLocked','consoleElsewhere')}
 
     def native_authority(self,_surfaces):
         if not self.policy.alive:return 'control_policy_unavailable'
@@ -545,15 +549,17 @@ class Desktop:
         if operation=='capabilities':complete(self.discovery(request));return
         if operation.startswith('browser.'):
             def validate():
-                return channel.authority() or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
+                return (channel.authority() or ('console_session_elsewhere' if self.grants.console_elsewhere else None)
+                        or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation))
             authority=dict(owner=channel.label,session=fence['sessionId'],profiles=channel.profiles,pid=channel.pid,
                 validate=validate,alive=lambda:not channel.closed.is_set() and process_token(channel.pid)==channel.start)
             self.browser.execute(request,complete,authority);return
         # Fresh native session read before occupying the one provider slot.
         # Observation and Node ownership are revalidated before any effect.
-        def observed(unlocked,locked,identity):
-            self.apply_session(unlocked,locked,identity)
+        def observed(unlocked,locked,identity,elsewhere=False):
+            self.apply_session(unlocked,locked,identity,elsewhere)
             refusal=channel.authority()
+            if not refusal and self.grants.console_elsewhere:refusal='console_session_elsewhere'
             if not refusal and not unlocked:refusal=self.locked_desktop_refusal() or 'desktop_unavailable'
             refusal=refusal or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
             if refusal:

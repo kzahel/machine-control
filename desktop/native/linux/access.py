@@ -18,6 +18,8 @@ class Access:
         self.desktop_consent=uuid.uuid4().hex
         self.updating=False;self.ready=False;self.locked=False;self.session=None
         self.browser_while_locked=False;self.browser_bound=False
+        # Another login session holds the screen: consent pauses, never revokes.
+        self.console_elsewhere=False
         self.view=self.offline()
         # Last full status projection. The coordinator refreshes it about once
         # a second (publish) and after each change, so presentation never waits.
@@ -179,4 +181,5 @@ class Access:
         return dict(policy=dict(grantMode='surface_modes',preset='workstation',protectedAdministration=False,
                 protectedOperations=False),
             grant=projected,pendingRequest=None,armed=None,paused=self.paused,generation=self.generation,
-            availability=self.availability(),browserOnlyWhileLocked=self.browser_only_while_locked)
+            availability=self.availability(),browserOnlyWhileLocked=self.browser_only_while_locked,
+            consoleElsewhere=self.console_elsewhere)

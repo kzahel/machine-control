@@ -199,13 +199,19 @@ historical installed build. Earlier Windows tactical evidence below qualifies
 its named historical implementation, rather than the full v2 experience.
 
 
+**Decision, current macOS, Windows and Linux source:** a console observation
+never revokes surface consent. Another login session holding the screen
+pauses both surfaces with `console_session_elsewhere` (status
+`consoleElsewhere`), keeps consent bound to the approving login, and resumes
+when that login returns; an unknown or partial observation is only
+unavailability. Console identity is the login itself: the macOS session UUID
+and user (not `kern.boottime`, which an NTP sync shifts), the Windows
+session and logon time, and the logind session and start (not the GNOME
+screensaver bus owner, which a gnome-shell restart replaces).
+
 **Current, unreleased Mac source:** operational grant retirement retains saved
-operator consent by default; Stop invalidates it explicitly. A different login
-session on the screen only pauses access (`console_session_elsewhere`) and the
-same consent resumes when the approving session returns; an observation never
-revokes consent. Console identity is the login-session UUID and user, not the
-kernel boot time, which an ordinary NTP sync shifts. A partial same-console
-probe never proves replacement. Locked
+operator consent by default; Stop invalidates it explicitly. A partial
+same-console probe never proves replacement. Locked
 browser scopes can restore independently while protected desktop readiness is
 unavailable; missing saved scopes report temporary unavailability. An upgrade
 retires the restricted grant and issues fresh generations, never reviving queued
