@@ -13,6 +13,9 @@ owns exact source, workflow identities, public authentication and delivery.
 1. Add meaningful versioned notes to [the changelog](../desktop/CHANGELOG.md).
 2. Commit and push main. Run source checks and native acceptance appropriate to
    the change; keep architecture and physical-hardware execution gaps explicit.
+   Every `desktop-release.yml` run first requires the push-triggered
+   cross-platform checks (`check.yml`) to pass at that exact source, waiting up
+   to 20 minutes while they run, so a red source never costs a signed build.
 3. From a clean main checkout matching origin, run:
 
    ```bash

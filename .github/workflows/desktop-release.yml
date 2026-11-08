@@ -68,6 +68,23 @@ jobs:
             python3 desktop/scripts/packaged-acceptance.py acceptance.json --revision "$GITHUB_SHA" --version "$RELEASE_VERSION" --run "$package_run"
           fi
           python3 -c 'import os; v=tuple(map(int,os.environ["RELEASE_VERSION"].split(".")));print("linux=" + str(v >= (0,5,0)).lower())' >> "$GITHUB_OUTPUT"
+      # The ~5-minute push checks already cover Linux, macOS and Windows.
+      # Never spend a signed six-target build on a source they reject; wait
+      # for them when the dispatch follows the push closely.
+      - name: Require green cross-platform checks at this exact source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=20" > check-runs.json
+            state="$(python3 desktop/scripts/release.py check-ci check-runs.json --revision "$GITHUB_SHA")"
+            if [ "$state" = success ]; then echo "Cross-platform checks passed at $GITHUB_SHA"; exit 0; fi
+            echo "Cross-platform checks pending at $GITHUB_SHA ($attempt/40)"
+            sleep 30
+          done
+          echo 'Cross-platform checks did not finish within 20 minutes' >&2
+          exit 1
   macos:
     if: inputs.candidate_run == ''
     needs: check

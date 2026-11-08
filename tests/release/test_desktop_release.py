@@ -163,6 +163,26 @@ class DesktopReleaseTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 release.check_run(dict(value, **{key: bad}), REVISION, '123')
 
+    def test_release_builds_wait_for_green_cross_platform_checks_at_exact_source(self):
+        run = {'path': '.github/workflows/check.yml', 'head_sha': REVISION, 'head_branch': 'main',
+               'event': 'push', 'run_number': 7, 'run_attempt': 1, 'status': 'completed', 'conclusion': 'success'}
+        self.assertEqual(release.check_ci({'workflow_runs': [run]}, REVISION), 'success')
+        self.assertEqual(release.check_ci({'workflow_runs': []}, REVISION), 'pending')
+        self.assertEqual(release.check_ci({'workflow_runs': [dict(run, status='in_progress', conclusion=None)]}, REVISION), 'pending')
+        for key, bad in [('head_sha', 'b'*40), ('head_branch', 'other'), ('path', '.github/workflows/codeql.yml'),
+                         ('event', 'pull_request')]:
+            with self.subTest(key=key):
+                self.assertEqual(release.check_ci({'workflow_runs': [dict(run, **{key: bad})]}, REVISION), 'pending')
+        with self.assertRaises(ValueError):
+            release.check_ci({'workflow_runs': [dict(run, conclusion='failure')]}, REVISION)
+        # A newer push run or rerun decides, not an older success.
+        with self.assertRaises(ValueError):
+            release.check_ci({'workflow_runs': [run, dict(run, run_number=8, conclusion='failure')]}, REVISION)
+        self.assertEqual(release.check_ci({'workflow_runs': [dict(run, conclusion='failure'),
+            dict(run, run_attempt=2)]}, REVISION), 'success')
+        with self.assertRaises(ValueError):
+            release.check_ci({'workflow_runs': [run]}, 'not-a-revision')
+
     def test_created_draft_resolved_by_id_and_exact_source(self):
         draft = {'id':42,'tag_name':'desktop-v0.3.3','draft':True,'prerelease':False,'target_commitish':REVISION}
         self.assertEqual(release.draft_id([{'tag_name':'workstation-v0.3.3'},draft],VERSION,REVISION),42)

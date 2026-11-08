@@ -88,6 +88,27 @@ def check_run(value, revision, identifier):
     return f"{value['id']}.{value['run_attempt']}"
 
 
+def check_ci(value, revision):
+    """State of the push-triggered cross-platform checks at this exact source.
+
+    Returns 'success' or 'pending' (not yet created or still running); a
+    completed run that did not succeed fails before any release build starts.
+    """
+    if not re.fullmatch(r'[0-9a-f]{40}', revision):
+        raise ValueError('Expected an exact source revision')
+    runs = [run for run in (value.get('workflow_runs') or [])
+            if run.get('path') == '.github/workflows/check.yml' and run.get('head_sha') == revision
+            and run.get('head_branch') == 'main' and run.get('event') == 'push']
+    if not runs:
+        return 'pending'
+    latest = max(runs, key=lambda run: (run.get('run_number') or 0, run.get('run_attempt') or 0))
+    if latest.get('status') != 'completed':
+        return 'pending'
+    if latest.get('conclusion') != 'success':
+        raise ValueError('Cross-platform checks did not pass at this exact source')
+    return 'success'
+
+
 def stage(directory, output, version, revision, run, body):
     version_tuple(version)
     if not re.fullmatch(r'[0-9a-f]{40}', revision) or not re.fullmatch(r'[0-9]+\.[0-9]+', run):
@@ -223,6 +244,9 @@ def main():
     candidate.add_argument('file', type=Path)
     for field in ('revision', 'id'):
         candidate.add_argument('--' + field, required=True)
+    ci = sub.add_parser('check-ci')
+    ci.add_argument('file', type=Path)
+    ci.add_argument('--revision', required=True)
     uploaded = sub.add_parser('check-upload')
     uploaded.add_argument('directory', type=Path)
     uploaded.add_argument('file', type=Path)
@@ -247,6 +271,8 @@ def main():
         check_existing(json.loads(args.file.read_text()), args.version)
     elif args.command == 'check-run':
         print(check_run(json.loads(args.file.read_text()), args.revision, args.id))
+    elif args.command == 'check-ci':
+        print(check_ci(json.loads(args.file.read_text()), args.revision))
     elif args.command == 'check-upload':
         check_upload(args.directory, json.loads(args.file.read_text()), args.version)
     elif args.command == 'draft-id':
