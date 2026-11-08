@@ -60,9 +60,13 @@ func completeConsoleIdentity(_ value: [String:Any]) -> Bool {
     return true
 }
 
+/// The login session UUID is unique per session, including across boots, so
+/// it and the user identify the console. `kern.boottime` is not compared: the
+/// kernel recomputes it as wall clock minus uptime, so an ordinary NTP sync
+/// shifts it and must never make the same login look like a replacement.
 func sameConsoleSession(_ a: [String: Any], _ b: [String: Any]) -> Bool {
     completeConsoleIdentity(a) && completeConsoleIdentity(b) &&
-    ["uuid", "boot", "uid"].allSatisfy { key in
+    ["uuid", "uid"].allSatisfy { key in
         guard let left = a[key] as? NSObject, let right = b[key] as? NSObject else { return false }
         return left == right
     }

@@ -141,10 +141,28 @@ final class ServerTests: XCTestCase {
         server.refreshAdmission()
         XCTAssertFalse(broker.desktopRouteReady)
         XCTAssertTrue(broker.admission.enabled("desktop"))
-        server.grantConsoleObservation = { ["desktopState":"unlocked", "uuid":"replacement", "boot":123, "uid":getuid()] }
+        // A clock sync recomputes the kernel boot time; the same login is
+        // still the approving console.
+        server.grantConsoleObservation = { ["desktopState":"unlocked", "uuid":"test-console", "boot":124, "uid":getuid()] }
         server.refreshAdmission()
-        XCTAssertFalse(broker.admission.enabled("desktop"))
-        XCTAssertNotEqual(broker.desktopConsentID,consent)
+        XCTAssertTrue(broker.desktopRouteReady)
+        XCTAssertFalse(broker.consoleElsewhere)
+        // Another login session on the screen pauses, never revokes, consent.
+        server.grantConsoleObservation = { ["desktopState":"unlocked", "uuid":"replacement", "boot":123, "uid":getuid() + 1] }
+        server.refreshAdmission()
+        XCTAssertFalse(broker.desktopRouteReady)
+        XCTAssertTrue(broker.consoleElsewhere)
+        XCTAssertTrue(broker.admission.enabled("desktop"))
+        XCTAssertEqual(broker.desktopConsentID,consent)
+        XCTAssertEqual(broker.authorize("applications", controlled:true)?.code, "console_session_elsewhere")
+        XCTAssertEqual((broker.statusJSON["consoleElsewhere"] as? Bool), true)
+        // The approving session's return resumes the same consent.
+        server.grantConsoleObservation = { ["desktopState":"unlocked", "uuid":"test-console", "boot":124, "uid":getuid()] }
+        server.refreshAdmission()
+        XCTAssertTrue(broker.desktopRouteReady)
+        XCTAssertFalse(broker.consoleElsewhere)
+        XCTAssertEqual(broker.desktopConsentID,consent)
+        XCTAssertNil(broker.authorize("applications", controlled:true))
     }
     func testBrowserLockPreferenceDoesNotArmEitherSurface() throws {
         try server.configureBrowserWhileLocked(enabled:true)

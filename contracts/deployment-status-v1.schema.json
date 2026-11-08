@@ -52,6 +52,10 @@
     },
     "browserOnlyWhileLocked": {
       "type": "boolean"
+    },
+    "consoleElsewhere": {
+      "type": "boolean",
+      "description": "A different login session owns the screen; saved consent is paused rather than revoked and resumes when the approving session returns."
     }
   }
 }

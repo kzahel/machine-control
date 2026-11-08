@@ -549,12 +549,15 @@ final class ResidentServer {
         let state = observation["desktopState"] as? String ?? "unknown"
         let managed = broker.policy.grantMode == .standing
         if !managed {
-            let replaced = [grantConsoleBinding, browserConsoleBinding].compactMap { $0 }.contains {
+            // Another login session on the screen pauses access; the person's
+            // saved consent stays bound to their own session and resumes when
+            // it returns. Never revoke consent from an observation alone.
+            let elsewhere = [grantConsoleBinding, browserConsoleBinding].compactMap { $0 }.contains {
                 consoleSessionReplaced($0.session, observation)
             }
-            if replaced {
-                broker.revoke(reason:"console_session_changed"); browser.stopAccess()
-                grantConsoleBinding = nil; browserConsoleBinding = nil
+            if elsewhere != broker.consoleElsewhere {
+                broker.consoleElsewhere = elsewhere
+                broker.journal?.event(elsewhere ? "access.console_elsewhere" : "access.console_returned")
                 service.invalidateReferences()
             }
         }

@@ -195,6 +195,9 @@ final class GrantBroker {
     var desktopRouteReady = false
     var browserRouteReady = false
     var browserOnlyWhileLocked = false
+    /// A different login session owns the screen. Consent is paused, not
+    /// revoked, and resumes when the approving session returns.
+    var consoleElsewhere = false
     var operatorReady: () -> Bool = { false }
     // Legacy authority records are deliberately not loaded or restored.
     var consentStorageError: String? { nil }
@@ -276,6 +279,11 @@ final class GrantBroker {
             guard admission.enabled(surface) else { return GrantRefusal("surface_disabled", "This surface is Off", requiredScope: scope) }
             guard controlled else { return GrantRefusal("control_session_required", "Open one live surface task", requiredScope: scope) }
             guard surface == "browser" ? browserRouteReady : desktopRouteReady else {
+                if consoleElsewhere {
+                    return GrantRefusal("console_session_elsewhere",
+                        "Another login session owns the screen; access resumes when the approving session returns",
+                        requiredScope: scope)
+                }
                 return GrantRefusal(surface == "desktop" && browserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable",
                     "The native route is temporarily unavailable", requiredScope: scope)
             }
@@ -312,6 +320,7 @@ final class GrantBroker {
          "grant": NSNull(), "pendingRequest": NSNull(),
          "lastEnded": lastEnded.map { ["reason": $0.reason] as Any } ?? NSNull(),
          "browserOnlyWhileLocked": browserOnlyWhileLocked,
+         "consoleElsewhere": consoleElsewhere,
          "effectiveScopes": GrantScope.allCases.filter {
              admission.enabled(Self.browserScopes.contains($0) ? "browser" : "desktop")
          }.map(\.rawValue),

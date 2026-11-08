@@ -200,8 +200,12 @@ its named historical implementation, rather than the full v2 experience.
 
 
 **Current, unreleased Mac source:** operational grant retirement retains saved
-operator consent by default; Stop and verified console replacement invalidate
-it explicitly. A partial same-console probe never proves replacement. Locked
+operator consent by default; Stop invalidates it explicitly. A different login
+session on the screen only pauses access (`console_session_elsewhere`) and the
+same consent resumes when the approving session returns; an observation never
+revokes consent. Console identity is the login-session UUID and user, not the
+kernel boot time, which an ordinary NTP sync shifts. A partial same-console
+probe never proves replacement. Locked
 browser scopes can restore independently while protected desktop readiness is
 unavailable; missing saved scopes report temporary unavailability. An upgrade
 retires the restricted grant and issues fresh generations, never reviving queued

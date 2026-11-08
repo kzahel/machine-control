@@ -576,13 +576,19 @@ final class ResidentService {
             var changed: Int32 = 0
             if mcNotifyCheck(token, &changed) == 0 && changed != 0 { notified = true }
         }
-        if notified || !NSDictionary(dictionary: next).isEqual(to: observedSession) ||
+        // A clock sync shifts the reported boot time without any desktop
+        // transition; keep the fresh value but do not fence references for it.
+        var stable = next, previous = observedSession
+        stable["boot"] = nil; previous["boot"] = nil
+        if notified || !NSDictionary(dictionary: stable).isEqual(to: previous) ||
             next["desktopState"] as? String == "unknown" {
             desktopGeneration = UUID().uuidString.lowercased()
             references.invalidate(); observationIdentity.invalidate(); referenceApplication = nil
             cuaReferences.removeAll(); authorizationLeases.removeAll()
             observedSession = next
             referencesInvalidated?()
+        } else {
+            observedSession = next
         }
     }
 

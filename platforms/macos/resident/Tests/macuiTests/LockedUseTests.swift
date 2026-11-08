@@ -427,6 +427,17 @@ final class LockedUseTests: XCTestCase {
         XCTAssertFalse(consoleSessionReplaced(session, session))
         var replacement = session; replacement["uuid"] = "console-b"
         XCTAssertTrue(consoleSessionReplaced(session, replacement))
+        var otherUser = session; otherUser["uid"] = 502
+        XCTAssertTrue(consoleSessionReplaced(session, otherUser))
+    }
+
+    func testClockSyncBootTimeShiftIsTheSameConsole() {
+        // kern.boottime is wall clock minus uptime; NTP moves it.
+        var shifted = session; shifted["boot"] = 124
+        XCTAssertTrue(sameConsoleSession(session, shifted))
+        XCTAssertFalse(consoleSessionReplaced(session, shifted))
+        shifted["boot"] = 0
+        XCTAssertFalse(completeConsoleIdentity(shifted), "A missing boot reading is still incomplete")
     }
 
     func testTakeoverLatchSurvivesFurtherEventsUntilCleanup() {
