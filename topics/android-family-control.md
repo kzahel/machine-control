@@ -592,6 +592,35 @@ Verdict: BLE mode makes the handheld usable on an uncontrolled ChromeOS
 machine for one session, such as initial setup driven by an agent watching a
 webcam, without root. For a long-lived pairing, the rooted classic path
 (`pair-floss`) is still the robust one, because it reconnects after radio
-restarts. Ideas not tried: a fixed static random address is unavailable to
-unprivileged apps; BlueZ or macOS may resolve the rotating address where Floss
-did not.
+restarts.
+
+#### Can the LE pairing reconnect? (2026-11-08)
+
+The handheld side is closed without root. In the Bluetooth module,
+`AdvertiseBinder` requires `BLUETOOTH_PRIVILEGED` for any own-address type
+other than the default and for directed advertising. That permission is
+signature or privileged, so `pm grant` cannot give it to an app. The global
+switch `bluetooth.core.gap.le.privacy.enabled` is a `bluetooth_config_prop`,
+which the shell's SELinux domain may not set, and `setprop` from ADB is
+refused. No `device_config` flag selects the advertising address.
+
+The host side nearly works without root. ChromeOS ships a user-visible flag,
+`chrome://flags/#bluetooth-use-llprivacy` ("Enable LL Privacy in Floss"). It
+makes `btmanagerd` write `bluetooth.core.gap.le.privacy.enabled=true` into
+Floss's override sysprops and restart the adapter, which turns on
+controller-based address resolution. The ChromeOS session survived the
+Chrome restart. With the flag on, LE pairing through the normal dialog
+worked as before. After the handheld's Bluetooth restarted, the Chromebook's
+controller resolved the new private address and connected within seconds;
+the handheld logged each new LE link. Floss's host layer then dropped every
+one ("on_common_le_connection_complete: No prior connection request" for the
+new random address, while its pending connection was keyed by the
+pseudo-address recorded at pairing). So the radio follows the handheld, and
+the remaining blocker looks like a Floss bug in matching a resolved
+connection on this build. Retest after ChromeOS updates and on other
+controllers. The flag was set back to Default afterwards.
+
+Other options: macOS and BlueZ resolve rotating addresses routinely and may
+reconnect where Floss does not (untested in LE mode). On ChromeOS without
+root, the alternatives are keeping the link up, re-pairing through the UI, or
+a USB HID gadget.

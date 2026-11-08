@@ -268,7 +268,10 @@ the macOS counterpart of ChromeOS autocorrect.
   screens; those need a USB HID gadget.
 - Boot protocol is refused rather than emulated (`boot_protocol`).
 - Characters outside printable ASCII, tab and newline are refused.
-- The LE transport's pairing does not survive a dropped link on ChromeOS, and
+- The LE transport's pairing does not survive a dropped link on ChromeOS.
+  Android requires `BLUETOOTH_PRIVILEGED` for a fixed advertising address.
+  ChromeOS's `#bluetooth-use-llprivacy` flag gets the host's controller to
+  reconnect, but Floss then drops the link (see the topic notes). Also,
   Android apps cannot set the LE appearance, so hosts show a generic or
   game-controller icon.
 - `delivery: sent` means the handheld's stack sent the report (over LE, as a
