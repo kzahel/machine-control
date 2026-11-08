@@ -227,8 +227,16 @@ class AccessTests(unittest.TestCase):
             ('machine-control-admission-channel/v2',False,'invalid_request_sequence',None))
         self.assertEqual(client.recv(65536),b'')
         self.assertTrue(channel.closed.wait(2))
-        while not self.callbacks.empty():self.callbacks.get()()
+        self.drain_until_closed(channel)
         self.assertNotIn(channel.label,self.access.owners)
+
+    def drain_until_closed(self,channel):
+        """close() sets `closed` before it posts cleanup from the reader
+        thread; run posted callbacks until that cleanup arrives."""
+        for _ in range(20):
+            if channel.label not in self.access.owners:return
+            try:self.callbacks.get(timeout=0.1)()
+            except queue.Empty:pass
 
     def failed_open(self,**fields):
         server,client=socket.socketpair();client.settimeout(2)
@@ -330,5 +338,5 @@ class AccessTests(unittest.TestCase):
         self.assertTrue(call(1,'control.heartbeat')['accepted'])
         self.assertEqual(call(1,'control.status')['errorCode'],'invalid_request_sequence')
         self.assertTrue(channel.closed.wait(2))
-        while not self.callbacks.empty():self.callbacks.get()()
+        self.drain_until_closed(channel)
         self.assertNotIn(channel.label,self.access.owners)
