@@ -333,3 +333,39 @@ service remains a separate experiment.
   moving its lifecycle out of the ChromeOS platform.
 - Add private inventory for the actual Android handheld without publishing its
   serial or controller route.
+
+### Planned: handheld as a Bluetooth HID keyboard
+
+**Idea (2026-11-08), not started.** Let an attached Android handheld act as a
+Bluetooth keyboard for other targets, so tedious typing during bootstrap and
+recovery (for example the ChromeOS VT2 download-and-activate commands) no longer
+needs a human at the target's keyboard. Android 9 and later expose this through
+the public `BluetoothHidDevice` API; no root is required.
+
+Proposed shape:
+
+- A small Kotlin app under `platforms/android/`, beside the resident spike's
+  Gradle build: a foreground service registers a keyboard (later possibly a
+  mouse) HID descriptor, pairs once per target, and reconnects to bonded hosts.
+- Control through a token-authenticated loopback socket reached by
+  `adb forward`, following the resident-spike transport, exposed as a target
+  command such as `testbed -- hid type --stdin`. Secrets travel only on stdin
+  or that socket, never in process arguments, matching the PIN boundary.
+- HID sends key positions, so the target's layout decides the characters.
+  Carry a per-target layout (QWERTY, Dvorak, ...) and reuse the ChromeOS
+  client's layout tables rather than assuming US QWERTY.
+- Operator arming with expiry, a visible notification, and Stop, as in the
+  resident spike; typing into other machines is a powerful capability.
+
+Limits to record honestly: Bluetooth keyboards need the target OS running and
+a prior pairing through the target's own UI, which recovery or powerwash
+erases. They generally do not work in firmware, recovery, developer-mode, BIOS,
+or UEFI screens. Those need a USB HID gadget (for example a Pico or Pi Zero
+class device); an unrooted handheld cannot be a USB keyboard.
+
+References, licenses checked 2026-11-08: `ginkage/wearmouse` (Apache-2.0,
+Google sample for the HID Device API) as the primary plumbing reference and
+`raghavk92/Kontroller` (Apache-2.0, phone as keyboard and mouse) for keyboard
+reports; Apache-2.0 code may be adapted here with its notice retained.
+`arnav-kr/Bluke` (AGPL-3.0) and Bluetooth Remote (GPL-3.0) are behavior
+references only; do not copy their code into this MIT repository.
