@@ -214,6 +214,19 @@ Preserve these rules:
 - Do not collapse a YA peer, an agent execution host, a system under test, a
   testbed provider, or a delegation handle into one identity.
 
+## Cross-platform parity
+
+Never limit a change to one OS unless the user explicitly confirms that scope.
+When a fix, behavior change, or feature touches logic that more than one
+platform implements (macOS, Windows, Linux, ChromeOS, and device providers
+where applicable), find every counterpart and change them in the same task,
+with tests for each. A platform-specific symptom is not evidence that the
+underlying design flaw is platform-specific. If a counterpart genuinely does
+not exist or cannot be changed in this task, say so explicitly in the report
+and the commit body rather than leaving it as a silent follow-up. Windows-first
+sequencing governs where new capability is proven first; it does not permit
+leaving a known defect in the other implementations.
+
 ## Implementation workflow
 
 The Windows runtime owns the reusable target-resident facade, provider adapter
