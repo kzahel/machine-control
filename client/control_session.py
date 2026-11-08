@@ -394,24 +394,47 @@ def raw_channel_frames(target, frames, *, reply_timeout=15.0):
     conformance tooling inspects the resident's own framing. A closed channel
     is reported as {"event": "closed"} after the frame that caused it.
     """
-    import select
+    import queue
+    import threading
     mc.require_selected_claim(target)
     command = mc.resolved_adapter_command(target)
     if command is None:
         raise mc.ClientError("adapter_unavailable", "Control adapter unavailable")
     process = subprocess.Popen([*command, "channel"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, env={**os.environ, **target.get("environment", {})})
-    replies, buffer = [], b""
+    replies, buffer, eof = [], b"", False
+    # select() accepts only sockets on Windows; a reader thread waits on the
+    # pipe portably and reports EOF as an empty chunk.
+    chunks = queue.Queue()
+    def pump():
+        try:
+            while True:
+                chunk = os.read(process.stdout.fileno(), 65536)
+                chunks.put(chunk)
+                if not chunk:
+                    return
+        except OSError:
+            chunks.put(b"")
+    threading.Thread(target=pump, daemon=True).start()
+    def next_chunk(timeout):
+        nonlocal eof
+        if eof:
+            return b""
+        try:
+            chunk = chunks.get(timeout=max(0.0, timeout))
+        except queue.Empty:
+            return None
+        eof = not chunk
+        return chunk
     def read_line(deadline):
         nonlocal buffer
         while b"\n" not in buffer:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return None
-            ready, _, _ = select.select([process.stdout], [], [], remaining)
-            if not ready:
+            chunk = next_chunk(remaining)
+            if chunk is None:
                 return None
-            chunk = os.read(process.stdout.fileno(), 65536)
             if not chunk:
                 return b""
             buffer += chunk
@@ -435,11 +458,10 @@ def raw_channel_frames(target, frames, *, reply_timeout=15.0):
                 replies.append({"event": "invalid_frame"})
             # A refusal that closes ownership must show up as EOF promptly.
             if buffer == b"":
-                ready, _, _ = select.select([process.stdout], [], [], 0.5)
-                if ready:
-                    chunk = os.read(process.stdout.fileno(), 65536)
-                    if chunk == b"":
-                        replies.append({"event": "closed"}); break
+                chunk = next_chunk(0.5)
+                if chunk == b"":
+                    replies.append({"event": "closed"}); break
+                if chunk:
                     buffer += chunk
     finally:
         try:
