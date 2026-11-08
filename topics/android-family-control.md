@@ -336,7 +336,12 @@ service remains a separate experiment.
 
 ### Planned: handheld as a Bluetooth HID keyboard
 
-**Idea (2026-11-08), not started.** Let an attached Android handheld act as a
+**First implementation (2026-11-08):**
+[`platforms/android/hid-keyboard`](../platforms/android/hid-keyboard/README.md).
+The proposal below is kept as the original design; see "Implementation results"
+after the trial for what changed.
+
+Let an attached Android handheld act as a
 Bluetooth keyboard for other targets, so tedious typing during bootstrap and
 recovery (for example the ChromeOS VT2 download-and-activate commands) no longer
 needs a human at the target's keyboard. Android 9 and later expose this through
@@ -432,3 +437,48 @@ Implications for our app:
 - The app's own MAC entry uses a custom hex keypad that dropped fast ADB taps.
   An agent-facing app should take addresses through its API, not through
   on-screen widgets.
+
+#### Implementation results (2026-11-08)
+
+The `MC HID` app and `hidctl.py` follow the proposal. The differences:
+
+- **Language:** it is written in Java with no AndroidX, matching the resident
+  spike.
+- **Minimum Android version:** minSdk is 31, because the Bluetooth runtime
+  permissions start there.
+- **Layout and mouse:** layouts are `us` and `dvorak`, and the mouse is in the
+  first version.
+
+Against the same testbed:
+
+- **Exact typing:** 1000 random printable characters typed at about 20 per
+  second read back exactly, on two separate bonds. Pointer, click, wheel and
+  the on-screen touchpad all worked.
+- **Autocorrect:** ChromeOS autocorrects physical-keyboard text in ordinary
+  fields, Bluetooth keyboards included ("teh" became "the", a lone "i" became
+  "I", and "ym" became "my"). These looked like lost or reordered keystrokes
+  until an `autocorrect=off` textarea read back exactly. Exact-text checks
+  need such a field or a terminal.
+- **First HID connection must come from the host:** on a fresh bond, Floss
+  rejects a first HID connection that the device opens ("Unexpected incoming
+  HID connection, wait for local connect request"), and the half-open state
+  then also broke host-initiated attempts until the bond was redone. After
+  bonding, the host must call `ConnectAllEnabledProfiles` itself. Once that
+  has happened, the device reconnects on its own after restarts.
+- **Inquiry before bonding:** after `RemoveBond`, `CreateBond` without a prior
+  inquiry failed with a connection timeout. `StartDiscovery` while the
+  handheld is discoverable fixed it.
+- **Disconnect unpairs:** Android implements
+  `BluetoothHidDevice.disconnect()` as a virtual-cable unplug, which removes
+  the bond on the handheld. The API therefore offers only an explicitly
+  confirmed `unplug`, not a plain disconnect.
+- **Review:** an independent agent review shaped the safety model. Input
+  can be bound to an expected host, and `type` refuses while the host reports
+  Caps Lock. The CLI challenges the listener before sending the token, and
+  keyboard requests never queue. Agent-held buttons release themselves, and
+  only the ADB shell can arm. An operator Stop sticks until a person taps
+  Start.
+- **Scripted pairing:** `hidctl.py pair-floss --ssh ALIAS` runs inquiry,
+  `CreateBond`, both numeric-comparison confirmations and the host-side HID
+  connect in about 13 seconds. It accepts the comparison without a person
+  reading both codes, so it is only for controlled testbeds.
