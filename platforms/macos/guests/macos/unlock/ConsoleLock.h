@@ -5,12 +5,14 @@
 
 #define CONSOLE_LOCK_PATH "/Library/PrivilegedHelperTools/org.machine-control.console-lock"
 
+// `boot` stays in the fixed argv shape but is not compared; see
+// sameConsoleIdentity. The session UUID and user identify the console.
 static BOOL consoleLockIdentity(NSDictionary *current, NSString *uuid, NSString *boot, NSString *uid) {
     return current && [current[@"uuid"] isKindOfClass:NSString.class] &&
         [current[@"boot"] isKindOfClass:NSNumber.class] && [current[@"boot"] longLongValue] > 0 &&
+        boot.longLongValue > 0 &&
         [current[@"uid"] isKindOfClass:NSNumber.class] && [current[@"uid"] unsignedIntValue] > 0 &&
-        [current[@"uuid"] isEqual:uuid] && [[current[@"boot"] stringValue] isEqual:boot] &&
-        [[current[@"uid"] stringValue] isEqual:uid];
+        [current[@"uuid"] isEqual:uuid] && [[current[@"uid"] stringValue] isEqual:uid];
 }
 
 // A non-setuid copy of the broker has one unprivileged entry point: lock the

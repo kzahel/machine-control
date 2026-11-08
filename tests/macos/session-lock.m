@@ -18,9 +18,7 @@ int main(int argc, const char **argv) {
         BOOL locked = NO;
         do {
             NSDictionary *current = sessionState();
-            if (![current[@"uuid"] isEqual:initial[@"uuid"]] ||
-                ![current[@"boot"] isEqual:initial[@"boot"]] ||
-                ![current[@"uid"] isEqual:initial[@"uid"]]) break;
+            if (!sameConsoleIdentity(current, initial)) break;
             if ([current[@"locked"] boolValue]) { locked = YES; break; }
             usleep(20000);
         } while (monotonicNow() < deadline);

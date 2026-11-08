@@ -49,10 +49,7 @@ static ino_t consoleLockInode;
 #define FAULT_PATH STATE_DIR "/locked-use-faults.plist"
 
 static void stopSignal(int value) { (void)value; stopping = 1; }
-static BOOL sameSession(NSDictionary *a, NSDictionary *b) {
-    return a && b && [a[@"uuid"] isEqual:b[@"uuid"]] &&
-        [a[@"boot"] isEqual:b[@"boot"]] && [a[@"uid"] isEqual:b[@"uid"]];
-}
+static BOOL sameSession(NSDictionary *a, NSDictionary *b) { return sameConsoleIdentity(a, b); }
 
 static NSDictionary *readPlist(NSString *path) {
     return [NSDictionary dictionaryWithContentsOfURL:[NSURL fileURLWithPath:path] error:NULL];
@@ -557,9 +554,7 @@ static BOOL handle(int fd) {
         BOOL unlocked = NO;
         while (monotonicNow() < deadline) {
             NSDictionary *current = sessionState();
-            if (![current[@"uuid"] isEqual:state[@"uuid"]] ||
-                ![current[@"boot"] isEqual:state[@"boot"]] ||
-                ![current[@"uid"] isEqual:state[@"uid"]]) break;
+            if (!sameConsoleIdentity(current, state)) break;
             if (![current[@"locked"] boolValue]) { unlocked = YES; break; }
             if (kill(pid, 0) || installationIssue(readPlist(@RECEIPT_PATH))) break;
             struct pollfd p = {fd, POLLIN | POLLHUP, 0};

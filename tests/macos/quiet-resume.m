@@ -59,7 +59,14 @@ int main(void) { @autoreleasepool {
     NSDictionary *console = @{@"uuid":@"console", @"uid":@501, @"boot":@123};
     assert(consoleLockIdentity(console, @"console", @"123", @"501"));
     assert(!consoleLockIdentity(console, @"other", @"123", @"501"));
-    assert(!consoleLockIdentity(console, @"console", @"124", @"501"));
+    // An NTP sync shifts kern.boottime within the same login.
+    assert(consoleLockIdentity(console, @"console", @"124", @"501"));
+    assert(!consoleLockIdentity(console, @"console", @"0", @"501"));
+    assert(sameConsoleIdentity(console, @{@"uuid":@"console", @"uid":@501, @"boot":@124}));
+    assert(!sameConsoleIdentity(console, @{@"uuid":@"other", @"uid":@501, @"boot":@123}));
+    assert(!sameConsoleIdentity(console, @{@"uuid":@"console", @"uid":@502, @"boot":@123}));
+    assert(!sameConsoleIdentity(@{@"uuid":@"", @"uid":@501}, @{@"uuid":@"", @"uid":@501}));
+    assert(!sameConsoleIdentity(nil, console));
     assert(!consoleLockIdentity(console, @"console", @"123", @"502"));
     assert(!consoleLockIdentity(@{@"uuid":@"console", @"uid":@0, @"boot":@123}, @"console", @"123", @"0"));
     assert(!consoleLockIdentity(nil, @"console", @"123", @"501"));

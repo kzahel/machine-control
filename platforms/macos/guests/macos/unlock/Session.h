@@ -42,6 +42,16 @@ static NSDictionary *consoleSessionState(id locked, id users) {
              @"boot": @((long long)boot.tv_sec)};
 }
 
+// The login session UUID is unique per session, including across boots, so it
+// and the user identify the console. `boot` (kern.boottime) is reported but
+// never compared: the kernel recomputes it as wall clock minus uptime, so an
+// ordinary NTP sync shifts it and must not end a grant or skip a relock.
+static BOOL sameConsoleIdentity(NSDictionary *a, NSDictionary *b) {
+    return a && b && [a[@"uuid"] isKindOfClass:NSString.class] && [a[@"uuid"] length] > 0 &&
+        [a[@"uid"] isKindOfClass:NSNumber.class] && [a[@"uid"] unsignedIntValue] > 0 &&
+        [a[@"uuid"] isEqual:b[@"uuid"]] && [a[@"uid"] isEqual:b[@"uid"]];
+}
+
 static NSDictionary *sessionState(void) {
     io_registry_entry_t root = IORegistryGetRootEntry(kIOMainPortDefault);
     if (!root) return nil;
@@ -128,9 +138,7 @@ static BOOL consumeGrant(void) {
         [grant[@"peerPID"] intValue] > 0 && !kill([grant[@"peerPID"] intValue], 0) &&
         [grant[@"purpose"] isEqual:@"screen-unlock"] &&
         [state[@"locked"] boolValue] &&
-        [grant[@"uuid"] isEqual:state[@"uuid"]] &&
-        [grant[@"uid"] isEqual:state[@"uid"]] &&
-        [grant[@"boot"] isEqual:state[@"boot"]] &&
+        sameConsoleIdentity(grant, state) &&
         [grant[@"expires"] isKindOfClass:NSNumber.class] &&
         [grant[@"issued"] isKindOfClass:NSNumber.class] &&
         now >= [grant[@"issued"] doubleValue] &&
