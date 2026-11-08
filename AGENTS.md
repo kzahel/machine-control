@@ -183,6 +183,10 @@ Preserve these rules:
 - Guest-local administration and semantic desktop control are the normal
   routes. Guest-local capture and input are the ordinary fallbacks.
   Host/hypervisor/KVM input is for initial bootstrap and recovery.
+  For a device with no resident controller (a console, TV, locked-down or
+  freshly installed machine), an ADB-attached Android handheld can act as a
+  programmable Bluetooth keyboard and mouse: see
+  `platforms/android/hid-keyboard/README.md`. It is an outer route too.
 - A worker agent must not silently fall back to an outer route. If an outer
   route could interrupt the controller user's desktop, it should normally be
   absent from the worker's tools and require an explicit recovery request.

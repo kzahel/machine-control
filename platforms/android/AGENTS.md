@@ -26,3 +26,10 @@ Run `python3 -m unittest discover -s tests -v` and
 committing behavior changes. Changes to reboot, keyguard, helper delivery, or
 credential handling also require proportionate physical-device validation;
 never deliberately test an incorrect credential.
+
+`hid-keyboard/` (MC HID) turns an attached handheld into a Bluetooth keyboard
+and mouse for another host, driven by `hid-keyboard/hidctl.py` over ADB.
+Use it as an outer input route only when the target has no better control
+path. Its README lists which hosts pair without root (macOS, SteamOS; ChromeOS
+over LE, which must be re-paired after either side's Bluetooth restarts) and
+what `delivery: sent` does and does not prove.
