@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- Browser tabs an agent controlled are released when its claim ends. Before,
+  a tab stayed attached, with Chrome's debugging bar and the blue pointer
+  icon, until someone ran `browser release` or turned access off. Releasing
+  the claim, or its workspace, now releases its tabs. A claim that expires
+  without being released loses them about 30 seconds after it lapses.
+  Renewing a claim keeps its tabs. With Browser access on Ask first, or while
+  another task holds the browser, this cleanup doesn't wait for you: it leaves
+  the tabs for the claim's expiry instead. The Machine Control extension's side panel
+  shows which claim and agent session each controlled tab belongs to. This
+  needs the matching extension update.
+
 ## [0.7.2]
 
 - Access you turned on no longer turns itself off silently. On macOS an

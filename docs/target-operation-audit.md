@@ -37,6 +37,12 @@ successful process exit alone does not prove a guest effect. An intent with no
 result has unknown outcome and must not be replayed. `run.*` records include the
 scoped task's claim/workspace cleanup result.
 
+`browser.owner` records, once per client process, that browser requests ran
+under a claim. Claim and workspace release, and claim renewal, consult it to
+decide whether to release that claim's browser tabs first or carry its renewed
+lease to them; see
+[claim ownership](../providers/chrome-extension/README.md#claim-ownership).
+
 Only known CLI grammar and allowlisted program categories are retained: for example, `testbed exec` or `target
 shutdown`. Arguments, shell code, arbitrary executable names, typed text, stdin,
 environment, payloads, screenshots and raw output are omitted. Never put a

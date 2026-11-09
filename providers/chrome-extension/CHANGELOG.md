@@ -5,6 +5,16 @@ Store releases are tagged `extension-v<version>`; see
 
 ## Unreleased
 
+- Tie each controlled tab to the claim that attached it. A tab is released
+  when that claim is released or its lease runs out, so an agent that ends
+  without `browser release` no longer leaves the debugging bar and tab marker
+  behind. Tabs without a claim keep their existing lifetime.
+- `browser.release` accepts `ownerClaimId` to release one claim's tabs. A tab
+  still in use is released once idle. A request for a tab being released is
+  refused with `browser_tab_releasing`.
+- Tab results report `controlOwner`. The side panel shows the claim, the agent
+  session and the lease end for each controlled tab.
+
 ## [0.9.0] - 2026-11-05
 
 - Keep late tab metadata from repainting controlled tabs or activity after

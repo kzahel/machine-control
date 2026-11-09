@@ -45,10 +45,15 @@ test("real worker cleans markers on resident revocation, release and disconnect"
   let delayAttachEffect = false;
   let rejectAbsentDetaches = false;
   const heldAttachments = new Map();
+  let holdMarkerRelease = false;
+  let holdDialogHandling = false;
+  let releaseDialogHandling;
+  let releaseMarker;
   const inserted = [];
   const originalInterval = globalThis.setInterval;
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-  globalThis.setInterval = () => 0;
+  const intervals = [];
+  globalThis.setInterval = (fn) => { intervals.push(fn); return 0; };
   Object.defineProperty(globalThis, "navigator", { value: { userAgent: "fixture" }, configurable: true });
   globalThis.chrome = {
     action: { setBadgeText() {}, setBadgeBackgroundColor() {}, setTitle() {} },
@@ -109,6 +114,8 @@ test("real worker cleans markers on resident revocation, release and disconnect"
           focusTargetX = 100; // The page moves its button when it becomes focused/visible.
         if (method === "Page.enable" && failPageEnable) throw new Error("Fixture Page refusal");
         if (method === "Page.enable" && holdPageEnable) return new Promise(resolve => { releasePageEnable = resolve; });
+        if (method === "Page.handleJavaScriptDialog" && holdDialogHandling)
+          return new Promise(resolve => { releaseDialogHandling = () => resolve({}); });
         if (method === "Page.handleJavaScriptDialog") {
           handledDialogs++;
           if (declineDialog) throw new Error("No dialog is showing");
@@ -135,6 +142,9 @@ test("real worker cleans markers on resident revocation, release and disconnect"
         if (method === "Page.getFrameTree") return { frameTree: { frame: { id: String(tabId) } } };
         if (method === "Page.createIsolatedWorld") return { executionContextId: tabId };
         if (method === "Runtime.callFunctionOn") {
+          if (holdMarkerRelease && params.arguments[0].value === null) return new Promise(resolve => {
+            releaseMarker = () => { markers.set(tabId, false); resolve({ result: { value: { visible: false } } }); };
+          });
           markers.set(tabId, params.arguments[0].value !== null);
           return { result: { value: { visible: markers.get(tabId) } } };
         }
@@ -474,6 +484,141 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     assert.ok(!(await request("browser.tabs")).data.tabs.some(item => item.tabId === privateTab.id));
     assert.equal((await request("browser.capture", {tabId:privateTab.id})).errorCode, "private_tab_not_permitted");
     assert.equal(attached.has(privateTab.id), false);
+    // Claim ownership: a tab follows the claim of its latest attaching
+    // request. A scoped release or an expired lease detaches only that claim.
+    const claimA = `c-${"a".repeat(24)}`, claimB = `c-${"b".repeat(24)}`, claimC = `c-${"c".repeat(24)}`;
+    const ownedA = await chrome.tabs.create({ url:"about:blank" });
+    const ownedB = await chrome.tabs.create({ url:"about:blank" });
+    const unowned = await chrome.tabs.create({ url:"about:blank" });
+    assert.equal((await request("browser.capture", { tabId:ownedA.id,
+      owner:{ claimId:claimA, leaseSeconds:600, sessionRef:"agent-a" } })).ok, true);
+    assert.equal((await request("browser.capture", { tabId:ownedB.id, owner:{ claimId:claimB, leaseSeconds:60 } })).ok, true);
+    assert.equal((await request("browser.capture", { tabId:unowned.id })).ok, true);
+    const listed = (await request("browser.tabs")).data.tabs;
+    const ownerOf = tabId => listed.find(item => item.tabId === tabId).controlOwner;
+    assert.equal(ownerOf(ownedA.id).claimId, claimA);
+    assert.equal(ownerOf(ownedA.id).sessionRef, "agent-a");
+    assert.ok(ownerOf(ownedA.id).leaseRemainingSeconds > 590);
+    assert.equal(ownerOf(ownedB.id).sessionRef, null);
+    assert.equal(ownerOf(unowned.id), null, "a request without a claim keeps today's unowned lifetime");
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.equal(panel.states.at(-1).tabOwners[ownedA.id].claimId, claimA);
+    assert.equal(panel.states.at(-1).tabOwners[ownedA.id].sessionRef, "agent-a");
+    assert.equal(panel.states.at(-1).tabOwners[unowned.id], undefined);
+    assert.equal((await request("browser.capture", { tabId:ownedA.id, owner:{ claimId:"c-short", leaseSeconds:60 } })).errorCode, "invalid_request");
+    assert.equal((await request("browser.capture", { tabId:ownedA.id, owner:{ claimId:claimA, leaseSeconds:0 } })).errorCode, "invalid_request");
+    assert.equal((await request("browser.tabs", { ownerClaimId:claimA })).errorCode, "invalid_request");
+    // The claim has ended, so an observed dialog on its tab is abandoned
+    // and reported rather than keeping the debugger attached.
+    chrome.debugger.onEvent.emit({ tabId:ownedA.id }, "Page.javascriptDialogOpening", { type:"alert" });
+    const scoped = await request("browser.release", { ownerClaimId:claimA });
+    assert.equal(scoped.ok, true);
+    assert.equal(scoped.data.released, true);
+    assert.equal(scoped.data.scope, "claim");
+    assert.deepEqual(scoped.data.releasedTabs, [ownedA.id]);
+    assert.deepEqual(scoped.data.abandonedDialogs, [ownedA.id]);
+    assert.equal(attached.has(ownedA.id), false);
+    assert.equal(markers.get(ownedA.id), false);
+    assert.ok(attached.has(ownedB.id) && attached.has(unowned.id), "other claims and unowned tabs stay attached");
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.match(panel.states.at(-1).activity[0].detail, /^of ended claim c-a{24}$/);
+    const realNow = Date.now;
+    const sweep = async (offset) => {
+      Date.now = () => realNow() + offset;
+      try { for (const interval of intervals) interval(); await new Promise(resolve => setTimeout(resolve, 40)); }
+      finally { Date.now = realNow; }
+    };
+    await sweep(61000);
+    assert.equal(attached.has(ownedB.id), true, "an expired lease keeps its tab through the grace period");
+    await sweep(95000);
+    await wait(() => !attached.has(ownedB.id));
+    assert.equal(markers.get(ownedB.id), false);
+    assert.equal(attached.has(unowned.id), true, "expiry never touches an unowned tab");
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.match(panel.states.at(-1).activity[0].detail, /^of expired claim c-b{24}$/);
+    // Any later request from a renewed claim extends all of its tabs. An
+    // expired claim cannot be renewed, so this uses a different claim.
+    const claimR = `c-${"1".repeat(24)}`;
+    const renewed = await chrome.tabs.create({ url:"about:blank" });
+    assert.equal((await request("browser.capture", { tabId:renewed.id, owner:{ claimId:claimR, leaseSeconds:30 } })).ok, true);
+    assert.equal((await request("browser.tabs", { owner:{ claimId:claimR, leaseSeconds:900 } })).ok, true);
+    await sweep(120000);
+    assert.equal(attached.has(renewed.id), true, "the renewed lease keeps the tab");
+    assert.equal((await request("browser.capture", { tabId:renewed.id })).ok, true);
+    assert.equal((await request("browser.tabs")).data.tabs.find(item => item.tabId === renewed.id).controlOwner, null,
+      "an unowned request that reuses a tab clears its owner");
+    // A live DevTools stream keeps its tab; once idle, the next sweep releases
+    // it because its claim has ended, not when the old lease would lapse.
+    const streamed = await chrome.tabs.create({ url:"about:blank" });
+    assert.equal((await request("browser.capture", { tabId:streamed.id, owner:{ claimId:claimC, leaseSeconds:1800 } })).ok, true);
+    native.onMessage.emit({ type:"session.open", id:"claim-stream", tabId:streamed.id });
+    await wait(() => replies.find(reply => reply.type === "session.opened" && reply.id === "claim-stream"));
+    const retained = await request("browser.release", { ownerClaimId:claimC });
+    assert.equal(retained.data.released, false);
+    assert.deepEqual(retained.data.retainedTabs, [streamed.id]);
+    assert.equal(attached.has(streamed.id), true);
+    assert.equal((await request("browser.tabs")).data.tabs.find(item => item.tabId === streamed.id).controlOwner.claimEnded, true);
+    native.onMessage.emit({ type:"session.close", id:"claim-stream" });
+    await wait(() => replies.find(reply => reply.type === "session.closed" && reply.id === "claim-stream"));
+    await sweep(0);
+    await wait(() => !attached.has(streamed.id));
+    assert.equal(attached.has(unowned.id) && attached.has(renewed.id), true);
+    // Requests already sent when their claim ends, one mid-attach and one
+    // still queued behind it, attach new tabs afterwards. Those late tabs join
+    // the ended claim and are released; the queued request cannot revive it.
+    const claimD = `c-${"d".repeat(24)}`;
+    releaseAttach = undefined; holdAttach = true;
+    const lateNavigation = request("browser.navigate", { newTab:true, url:"about:blank", owner:{ claimId:claimD, leaseSeconds:1800 } });
+    await wait(() => releaseAttach);
+    const queuedNavigation = request("browser.navigate", { newTab:true, url:"about:blank", owner:{ claimId:claimD, leaseSeconds:1800 } });
+    await tick(); await tick();
+    const early = await request("browser.release", { ownerClaimId:claimD });
+    assert.deepEqual(early.data.releasedTabs, []);
+    holdAttach = false; releaseAttach();
+    const lateTabs = [(await lateNavigation).data.tab.tabId, (await queuedNavigation).data.tab.tabId];
+    assert.ok(lateTabs.every(tabId => attached.has(tabId)));
+    const lateOwners = (await request("browser.tabs")).data.tabs.filter(item => lateTabs.includes(item.tabId));
+    assert.ok(lateOwners.every(item => item.controlOwner.claimEnded), "a request sent before its claim ended cannot revive it");
+    await sweep(0);
+    await wait(() => lateTabs.every(tabId => !attached.has(tabId)));
+    // While a claim's tab is being released, another request for that tab is
+    // refused before dispatch instead of being detached underneath it.
+    const claimE = `c-${"e".repeat(24)}`;
+    const releasing = await chrome.tabs.create({ url:"about:blank" });
+    assert.equal((await request("browser.capture", { tabId:releasing.id, owner:{ claimId:claimE, leaseSeconds:600 } })).ok, true);
+    releaseMarker = undefined; holdMarkerRelease = true;
+    const scopedRelease = request("browser.release", { ownerClaimId:claimE });
+    await wait(() => releaseMarker);
+    const raced = await request("browser.capture", { tabId:releasing.id });
+    assert.equal(raced.errorCode, "browser_tab_releasing");
+    assert.equal(raced.delivery, "refused");
+    holdMarkerRelease = false; releaseMarker();
+    assert.deepEqual((await scopedRelease).data.releasedTabs, [releasing.id]);
+    assert.equal(attached.has(releasing.id), false);
+    assert.equal((await request("browser.capture", { tabId:releasing.id })).ok, true, "the tab is usable once released");
+    // An in-flight dialog recovery keeps its tab until it finishes.
+    const claimG = `c-${"2".repeat(24)}`;
+    const recovering = await chrome.tabs.create({ url:"about:blank" });
+    assert.equal((await request("browser.capture", { tabId:recovering.id, owner:{ claimId:claimG, leaseSeconds:600 } })).ok, true);
+    chrome.debugger.onEvent.emit({ tabId:recovering.id }, "Page.javascriptDialogOpening", { type:"alert" });
+    holdDialogHandling = true; releaseDialogHandling = undefined;
+    const handling = request("browser.cdp", { tabId:recovering.id, method:"Page.handleJavaScriptDialog", params:{ accept:true },
+      owner:{ claimId:claimG, leaseSeconds:600 } });
+    await wait(() => releaseDialogHandling);
+    assert.deepEqual((await request("browser.release", { ownerClaimId:claimG })).data.retainedTabs, [recovering.id]);
+    holdDialogHandling = false; releaseDialogHandling();
+    assert.equal((await handling).ok, true);
+    await sweep(0);
+    await wait(() => !attached.has(recovering.id));
+    // Only a request refused before it runs leaves its claim's lease alone;
+    // null means no owner.
+    const claimF = `c-${"f".repeat(24)}`;
+    const leased = await chrome.tabs.create({ url:"about:blank" });
+    assert.equal((await request("browser.capture", { tabId:leased.id, owner:{ claimId:claimF, leaseSeconds:60 } })).ok, true);
+    assert.equal((await request("browser.capture", { tabId:999999, owner:{ claimId:claimF, leaseSeconds:900 } })).errorCode, "tab_not_found");
+    assert.ok((await request("browser.tabs")).data.tabs.find(item => item.tabId === leased.id).controlOwner.leaseRemainingSeconds <= 60);
+    assert.equal((await request("browser.capture", { tabId:leased.id, owner:null, ownerClaimId:null })).ok, true);
+    assert.equal((await request("browser.tabs")).data.tabs.find(item => item.tabId === leased.id).controlOwner, null);
     native.onDisconnect.emit();
     await wait(() => markers.get(tab) === false && !attached.has(tab));
   } finally {

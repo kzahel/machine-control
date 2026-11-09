@@ -34,6 +34,44 @@ export function observes(operation: string): boolean {
 export function needsDevtools(operation: string): boolean {
   return operation === "browser.cdp" || operation === "browser.eval";
 }
+const CLAIM_ID = /^c-[a-f0-9]{24}$/;
+const SESSION_REF = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+/**
+ * Optional claim attribution: `owner` names the target-use claim a request
+ * runs under, with that claim's remaining lease; `ownerClaimId` scopes a
+ * release to that claim's tabs. Both are self-asserted, never authority.
+ * Null means absent, as Windows' typed relay already treats it.
+ */
+export function validOwnership(
+  operation: string,
+  request: Readonly<Record<string, unknown>>,
+): boolean {
+  const owner = request.owner ?? undefined;
+  if (owner !== undefined) {
+    if (!owner || typeof owner !== "object" || Array.isArray(owner)) return false;
+    const fields = owner as Readonly<Record<string, unknown>>;
+    if (Object.keys(fields).some((key) => !["claimId", "leaseSeconds", "sessionRef"].includes(key)))
+      return false;
+    if (typeof fields.claimId !== "string" || !CLAIM_ID.test(fields.claimId)) return false;
+    if (
+      typeof fields.leaseSeconds !== "number" ||
+      !Number.isSafeInteger(fields.leaseSeconds) ||
+      fields.leaseSeconds < 1 ||
+      fields.leaseSeconds > 86_400
+    )
+      return false;
+    if (
+      fields.sessionRef !== undefined &&
+      (typeof fields.sessionRef !== "string" || !SESSION_REF.test(fields.sessionRef))
+    )
+      return false;
+  }
+  const scope = request.ownerClaimId ?? undefined;
+  return (
+    scope === undefined ||
+    (operation === "browser.release" && typeof scope === "string" && CLAIM_ID.test(scope))
+  );
+}
 /** Copy and freeze a bounded JSON tree; providers cannot mutate admitted work. */
 export function parameters(value: unknown, maximum = 1024 * 1024): Parameters {
   let nodes = 0,

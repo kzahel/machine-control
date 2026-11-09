@@ -21,21 +21,114 @@ SCHEMA = "machine-control-admission/v2"
 CHANNEL_SCHEMA = "machine-control-admission-channel/v2"
 
 
-def resolve_browser_profile(target, selector=None):
-    """Resolve once before admission; the owner always names an exact profile."""
+def usable_browser_profiles(target, selector=None):
+    """Enabled, connected profiles the person allowed, optionally one named."""
     mc.require_selected_claim(target)
     _, result, _ = mc.run_adapter(target, ["control", '{"operation":"browser.profiles"}'], accept_json_failure=True)
     value = mc.validate_resident(result, target["platform"])
     data = value.get("data") or {}
     profiles = data.get("profiles", [])
     approved = data.get("approvedProfiles", [])
-    candidates = [profile for profile in profiles if profile.get("enabled") is True
-                  and profile.get("connected") is True and profile.get("profileId") in approved
-                  and (selector is None or selector in (profile.get("profileId"), profile.get("name")))]
+    return [profile["profileId"] for profile in profiles if profile.get("enabled") is True
+            and profile.get("connected") is True and profile.get("profileId") in approved
+            and (selector is None or selector in (profile.get("profileId"), profile.get("name")))]
+
+
+def resolve_browser_profile(target, selector=None):
+    """Resolve once before admission; the owner always names an exact profile."""
+    candidates = usable_browser_profiles(target, selector)
     if len(candidates) != 1:
         raise mc.ClientError("browser_profile_selection_required",
                              "Choose one enabled, connected profile allowed in Machine Control")
-    return candidates[0]["profileId"]
+    return candidates[0]
+
+
+def _browser_needs_no_prompt(target):
+    """Whether Browser access is on Automatic, from resident status.
+
+    None means an older resident that does not report its admission state.
+    """
+    _, parsed, _ = mc.run_adapter(target, ["control", '{"operation":"status"}'], accept_json_failure=True)
+    data = mc.validate_resident(parsed, target["platform"]).get("data")
+    admission = data.get("admission") if isinstance(data, dict) else None
+    surfaces = admission.get("surfaces") if isinstance(admission, dict) else None
+    if not isinstance(surfaces, dict):
+        return None
+    browser = surfaces.get("browser") if isinstance(surfaces.get("browser"), dict) else {}
+    return browser.get("mode") == "automatic" and browser.get("expired") is not True
+
+
+def quiet_browser_calls(target, build, *, reason, settle=3):
+    """Run one background browser operation in every usable profile, or not at all.
+
+    Housekeeping never waits on a person or another owner: under Ask first,
+    pending approval, or while the profile is busy, it raises and the claim's
+    lease remains the backstop. build(profile) returns the
+    request, with no profile for the legacy direct route.
+    """
+    first = build(None)
+    request = mc.with_browser_owner(target, first, mc.require_selected_claim(target))
+    _, parsed, _ = mc.run_adapter(target, ["control", json.dumps(request, separators=(",", ":"))],
+                                  accept_json_failure=True)
+    value = mc.validate_resident(parsed, target["platform"])
+    data = value.get("data")
+    if value.get("errorCode") != "control_session_required" or not isinstance(
+            data.get("controlSession") if isinstance(data, dict) else None, dict):
+        return [value]
+    if _browser_needs_no_prompt(target) is False:
+        raise mc.ClientError("approval_required", "Browser access asks first; housekeeping does not prompt")
+    profiles = usable_browser_profiles(target)
+    if not profiles:
+        raise mc.ClientError("browser_profile_unavailable", "No enabled, connected, allowed browser profile")
+    with ControlSession(target, reason=reason, surfaces=["browser"], profile_ids=profiles,
+                        operations=[first["operation"]], wait=settle, duration=60, renew=False) as session:
+        deadline = time.monotonic() + settle
+        while True:
+            view = session.status()
+            if view["state"] in {"offered", "active"}:
+                break
+            if view["state"] in {"waiting_for_approval", "ended"} or time.monotonic() >= deadline:
+                code = ("approval_required" if view["state"] == "waiting_for_approval"
+                        else view.get("terminalReason") or "control_ended" if view["state"] == "ended"
+                        else "browser_owner_unavailable")
+                raise mc.ClientError(code, f"Browser housekeeping skipped while {view['state']}")
+            time.sleep(0.25)
+        session.wait()
+        return [mc.validate_resident(session.call(build(profile)), target["platform"]) for profile in profiles]
+
+
+def release_claim_tabs(target, claim_id):
+    """Release the tabs one ending claim attached, in every usable profile."""
+    return _release_summary(quiet_browser_calls(
+        target, lambda profile: {"operation": "browser.release", "ownerClaimId": claim_id,
+                                 **({"browserProfileId": profile} if profile else {})},
+        reason="Release browser tabs of an ending claim"))
+
+
+def refresh_claim_tabs(target):
+    """Carry a renewed claim's lease to its tabs with one owned observation."""
+    results = quiet_browser_calls(
+        target, lambda profile: {"operation": "browser.tabs", **({"browserProfileId": profile} if profile else {})},
+        reason="Extend browser tabs of a renewed claim")
+    summary = {"accepted": all(result.get("accepted") is True for result in results)}
+    errors = sorted({result["errorCode"] for result in results if result.get("errorCode")})
+    if errors:
+        summary["errorCode"] = errors[0]
+    return summary
+
+
+def _release_summary(results):
+    summary = {"accepted": all(result.get("accepted") is True for result in results)}
+    errors = sorted({result["errorCode"] for result in results if result.get("errorCode")})
+    if errors:
+        summary["errorCode"] = errors[0]
+    datas = [result["data"] for result in results if isinstance(result.get("data"), dict)]
+    summary["released"] = summary["accepted"] and all(data.get("released") is True for data in datas)
+    for key in ("releasedTabs", "retainedTabs", "abandonedDialogs", "unconfirmedDetaches"):
+        tabs = [tab for data in datas for tab in data.get(key, []) if isinstance(tab, int)]
+        if tabs:
+            summary[key] = tabs
+    return summary
 
 
 def complete_session_handoff(target, request, refusal):
@@ -310,7 +403,7 @@ class ControlSession:
 
     def call(self, request):
         """Dispatch once with the current owner and resource fence."""
-        mc.require_selected_claim(self.target)
+        request = mc.with_browser_owner(self.target, request, mc.require_selected_claim(self.target))
         view = self.status()
         if view["state"] != "active":
             raise mc.ClientError("control_interrupted", "Control is paused or ended; wait for a fresh session before issuing new work", data=view)

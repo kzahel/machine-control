@@ -140,6 +140,7 @@ class Run:
         self.child = None
         self.claim_cleanup = "not_acquired"
         self.workspace_cleanup = "not_acquired"
+        self.browser_cleanup = None
         self.renewals = 0
         self.deadline = 0
         self.renew_at = 0
@@ -150,7 +151,8 @@ class Run:
             "claimId": self.claim["claimId"] if self.claim else None,
             "workspaceHandle": self.handle, "renewals": self.renewals,
             "cleanup": {"claim": self.claim_cleanup,
-                        "workspace": self.workspace_cleanup},
+                        "workspace": self.workspace_cleanup,
+                        **({"browser": self.browser_cleanup} if self.browser_cleanup is not None else {})},
             **extra,
         }
         print(json.dumps(value, separators=(",", ":")), file=sys.stderr, flush=True)
@@ -270,6 +272,8 @@ class Run:
         data = self.call("claim", "renew", args, target=target)
         self.set_lease(data["claim"], started)
         self.renewals += 1
+        # The extension learns the renewed lease only from a browser request.
+        mc.refresh_claim_browser(self.selected(), self.claim["claimId"])
 
     def environment(self, directory):
         registry = Path(directory) / "targets.json"
@@ -308,6 +312,9 @@ class Run:
             if self.intent:
                 if not self.handle:
                     return "run_workspace_receipt_missing"
+                # Workspace release also releases its claim; release the
+                # browser tabs it attached inside the workspace first.
+                self.browser_cleanup = mc.release_claim_browser(self.selected(), self.claim["claimId"])
                 data = self.call("workspace", "release",
                                  ["--handle", self.handle],
                                  target=self.selected(workspace=False))
@@ -315,6 +322,9 @@ class Run:
                     raise mc.ClientError("run_release_mismatch", "Workspace receipt changed", 1)
                 self.workspace_cleanup = "released"
             else:
+                # Release browser tabs the task attached while its claim
+                # still holds the target; best effort, never blocking.
+                self.browser_cleanup = mc.release_claim_browser(self.selected(), self.claim["claimId"])
                 data = self.call("claim", "release",
                                  ["--claim-id", self.claim["claimId"]],
                                  target=self.selected())

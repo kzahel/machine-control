@@ -378,6 +378,20 @@ class Command:
         return best_effort("command.result", **fields)
 
 
+def claim_recorded(claim, event):
+    """Whether retained history holds an event of this kind for a claim."""
+    db = connect(read=True)
+    if db is None:
+        return False
+    try:
+        return db.execute(
+            "SELECT 1 FROM events WHERE claim=? AND json_extract(data,'$.event')=? LIMIT 1",
+            (claim, event),
+        ).fetchone() is not None
+    finally:
+        db.close()
+
+
 def history(
     *, target=None, claim=None, claimant=None, session=None, since=None,
     before=None, limit=100

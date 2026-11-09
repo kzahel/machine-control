@@ -1,3 +1,4 @@
+import io
 import json
 import os
 from pathlib import Path
@@ -89,6 +90,56 @@ class ScopedRunTests(unittest.TestCase):
         self.assertFalse((self.directory / "held.json").exists())
         self.assertEqual(sum(event["operation"].endswith("-release")
                              for event in self.events()), 1)
+
+    def test_cleanup_releases_claim_browser_tabs_before_the_claim(self):
+        order = []
+        run = scoped_run.Run("fixture", self.target, mock.Mock(disruptive=False, duration=None), None)
+        run.claim = {"claimId": "c-0123456789abcdef01234567", "generation": 3, "useClass": "ordinary"}
+        browser = {"accepted": True, "released": True, "releasedTabs": [7]}
+        def call(kind, operation, arguments, *, target=None):
+            order.append(f"{kind}-{operation}")
+            return {"claimId": run.claim["claimId"], "generation": 3, "disposition": "released"}
+        def release(target, claim_id):
+            order.append("browser")
+            return browser
+        with mock.patch.object(run, "call", side_effect=call), \
+                mock.patch.object(mc, "release_claim_browser", side_effect=release) as releaser:
+            self.assertIsNone(run.cleanup())
+        self.assertEqual(order, ["browser", "claim-release"])
+        target, claim_id = releaser.call_args.args
+        self.assertEqual(claim_id, run.claim["claimId"])
+        self.assertEqual(target["environment"]["MACHINE_CONTROL_CLAIM_ID"], claim_id)
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            run.audit("finished")
+        self.assertEqual(json.loads(stderr.getvalue())["cleanup"],
+                         {"claim": "released", "workspace": "not_acquired", "browser": browser})
+        # A workspace's release also ends its claim, so its tabs go first,
+        # routed into that workspace.
+        order.clear()
+        run = scoped_run.Run("fixture", self.target, mock.Mock(disruptive=False, duration=None), "isolated")
+        run.claim = {"claimId": "c-0123456789abcdef01234567", "generation": 3, "useClass": "ordinary"}
+        run.handle = "w-scoped-fixture"
+        workspace = lambda kind, operation, arguments, *, target=None: (
+            order.append(f"{kind}-{operation}") or {"handle": run.handle})
+        with mock.patch.object(run, "call", side_effect=workspace), \
+                mock.patch.object(mc, "release_claim_browser", side_effect=release) as releaser:
+            self.assertIsNone(run.cleanup())
+        self.assertEqual(order, ["browser", "workspace-release"])
+        self.assertEqual(releaser.call_args.args[0]["environment"]["MACHINE_CONTROL_WORKSPACE_HANDLE"], run.handle)
+
+    def test_renewal_carries_the_new_lease_to_browser_tabs(self):
+        run = scoped_run.Run("fixture", self.target, mock.Mock(disruptive=False, duration=None), None)
+        run.claim = {"claimId": "c-0123456789abcdef01234567", "generation": 3, "useClass": "ordinary"}
+        run.deadline = time.monotonic() + 60
+        renewed = dict(run.claim, expiresAt="2099-01-01T00:00:00Z", remainingSeconds=60)
+        with mock.patch.object(run, "call", return_value={"claim": renewed}), \
+                mock.patch.object(mc, "release_claim_browser") as release, \
+                mock.patch.object(mc, "refresh_claim_browser", return_value=None) as refresh:
+            run.renew()
+        release.assert_not_called()
+        target, claim_id = refresh.call_args.args
+        self.assertEqual(claim_id, run.claim["claimId"])
+        self.assertEqual(target["environment"]["MACHINE_CONTROL_CLAIM_ID"], claim_id)
 
     def test_success_inherits_selection_and_removes_private_context(self):
         code = (

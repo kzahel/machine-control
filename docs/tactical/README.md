@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [162 — Claim-scoped browser attachments](162-claim-scoped-browser-attachments.md)
+  (complete; awaiting release): attribute debugger attachments to the claim that made them,
+  release them when that claim is released or expires, and show the owner.
+
 - [161 — Verified callers replace native delegation](161-verified-callers.md)
   (macOS complete; Windows/Linux open): retire the unused YA delegation
   transport; add an opt-in verified-caller mode on the ordinary socket.

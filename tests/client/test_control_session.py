@@ -2,7 +2,9 @@ import os
 import io
 import json
 from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -11,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "client"))
+import audit_history
 import machine_control as mc
 from control_session import ControlSession, validate_view, complete_session_handoff, handle_control, SCHEMA
 
@@ -170,6 +173,116 @@ class ControlSessionTests(unittest.TestCase):
             actualRoute="fixture", generation="fixture-generation", hostInterference="none", elapsedMs=0,
             errorCode="control_session_required", delivery="refused", effect="refused", uncertainty="none",
             retrySafety="safe_not_dispatched", data={"controlSession":{"schema":SCHEMA, "surface":"desktop"}})
+
+    def recorded_requests(self):
+        return [json.loads(line[len("request:"):]) for line in self.record.read_text().splitlines()
+                if line.startswith("request:")]
+
+    def test_dispatch_attributes_browser_work_to_the_verified_claim(self):
+        target = dict(self.target, environment={**self.target["environment"], "MC_ADMISSION_FIXTURE": "record-request"})
+        expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).replace(microsecond=0)
+        claim = {"state": "held", "claimId": "c-" + secrets.token_hex(12), "generation": 3,
+                 "expiresAt": expires.isoformat().replace("+00:00", "Z")}
+        with patch.object(mc, "require_selected_claim", return_value=claim), \
+                patch.dict(os.environ, {"AGENTCTL_SESSION_ID": "fixture-agent",
+                                        "MACHINE_CONTROL_AUDIT_DIR": str(Path(self.temporary.name) / "audit")}):
+            with ControlSession(target, reason="fixture", surfaces=["browser"], profile_ids=["fixture-profile"]) as owner:
+                owner.wait()
+                for operation in ("browser.tabs", "browser.release", "snapshot"):
+                    owner.call({"operation": operation})
+            self.assertTrue(audit_history.claim_recorded(claim["claimId"], "browser.owner"))
+        tabs, release, snapshot = [request for request in self.recorded_requests() if request["operation"] != "capabilities"]
+        self.assertEqual(tabs["owner"]["claimId"], claim["claimId"])
+        self.assertEqual(tabs["owner"]["sessionRef"], "fixture-agent")
+        self.assertTrue(590 <= tabs["owner"]["leaseSeconds"] <= 600, tabs["owner"])
+        self.assertNotIn("owner", release, "release is scoped by ownerClaimId, not attributed")
+        self.assertNotIn("owner", snapshot, "desktop work carries no browser owner")
+
+    def claim_release_adapter(self, browser_mode="automatic"):
+        refusal = self.refusal()
+        refusal["data"]["controlSession"]["surface"] = "browser"
+        accepted = dict(refusal, accepted=True, errorCode=None, delivery="confirmed", effect="not_applicable",
+                        retrySafety="not_applicable")
+        profiles = dict(accepted, data={"approvedProfiles": ["work", "home", "off"], "profiles": [
+            {"profileId": "work", "enabled": True, "connected": True},
+            {"profileId": "home", "enabled": True, "connected": True},
+            {"profileId": "off", "enabled": False, "connected": True}]})
+        status = dict(accepted, data={} if browser_mode is None else
+                      {"admission": {"surfaces": {"browser": {"mode": browser_mode, "expired": False}}}})
+        sent = []
+        def adapter(_target, arguments, accept_json_failure=False):
+            request = json.loads(arguments[1])
+            sent.append(request)
+            value = {"browser.profiles": profiles, "status": status}.get(request["operation"], refusal)
+            return subprocess.CompletedProcess([], 0, stdout=json.dumps(value)), value, 1
+        adapter.sent = sent
+        return adapter
+
+    def housekeeping_target(self, mode):
+        return dict(self.target, platform="windows",
+                    environment={**self.target["environment"], "MC_ADMISSION_FIXTURE": mode})
+
+    def test_claim_tab_release_covers_every_usable_profile(self):
+        import control_session
+        claim_id = "c-" + secrets.token_hex(12)
+        with patch.object(mc, "run_adapter", side_effect=self.claim_release_adapter()), \
+                patch.object(mc, "require_selected_claim", return_value=None):
+            summary = control_session.release_claim_tabs(self.housekeeping_target("record-request"), claim_id)
+        self.assertEqual(summary, {"accepted": True, "released": True, "releasedTabs": [3, 3]})
+        releases = [request for request in self.recorded_requests() if request["operation"] == "browser.release"]
+        self.assertEqual([(request["browserProfileId"], request["ownerClaimId"]) for request in releases],
+                         [("work", claim_id), ("home", claim_id)])
+        self.assertTrue(all("owner" not in request for request in releases))
+        self.assertIn("control.cancel", self.record.read_text().splitlines())
+
+    def test_claim_tab_housekeeping_never_prompts_under_ask_first(self):
+        import control_session
+        adapter = self.claim_release_adapter("ask")
+        with patch.object(mc, "run_adapter", side_effect=adapter), \
+                patch.object(mc, "require_selected_claim", return_value=None):
+            with self.assertRaises(mc.ClientError) as error:
+                control_session.release_claim_tabs(self.housekeeping_target("ready"), "c-" + secrets.token_hex(12))
+        self.assertEqual(error.exception.code, "approval_required")
+        self.assertFalse(self.record.exists(), "no admission intent is opened, so nothing is presented")
+        self.assertNotIn("browser.profiles", [request["operation"] for request in adapter.sent])
+
+    def test_claim_tab_housekeeping_stops_at_once_on_an_approval_wait(self):
+        import control_session
+        with patch.object(mc, "run_adapter", side_effect=self.claim_release_adapter(None)), \
+                patch.object(mc, "require_selected_claim", return_value=None):
+            with self.assertRaises(mc.ClientError) as error:
+                control_session.release_claim_tabs(self.housekeeping_target("approval"), "c-" + secrets.token_hex(12))
+        self.assertEqual(error.exception.code, "approval_required")
+        events = self.record.read_text().splitlines()
+        self.assertIn("control.cancel", events)
+        self.assertNotIn("control.dispatch", events)
+
+    def test_claim_tab_housekeeping_does_not_wait_behind_another_owner(self):
+        import control_session
+        started = time.monotonic()
+        with patch.object(mc, "run_adapter", side_effect=self.claim_release_adapter()), \
+                patch.object(mc, "require_selected_claim", return_value=None):
+            with self.assertRaises(mc.ClientError) as error:
+                control_session.release_claim_tabs(self.housekeeping_target("resource"), "c-" + secrets.token_hex(12))
+        self.assertEqual(error.exception.code, "browser_owner_unavailable")
+        self.assertLess(time.monotonic() - started, 6)
+        self.assertIn("control.cancel", self.record.read_text().splitlines())
+        self.assertNotIn("control.dispatch", self.record.read_text().splitlines())
+
+    def test_claim_renewal_carries_its_lease_to_every_usable_profile(self):
+        import control_session
+        expires = (datetime.now(timezone.utc) + timedelta(minutes=45)).replace(microsecond=0)
+        claim = {"state": "held", "claimId": "c-" + secrets.token_hex(12), "generation": 3,
+                 "expiresAt": expires.isoformat().replace("+00:00", "Z")}
+        with patch.object(mc, "run_adapter", side_effect=self.claim_release_adapter()), \
+                patch.object(mc, "require_selected_claim", return_value=claim), \
+                patch.dict(os.environ, {"MACHINE_CONTROL_AUDIT_DIR": str(Path(self.temporary.name) / "audit")}):
+            summary = control_session.refresh_claim_tabs(self.housekeeping_target("record-request"))
+        self.assertEqual(summary, {"accepted": True})
+        observed = [request for request in self.recorded_requests() if request["operation"] == "browser.tabs"]
+        self.assertEqual([request["browserProfileId"] for request in observed], ["work", "home"])
+        self.assertTrue(all(request["owner"]["claimId"] == claim["claimId"]
+                            and 2690 <= request["owner"]["leaseSeconds"] <= 2700 for request in observed))
 
     def test_handoff_dispatches_once_and_closes(self):
         target = dict(self.target, platform="windows")

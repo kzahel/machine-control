@@ -5,6 +5,7 @@ import sys
 import threading
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 import test_linux_policy
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'desktop/native/linux'))
 from browser import Browser
@@ -40,6 +41,19 @@ class BrowserBoundaryTests(unittest.TestCase):
         while not replies:self.callbacks.get(timeout=2)()
         self.assertTrue(replies[0]['accepted'])
         self.assertEqual(replies[0]['data']['profiles'],[])
+
+    def test_claim_attribution_reaches_the_shared_runtime_unchanged(self):
+        claim='c-'+'a1'*12
+        request=dict(operation='browser.release',requestId='owned',ownerClaimId=claim,
+                     owner=dict(claimId=claim,leaseSeconds=60,sessionRef='fixture-agent'))
+        authority=dict(owner='fixture-owner',session='fixture-session',profiles=['fixture-profile'],validate=lambda:None)
+        sent=[]
+        # Native-state publication is covered elsewhere; only routing matters here.
+        with mock.patch.object(self.browser,'sync'), \
+                mock.patch.object(self.host,'request',side_effect=lambda frame,*_,**__:sent.append(frame)):
+            self.browser.execute(dict(request),lambda _:None,authority)
+        self.assertEqual(sent[0]['method'],'browser.call')
+        self.assertEqual(sent[0]['request'],request)
 
     def test_policy_exit_fences_existing_browser_authority(self):
         self.browser.stopped=False

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -2955,7 +2955,8 @@ BROWSER_USAGE = {
            "DevTools call (devtools grant); foreground commands require explicit --foreground",
     "eval": "browser eval --expression JS [--tab ID] — evaluate JavaScript (devtools grant)",
     "endpoint": "browser endpoint — browser and per-tab CDP WebSocket URLs for a live session (devtools grant)",
-    "release": "browser release — detach all debugger sessions",
+    "release": "browser release — detach all debugger sessions (claim release already "
+               "releases the tabs its claim attached)",
     "dialog": "browser dialog [--tab ID] [--action status|accept|dismiss --dialog-id ID] — inspect or handle a page dialog",
 }
 
@@ -3071,7 +3072,8 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
 def handle_browser(
     alias: str, target: dict[str, Any], arguments: list[str]
 ) -> int:
-    return send_resident_request(alias, target, browser_request(arguments, target["platform"]))
+    request = browser_request(arguments, target["platform"])
+    return send_resident_request(alias, target, with_browser_owner(target, request, target.get("_claimCheck")))
 
 
 def handle_grant(
@@ -3588,6 +3590,11 @@ def handle_claim(
             target, [*adapter_arguments, "--json"]
         )
         value = validate_claim_result(parsed, operation)
+        if value["accepted"]:
+            # The extension learns a claim's lease only from its requests.
+            browser = refresh_claim_browser(target, options.claim_id)
+            if browser is not None:
+                value["browser"] = browser
     elif operation == "release":
         if len(rest) != 1 or not _valid_claim_id(rest[0]):
             raise ClientError(
@@ -3595,11 +3602,16 @@ def handle_claim(
                 "claim release requires one claim ID. "
                 + _claim_id_shape(rest[0] if len(rest) == 1 else None),
             )
+        # While the claim still holds the target, release browser tabs it
+        # attached. Best effort: it never blocks releasing the claim itself.
+        browser = release_claim_browser(target, rest[0])
         parsed, elapsed_ms = _claim_adapter_call(
             target,
             ["claim-release", "--claim-id", rest[0], "--json"],
         )
         value = validate_claim_result(parsed, operation)
+        if browser is not None:
+            value["browser"] = browser
     else:
         raise ClientError(
             "unsupported_claim_operation",
@@ -3616,9 +3628,10 @@ def handle_claim(
 
 def require_selected_claim(
     target: dict[str, Any], required_use_class: str | None = None
-) -> None:
+) -> dict[str, Any] | None:
+    """Verify the selected live claim; return its check data when enforced."""
     if target.get("claimPolicy", "unsupported") != "required":
-        return
+        return None
     claim_id = target.get("_claimId")
     if not _valid_claim_id(claim_id):
         raise ClientError(
@@ -3653,6 +3666,86 @@ def require_selected_claim(
             1,
             data=value["data"],
         )
+    return value["data"] if value["data"].get("claimId") == claim_id else None
+
+
+# Claim IDs this process has already attributed browser work to.
+_BROWSER_OWNERS: set[str] = set()
+# Claims whose browser tabs this process has already released.
+_BROWSER_RELEASED: set[str] = set()
+# Profiles attach nothing, release is scoped by ownerClaimId, and a retained
+# endpoint's streams are bound to their own live owner.
+_BROWSER_UNOWNED = {"browser.profiles", "browser.release", "browser.endpoint"}
+
+
+def with_browser_owner(
+    target: dict[str, Any], request: dict[str, Any], claim: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Attribute a browser request to the claim just verified for it.
+
+    The extension ties each tab it attaches to this owner and releases the
+    tab once the claim's remaining lease runs out. This is self-asserted
+    attribution for cleanup, never authority.
+    """
+    operation = request.get("operation")
+    if (not isinstance(operation, str) or not operation.startswith("browser.")
+            or operation in _BROWSER_UNOWNED or not isinstance(claim, dict)
+            or not _valid_claim_id(claim.get("claimId"))
+            or not _valid_claim_timestamp(claim.get("expiresAt"))):
+        return request
+    expires = datetime.fromisoformat(claim["expiresAt"][:-1] + "+00:00")
+    lease = int((expires - datetime.now(timezone.utc)).total_seconds())
+    if lease < 1:
+        return request
+    owner: dict[str, Any] = {"claimId": claim["claimId"], "leaseSeconds": min(lease, 86400)}
+    session = audit_history.session_ref()
+    if session is not None:
+        owner["sessionRef"] = session["id"]
+    if claim["claimId"] not in _BROWSER_OWNERS:
+        # Claim release consults this to decide whether tabs need releasing.
+        _BROWSER_OWNERS.add(claim["claimId"])
+        audit_history.best_effort(
+            "browser.owner", claimId=claim["claimId"], sessionRef=session,
+            logicalTarget=target.get("environment", {}).get("MACHINE_CONTROL_AUDIT_TARGET"),
+        )
+    return {**request, "owner": owner}
+
+
+def _claim_browser_housekeeping(target: dict[str, Any], claim_id: str, work) -> dict[str, Any] | None:
+    """Run best-effort browser housekeeping for a live claim; never raise.
+
+    Returns None when history shows no browser work under the claim.
+    """
+    try:
+        if not audit_history.claim_recorded(claim_id, "browser.owner"):
+            return None
+    except (audit_history.AuditError, OSError, sqlite3.Error):
+        return None
+    selected = {**target, "_claimId": claim_id, "environment": {
+        **target.get("environment", {}), "MACHINE_CONTROL_CLAIM_ID": claim_id}}
+    try:
+        return work(selected)
+    except ClientError as error:
+        return {"accepted": False, "errorCode": error.code}
+    except Exception:  # Housekeeping must never block the claim operation itself.
+        return {"accepted": False, "errorCode": "browser_housekeeping_unavailable"}
+
+
+def release_claim_browser(target: dict[str, Any], claim_id: str) -> dict[str, Any] | None:
+    """Release browser tabs a still-live claim attached, once per process."""
+    if claim_id in _BROWSER_RELEASED:
+        return None
+    from control_session import release_claim_tabs
+    result = _claim_browser_housekeeping(target, claim_id, lambda selected: release_claim_tabs(selected, claim_id))
+    if result is not None:
+        _BROWSER_RELEASED.add(claim_id)
+    return result
+
+
+def refresh_claim_browser(target: dict[str, Any], claim_id: str) -> dict[str, Any] | None:
+    """Carry a just-renewed claim's lease to the browser tabs it attached."""
+    from control_session import refresh_claim_tabs
+    return _claim_browser_housekeeping(target, claim_id, refresh_claim_tabs)
 
 
 def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
@@ -3788,6 +3881,7 @@ def handle_workspace(
     if not arguments:
         raise ClientError("usage", "workspace requires an operation")
     operation, rest = arguments[0], arguments[1:]
+    browser = None
     if operation == "capabilities":
         if rest:
             raise ClientError(
@@ -3851,6 +3945,12 @@ def handle_workspace(
         adapter_arguments = [
             "workspace-release", "--handle", rest[0], "--json"
         ]
+        if _valid_claim_id(target.get("_claimId")):
+            # Releasing the workspace releases its claim: release the browser
+            # tabs that claim attached inside the workspace first.
+            browser = release_claim_browser({**target, "environment": {
+                **target.get("environment", {}),
+                "MACHINE_CONTROL_WORKSPACE_HANDLE": rest[0]}}, target["_claimId"])
     elif operation == "gc":
         if rest != ["--dry-run"]:
             raise ClientError(
@@ -3886,6 +3986,8 @@ def handle_workspace(
             "Adapter workspace intent does not match the request",
             1,
         )
+    if browser is not None:
+        value["browser"] = browser
     value["target"] = target_view(alias, target)
     value["adapter"] = {
         "kind": "authoritative_testbed",
@@ -4132,6 +4234,9 @@ Durations accept seconds or an s, m, or h suffix. Caller attribution is
 bounded and self-asserted; do not include secrets or private target identity.
 Carry the returned claim ID with global --claim, renew during active work, and
 release from cleanup. Accepted VM use is exclusive.
+Releasing or renewing a claim also releases, or extends, the browser tabs its
+work attached and reports that under "browser"; an expired claim's tabs are
+released by the extension.
 Ordinary is the default use class. --disruptive is required for host-visible
 VM capture and host-injected pointer or keyboard recovery.
 For cancellable queued use, choose run --wait DURATION with a local task.
@@ -4215,12 +4320,14 @@ def _dispatch(alias, target, remainder):
     if operation != "claim" and operation_requires_claim(
         operation, remainder[1:]
     ):
-        require_selected_claim(
+        checked = require_selected_claim(
             target,
             operation_required_claim_use_class(
                 operation, remainder[1:], target
             ),
         )
+        if checked is not None:
+            target = {**target, "_claimCheck": checked}
     if operation == "target":
         return handle_target(alias, target, remainder[1:])
     if operation == "run":

@@ -97,6 +97,15 @@ const requests = new RequestQueue({ abandoned:(context, code) => {
   if (context.tabId != null) blockedTabs.set(context.tabId, code);
 } });
 let grantGeneration = null;
+// Claim attribution. A tab belongs to the claim of the latest request that
+// attached or reused it, and that claim's lease bounds the attachment. The
+// owner is self-asserted by the caller: it scopes cleanup, never authority.
+const CLAIM_ID = /^c-[a-f0-9]{24}$/;
+const SESSION_REF = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const CLAIM_GRACE_MS = 30000;
+const ENDED_CLAIM_RETENTION_MS = 300000;
+const claimLeases = new Map();
+const tabClaims = new Map();
 const attaching = new Map();
 const attachmentOwners = new Map();
 const pageObservers = new Map();
@@ -242,7 +251,134 @@ function panelState() {
   return {
     type: "state", profileAware, profile, connected: port !== null, lastDisconnect, granted, devtools,
     controlledTabs: [...attached], streams: streaming.sessions.size, activity,
+    tabOwners: Object.fromEntries([...attached].flatMap(tabId => {
+      const owner = tabOwner(tabId);
+      return owner ? [[tabId, { claimId: owner.claimId, sessionRef: owner.sessionRef, claimEnded: owner.ended,
+        releaseAt: owner.ended ? null : owner.deadline + CLAIM_GRACE_MS }]] : [];
+    })),
   };
+}
+
+function tabOwner(tabId) {
+  const claimId = attached.has(tabId) ? tabClaims.get(tabId) : undefined;
+  const lease = claimId && claimLeases.get(claimId);
+  return lease ? { claimId, ...lease } : null;
+}
+
+function ownerView(tabId) {
+  const owner = tabOwner(tabId);
+  return owner ? { claimId: owner.claimId, sessionRef: owner.sessionRef, claimEnded: owner.ended,
+    leaseRemainingSeconds: owner.ended ? 0 : Math.max(0, Math.round((owner.deadline - Date.now()) / 1000)) } : null;
+}
+
+function claimHasTabs(claimId) {
+  return [...tabClaims].some(([tabId, claim]) => claim === claimId && attached.has(tabId));
+}
+
+// Validate and remove claim fields before any operation reads its params.
+// Null means absent, as Windows' typed relay already treats it.
+function takeOwnership(operation, params) {
+  const owner = params.owner ?? undefined, ownerClaimId = params.ownerClaimId ?? undefined;
+  delete params.owner; delete params.ownerClaimId;
+  if (owner !== undefined) {
+    const keys = owner && typeof owner === "object" && !Array.isArray(owner) ? Object.keys(owner) : null;
+    if (!keys || keys.some(key => !["claimId", "leaseSeconds", "sessionRef"].includes(key))
+        || typeof owner.claimId !== "string" || !CLAIM_ID.test(owner.claimId)
+        || !Number.isSafeInteger(owner.leaseSeconds) || owner.leaseSeconds < 1 || owner.leaseSeconds > 86400
+        || (owner.sessionRef !== undefined && (typeof owner.sessionRef !== "string" || !SESSION_REF.test(owner.sessionRef))))
+      throw new ProviderError("invalid_request", "owner must name a claim and its remaining lease");
+  }
+  if (ownerClaimId !== undefined && (operation !== "browser.release" || typeof ownerClaimId !== "string" || !CLAIM_ID.test(ownerClaimId)))
+    throw new ProviderError("invalid_request", "ownerClaimId scopes only browser.release to one claim");
+  const receivedAt = Date.now();
+  return { owner: owner === undefined ? null : { claimId: owner.claimId, sessionRef: owner.sessionRef ?? null,
+    deadline: receivedAt + owner.leaseSeconds * 1000, receivedAt }, ownerClaimId: ownerClaimId ?? null };
+}
+
+// Every accepted request from a claim carries its current remaining lease, so
+// a renewed claim extends all of its tabs on its next browser request. A
+// request sent before its claim ended cannot revive the ended claim.
+function refreshLease(owner) {
+  const lease = claimLeases.get(owner.claimId);
+  if (lease?.ended && owner.receivedAt <= lease.endedAt) return;
+  claimLeases.set(owner.claimId, { sessionRef: owner.sessionRef, deadline: owner.deadline, ended: false, endedAt: null });
+  if (claimHasTabs(owner.claimId)) notifyPanels();
+}
+
+function adoptTab(tabId, owner) {
+  if (!attached.has(tabId)) return;
+  // A lease the sweep already removed is recreated from this request's own
+  // deadline, so a late attachment is never left without a lease.
+  if (owner && !claimLeases.has(owner.claimId))
+    claimLeases.set(owner.claimId, { sessionRef: owner.sessionRef, deadline: owner.deadline, ended: false, endedAt: null });
+  if (tabClaims.get(tabId) === owner?.claimId) return;
+  if (owner) tabClaims.set(tabId, owner.claimId); else tabClaims.delete(tabId);
+  notifyPanels();
+}
+
+function tabBusy(tabId) {
+  return streaming.usesTab(tabId) || requests.lanes.has(tabId)
+    || [...requests.requests.values()].some(context => context.tabId === tabId && !context.settled)
+    || [...recoveries.values()].some(context => context.tabId === tabId);
+}
+
+// While a claim's tab is being released, a new attachment to it is refused
+// before dispatch rather than adopted and then detached underneath it.
+const releasingTabs = new Set();
+async function releaseTabAttachment(tabId) {
+  releasingTabs.add(tabId);
+  try {
+    const token = attachmentOwners.get(tabId);
+    ordinaryTabs.delete(tabId); tabClaims.delete(tabId);
+    const decoration = indicators.release(tabId);
+    await bounded(() => decoration, 750).catch(() => {});
+    return await detachAttachment(tabId, token);
+  } finally { releasingTabs.delete(tabId); }
+}
+
+// The claim has ended, so nobody remains to handle an observed dialog: it is
+// abandoned and reported. A tab still serving a stream or request is kept,
+// and the sweep releases it once idle.
+async function releaseClaimTabs(claimId, context) {
+  const lease = claimLeases.get(claimId);
+  claimLeases.set(claimId, { sessionRef: lease?.sessionRef ?? null, deadline: lease?.deadline ?? Date.now(),
+    ended: true, endedAt: lease?.ended ? lease.endedAt : Date.now() });
+  const owned = [...tabClaims].filter(([tabId, claim]) => claim === claimId && attached.has(tabId)).map(([tabId]) => tabId);
+  const retainedTabs = owned.filter(tabBusy);
+  const releasedTabs = owned.filter(tabId => !retainedTabs.includes(tabId));
+  const abandonedDialogs = releasedTabs.filter(tabId => dialogs.has(tabId));
+  context?.dispatch();
+  const confirmed = await Promise.all(releasedTabs.map(releaseTabAttachment));
+  notifyPanels();
+  return { released: !retainedTabs.length && confirmed.every(Boolean), scope: "claim", claimId, releasedTabs,
+    ...(retainedTabs.length ? { retainedTabs } : {}),
+    ...(confirmed.every(Boolean) ? {} : { unconfirmedDetaches: releasedTabs.filter(tabId => unconfirmedDetaches.has(tabId)) }),
+    ...(abandonedDialogs.length ? { abandonedDialogs } : {}) };
+}
+
+let expiring = false;
+async function expireClaims() {
+  if (expiring || !port || (!granted && !devtools)) return;
+  expiring = true;
+  try {
+    await disconnectCleanup;
+    for (const [claimId, lease] of [...claimLeases]) {
+      if (claimLeases.get(claimId) !== lease) continue;
+      const lapsed = Date.now() > lease.deadline + CLAIM_GRACE_MS;
+      if (!claimHasTabs(claimId)) {
+        // An ended claim's record outlives its tabs so that a late
+        // attachment by a request already in flight is still released.
+        if (lapsed && Date.now() > (lease.endedAt ?? 0) + ENDED_CLAIM_RETENTION_MS) claimLeases.delete(claimId);
+        continue;
+      }
+      if (!lease.ended && !lapsed) continue;
+      const startedAt = Date.now();
+      const data = await releaseClaimTabs(claimId, null);
+      if (data.releasedTabs.length) recordActivity("browser.release",
+        lease.ended ? { ownerClaimId: claimId } : { expiredClaimId: claimId },
+        { ok: data.released, data, errorCode: data.released ? "" : "claim_tabs_retained" }, startedAt);
+    }
+  } finally { expiring = false; }
 }
 
 function notifyPanels() {
@@ -263,6 +399,9 @@ function activityDetail(operation, params, data) {
     case "browser.upload": return `${Array.isArray(params.files) ? params.files.length : 0} file(s)`;
     case "browser.cdp": return typeof params.method === "string" ? params.method : "";
     case "browser.tabs": return `${data?.tabs?.length ?? 0} tabs`;
+    case "browser.release":
+      return CLAIM_ID.test(String(params.expiredClaimId)) ? `of expired claim ${params.expiredClaimId}`
+        : CLAIM_ID.test(String(params.ownerClaimId)) ? `of ended claim ${params.ownerClaimId}` : "";
     default: return "";
   }
 }
@@ -358,11 +497,12 @@ async function onResidentMessage(message, connection) {
   const recovery = ["browser.tabs", "browser.release", "browser.dialog"].includes(message.operation)
     || (message.operation === "browser.cdp" && params.method === "Page.handleJavaScriptDialog");
   try {
+    const { owner, ownerClaimId } = takeOwnership(message.operation, params);
     if (recovery) {
       if (recoveries.has(message.id) || recoveries.size >= 8) throw new ProviderError("browser_busy", "Browser recovery capacity exceeded");
       const budget = Number.isFinite(message.timeoutMs) ? Math.min(5000, Math.max(100, message.timeoutMs)) : 5000;
       const deadline = Date.now() + budget;
-      const context = { dispatched:false, cancelled:false,
+      const context = { dispatched:false, cancelled:false, owner, ownerClaimId,
         check() {
           check();
           if (this.cancelled || Date.now() >= deadline) throw new ProviderError("browser_timeout", "Browser recovery expired");
@@ -384,6 +524,7 @@ async function onResidentMessage(message, connection) {
       reply.data = await requests.submit(message.id, { check,
         timeoutMs:Number.isFinite(message.timeoutMs) ? Math.min(30000, Math.max(100, message.timeoutMs)) : 30000,
         prepare:async (context) => {
+          context.owner = owner;
           await disconnectCleanup;
           context.check();
           const operations = createOperations(context);
@@ -413,6 +554,10 @@ async function onResidentMessage(message, connection) {
 // share mutable current-request authority between concurrent tabs.
 function createOperations(context) {
 function requireRequestAuthority() { context.check(); }
+async function attach(tabId, newTab, ordinary, observe) {
+  await ensureAttached(tabId, newTab, ordinary, observe);
+  adoptTab(tabId, context.owner);
+}
 async function prepare(operation, params) {
   if (operation === "browser.navigate" && params.newTab === true) return "new_tabs";
   const tabId = params.reference ? (await resolveReference(params.reference)).tabId : (await resolveTab(params)).id;
@@ -422,6 +567,7 @@ async function prepare(operation, params) {
 }
 async function perform(operation, params) {
   requireRequestAuthority();
+  if (context.owner) refreshLease(context.owner);
   if (!["browser.dialog", "browser.release", "browser.tabs"].includes(operation) &&
       !(operation === "browser.cdp" && params.method === "Page.handleJavaScriptDialog") &&
       context.tabId != null && (dialogs.has(context.tabId) || blockedTabs.has(context.tabId)))
@@ -439,6 +585,7 @@ async function perform(operation, params) {
     case "browser.cdp": return cdp(params);
     case "browser.eval": return evaluate(params);
     case "browser.release": {
+      if (context.ownerClaimId) return releaseClaimTabs(context.ownerClaimId, context);
       const recoverable = [...dialogs.keys()].filter(tabId => attached.has(tabId)
         && attachmentOwners.has(tabId) && !unconfirmedDetaches.has(tabId));
       if (recoverable.length) throw new ProviderError("dialog_open",
@@ -458,7 +605,7 @@ async function perform(operation, params) {
 function tabJSON(tab) {
   return {
     tabId: tab.id, windowId: tab.windowId, active: tab.active,
-    groupId: tab.groupId, controlIndicator: indicators.status(tab.id),
+    groupId: tab.groupId, controlIndicator: indicators.status(tab.id), controlOwner: ownerView(tab.id),
     virtualFocus:virtualFocus.has(tab.id) ? "enabled" : unconfirmedFocusReset.has(tab.id) ? "reset_unconfirmed" : "none",
     observedDialog:dialogs.has(tab.id) ? { id:dialogs.get(tab.id).id, type:dialogs.get(tab.id).type } : null,
     title: tab.title || "", url: tab.url || "", status: tab.status || "",
@@ -537,10 +684,10 @@ async function navigate(params) {
     tab = await chrome.tabs.create({ url, active: params.active === true, windowId: window.id });
     context.tabId = tab.id;
     requireRequestAuthority();
-    await ensureAttached(tab.id, true, true);
+    await attach(tab.id, true, true);
   } else {
     const current = await resolveTab(params);
-    await ensureAttached(current.id, false, true);
+    await attach(current.id, false, true);
     requireRequestAuthority();
     context.dispatch();
     tab = await chrome.tabs.update(current.id, { url });
@@ -553,12 +700,13 @@ async function navigate(params) {
 
 async function send(tabId, method, params = {}, expectedDialogId) {
   requireRequestAuthority();
+  context.tabId ??= tabId;
   const handlingDialog = method === "Page.handleJavaScriptDialog";
   if (method === "Page.disable") throw new ProviderError("operation_not_permitted", "Page events are required for dialog recovery");
   if (!handlingDialog && (dialogs.has(tabId) || blockedTabs.has(tabId)))
     throw new ProviderError(dialogs.has(tabId) ? "dialog_open" : "browser_tab_blocked",
       "Inspect browser dialog state or release browser control before retrying this tab");
-  await ensureAttached(tabId, false, true, !handlingDialog);
+  await attach(tabId, false, true, !handlingDialog);
   requireRequestAuthority();
   if (expectedDialogId !== undefined && dialogs.get(tabId)?.id !== expectedDialogId)
     throw new ProviderError("stale_dialog", "The observed dialog changed before dispatch; inspect again");
@@ -819,7 +967,7 @@ async function dialog(params) {
   requireRequestAuthority();
   context.tabId = tab.id;
   context.dispatch();
-  await ensureAttached(tab.id, false, true, false);
+  await attach(tab.id, false, true, false);
   await observePage(tab.id, 200, false);
   requireRequestAuthority();
   const current = dialogs.get(tab.id);
@@ -844,6 +992,7 @@ return { perform, prepare };
 async function ensureAttached(tabId, newTab = false, ordinary = false, observe = true) {
   if ((await chrome.tabs.get(tabId)).incognito) throw new ProviderError("private_tab_not_permitted", "Private tabs are outside browser control");
   if (!granted && !devtools) throw new ProviderError("approval_required", "Browser access ended");
+  if (releasingTabs.has(tabId)) throw new ProviderError("browser_tab_releasing", "This tab's ended claim is being released; retry");
   const unresolved = pendingAttachments.get(tabId);
   if (unresolved && (unresolved.abandoned || unresolved.authority !== authorityGeneration
       || attachmentOwners.get(tabId) !== unresolved))
@@ -992,7 +1141,7 @@ async function detachAll() {
   const tabs = [...new Set([...attached, ...unconfirmedDetaches, ...attaching.keys(), ...pendingAttachments.keys()])]
     .map(tabId => ({ tabId, token:attachmentOwners.get(tabId) }));
   attached.clear();
-  ordinaryTabs.clear();
+  ordinaryTabs.clear(); tabClaims.clear(); claimLeases.clear();
   blockedTabs.clear(); dialogs.clear(); pageObservers.clear();
   notifyPanels();
   // The fence above is immediate; asynchronous cleanup is strictly ordered.
@@ -1014,7 +1163,7 @@ function clearTab(tabId) {
   // A raw attach callback can still arrive after a detach event. Only its
   // own completion may remove pendingAttachments and permit a fresh owner.
   attachmentOwners.delete(tabId); attaching.delete(tabId); pageObservers.delete(tabId);
-  unconfirmedDetaches.delete(tabId);
+  unconfirmedDetaches.delete(tabId); tabClaims.delete(tabId);
   dialogs.delete(tabId); blockedTabs.delete(tabId); ordinaryTabs.delete(tabId);
   requests.detached(tabId);
 }
@@ -1066,7 +1215,9 @@ chrome.alarms.create("reconnect", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(connect);
 // Chrome keeps a debugger-owning MV3 worker alive. The page marker expires
 // independently if this worker disappears or the user cancels attachment.
+// Tabs of a claim whose lease has run out are released here.
 setInterval(() => {
   if (port && (granted || devtools)) indicators.heartbeat().catch(() => {});
+  expireClaims().catch(() => {});
 }, 3000);
 connect().catch(() => {});

@@ -63,7 +63,16 @@ function element(tag, className, text) {
   return node;
 }
 
-async function renderTabs(ids, generation) {
+// Who attached a tab: the claim and agent session it reported, and when the
+// tab is released unless the claim is renewed. Tabs without a claim stay
+// until release or Stop.
+function ownerText(owner) {
+  if (!owner) return "No claim; held until release or Stop";
+  return [`Claim ${owner.claimId}`, owner.sessionRef && `agent ${owner.sessionRef.slice(0, 8)}`,
+    owner.claimEnded ? "claim ended; releasing" : `until ${timeOf(owner.releaseAt)}`].filter(Boolean).join(" · ");
+}
+
+async function renderTabs(ids, owners, generation) {
   const list = $("tabs");
   const tabs = (await Promise.all(ids.map(tabInfo))).filter(Boolean);
   if (generation !== renderGeneration) return;
@@ -74,7 +83,9 @@ async function renderTabs(ids, generation) {
     icon.src = tab.favIconUrl?.startsWith("data:") || tab.favIconUrl?.startsWith("http")
       ? tab.favIconUrl : "icons/16.png";
     const text = element("div", "tab-text");
-    text.append(element("div", "tab-title", tab.title || "Untitled"), element("div", "tab-host", host(tab.url)));
+    const owner = element("div", "tab-owner", ownerText(owners[tab.id]));
+    if (owners[tab.id]?.sessionRef) owner.title = `Agent session ${owners[tab.id].sessionRef}`;
+    text.append(element("div", "tab-title", tab.title || "Untitled"), element("div", "tab-host", host(tab.url)), owner);
     item.append(icon, text);
     item.title = "Show this tab";
     item.addEventListener("click", async () => {
@@ -135,7 +146,8 @@ async function render() {
   summary.classList.toggle("live", live);
   $("tabs-card").hidden = !state.connected;
   $("activity-card").hidden = !state.connected && !state.activity.length;
-  await Promise.all([renderTabs(state.controlledTabs, generation), renderActivity(state.activity, generation)]);
+  await Promise.all([renderTabs(state.controlledTabs, state.tabOwners || {}, generation),
+    renderActivity(state.activity, generation)]);
 }
 
 function connect() {

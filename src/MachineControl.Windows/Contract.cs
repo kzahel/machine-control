@@ -99,6 +99,10 @@ internal sealed record Request
     public string? DialogId { get; init; }
     public string? PromptText { get; init; }
     public string[]? Files { get; init; }
+    // Self-asserted claim attribution for browser attachments. The shared
+    // runtime validates both; they scope cleanup and never grant authority.
+    public JsonElement? Owner { get; init; }
+    public string? OwnerClaimId { get; init; }
 }
 
 internal sealed record Result

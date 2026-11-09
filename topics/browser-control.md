@@ -177,6 +177,24 @@ acceptance and desktop 0.4.10 publication. The
 [Codex extension review](../research/providers/codex-browser-extension.md)
 provided interaction inspiration; implementation and artwork are owned.
 
+**Current (2026-11-09):** each controlled tab belongs to the target-use claim
+of the request that last attached or reused it. Releasing the claim or its
+workspace releases its tabs, renewing it carries the new lease to them, and an
+unrenewed lease releases them 30 seconds after it lapses. That housekeeping is
+skipped rather than prompting under Ask first, or while another owner holds
+the profile; the lease remains the backstop. Tabs without a claim keep the
+release/Stop/disconnect lifetime. Tab results and the
+side panel show the owning claim and agent session. The trigger was an agent
+that read one of the operator's own tabs, released its claims and left the
+debugger attached for as long as access stayed on.
+[Tactical 162](../docs/tactical/162-claim-scoped-browser-attachments.md) owns the
+contract; the [extension README](../providers/chrome-extension/README.md#claim-ownership)
+owns the behavior.
+
+**Decision:** browser attachment lifetime follows the claim, not the control
+session or an idle timer. One-shot commands open and close a control session
+per call, and an idle timer would cut tabs out from under a live claim.
+
 ## Decisions
 
 **Decision:** ordinary browser work should preserve the user's selected tab,

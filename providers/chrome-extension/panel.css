@@ -162,7 +162,12 @@ a {
   white-space: nowrap;
 }
 
+.tab-owner {
+  overflow-wrap: anywhere;
+}
+
 .tab-host,
+.tab-owner,
 .entry-tab,
 .entry-time {
   color: var(--ink-soft);

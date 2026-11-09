@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -1356,6 +1357,97 @@ class ClientTests(unittest.TestCase):
         result, value = self.run_cli("--target", "fixture", "browser", "click")
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "usage")
+
+    def future_claim_expiry(self, minutes=20):
+        expires = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+        return expires.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    def test_browser_requests_carry_their_verified_claim_as_owner(self):
+        claim_id = "c-0123456789abcdef01234567"
+        self.write_registry("macos", claim_policy="required")
+        env = {"MACHINE_CONTROL_MOCK_CLAIM_EXPIRES_AT": self.future_claim_expiry(),
+               "AGENTCTL_SESSION_ID": "fixture-agent"}
+        result, value = self.run_cli("--target", "fixture", "--claim", claim_id,
+                                     "browser", "tabs", extra_env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        owner = value["data"]["request"]["owner"]
+        self.assertEqual(owner["claimId"], claim_id)
+        self.assertEqual(owner["sessionRef"], "fixture-agent")
+        self.assertTrue(1100 < owner["leaseSeconds"] <= 1200, owner)
+        for arguments in (["profiles"], ["release"]):
+            result, value = self.run_cli("--target", "fixture", "--claim", claim_id,
+                                         "browser", *arguments, extra_env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("owner", value["data"]["request"], arguments)
+        # An expired check or an unenforced claim adds no attribution.
+        result, value = self.run_cli("--target", "fixture", "--claim", claim_id,
+                                     "browser", "tabs")
+        self.assertNotIn("owner", value["data"]["request"])
+        self.write_registry("macos")
+        result, value = self.run_cli("--target", "fixture", "--claim", claim_id,
+                                     "browser", "tabs", extra_env=env)
+        self.assertNotIn("owner", value["data"]["request"])
+
+    def test_claim_release_first_releases_tabs_its_browser_work_attached(self):
+        claim_id = "c-0123456789abcdef01234567"
+        self.write_registry("macos", claim_policy="required")
+        sent = self.directory / "requests.jsonl"
+        env = {"MACHINE_CONTROL_MOCK_CLAIM_EXPIRES_AT": self.future_claim_expiry(),
+               "MACHINE_CONTROL_MOCK_REQUEST_LOG": str(sent)}
+        result, value = self.run_cli("--target", "fixture", "claim", "release",
+                                     claim_id, extra_env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("browser", value, "a claim with no browser work sends nothing")
+        self.assertFalse(sent.exists())
+        result, _ = self.run_cli("--target", "fixture", "--claim", claim_id,
+                                 "browser", "tabs", extra_env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        sent.unlink()
+        result, value = self.run_cli("--target", "fixture", "claim", "release",
+                                     claim_id, extra_env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["disposition"], "released")
+        self.assertEqual(value["browser"], {"accepted": True, "released": True, "releasedTabs": [7]})
+        self.assertEqual([json.loads(line) for line in sent.read_text().splitlines()], [
+            {"request": {"operation": "browser.release", "ownerClaimId": claim_id}, "claim": claim_id,
+             "workspace": None}])
+        # A refused browser release is reported and never blocks the claim.
+        result, value = self.run_cli("--target", "fixture", "--claim", claim_id,
+                                     "browser", "tabs", extra_env=env)
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "release", claim_id,
+            extra_env={**env, "MACHINE_CONTROL_MOCK_RESIDENT_REFUSAL": "surface_disabled"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["disposition"], "released")
+        self.assertEqual(value["browser"], {"accepted": False, "errorCode": "surface_disabled", "released": False})
+
+    def test_claim_renewal_and_workspace_release_cover_browser_tabs(self):
+        claim_id = "c-0123456789abcdef01234567"
+        self.write_registry("macos", claim_policy="required")
+        sent = self.directory / "requests.jsonl"
+        env = {"MACHINE_CONTROL_MOCK_CLAIM_EXPIRES_AT": self.future_claim_expiry(40),
+               "MACHINE_CONTROL_MOCK_REQUEST_LOG": str(sent)}
+        result, value = self.run_cli("--target", "fixture", "claim", "renew", claim_id, extra_env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("browser", value, "renewing a claim with no browser work sends nothing")
+        self.assertFalse(sent.exists())
+        self.run_cli("--target", "fixture", "--claim", claim_id, "browser", "tabs", extra_env=env)
+        sent.unlink()
+        result, value = self.run_cli("--target", "fixture", "claim", "renew", claim_id, extra_env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["browser"], {"accepted": True})
+        [refresh] = [json.loads(line) for line in sent.read_text().splitlines()]
+        self.assertEqual(refresh["request"]["operation"], "browser.tabs")
+        self.assertEqual(refresh["request"]["owner"]["claimId"], claim_id)
+        self.assertTrue(2300 < refresh["request"]["owner"]["leaseSeconds"] <= 2400)
+        sent.unlink()
+        result, value = self.run_cli("--target", "fixture", "--claim", claim_id, "workspace", "release",
+                                     "w-fixture-isolated", extra_env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["browser"], {"accepted": True, "released": True, "releasedTabs": [7]})
+        self.assertEqual([json.loads(line) for line in sent.read_text().splitlines()], [
+            {"request": {"operation": "browser.release", "ownerClaimId": claim_id}, "claim": claim_id,
+             "workspace": "w-fixture-isolated"}])
 
     def test_browser_upload_requires_reference_and_absolute_files(self):
         self.write_registry("macos")

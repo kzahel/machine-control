@@ -128,7 +128,20 @@ class ClaimSession(ControlSession):
         value = mc.validate_claim_result(result, "renew")
         if not value["accepted"]:
             raise mc.ClientError(value.get("errorCode") or "claim_renewal_refused", "Claim renewal refused")
+        # The extension learns the renewed lease only from a browser request.
+        mc.refresh_claim_browser(target, target["_claimId"])
         return value
 
     def cancel(self):
         return validate_view(self._rpc({"operation": "claim.cancel"}))
+
+    def close(self, *, cancel=True):
+        # Ending a live claim first releases browser tabs it attached.
+        view = self.view
+        if cancel and not self.stopped.is_set() and self.failure is None and isinstance(view, dict) \
+                and view.get("state") == "active" and isinstance(view.get("claim"), dict) \
+                and mc._valid_claim_id(view["claim"].get("claimId")):
+            identifier = view["claim"]["claimId"]
+            mc.release_claim_browser({**self.target, "environment": {
+                **self.target.get("environment", {}), "MACHINE_CONTROL_CLAIM_ID": identifier}}, identifier)
+        super().close(cancel=cancel)

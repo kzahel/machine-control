@@ -154,7 +154,9 @@ if command == "claim-check":
             "state": "held",
             "claimId": claim_id,
             "generation": 3,
-            "expiresAt": "2026-01-02T03:34:05Z",
+            "expiresAt": os.environ.get(
+                "MACHINE_CONTROL_MOCK_CLAIM_EXPIRES_AT", "2026-01-02T03:34:05Z"
+            ),
         },
     }))
     raise SystemExit(0)
@@ -587,6 +589,14 @@ elif command in {"control", "control-local"}:
         "elapsedMs": 1,
         "data": {"request": request}
     }
+    if log := os.environ.get("MACHINE_CONTROL_MOCK_REQUEST_LOG"):
+        with open(log, "a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"request": request,
+                                     "claim": os.environ.get("MACHINE_CONTROL_CLAIM_ID"),
+                                     "workspace": os.environ.get("MACHINE_CONTROL_WORKSPACE_HANDLE")}) + "\n")
+    if request["operation"] == "browser.release" and "ownerClaimId" in request:
+        result["data"] = {"released": True, "scope": "claim",
+                          "claimId": request["ownerClaimId"], "releasedTabs": [7]}
     if code := os.environ.get("MACHINE_CONTROL_MOCK_RESIDENT_REFUSAL"):
         result.update({"accepted": False, "delivery": "refused",
                        "effect": "refused", "errorCode": code,

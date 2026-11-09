@@ -254,6 +254,19 @@ must wait for an exact pin and live claim, with `ensure-ready` providing the
 explicit path from an off target to a passing doctor. Physical-device adapters
 remain outside the initial policy pending target-specific contention decisions.
 
+**Current (2026-11-09):** browser debugger attachments are tied to claims.
+The common client attributes each browser request to the claim it has just
+verified, with that claim's remaining lease and the caller's session, and
+records a `browser.owner` event in controller history. Before `claim release`,
+`workspace release`, scoped `run` cleanup or closing a queued `ClaimSession`,
+it releases that claim's tabs when history shows browser work. Renewal carries
+the new lease to them. The extension also releases them once the lease lapses.
+This housekeeping skips rather than waits for approval or another owner.
+It ends attachments that outlived an agent which released or abandoned its
+claim without `browser release`.
+[Tactical 162](../docs/tactical/162-claim-scoped-browser-attachments.md)
+owns the slice; [browser control](browser-control.md) owns tab behavior.
+
 ## Queued admission
 
 **Current — opt-in v1 queued admission:**

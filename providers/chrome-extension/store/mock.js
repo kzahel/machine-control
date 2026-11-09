@@ -7,9 +7,11 @@ const TABS = {
   101: { id: 101, windowId: 1, title: "Checkout — Acme Outfitters", url: "https://shop.example.com/checkout", favIconUrl: pointer },
   102: { id: 102, windowId: 1, title: "Order history — Acme Outfitters", url: "https://shop.example.com/orders", favIconUrl: pointer },
 };
+const owner = { claimId: "c-3f9a1c7e5b2d4086a1e9c3b7", sessionRef: "7d2e91ab", releaseAt: at(11, 12, 31) };
 const STATES = {
   live: {
-    connected: true, granted: true, devtools: false, controlledTabs: [101, 102], activity: [
+    connected: true, granted: true, devtools: false, controlledTabs: [101, 102],
+    tabOwners: { 101: owner, 102: owner }, activity: [
       { at: at(10, 42, 31), operation: "browser.click", tabId: 101, ok: true, count: 1, detail: "" },
       { at: at(10, 42, 29), operation: "browser.snapshot", tabId: 101, ok: true, count: 2, detail: "" },
       { at: at(10, 42, 22), operation: "browser.type", tabId: 101, ok: true, count: 1, detail: "18 characters" },
@@ -20,7 +22,7 @@ const STATES = {
     ],
   },
   devtools: {
-    connected: true, granted: true, devtools: true, controlledTabs: [101], activity: [
+    connected: true, granted: true, devtools: true, controlledTabs: [101], tabOwners: { 101: owner }, activity: [
       { at: at(11, 5, 8), operation: "browser.cdp", tabId: 101, ok: true, count: 3, detail: "Network.getResponseBody" },
       { at: at(11, 5, 2), operation: "session.open", tabId: 101, ok: true, count: 1, detail: "" },
     ],

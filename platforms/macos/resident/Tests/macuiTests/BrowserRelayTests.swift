@@ -154,9 +154,15 @@ final class BrowserRelayTests: XCTestCase {
         let session = try XCTUnwrap(active["sessionId"] as? String), generations = try XCTUnwrap(active["resourceGenerations"] as? [String:Int])
         let authority = BrowserRelay.Authority(ownerSession:"fixture-owner:" + session,profileIDs:[profile],validate:{ admission.authorize(owner:"fixture-owner",id:id,session:session,generations:generations,operation:"browser.tabs") })
         let answered = expectation(description:"real provider response")
+        let owner: [String:Any] = ["claimId":"c-a1a1a1a1a1a1a1a1a1a1a1a1", "leaseSeconds":60, "sessionRef":"fixture-agent"]
         DispatchQueue.global().async {
             while let frame = provider.next() {
                 if frame["type"] as? String == "request" {
+                    // Claim attribution crosses the native relay and shared runtime unchanged.
+                    let routed = (frame["params"] as? [String:Any])?["owner"] as? [String:Any]
+                    XCTAssertEqual(routed?["claimId"] as? String, owner["claimId"] as? String)
+                    XCTAssertEqual(routed?["leaseSeconds"] as? Int, 60)
+                    XCTAssertEqual(routed?["sessionRef"] as? String, "fixture-agent")
                     provider.send(["type":"response", "id":frame["id"]!, "ok":true, "data":["tabs":[["id":1,"title":"Fixture"]]]])
                     answered.fulfill(); return
                 }
@@ -164,7 +170,7 @@ final class BrowserRelayTests: XCTestCase {
             XCTFail("No routed provider request"); answered.fulfill()
         }
         let completed = expectation(description:"native completion")
-        let refusal = server.browser.forward(-1,["operation":"browser.tabs","requestId":"tabs"],caller:CallerIdentity(uid:getuid(),chain:[]),claimID:nil,authority:authority) { result in
+        let refusal = server.browser.forward(-1,["operation":"browser.tabs","requestId":"tabs","owner":owner],caller:CallerIdentity(uid:getuid(),chain:[]),claimID:nil,authority:authority) { result in
             XCTAssertEqual(result["accepted"] as? Bool,true)
             XCTAssertEqual((result["data"] as? [String:Any])?["browserProfileId"] as? String,profile)
             completed.fulfill()

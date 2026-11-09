@@ -26,7 +26,7 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.cdp` | Raw DevTools protocol with parameters (`devtools` grant); `Page.disable` is reserved to preserve dialog recovery |
 | `browser.eval` | Evaluate JavaScript in a tab and return the value (`devtools` grant) |
 | `browser.endpoint` | Report the local DevTools WebSocket endpoint template (`devtools` grant) |
-| `browser.release` | Detach all debugger sessions; refuses promptly while an observed dialog needs handling |
+| `browser.release` | Detach all debugger sessions; refuses promptly while an observed dialog needs handling. With `ownerClaimId`, detach only that claim's tabs (see [claim ownership](#claim-ownership)) |
 | `browser.dialog` | Observe dialog type/message/id; explicitly accept or dismiss the current id |
 
 For file uploads, open Machine Control's details in `chrome://extensions` and
@@ -132,6 +132,53 @@ expires independently after ten seconds without a worker heartbeat. Indicators
 use the authorized per-tab debugger in an isolated world; no page content
 scripts or broad host permissions are added. They are visible status, not an
 authorization boundary or a marker of completed work.
+
+### Claim ownership
+
+A browser request may carry `owner: {claimId, leaseSeconds, sessionRef?}`.
+The common client adds it from the target-use claim it has just verified:
+the claim, that claim's remaining lease, and the caller's published agent
+session. It adds no owner to `browser.profiles`, `browser.release` or
+`browser.endpoint`. The owner is self-asserted attribution, never authority.
+The shared runtime and this worker refuse a malformed owner as
+`invalid_request`. A null value means no owner, as it does on Windows.
+
+A tab belongs to the claim of the latest request that attached or reused it.
+A request without an owner clears it. Each accepted owned request refreshes
+its claim's deadline to arrival plus `leaseSeconds`. A request refused before
+it runs refreshes nothing. Thirty seconds after a deadline passes, the worker releases
+that claim's tabs: it restores the indicator and detaches the debugger. The
+panel records this as a release of an expired claim. Unowned tabs keep the
+existing lifetime: release, Stop, a grant change, or disconnect.
+
+`browser.release` with `ownerClaimId` marks that claim ended and releases its
+tabs. An observed dialog on those tabs is abandoned and listed in
+`abandonedDialogs` instead of refusing, because nobody remains to handle it.
+A tab still serving a live DevTools stream or an in-flight request is kept and
+listed in `retainedTabs`, with `released: false`. The worker releases it at
+its first three-second check after it goes idle. A request sent before the
+claim ended cannot revive the claim. A tab such a request attaches afterwards
+joins the ended claim and is released the same way. While a tab is being
+released, a new request for it is refused before dispatch with
+`browser_tab_releasing`.
+
+The client sends this scoped release before `claim release`, `workspace
+release`, scoped `run` cleanup, or closing a queued `ClaimSession`. It does so
+only when its history shows browser work under that claim. `claim renew`,
+scoped `run` renewal and `ClaimSession.renew` send one owned `browser.tabs` so
+the renewed lease reaches the tabs. This housekeeping never waits on a person
+or another owner. It runs only while Browser access is Automatic and the
+profile is free within three seconds. Otherwise it reports why it was skipped,
+and the lease remains the backstop. If an earlier Hold still requires
+approval, the intent is cancelled at the first check, so a prompt can appear
+for a moment. A renewed claim whose refresh was skipped and that sends no
+browser request before its previous lease lapses loses its tabs 30 seconds
+after that lease. Its next request reattaches with fresh references.
+
+`browser.tabs` and other tab results report `controlOwner`, with `claimId`,
+`sessionRef`, `claimEnded` and `leaseRemainingSeconds`, or `null`. The side
+panel shows the claim, the agent session and when each controlled tab will be
+released unless its claim is renewed.
 
 The toolbar button opens a read-only side panel (`panel.html`) showing the
 connection, access, controlled tabs and a live feed of agent operations. The

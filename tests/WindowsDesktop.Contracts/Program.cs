@@ -33,6 +33,14 @@ static void Refuses(Action action, string message)
     throw new Exception("Expected refusal: " + message);
 }
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
+var ownedRelease = JsonSerializer.SerializeToNode(Contract.ParseRequest(
+    "{\"operation\":\"browser.release\",\"ownerClaimId\":\"c-a1a1a1a1a1a1a1a1a1a1a1a1\"," +
+    "\"owner\":{\"claimId\":\"c-a1a1a1a1a1a1a1a1a1a1a1a1\",\"leaseSeconds\":60,\"sessionRef\":\"fixture\"}}"), Contract.Json)!;
+Assert(ownedRelease["ownerClaimId"]?.GetValue<string>() == "c-a1a1a1a1a1a1a1a1a1a1a1a1" &&
+    ownedRelease["owner"]?["leaseSeconds"]?.GetValue<int>() == 60 && ownedRelease["owner"]?["sessionRef"]?.GetValue<string>() == "fixture",
+    "Browser claim attribution reaches the shared runtime unchanged");
+Assert(JsonSerializer.SerializeToNode(Contract.ParseRequest("{\"operation\":\"browser.tabs\"}"), Contract.Json)!.AsObject() is var unowned &&
+    !unowned.ContainsKey("owner") && !unowned.ContainsKey("ownerClaimId"), "Unowned browser requests stay unowned");
 await RetainedPipeProxyFixtures.RunAsync();
 CompanionBinaryIdentityFixtures.Run();
 ApplicationTargetFixtures.Run();

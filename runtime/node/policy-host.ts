@@ -2,7 +2,7 @@ import { CdpBridge } from "./cdp.ts";
 import { Profiles } from "../src/profiles.ts";
 import type { Profile } from "../src/profiles.ts";
 import { Streams } from "../src/streams.ts";
-import { parameters } from "../src/browser-contract.ts";
+import { parameters, validOwnership } from "../src/browser-contract.ts";
 import type { BrowserOperation } from "../src/browser-contract.ts";
 /** Inherited, trusted-native-host channel. Never expose this inlet to agents. */
 import { randomUUID } from "node:crypto";
@@ -662,6 +662,7 @@ export class PolicyHost {
       retrySafety: "safe_not_dispatched",
       errorCode,
     });
+    if (!validOwnership(operation, request)) return refuse("invalid_request");
     if (operation === "browser.endpoint") {
       const fence =
         this.#approval &&

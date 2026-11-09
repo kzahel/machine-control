@@ -48,6 +48,10 @@ for line in sys.stdin.buffer:
         break
     if operation == "control.open" and mode in {"paused", "outer-paused"}:
         state = "paused"
+    elif operation == "control.open" and mode == "approval":
+        state = "waiting_for_approval"
+    elif operation == "control.open" and mode == "resource":
+        state = "waiting_for_resource"
     elif operation == "control.open" and mode == "renewable-clock":
         remaining = request['durationSeconds']
     elif operation == "control.accept":
@@ -105,6 +109,16 @@ for line in sys.stdin.buffer:
             data = dict(schema="machine-control/v0", accepted=False,
                 operation=request["request"]["operation"],errorCode="control_generation_changed",
                 delivery="refused",effect="refused",uncertainty="none",retrySafety="safe_not_dispatched")
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
+            continue
+        if mode == "record-request":
+            action = request["request"]
+            event("request:" + json.dumps(action, sort_keys=True))
+            result = {"browser": {"profileSelectionSupported": True}} if action["operation"] == "capabilities" else \
+                {"released": True, "scope": "claim", "releasedTabs": [3]} if action["operation"] == "browser.release" else {}
+            data = dict(schema="machine-control/v0", accepted=True, actualRoute="fixture", generation="fixture-generation",
+                hostInterference="none", elapsedMs=0, operation=action["operation"], requestId=request["requestId"],
+                delivery="confirmed", effect="not_applicable", uncertainty="none", data=result)
             print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
             continue
         event("effect")

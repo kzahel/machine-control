@@ -94,6 +94,20 @@ runpy.run_path(command[1],run_name="__main__")
                 self.assertEqual(second.status()["state"], "active")
         self.assertEqual(self.invoke("status")["data"]["state"], "available")
 
+    def test_closing_an_active_claim_first_releases_its_browser_tabs(self):
+        with mock.patch.object(mc, "release_claim_browser", return_value=None) as release:
+            with self.session() as waiting:
+                waiting.close(cancel=False)
+            release.assert_not_called()
+            owner = self.session()
+            claim = owner.wait()["claim"]["claimId"]
+            owner.close()
+        release.assert_called_once()
+        target, identifier = release.call_args.args
+        self.assertEqual(identifier, claim)
+        self.assertEqual(target["environment"]["MACHINE_CONTROL_CLAIM_ID"], claim)
+        self.assertEqual(self.invoke("status")["data"]["state"], "available")
+
     def test_heartbeat_retains_liveness_without_renewing_authority(self):
         with self.session() as owner:
             initial = owner.wait()["claim"]["expiresAt"]
