@@ -135,6 +135,21 @@ optional tool adaptation and media presentation. A session ID is attribution,
 not authority; suppressing advertisement cannot contain same-user shell access.
 Native sudo remains a separate feature with OS authentication.
 
+**Current (YA source 2026-11-13, macOS live-tested):** YA has a server-wide,
+default-off setting that advertises the installed command to every eligible
+launch without a per-session selection; one launch can still decline it. YA's
+discovery also accepts the per-user macOS Applications location and uses
+release publisher identities shipped with YA, with the operator's environment
+overrides still authoritative, so a stock installation is found without
+configuration. When nothing verifies, its settings pane links to MC's download
+page; YA does not install or update MC. This changes advertisement only: it
+issues no grant, starts no resident and adds no caller identity. A real
+YA-launched session received the installed instructions through the default,
+an explicit refusal suppressed them, and a missing installation left the
+launch unadvertised rather than blocked. YA's Windows and Linux paths have
+unit coverage, not live acceptance. [YA's topic](../../yepanywhere/topics/optional-computer-control.md#server-default)
+owns that contract.
+
 **Current:** The CLI does not start a replacement resident when the app is
 unavailable. The caller receives the existing typed failure and can ask the
 operator to open MC. Mutations and captures retain the shared resident's route,
