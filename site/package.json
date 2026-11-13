@@ -16,12 +16,12 @@
     "generate-types": "wrangler types"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^14.4.2",
+    "@astrojs/cloudflare": "^14.4.6",
     "@astrojs/rss": "^4.0.19",
-    "astro": "^7.4.2",
-    "wrangler": "^4.153.0"
+    "astro": "^7.4.8",
+    "wrangler": "^4.160.0"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5"
+    "@types/node": "^26.6.6"
   }
 }
