@@ -586,6 +586,20 @@ fn main() {
         .setup(move |app| {
             diagnostics::start();
             recovery::started();
+            #[cfg(target_os = "macos")]
+            {
+                let cli = app.path().resource_dir()?.join("mc-cli");
+                let guard = cli.join("protect-cli.py");
+                if guard.is_file()
+                    && !std::process::Command::new(cli.join("python/bin/python3"))
+                        .args(["-I", "-B"])
+                        .arg(guard)
+                        .status()?
+                        .success()
+                {
+                    return Err("Could not protect the installed Python payload".into());
+                }
+            }
             #[cfg(target_os = "linux")]
             {
                 let handle = app.handle().clone();

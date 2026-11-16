@@ -1,6 +1,18 @@
 ; Remove browser registration only when its manifest still names this exact
 ; installation. Scratch installs must preserve another installation's host.
 !macro NSIS_HOOK_PREUNINSTALL
+  ; This exact deny rule belongs to our installer, including update uninstall.
+  ${If} ${FileExists} "$INSTDIR\mc-cli\windows-payload.ps1"
+    Push $R0
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\mc-cli\windows-payload.ps1" -Action unprotect -Directory "$INSTDIR"'
+    Pop $R0
+    ${If} $R0 <> 0
+      Pop $R0
+      SetErrorLevel 1
+      Abort "Installed payload protection could not be removed."
+    ${EndIf}
+    Pop $R0
+  ${EndIf}
   ${If} $UpdateMode <> 1
     ; Tauri normally stops the operator after this hook. Stop it first using
     ; the same installer policy, so its job closes the resident/provider pipe.
@@ -64,6 +76,7 @@
 ; the incoming signed companion from the NSIS temporary directory, so this
 ; also fixes updates sent by previews that do not know this protocol.
 !define MC_BROWSER_HELPER_SOURCE "${__FILEDIR__}\..\src-tauri\native\runtime\machine-control-windows.exe"
+!define MC_PAYLOAD_HELPER_SOURCE "${__FILEDIR__}\windows-payload.ps1"
 !macro NSIS_HOOK_PREINSTALL
   Push $R0
   Push $R1
@@ -99,24 +112,43 @@
   ${EndIf}
   Pop $R1
   Pop $R0
-  ${If} $UpdateMode = 1
-    Push $R0
-    Push $OUTDIR
-    InitPluginsDir
-    SetOutPath "$PLUGINSDIR"
-    File /oname=machine-control-install.exe "${MC_BROWSER_HELPER_SOURCE}"
-    nsExec::ExecToLog '"$PLUGINSDIR\machine-control-install.exe" browser-install-prepare "$INSTDIR"'
-    Pop $R0
-    ${If} $R0 <> 0
-      Pop $R0
-      SetOutPath "$R0"
-      Pop $R0
-      Abort "Browser host did not stop for update."
-    ${EndIf}
+  ReadRegStr $McPreviousInstallDir SHCTX "${MANUPRODUCTKEY}" ""
+  ; Repair, reinstall and update all replace complete owned resource trees.
+  ; Stop the operator before touching the old resources, then quiesce Chrome.
+  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  Push $R0
+  Push $OUTDIR
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=machine-control-install.exe "${MC_BROWSER_HELPER_SOURCE}"
+  File /oname=windows-payload.ps1 "${MC_PAYLOAD_HELPER_SOURCE}"
+  nsExec::ExecToLog '"$PLUGINSDIR\machine-control-install.exe" browser-install-prepare "$INSTDIR"'
+  Pop $R0
+  ${If} $R0 <> 0
     Pop $R0
     SetOutPath "$R0"
     Pop $R0
+    Abort "Browser host did not stop for update."
   ${EndIf}
+  ${If} $McPreviousInstallDir == ""
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\windows-payload.ps1" -Action prepare -Directory "$INSTDIR"'
+  ${Else}
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\windows-payload.ps1" -Action prepare -Directory "$INSTDIR" -RegisteredDirectory "$McPreviousInstallDir"'
+  ${EndIf}
+  Pop $R0
+  ${If} $R0 <> 0
+    ; Restore only our temporarily hidden browser registration on refusal.
+    nsExec::ExecToLog '"$PLUGINSDIR\machine-control-install.exe" browser-install-finish "$INSTDIR"'
+    Pop $R0
+    Pop $R0
+    SetOutPath "$R0"
+    Pop $R0
+    SetErrorLevel 1
+    Abort "Existing product resources could not be replaced."
+  ${EndIf}
+  Pop $R0
+  SetOutPath "$R0"
+  Pop $R0
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -134,17 +166,25 @@
   ${EndIf}
   WriteRegDWORD HKCU "Software\MachineControl\Installer" "AddToPath" $McAddToPath
   Pop $R0
-  ${If} $UpdateMode = 1
-    Push $R0
-    nsExec::ExecToLog '"$PLUGINSDIR\machine-control-install.exe" browser-install-finish "$INSTDIR"'
+  Push $R0
+  nsExec::ExecToLog '"$PLUGINSDIR\machine-control-install.exe" browser-install-finish "$INSTDIR"'
+  Pop $R0
+  ${If} $R0 <> 0
     Pop $R0
-    ${If} $R0 <> 0
-      Pop $R0
-      Abort "Browser registration changed during update."
-    ${EndIf}
-    Pop $R0
+    Abort "Browser registration changed during update."
   ${EndIf}
+  Pop $R0
+  Push $R0
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\windows-payload.ps1" -Action protect -Directory "$INSTDIR"'
+  Pop $R0
+  ${If} $R0 <> 0
+    Pop $R0
+    SetErrorLevel 1
+    Abort "Installed Python payload could not be protected."
+  ${EndIf}
+  Pop $R0
 !macroend
 ; Use Python's Unicode registry API for PATH; NSIS strings can truncate a long
 ; existing value. This variable contains only the selected preference.
 Var McAddToPath
+Var McPreviousInstallDir

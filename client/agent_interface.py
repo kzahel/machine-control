@@ -58,6 +58,8 @@ registration may require restarting your terminal or agent host application.
     return launch + """Machine Control: target-native desktop and browser control
 
 Use the installed command path provided by your launcher if PATH differs.
+Use that command instead of running the bundled Python interpreter or importing
+modules from the installation. Put task scripts and outputs outside the app.
 `host` means the computer executing this CLI, not the operator's browser host.
 Capabilities and access are enforced by Machine Control and the OS. Installing
 the app, receiving these instructions, and acquiring a claim grant no access.

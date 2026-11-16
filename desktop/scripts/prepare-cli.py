@@ -107,11 +107,17 @@ def stage(destination, target, version, revision, cache):
             shutil.copy2(ROOT / name, file)
         bootstrap = output / "launch.py"
         bootstrap.write_text('''import os
-from pathlib import Path
-import runpy
 import sys
 
+# Set this before importing any non-bootstrap module, even if a caller bypasses
+# the supported -B launcher. Interpreter startup still requires -B/protection.
+sys.dont_write_bytecode = True
+from pathlib import Path
+import runpy
+
 root = Path(__file__).resolve().parent
+if sys.platform == "darwin" and (root / "protect-cli.py").is_file():
+    runpy.run_path(str(root / "protect-cli.py"), run_name="__main__")
 if sys.platform == "win32":
     os.environ["MACHINE_CONTROL_DESKTOP_INSTALL_DIR"] = str(root.parent)
 os.environ.pop("PYTHONHOME", None)
@@ -127,6 +133,9 @@ runpy.run_path(sys.argv[0], run_name="__main__")
         if windows:
             shutil.copy2(ROOT / "desktop/native/windows-launch.py", output / "windows-launch.py")
             shutil.copy2(ROOT / "desktop/native/windows-path.py", output / "windows-path.py")
+            shutil.copy2(ROOT / "desktop/native/windows-payload.ps1", output / "windows-payload.ps1")
+        elif "apple" in target:
+            shutil.copy2(ROOT / "desktop/native/protect-cli.py", output / "protect-cli.py")
         command = commands / ("machine-control.cmd" if windows else "machine-control")
         if windows:
             command.write_text('@echo off\r\n"%~dp0..\\python\\python.exe" -I -B "%~dp0..\\launch.py" %*\r\n')

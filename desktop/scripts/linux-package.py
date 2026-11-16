@@ -120,6 +120,7 @@ def inventory(directory, target, version, revision, purpose="candidate"):
                     raise ValueError("Packaged CLI identity mismatch")
                 subprocess.run([sys.executable, str(ROOT / "tests/desktop/cli-installed.py"),
                                 "--client", str(cli / "commands/machine-control")], check=True)
+                helper.verify(cli)
                 for file in sorted(cli.rglob("*")):
                     if file.is_file():
                         files.append({"name": "mc-cli/" + file.relative_to(cli).as_posix(),

@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
 import os
-from pathlib import Path
 import sys
+
+# Keep even direct script execution from caching pathlib's dependencies before
+# we can discover whether this is an installed, signed payload.
+sys.dont_write_bytecode = True
+from pathlib import Path
 
 repository = Path(__file__).resolve().parents[1]
 if (repository / "client-runtime.json").is_file():

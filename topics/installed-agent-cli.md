@@ -64,6 +64,55 @@ use the existing authenticated package signatures. An unsigned hash receipt is
 integrity evidence only, not publisher authority. The packaging
 [dossier](../research/providers/python-build-standalone.md) owns licensing.
 
+## Installed integrity and accidental writes
+
+**Current, unreleased:** Windows installation/repair replaces the two owned
+resource directories (`mc-cli` and `runtime`) rather than overlaying files.
+Cleanup refuses links and unrecognized directories; a matching registered
+install location also permits leftovers whose receipts an older uninstaller
+already removed. Product state and registrations are outside these trees.
+The installer applies an inheritable current-user ACL denying file/directory
+writes to `mc-cli`, and removes that exact rule before uninstall or repair.
+
+**Current, unreleased:** Mac signing establishes a CLI write-deny ACL, and the
+app/public CLI reapplies it on launch because updater archives may omit ACLs.
+Deletion, rename and ACL changes remain available for whole-app replacement.
+Linux's Debian install is root-owned and AppImage mounts are read-only; no new
+per-user permissions helper is needed there. This is accident prevention,
+not containment against a same-user shell or protection for an arbitrary
+writable extracted Linux package.
+
+**Current:** All six launchers use `-I -B`. Entry scripts disable bytecode
+before importing pathlib, agent instructions direct callers through the public
+command, and Windows installed-policy verification now includes `-B`.
+Acceptance fingerprints complete original/relocated CLI trees after probes.
+Mac and Windows copies also exercise direct interpreter/script imports without
+`-B` against their real filesystem guard. Signed Windows candidate acceptance
+seeds obsolete runtime/cache files, reinstalls, verifies the complete inventories
+and runs the bounded filesystem-only protection/repair test. Linux rechecks
+its CLI inventory after the relocated smoke.
+
+**Decision:** Preserve strict unexpected-file refusal. An isolated reproduction
+loads altered existing bytecode even with `-I -B`; preventing writes does not
+make unsigned caches safe to ignore. Retained pre-fix Windows evidence found
+valid publisher signatures alongside obsolete runtime files and CLI caches;
+the particular caller that created those caches remains unknown. Existing
+polluted installations need repair/replacement, not an inventory exception.
+
+**Current validation:** Portable staging covers all six targets. Mac ACL tests
+prove write refusal, unchanged inventory and deletion/rename; the staged ARM64
+runtime passes relocated/direct execution without payload changes, and a signed
+fixture retains its code seal after protection. Windows hooks compile with
+NSIS. The portable repository checks, 100 release tests and 21 Mac Rust tests
+pass, as do formatting and clippy. Native Windows validation could not run:
+the accepted test appliance's administration route remained unavailable after
+its startup window. The filesystem/repair test is wired into signed Windows
+candidate acceptance, which remains unexecuted for this change. These changes
+are not yet published.
+
+**Open:** YA still collapses signature, payload and environment failures into
+one unverified-release message. Its consumer owns that separate diagnostic fix.
+
 ## Agent discovery across desktop platforms
 
 **Decision:** Improve unfamiliar-agent discovery on Windows first, then extend

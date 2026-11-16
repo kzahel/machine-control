@@ -25,6 +25,7 @@ def module(name, path):
 
 prepare = module("prepare_cli", "desktop/scripts/prepare-cli.py")
 payload = module("cli_payload", "desktop/scripts/cli-payload.py")
+protection = module("protect_cli", "desktop/native/protect-cli.py")
 
 
 class CliPackageTests(unittest.TestCase):
@@ -45,6 +46,21 @@ class CliPackageTests(unittest.TestCase):
                 item.size = 7
                 output.addfile(item, io.BytesIO(b"fixture"))
         return archive
+
+    def test_six_targets_stage_bytecode_safe_launchers_and_platform_guards(self):
+        from unittest.mock import patch
+        targets = json.loads((ROOT / "desktop/python-runtime.lock.json").read_text())["targets"]
+        for target in targets:
+            archive = self.archive("python/python.exe" if "windows" in target else "python/bin/python3")
+            with self.subTest(target=target), patch.object(prepare, "fetch", return_value=archive):
+                output = self.root / target
+                prepare.stage(output, target, "0.7.2", "a" * 40, self.root / "cache")
+                payload.verify(output)
+                command = next((output / "commands").iterdir()).read_text()
+                self.assertIn("-I -B", command)
+                self.assertIn("sys.dont_write_bytecode = True", (output / "launch.py").read_text())
+                self.assertEqual((output / "windows-payload.ps1").exists(), "windows" in target)
+                self.assertEqual((output / "protect-cli.py").exists(), "apple" in target)
 
     def test_installed_entry_point_never_writes_bytecode(self):
         # Any Python may run the copied bin/machine-control inside the signed
@@ -166,6 +182,40 @@ assert sdk.__name__=='ControlSession'
             "schema": "machine-control-client-files/v1", "files": [{"path": "../outside"}]}))
         with self.assertRaisesRegex(ValueError, "path"):
             payload.verify(self.root)
+
+    @unittest.skipUnless(sys.platform == "darwin", "macOS ACLs required")
+    def test_mac_payload_refuses_writes_but_allows_replacement(self):
+        root = self.root / "mc-cli"
+        nested = root / "client"
+        nested.mkdir(parents=True)
+        (root / "client-runtime.json").write_text("{}")
+        script = nested / "fixture.py"
+        script.write_text("value = 1\n")
+        prepare.inventory(root)
+        before = (root / "files.json").read_bytes()
+        protection.protect(root)
+        protection.protect(root)  # Repeated launches must not accumulate ACLs.
+        for path in (root / "new.py", nested / "new.py", script):
+            with self.subTest(path=path.name), self.assertRaises(PermissionError):
+                path.write_text("accidental write")
+        with self.assertRaises(PermissionError):
+            (nested / "__pycache__").mkdir()
+        self.assertEqual((root / "files.json").read_bytes(), before)
+        payload.verify(root)
+        # The owner/updater can remove the tree without an ACL bypass.
+        moved = self.root / "old-cli"
+        root.rename(moved)
+        shutil.rmtree(moved)
+        root.mkdir()
+
+    @unittest.skipUnless(sys.platform == "darwin", "macOS ACLs required")
+    def test_mac_payload_protection_refuses_links(self):
+        root = self.root / "mc-cli"
+        root.mkdir()
+        (root / "client-runtime.json").write_text("{}")
+        (root / "outside").symlink_to(self.root)
+        with self.assertRaisesRegex(ValueError, "links"):
+            protection.protect(root)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 """Read-only, source-independent CLI smoke for an exact installed client."""
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,9 +19,18 @@ args = parser.parse_args()
 if args.unavailable_resident and sys.platform != "darwin":
     parser.error("--unavailable-resident requires the Mac host adapter")
 client = args.client.resolve(strict=True)
+
+
+def snapshot(root):
+    return {file.relative_to(root).as_posix(): hashlib.sha256(file.read_bytes()).hexdigest()
+            for file in root.rglob("*") if file.is_file()}
+
+
+original_root = client.parent.parent
+original = snapshot(original_root)
 with tempfile.TemporaryDirectory(prefix="mc-cli-installed-") as tmp:
     # Move the entire payload away from its original product/source location.
-    relocated = Path(tmp) / "relocated client"
+    relocated = Path(tmp) / "relocated client/mc-cli"
     shutil.copytree(client.parent.parent, relocated)
     client = relocated / "commands" / client.name
     environment = {key: value for key, value in os.environ.items()
@@ -29,6 +39,29 @@ with tempfile.TemporaryDirectory(prefix="mc-cli-installed-") as tmp:
                         "XDG_CONFIG_HOME": tmp, "APPDATA": tmp,
                         "PYTHONPATH": str(Path(tmp) / "unavailable-python"),
                         "PYTHONHOME": str(Path(tmp) / "unavailable-python")})
+    before = snapshot(relocated)
+    python = relocated / ("python/python.exe" if os.name == "nt" else "python/bin/python3")
+    protected = False
+    # Copying a payload does not preserve installed ownership/ACLs. Exercise
+    # the real guard on this owned copy before deliberately bypassing -B.
+    if sys.platform == "darwin" and (relocated / "protect-cli.py").is_file():
+        subprocess.run([str(python), "-I", "-B", str(relocated / "protect-cli.py")],
+                       check=True, timeout=30)
+        protected = True
+    elif os.name == "nt" and (relocated / "windows-payload.ps1").is_file():
+        shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        subprocess.run([str(shell), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                        "-File", str(relocated / "windows-payload.ps1"), "-Action", "protect",
+                        "-Directory", str(relocated.parent)], check=True, timeout=60)
+        protected = True
+    if protected:
+        subprocess.run([str(python), "-I", str(relocated / "bin/machine-control"), "--help"],
+                       check=True, capture_output=True, timeout=30)
+        subprocess.run([str(python), "-I", "-c",
+                        "import sys;sys.path.insert(0,sys.argv[1]);"
+                        "import agent_interface,control_session,json,ctypes,sqlite3",
+                        str(relocated / "client")], check=True, capture_output=True, timeout=30)
+        assert snapshot(relocated) == before, "Direct Python execution changed the protected payload"
 
     def invoke(*values):
         command = [str(client), *values]
@@ -80,4 +113,6 @@ with tempfile.TemporaryDirectory(prefix="mc-cli-installed-") as tmp:
             assert released["accepted"]
         assert json.loads(run("--target", "host", "claim", "status"))["data"]["state"] == "available"
         print("PASS unavailable resident doctor/refusal and isolated claim release")
+    assert snapshot(relocated) == before, "Installed CLI execution changed its payload"
+assert snapshot(original_root) == original, "Acceptance changed the original installation"
 print("PASS relocated installed CLI, isolated Python, offline discovery and bundled claim dependency")

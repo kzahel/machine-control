@@ -22,6 +22,14 @@ try {
     $install=Start-Process -FilePath (Resolve-Path $Installer) -ArgumentList @('/S',('/D='+$installRoot)) -Wait -PassThru
     if ($install.ExitCode -ne 0) {throw "Installer failed: $($install.ExitCode)"}
     $installed=$true
+    # An upgrade/repair must remove resources the old uninstaller does not know.
+    # Deliberately seed only this disposable installation, then run setup again.
+    & (Join-Path $installRoot 'mc-cli/windows-payload.ps1') -Action unprotect -Directory $installRoot
+    New-Item -ItemType Directory (Join-Path $installRoot 'mc-cli/client/__pycache__') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $installRoot 'mc-cli/client/__pycache__/acceptance-stale.pyc') -Value 'obsolete acceptance fixture'
+    Set-Content -LiteralPath (Join-Path $installRoot 'runtime/acceptance-obsolete-license.txt') -Value 'obsolete acceptance fixture'
+    $repair=Start-Process -FilePath (Resolve-Path $Installer) -ArgumentList @('/S',('/D='+$installRoot)) -Wait -PassThru
+    if ($repair.ExitCode -ne 0) {throw "Installer repair failed: $($repair.ExitCode)"}
     foreach ($name in @('machine-control.exe','runtime\machine-control-windows.exe','runtime\providers\cua\cua-driver.exe','uninstall.exe')) {
         Signature (Join-Path $installRoot $name)
     }
@@ -48,7 +56,7 @@ try {
     if ($LASTEXITCODE -ne 0) {throw 'Installed Python CLI full-byte inventory mismatch'}
     $policy=Join-Path $runtimeRoot 'shared-policy'
     if(Test-Path $policy){
-        & (Join-Path $cliRoot 'python/python.exe') -I (Join-Path $policy 'verify.py') $policy
+        & (Join-Path $cliRoot 'python/python.exe') -I -B (Join-Path $policy 'verify.py') $policy
         if($LASTEXITCODE -ne 0){throw 'Installed policy full-byte inventory mismatch'}
     }
     $cli=Get-Content (Join-Path $cliRoot 'client-runtime.json') -Raw | ConvertFrom-Json
@@ -60,7 +68,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Installed legacy CLI smoke failed' }
     python (Join-Path $PSScriptRoot '../../tests/windows/discovery.py') --install $installRoot
     if ($LASTEXITCODE -ne 0) { throw 'Installed main-executable discovery failed' }
-    if ($LASTEXITCODE -ne 0) {throw 'Relocated installed CLI execution failed'}
+    & (Join-Path $PSScriptRoot '../../tests/windows/payload-protection.ps1') -Helper (Join-Path $cliRoot 'windows-payload.ps1') -Python (Join-Path $cliRoot 'python/python.exe')
+    # Probes must leave the authenticated installation exactly as they found it.
+    python (Join-Path $PSScriptRoot 'cli-payload.py') verify $cliRoot
+    if ($LASTEXITCODE -ne 0) {throw 'Installed CLI changed during acceptance'}
+    if ((Test-FileCatalog -Path $runtimeRoot -CatalogFilePath (Join-Path $runtimeRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {
+        throw 'Installed runtime changed during acceptance'
+    }
     # TEMP may use an 8.3 alias while enumeration expands the user's name.
     # Derive the root from the same canonical file representation.
     $payloadRoot=(Get-Item -LiteralPath (Join-Path $installRoot 'machine-control.exe')).DirectoryName

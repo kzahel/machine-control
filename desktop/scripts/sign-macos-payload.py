@@ -41,6 +41,12 @@ def sign(app, identity):
     helper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helper)
     helper.inventory(resources / "mc-cli")
+    # Preserve the accident guard in DMG/ditto installs. Updater archives may
+    # omit ACLs, so the app and public CLI also establish it on first launch.
+    spec = importlib.util.spec_from_file_location("protect_cli", Path(__file__).resolve().parents[1] / "native/protect-cli.py")
+    protection = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(protection)
+    protection.protect(resources / "mc-cli")
     command = ["codesign", "--force", "--options", "runtime", "--sign", identity]
     if identity == "-":
         command += ["--identifier", "org.machine-control.app", "--requirements", '=designated => identifier "org.machine-control.app"']

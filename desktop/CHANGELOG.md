@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Protect the bundled Python client from accidental cache and script writes
+  in per-user Windows and macOS installs. Windows repair and updates also
+  remove obsolete runtime files and Python caches that could make a signed
+  installation fail integrity checks. Linux retains its package-manager and
+  read-only AppImage protection.
 - Browser tabs an agent controlled are released when its claim ends. Before,
   a tab stayed attached, with Chrome's debugging bar and the blue pointer
   icon, until someone ran `browser release` or turned access off. Releasing
