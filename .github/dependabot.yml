@@ -1,4 +1,9 @@
 version: 2
+
+# Security updates only. Routine upgrades are maintainer-run batches.
+# Dependabot requires a schedule, but open-pull-requests-limit: 0 disables
+# version-update PRs without disabling security updates, which are grouped
+# per ecosystem entry.
 updates:
   - package-ecosystem: npm
     directories:
@@ -6,14 +11,11 @@ updates:
       - /desktop
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
       npm-security:
         applies-to: security-updates
         patterns: ["*"]
-      npm-maintenance:
-        patterns: ["*"]
-        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /platforms/ios
@@ -21,12 +23,10 @@ updates:
     versioning-strategy: lockfile-only
     schedule:
       interval: weekly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     groups:
       ios-security:
         applies-to: security-updates
-        patterns: ["*"]
-      ios-maintenance:
         patterns: ["*"]
 
   - package-ecosystem: cargo
@@ -38,19 +38,18 @@ updates:
     versioning-strategy: lockfile-only
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
-      rust-security:
+      cargo-security:
         applies-to: security-updates
         patterns: ["*"]
-      rust-maintenance:
-        patterns: ["*"]
-        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
     groups:
-      actions:
+      actions-security:
+        applies-to: security-updates
         patterns: ["*"]
