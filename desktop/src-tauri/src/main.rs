@@ -948,3 +948,32 @@ fn main() {
             let _ = event;
         });
 }
+
+#[cfg(all(test, target_os = "macos"))]
+mod framework_loading_tests {
+    #[test]
+    fn test_binary_loads_framework_from_cargo_out_dir() {
+        // Cargo may execute test artifacts from OUT_DIR instead of deps/.
+        // Exercise dyld there without inheriting Cargo's library search paths.
+        let binary = std::path::Path::new(env!("OUT_DIR"))
+            .join(format!("framework-load-test-{}", std::process::id()));
+        std::fs::copy(std::env::current_exe().unwrap(), &binary).unwrap();
+        let result = std::process::Command::new(&binary)
+            .args(["--list"])
+            .current_dir(std::env::temp_dir())
+            .env_remove("DYLD_LIBRARY_PATH")
+            .env_remove("DYLD_FRAMEWORK_PATH")
+            .env_remove("DYLD_FALLBACK_LIBRARY_PATH")
+            .env_remove("DYLD_FALLBACK_FRAMEWORK_PATH")
+            .output();
+        std::fs::remove_file(binary).unwrap();
+        let output = result.unwrap();
+        assert!(
+            output.status.success(),
+            "test executable could not load its framework: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout)
+            .contains("test_binary_loads_framework_from_cargo_out_dir: test"));
+    }
+}

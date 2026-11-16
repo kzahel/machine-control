@@ -280,6 +280,20 @@ fn main() {
         println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path/../Frameworks");
         println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path/../../native");
         println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path/../../../native");
+        // Test executables can also live in OUT_DIR. Derive this fallback
+        // instead of assuming Cargo's build directory depth. Keep the bundle
+        // rpath first and avoid embedding an absolute checkout path.
+        let out = PathBuf::from(env::var_os("OUT_DIR").unwrap())
+            .canonicalize()
+            .unwrap();
+        let native = native.canonicalize().unwrap();
+        let common = out.ancestors().find(|p| native.starts_with(p)).unwrap();
+        let mut rpath = PathBuf::from("@executable_path");
+        for _ in out.strip_prefix(common).unwrap().components() {
+            rpath.push("..");
+        }
+        rpath.push(native.strip_prefix(common).unwrap());
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", rpath.display());
     }
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
