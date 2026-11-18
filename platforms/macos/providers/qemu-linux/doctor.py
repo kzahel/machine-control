@@ -4,19 +4,25 @@ import json
 import os
 import sys
 
+
+def observation(name):
+    try:
+        value = json.loads(os.environ.get(name, ""))
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 power = os.environ["MACVM_QEMU_PROBE_POWER"]
 identity = os.environ["MACVM_QEMU_PROBE_IDENTITY"]
 administration = os.environ["MACVM_QEMU_PROBE_ADMINISTRATION"]
-try:
-    response = json.loads(os.environ["MACVM_QEMU_PROBE_RESIDENT"])
-except ValueError:
-    response = {}
-if not isinstance(response, dict):
-    response = {}
+response = observation("MACVM_QEMU_PROBE_RESIDENT")
 data = response.get("data")
 if not isinstance(data, dict):
     data = {}
 desktop = data.get("desktopState", "unknown")
+if not response:
+    desktop = observation("MACVM_QEMU_PROBE_SESSION").get("desktopState", "unknown")
 states = {
     "power": power,
     "administration": administration,

@@ -11,6 +11,8 @@ import sys
 import tempfile
 import time
 
+from vnc import KEYS, Keyboard, observed_frame
+
 
 class QemuOffline(ConnectionError):
     """The configured QMP socket has no listener."""
@@ -133,6 +135,23 @@ class QemuIdentity:
     def screenshot(self, output):
         self.request("screendump", filename=str(output), format="png")
 
+    def recovery_keyboard(self, action, value):
+        with Keyboard(self) as keyboard:
+            if action == "key":
+                keyboard.chord(KEYS[value])
+                return
+            expected = observed_frame(value)
+            with tempfile.TemporaryDirectory(prefix="macvm-qemu-") as directory:
+                output = Path(directory) / "console.png"
+                for _ in range(3):
+                    self.screenshot(output)
+                    if output.read_bytes() == expected:
+                        break
+                    time.sleep(0.25)
+                else:
+                    raise ValueError("The observed password field frame changed")
+            keyboard.type_password(os.environ["MACVM_QEMU_LOGIN_SECRET_FILE"])
+
     def click(self, x, y):
         if not any(mouse.get("current") and mouse.get("absolute")
                    for mouse in self.request("query-mice")):
@@ -180,6 +199,11 @@ def main(arguments):
             raise ValueError("Outer recovery is disabled for this target")
         with identity:
             identity.click(int(arguments[1]), int(arguments[2]))
+    elif len(arguments) == 2 and arguments[0] in {"key", "type-secret"}:
+        if os.environ.get("MACVM_QEMU_FORBID_OUTER_UI") == "true":
+            raise ValueError("Outer recovery is disabled for this target")
+        with identity:
+            identity.recovery_keyboard(*arguments)
     elif arguments == ["shutdown"]:
         with identity:
             identity.request("system_powerdown")

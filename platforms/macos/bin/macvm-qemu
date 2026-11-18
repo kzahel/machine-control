@@ -42,6 +42,17 @@ resident() {
     remote "${MACVM_QEMU_GUEST_PYTHON:?}" -I -B "${MACVM_QEMU_RESIDENT_ADAPTER:?}" "$@"
 }
 
+probe_session() {
+    local suffix=mc-cli/platforms/macos/host/machost.py probe command_line
+    probe="${MACVM_QEMU_SESSION_PROBE:-}"
+    if [[ -z "$probe" && "${MACVM_QEMU_RESIDENT_ADAPTER:-}" == */"$suffix" ]]; then
+        probe="${MACVM_QEMU_RESIDENT_ADAPTER%"$suffix"}mc-session-probe"
+    fi
+    [[ -n "$probe" ]] || return 1
+    command_line="$(remote_command "$probe")" || return
+    timeout 5 "${ssh_base[@]}" "$command_line" </dev/null 2>/dev/null
+}
+
 fetch_artifact() {
     [[ $# == 1 || $# == 2 ]] || return 2
     local guest_copy directory output scratch status
@@ -72,7 +83,7 @@ fetch_artifact() {
 
 case "$command" in
     help|-h|--help)
-        printf '%s\n' 'macvm-qemu: status, doctor, bootstrap-stages, claim-*, up, shutdown, exec, control, channel, artifact-fetch, screenshot, click'
+        printf '%s\n' 'macvm-qemu: status, doctor, bootstrap-stages, claim-*, up, shutdown, exec, control, channel, artifact-fetch, screenshot, click, key, type-secret'
         ;;
     claim-*)
         claim_adapter_main "$claim_dir" "$provider" "$resource" "$command" "$@"
@@ -90,7 +101,7 @@ case "$command" in
             power="$(python3 "$backend" status 2>/dev/null)" && identity=verified || power=unknown
         fi
         administration=unavailable
-        resident_status=
+        resident_status= session_status=
         if [[ "$power" == running ]] && remote /usr/bin/true </dev/null 2>/dev/null; then
             administration=ready
             if [[ -n "${MACVM_QEMU_RESIDENT_ADAPTER:-}" && -n "${MACVM_QEMU_GUEST_PYTHON:-}" ]]; then
@@ -98,14 +109,28 @@ case "$command" in
                     "$MACVM_QEMU_RESIDENT_ADAPTER" control '{"operation":"status"}')"
                 resident_status="$(timeout 12 "${ssh_base[@]}" "$status_command" </dev/null 2>/dev/null || true)"
             fi
+            if [[ -z "$resident_status" ]]; then
+                session_status="$(probe_session || true)"
+            fi
         fi
         export MACVM_QEMU_PROBE_POWER="$power" MACVM_QEMU_PROBE_IDENTITY="$identity" \
-            MACVM_QEMU_PROBE_ADMINISTRATION="$administration" MACVM_QEMU_PROBE_RESIDENT="$resident_status"
+            MACVM_QEMU_PROBE_ADMINISTRATION="$administration" MACVM_QEMU_PROBE_RESIDENT="$resident_status" \
+            MACVM_QEMU_PROBE_SESSION="$session_status"
         exec python3 "$root/platforms/macos/providers/qemu-linux/doctor.py" "$command"
         ;;
-    screenshot|click)
+    screenshot|click|key)
         require_claim --required-use-class disruptive
         exec python3 "$backend" "$command" "$@"
+        ;;
+    type-secret)
+        require_claim --required-use-class disruptive
+        [[ $# == 2 && "$1" == --observed-password-field ]] || exit 2
+        observed="$(probe_session)" || exit
+        if ! jq -e '.desktopState == "locked" or .desktopState == "no_session"' <<<"$observed" >/dev/null; then
+            printf 'Stored login requires a verified locked or signed-out guest console\n' >&2
+            exit 1
+        fi
+        exec python3 "$backend" type-secret "$2"
         ;;
     shutdown)
         require_claim

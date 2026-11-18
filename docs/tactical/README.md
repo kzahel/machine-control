@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [164 — Intel macOS recovery and workspaces](164-intel-macos-recovery-and-workspaces.md)
+  (in progress): locked console recovery, packaged bootstrap, and libvirt
+  isolation on a disposable Intel Tahoe copy.
+
 - [163 — Intel macOS on Linux/KVM](163-intel-macos-linux-kvm.md)
   (bounded appliance): exact claims, pinned SSH, Intel package qualification,
   and Quickemu/OpenCore bootstrap and recovery.

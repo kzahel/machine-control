@@ -3,10 +3,11 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from identity import QemuIdentity  # noqa: E402
+from vnc import Keyboard  # noqa: E402
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "Linux QEMU process identity")
@@ -63,6 +64,28 @@ class QemuIdentityTests(unittest.TestCase):
             blocks[1]["inserted"]["file"] = self.boot.name
             with self.assertRaisesRegex(ValueError, "block roles"):
                 identity.verify_block_devices(self.root)
+
+    def test_changed_console_frame_does_not_open_the_secret(self):
+        identity = QemuIdentity()
+        with (
+            patch("identity.Keyboard") as constructor,
+            patch("identity.observed_frame", return_value=b"observed"),
+            patch("identity.time.sleep"),
+            patch.object(identity, "screenshot", side_effect=lambda path: path.write_bytes(b"changed")),
+        ):
+            keyboard = constructor.return_value.__enter__.return_value
+            with self.assertRaisesRegex(ValueError, "password field frame changed"):
+                identity.recovery_keyboard("type-secret", self.root / "console.png")
+            keyboard.type_password.assert_not_called()
+
+    def test_concurrent_vnc_viewer_refuses_before_connecting(self):
+        qmp = Mock()
+        qmp.request.return_value = {
+            "enabled": True, "host": "127.0.0.1", "auth": "none",
+            "service": "5900", "clients": [{}],
+        }
+        with self.assertRaisesRegex(ValueError, "exclusive loopback"):
+            Keyboard(qmp)
 
 
 if __name__ == "__main__":

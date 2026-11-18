@@ -55,6 +55,7 @@ Set the following environment entries in private inventory.
 | `MACVM_QEMU_SSH_KEY`, `MACVM_QEMU_KNOWN_HOSTS` | Absolute owner-controlled SSH identity and known-hosts file |
 | `MACVM_QEMU_GUEST_PYTHON` | Bundled interpreter at `Contents/Resources/mc-cli/python/bin/python3` in the installed app |
 | `MACVM_QEMU_RESIDENT_ADAPTER` | Bundled adapter at `Contents/Resources/mc-cli/platforms/macos/host/machost.py` in that app |
+| `MACVM_QEMU_SESSION_PROBE` | Optional override for the bundled `Contents/Resources/mc-session-probe` |
 | `MACVM_QEMU_LOGIN_SECRET_FILE` | Inventory locator for the stored guest login password |
 | `MACVM_QEMU_FORBID_OUTER_UI` | Set to `true` when QMP recovery capture and input should be disabled |
 
@@ -80,10 +81,23 @@ Recovery capture uses `testbed -- screenshot ABSOLUTE_NEW_PNG` and requires
 an owner-only output directory. Inspect fresh output before
 `testbed -- click X Y`, which uses the QEMU absolute tablet and guest display
 pixels. Both operations require a disruptive claim. They report dispatch.
-Verify the visible result independently. Use a dedicated loopback VNC
-connection for bootstrap keyboard input while holding that same disruptive
-claim. Close the recovery connection when the inner route is ready. An
-ordinary claim covers SSH, resident operations and lifecycle.
+Verify the visible result independently. The same disruptive claim covers
+`testbed -- key wake` over loopback VNC. For an observed, focused password
+field, capture a fresh QMP screenshot and call
+`testbed -- type-secret --observed-password-field SCREENSHOT`. This requires
+an independently observed locked or signed-out console via pinned SSH and
+the bundled probe. It compares the fresh private screenshot with the live
+frame before opening the owner-only credential file, then enters and submits
+the password once. If the frame changed before delivery, inspect a new one.
+After a delivered attempt, verify the native session state before deciding
+next steps. Use the dedicated loopback VNC viewer for initial bootstrap
+before SSH and the session probe are available. An ordinary claim covers
+SSH, resident operations and lifecycle.
+
+Doctor uses the packaged session probe independently over SSH when resident
+status is unavailable. It can show a locked console alongside an unavailable
+resident. The probe does not change power, wake the display, or authorize
+access.
 
 ## Install and qualify the package
 
