@@ -4,6 +4,9 @@ bin/
 /bin/*
 !/bin/machine-control
 !/bin/check
+!platforms/macos/bin/
+platforms/macos/bin/*
+!platforms/macos/bin/macvm-qemu
 !tests/fixtures/asserted-testbed/bin/
 !tests/fixtures/asserted-testbed/bin/winvm
 obj/

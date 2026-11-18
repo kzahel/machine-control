@@ -14,6 +14,11 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
+**Current:** The [Intel Tahoe on Linux/KVM profile](../platforms/macos/docs/intel-kvm.md)
+uses the published x86_64 app in the guest with pinned SSH and exact-target
+claims. QMP and loopback VNC cover bootstrap and recovery. The planned libvirt
+profile and its open validation are tracked separately from resident behavior.
+
 **Current, unreleased native text repair:** the ordinary packaged Chrome form
 fixture reproduced loss of every LF while preserving other Unicode in AX,
 DOM/model and HTTP. Literal text now delivers LF, CR and CRLF as one unmodified

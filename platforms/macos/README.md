@@ -12,7 +12,7 @@ can reliably operate the Mac desktop.” It provides one CLI for VM lifecycle,
 guest-agent commands, normalized screenshots, host-injected input, and native
 macOS Accessibility inspection and actions.
 
-## Supported Today
+## Apple-silicon Tart profile
 
 | Layer | Current implementation |
 | --- | --- |
@@ -31,6 +31,11 @@ macOS Accessibility inspection and actions.
 The semantic helper has no provider-packaged exclusions for the Dock, menu
 bar, System Settings, or ordinary desktop applications. macOS consent and
 integrity boundaries still apply.
+
+The [Intel Tahoe on Linux/KVM guide](docs/intel-kvm.md) covers the bounded
+Quickemu/OpenCore appliance profile. It uses the installed Intel desktop
+package and native resident through pinned guest SSH, with QMP and loopback
+VNC for bootstrap and recovery. The sections below cover the Tart appliance.
 
 ## Quick Start With A Prepared Image
 

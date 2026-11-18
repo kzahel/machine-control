@@ -15,25 +15,21 @@ Windows. Live desktop-VM hosting remains provider-specific:
 | Controller host | Coordinator evidence | Live-tested desktop VM routes | Planned desktop VM routes |
 | --- | --- | --- | --- |
 | macOS | Portable and native checks; current live controller | UTM/QEMU for Windows and Linux; Tart for macOS | Current baseline |
-| Linux | Portable and native checks plus exact-source execution inside both native guests | libvirt with QEMU/KVM for native x86_64 Windows and Linux guests | Broader host and guest-profile coverage |
+| Linux | Portable and native checks plus exact-source execution inside Windows and Linux guests | libvirt with QEMU/KVM for x86_64 Windows and Linux. Bounded [Intel Tahoe on Quickemu/KVM](../platforms/macos/docs/intel-kvm.md) | Intel macOS libvirt import and isolated workspaces. Broader host and guest-profile coverage |
 | Windows | Hosted CI, native runtime builds and experimental host execution | Experimental VirtualBox guests on Home; protected Windows base and development copy | VirtualBox factory/isolated workspaces; unassisted lifecycle; QEMU/WHPX blocked on Windows 11 TPM; Hyper-V remains a candidate on eligible editions |
 
-The Linux row is live-accepted only for native x86_64 KVM domains. Its provider
-refuses software emulation and cross-architecture domains before start or
-derivation. The Windows row has an opt-in local adapter and bounded Linux
-resident evidence, not a supported production factory/workspace provider.
-Each new provider must independently
-prove exact target identity, guarded lifecycle, administration, workspace
-isolation and cleanup, resident desktop conformance, explicit recovery, and
-host non-interference before being documented as supported.
+The Linux libvirt provider requires native x86_64 KVM domains before start or
+derivation. The Intel macOS route uses an existing Quickemu VM with exact
+disk identity and SSH. The Windows row has an opt-in local adapter and bounded Linux
+resident evidence. Full factory and workspace support requires independent
+proof of exact identity, guarded lifecycle, administration, workspace isolation
+and cleanup, resident desktop conformance, explicit recovery, and host
+non-interference.
 
-macOS guests remain on Apple hardware. A Linux or Windows caller will reach a
-physical Mac, its target-resident controller, or an Apple-hosted Tart provider
-through an authenticated remote route; the plan does not emulate macOS under
-KVM or Hyper-V. Device routes have their own controller-host constraints—iOS,
-for example, requires an authorized Mac—so `machine-control targets` reports
-eligibility for the concrete selected route rather than inferring it from the
-target OS.
+The established Apple-silicon macOS guest route uses Tart. Linux can also host
+the bounded Intel Tahoe profile using KVM acceleration. Device routes have
+their own controller-host constraints. iOS requires an authorized Mac.
+`machine-control targets` reports eligibility for each concrete route.
 
 The provider direction and adoption gates are maintained in
 [`vm-workspaces-and-storage-policy.md`](../topics/vm-workspaces-and-storage-policy.md),

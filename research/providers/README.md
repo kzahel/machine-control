@@ -9,6 +9,7 @@ components remain necessary. Evidence levels are defined in the
 | --- | --- | --- | --- |
 | [ReversePassword authentication samples](reverse-password.md) | MIT declared; acknowledged EID ancestry needs reuse audit | Windows authentication extensions | Source-reviewed non-password package path; no live unlock or protected-LSA qualification |
 | [VirtualBox](virtualbox.md) | Base GPL-3.0-only; bundled components and Extension Pack have separate terms | Windows Home x64 hosting; other hosts upstream-claimed here | Installer and installed-kernel boot; setup stalled again after cold recovery, before guest acceptance |
+| [Quickemu and OpenCore](quickemu.md) | MIT and BSD-3-Clause. QEMU GPL-2.0 and component terms | Linux/KVM hosting Intel macOS | Live pinned Intel Tahoe guest, native resident via SSH |
 | [QEMU/WHPX](qemu-whpx.md) | GPL-2.0; bundled components retain their terms | Windows-hosted VMs | Live x64 execution/QMP/overlay probes; Windows 11 qualification blocked by native-host TPM exclusion |
 | [UTM](utm.md) | Apache-2.0; bundled (L)GPL and other components retain their terms | macOS-hosted Windows/Linux VMs | Adopted lifecycle provider; live CLI failure diagnosis |
 | [Sky Computer Use](sky-computer-use.md) | Proprietary plugin/service; separate Codex source Apache-2.0 | macOS native behavior, caller admission and optional external-host route; Windows unreviewed | Source/static review, bounded native effects and YA/Opus TextEdit save/menu with genuine runtime |

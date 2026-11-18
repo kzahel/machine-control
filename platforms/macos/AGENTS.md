@@ -3,8 +3,12 @@
 This platform directory is the canonical public source. Do not make
 implementation changes in the legacy `macvm-testbed` checkout.
 
-This repository starts, diagnoses, and controls a macOS VM. The supported
-configuration is currently a macOS guest in Tart on an Apple-silicon Mac.
+This directory starts, diagnoses, and controls macOS VMs. The standard
+appliance uses Tart on Apple silicon. For the bounded Intel Tahoe appliance
+on Linux/KVM, follow [the Intel KVM guide](docs/intel-kvm.md) and select its
+private inventory alias. Ordinary operations use pinned guest SSH. QMP and
+loopback VNC are reserved for bootstrap and recovery under a disruptive claim.
+The Tart-specific operating workflow below applies to the Tart adapter.
 
 ## Start Here
 

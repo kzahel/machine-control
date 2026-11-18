@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$root/providers/claims/common.sh"
+backend="$root/platforms/macos/providers/qemu-linux/identity.py"
+claim_dir="${XDG_STATE_HOME:-$HOME/.local/state}/machine-control/claims"
+provider=qemu-linux-macos
+umask 077
+
+command="${1:-help}"
+shift || true
+resource="$(python3 "$backend" identity 2>/dev/null || true)"
+require_claim() {
+    local result
+    if [[ -z "$resource" || -z "${MACHINE_CONTROL_CLAIM_ID:-}" ]]; then
+        printf 'A live exact-target claim is required\n' >&2
+        return 1
+    fi
+    if ! result="$(claim_check_exact "$claim_dir" "$provider" "$resource" "$MACHINE_CONTROL_CLAIM_ID" "$@")"; then
+        printf '%s\n' "$result" >&2
+        return 1
+    fi
+}
+ssh_base=(ssh -F /dev/null -T -o BatchMode=yes -o ConnectTimeout=5
+    -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null
+    -o "UserKnownHostsFile=${MACVM_QEMU_KNOWN_HOSTS:-/dev/null}"
+    -o IdentitiesOnly=yes -i "${MACVM_QEMU_SSH_KEY:-/dev/null}"
+    -p "${MACVM_QEMU_SSH_PORT:-22}" -l "${MACVM_QEMU_SSH_USER:-guest}" -- 127.0.0.1)
+remote_command() {
+    python3 -c 'import shlex, sys; print(shlex.join(sys.argv[1:]))' \
+        /usr/bin/env "MACHINE_CONTROL_CLAIM_ID=${MACHINE_CONTROL_CLAIM_ID:-}" "$@"
+}
+
+remote() {
+    local command_line
+    command_line="$(remote_command "$@")" || return
+    "${ssh_base[@]}" "$command_line"
+}
+
+resident() {
+    remote "${MACVM_QEMU_GUEST_PYTHON:?}" -I -B "${MACVM_QEMU_RESIDENT_ADAPTER:?}" "$@"
+}
+
+fetch_artifact() {
+    [[ $# == 1 || $# == 2 ]] || return 2
+    local guest_copy directory output scratch status
+    guest_copy="$(resident artifact-fetch "$1")" || return
+    if [[ "$guest_copy" != /var/folders/*/machost-artifact.*/* &&
+          "$guest_copy" != /private/var/folders/*/machost-artifact.*/* &&
+          "$guest_copy" != /tmp/machost-artifact.*/* ]]; then
+        printf 'Unexpected guest artifact staging path\n' >&2
+        return 1
+    fi
+    if [[ $# == 2 ]]; then
+        output="$2"
+    else
+        directory="$(mktemp -d)" || return
+        output="$directory/${guest_copy##*/}"
+    fi
+    status=0
+    scratch="$(mktemp -- "${output}.partial.XXXXXX")" || status=$?
+    if [[ "$status" == 0 ]]; then
+        remote /bin/cat "$guest_copy" >"$scratch" &&
+            [[ -s "$scratch" ]] && mv -T -- "$scratch" "$output" || status=$?
+        rm -f -- "$scratch"
+    fi
+    remote /bin/rm -f "$guest_copy" && remote /bin/rmdir "${guest_copy%/*}" || return
+    [[ "$status" == 0 ]] || return "$status"
+    printf '%s\n' "$output"
+}
+
+case "$command" in
+    help|-h|--help)
+        printf '%s\n' 'macvm-qemu: status, doctor, bootstrap-stages, claim-*, up, shutdown, exec, control, channel, artifact-fetch, screenshot, click'
+        ;;
+    claim-*)
+        claim_adapter_main "$claim_dir" "$provider" "$resource" "$command" "$@"
+        ;;
+    status)
+        python3 "$backend" status
+        ;;
+    doctor|bootstrap-stages)
+        if [[ "$command" == bootstrap-stages ]]; then
+            [[ "$*" == --json ]] || exit 2
+            require_claim
+        fi
+        power=unknown identity=unavailable
+        if [[ -n "$resource" ]]; then
+            power="$(python3 "$backend" status 2>/dev/null)" && identity=verified || power=unknown
+        fi
+        administration=unavailable
+        resident_status=
+        if [[ "$power" == running ]] && remote /usr/bin/true </dev/null 2>/dev/null; then
+            administration=ready
+            if [[ -n "${MACVM_QEMU_RESIDENT_ADAPTER:-}" && -n "${MACVM_QEMU_GUEST_PYTHON:-}" ]]; then
+                status_command="$(remote_command "$MACVM_QEMU_GUEST_PYTHON" -I -B \
+                    "$MACVM_QEMU_RESIDENT_ADAPTER" control '{"operation":"status"}')"
+                resident_status="$(timeout 12 "${ssh_base[@]}" "$status_command" </dev/null 2>/dev/null || true)"
+            fi
+        fi
+        export MACVM_QEMU_PROBE_POWER="$power" MACVM_QEMU_PROBE_IDENTITY="$identity" \
+            MACVM_QEMU_PROBE_ADMINISTRATION="$administration" MACVM_QEMU_PROBE_RESIDENT="$resident_status"
+        exec python3 "$root/platforms/macos/providers/qemu-linux/doctor.py" "$command"
+        ;;
+    screenshot|click)
+        require_claim --required-use-class disruptive
+        exec python3 "$backend" "$command" "$@"
+        ;;
+    shutdown)
+        require_claim
+        [[ $# == 0 ]] || exit 2
+        exec python3 "$backend" shutdown
+        ;;
+    up)
+        require_claim
+        [[ $# == 0 ]] || exit 2
+        if [[ "$(uname -sm)" != "Linux x86_64" || ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+            printf 'Starting this appliance requires native x86_64 Linux and access to KVM\n' >&2
+            exit 1
+        fi
+        exec 9>"${MACVM_QEMU_DIRECTORY:?}/.machine-control-lifecycle.lock"
+        flock -n 9
+        [[ "$(python3 "$backend" status)" == off ]] || exit 1
+        "${MACVM_QEMU_LAUNCHER:?}" 9>&-
+        for attempt in {1..20}; do
+            state="$(python3 "$backend" status)" || exit
+            [[ "$state" != running ]] || exit 0
+            sleep 1
+        done
+        printf 'The launcher returned before the exact KVM target became reachable\n' >&2
+        exit 1
+        ;;
+    exec|control|control-local|channel|artifact-fetch)
+        require_claim
+        [[ "$(python3 "$backend" status)" == running ]] || exit 1
+        if [[ "$command" == exec ]]; then
+            [[ $# -gt 0 ]] || exit 2
+            remote "$@"
+        elif [[ "$command" == channel ]]; then
+            [[ $# == 0 ]] || exit 2
+            status_command="$(remote_command "${MACVM_QEMU_GUEST_PYTHON:?}" -I -B \
+                "${MACVM_QEMU_RESIDENT_ADAPTER:?}" channel)"
+            MACHINE_CONTROL_CLAIM_POLICY=required claim_guard_channel "$claim_dir" "$provider" \
+                "$resource" "${ssh_base[@]}" "$status_command"
+        elif [[ "$command" == artifact-fetch ]]; then
+            fetch_artifact "$@"
+        else
+            resident "$command" "$@"
+        fi
+        ;;
+    *)
+        printf 'Unsupported macVM QEMU operation\n' >&2
+        exit 2
+        ;;
+esac

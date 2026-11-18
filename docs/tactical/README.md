@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [163 — Intel macOS on Linux/KVM](163-intel-macos-linux-kvm.md)
+  (bounded appliance): exact claims, pinned SSH, Intel package qualification,
+  and Quickemu/OpenCore bootstrap and recovery.
+
 - [162 — Claim-scoped browser attachments](162-claim-scoped-browser-attachments.md)
   (complete; awaiting release): attribute debugger attachments to the claim that made them,
   release them when that claim is released or expires, and show the owner.

@@ -3,6 +3,18 @@
 Status: full logged-in Aqua software-testing composition is adopted and
 live-tested in a prepared Tart appliance; login and preboot planes remain open.
 
+## Intel macOS under KVM
+
+**Current, live-tested:** Quickemu and OpenCore boot x86_64 Tahoe 26.7.3 with
+KVM acceleration and separate system and bootloader disks. Pinned SSH reaches
+the signed and notarized 0.7.2 Intel app's resident. Native Quartz capture and
+an AX button press with an independent file effect passed before and after a
+cold boot. The guest reports a custom SIP configuration.
+[Tactical 163](../../docs/tactical/163-intel-macos-linux-kvm.md) owns the
+qualification record. The [Quickemu dossier](../providers/quickemu.md) describes
+the outer provider and the [Intel KVM guide](../../platforms/macos/docs/intel-kvm.md)
+owns bootstrap and recovery.
+
 ## Shared ordinary permissions
 
 **Current (2026-11-04), bounded `conformance-tested`:** the unreleased Swift
