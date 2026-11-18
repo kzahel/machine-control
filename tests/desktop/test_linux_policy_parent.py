@@ -30,8 +30,11 @@ time.sleep(120)
             parent.kill();parent.wait(5)
             deadline=time.monotonic()+3
             while time.monotonic()<deadline:
-                try:state=Path(f'/proc/{child}/stat').read_text().rsplit(')',1)[1].split()[0]
-                except FileNotFoundError:break
+                try:
+                    state=Path(f'/proc/{child}/stat').read_text().rsplit(')',1)[1].split()[0]
+                except (FileNotFoundError, ProcessLookupError):
+                    # The child can be reaped before open or during read.
+                    break
                 if state=='Z':break
                 time.sleep(.02)
             else:self.fail('Policy child survived native parent loss')
