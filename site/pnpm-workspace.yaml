@@ -5,6 +5,12 @@ packages:
 overrides:
   "undici@7": "^7.30.1"
 
+# The blog loader uses a fixed build-time glob. Remove this exception once the
+# lockfile resolves to patched picomatch versions.
+audit:
+  ignore:
+    - GHSA-fc5q-39xc-vjpf
+
 allowBuilds:
   esbuild: true
   sharp: true

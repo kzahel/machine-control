@@ -1,0 +1,5 @@
+# Vite uses picomatch as build tooling. Remove this exception once the lockfile
+# resolves to a patched version.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
