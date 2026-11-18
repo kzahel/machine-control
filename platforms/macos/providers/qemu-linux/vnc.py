@@ -83,18 +83,33 @@ class Keyboard:
         time.sleep(0.015)
 
     def type_password(self, secret_file):
-        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
-        with os.fdopen(os.open(secret_file, flags), "rb") as source:
-            info = os.fstat(source.fileno())
-            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
-                    or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
-                raise ValueError("Refused an unsafe credential file")
-            payload = source.read(513).removesuffix(b"\n")
-        if not 0 < len(payload) <= 512 or any(not 32 <= value <= 126 for value in payload):
+        payload = stored_password(secret_file)
+        if any(not 32 <= value <= 126 for value in payload):
             raise ValueError("Credential cannot be entered with the U.S. keyboard map")
         for value in payload:
             self.chord((0xFFE1, SHIFTED[value]) if value in SHIFTED else (value,))
         self.chord(KEYS["enter"])
+
+    def verify_exclusive_client(self, qmp):
+        clients = qmp.request("query-vnc").get("clients")
+        host, port = self.peer.getsockname()
+        if not isinstance(clients, list) or len(clients) != 1 or (
+            clients[0].get("host"), clients[0].get("service")
+        ) != (host, str(port)):
+            raise ValueError("The recovery console no longer has the exclusive client")
+
+
+def stored_password(secret_file):
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    with os.fdopen(os.open(secret_file, flags), "rb") as source:
+        info = os.fstat(source.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+            raise ValueError("Refused an unsafe credential file")
+        payload = source.read(513).removesuffix(b"\n")
+    if not 0 < len(payload) <= 512 or b"\n" in payload or b"\r" in payload or b"\0" in payload:
+        raise ValueError("Invalid credential file framing")
+    return payload
 
 
 def observed_frame(path):

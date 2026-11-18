@@ -21,7 +21,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from libvirt_provider import (  # noqa: E402
     Configuration,
     Libvirt,
+    MACOS_PROFILE,
     ProviderError,
+    QEMU_NAMESPACE,
     domain_state,
     inspect_domain,
     require_uuid,
@@ -33,10 +35,12 @@ VOLUME_PREFIX = "machine-control-"
 VOLUME_SUFFIX = ".qcow2"
 NVRAM_SUFFIX = "_VARS.fd"
 SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,95}")
+ET.register_namespace("qemu", QEMU_NAMESPACE)
 
 
-def volume_name(target_uuid: str) -> str:
-    return f"{VOLUME_PREFIX}{require_uuid(target_uuid)}{VOLUME_SUFFIX}"
+def volume_name(target_uuid: str, role: str = "primaryDisk") -> str:
+    suffix = "-opencore" if role == "bootDisk" else ""
+    return f"{VOLUME_PREFIX}{require_uuid(target_uuid)}{suffix}{VOLUME_SUFFIX}"
 
 
 def nvram_name(target_uuid: str) -> str:
@@ -64,20 +68,36 @@ def derive_domain_xml(
     nvram_template: str,
     require_secure_boot: bool,
     require_tpm2: bool,
+    profile: str = "standard",
+    target_boot_disk: str = "",
 ) -> str:
-    validate_domain_xml(
+    source_layout = validate_domain_xml(
         source_xml,
         expected_uuid=source_uuid,
         expected_name=source_name,
         require_secure_boot=require_secure_boot,
         require_tpm2=require_tpm2,
+        profile=profile,
     )
+    macos = profile == MACOS_PROFILE
     target_uuid = require_uuid(target_uuid)
     if not SAFE_NAME.fullmatch(target_name):
         raise ProviderError(
             "workspace_name_invalid", "The generated workspace name is invalid"
         )
     workspace_paths = (target_disk, target_nvram, nvram_template)
+    if macos:
+        workspace_paths += (target_boot_disk,)
+        source_paths = {
+            os.path.realpath(source_layout["primaryDisk"]["path"]),
+            os.path.realpath(source_layout["bootDisk"]["path"]),
+            os.path.realpath(source_layout["nvramPath"]),
+        }
+        destination_paths = {os.path.realpath(path) for path in
+                             (target_disk, target_boot_disk, target_nvram)}
+        if len(destination_paths) != 3 or source_paths & destination_paths:
+            raise ProviderError("workspace_path_invalid", "macOS workspace paths must be independent")
+        nvram_template = source_layout["nvramPath"]
     if not all(PurePosixPath(path).is_absolute() for path in workspace_paths):
         raise ProviderError(
             "workspace_path_invalid", "Workspace paths must be absolute"
@@ -108,14 +128,16 @@ def derive_domain_xml(
         remove_children(interface, "mac")
         remove_children(interface, "target")
         remove_children(interface, "alias")
-        remove_children(interface, "address")
+        if not macos:
+            remove_children(interface, "address")
     for channel in root.findall("./devices/channel"):
         remove_children(channel, "source")
         remove_children(channel, "alias")
         remove_children(channel, "address")
     for device in root.findall("./devices/*"):
         remove_children(device, "alias")
-        remove_children(device, "address")
+        if not macos:
+            remove_children(device, "address")
     for disk in root.findall("./devices/disk[@device='disk']"):
         source = disk.find("source")
         if source is None:
@@ -123,7 +145,9 @@ def derive_domain_xml(
                 "domain_xml_invalid", "The source system disk is incomplete"
             )
         source.attrib.clear()
-        source.set("file", target_disk)
+        source.set("file", target_boot_disk if macos and disk.find("boot") is not None else target_disk)
+        if macos:
+            remove_children(disk, "backingStore")
 
     os_element = root.find("os")
     if os_element is None:
@@ -228,25 +252,25 @@ def command_derive(arguments: argparse.Namespace) -> int:
         raise ProviderError(
             "destination_exists", "The generated workspace domain already exists"
         )
-    source_disk = source["primaryDisk"]["path"]
-    source_info = volume_info(configuration, provider, source_disk)
-    capacity = source_info.get("capacity")
-    if not isinstance(capacity, int) or capacity < 1:
-        raise ProviderError(
-            "workspace_storage_invalid", "The source virtual capacity is invalid"
-        )
     target_uuid = str(uuid.uuid4())
-    name = volume_name(target_uuid)
-    target_disk = ""
+    macos = configuration.profile == MACOS_PROFILE
+    roles = ["primaryDisk", "bootDisk"] if macos else ["primaryDisk"]
+    volumes = {}
+    rollback_names = []
     defined = False
     try:
-        target_disk = create_volume(
-            configuration,
-            provider,
-            name=name,
-            capacity=capacity,
-            backing_path=source_disk,
-        )
+        for role in roles:
+            source_disk = source[role]["path"]
+            capacity = volume_info(configuration, provider, source_disk).get("capacity")
+            if not isinstance(capacity, int) or capacity < 1:
+                raise ProviderError(
+                    "workspace_storage_invalid", "The source virtual capacity is invalid"
+                )
+            name = volume_name(target_uuid, role)
+            rollback_names.append(name)
+            volumes[role] = create_volume(
+                configuration, provider, name=name, capacity=capacity, backing_path=source_disk,
+            )
         source_xml = provider.text("dumpxml", "--inactive", source_uuid)
         target_nvram = str(Path(arguments.nvram_directory) / nvram_name(target_uuid))
         target_xml = derive_domain_xml(
@@ -255,11 +279,13 @@ def command_derive(arguments: argparse.Namespace) -> int:
             source_name=configuration.domain_name,
             target_uuid=target_uuid,
             target_name=arguments.name,
-            target_disk=target_disk,
+            target_disk=volumes["primaryDisk"],
             target_nvram=target_nvram,
             nvram_template=arguments.nvram_template,
             require_secure_boot=configuration.require_secure_boot,
             require_tpm2=configuration.require_tpm2,
+            profile=configuration.profile,
+            target_boot_disk=volumes.get("bootDisk", ""),
         )
         temporary = write_temporary_xml(target_xml)
         try:
@@ -276,7 +302,9 @@ def command_derive(arguments: argparse.Namespace) -> int:
             }
         )
         derived = inspect_domain(derived_configuration, provider)
-        if derived["primaryDisk"]["path"] != target_disk:
+        if any(derived[role]["path"] != volumes[role] for role in roles) or (
+            macos and derived["nvramPath"] != target_nvram
+        ):
             raise ProviderError(
                 "workspace_identity_mismatch",
                 "The derived domain disk identity does not match",
@@ -291,12 +319,15 @@ def command_derive(arguments: argparse.Namespace) -> int:
         return 0
     except BaseException:
         if defined:
+            undefine = ["undefine", target_uuid, "--nvram"]
+            if not macos:
+                undefine.append("--tpm")
+            if provider.command(*undefine, check=False).returncode != 0:
+                raise
+        for name in rollback_names:
             provider.command(
-                "undefine", target_uuid, "--nvram", "--tpm", check=False
+                "vol-delete", name, "--pool", configuration.pool, check=False
             )
-        provider.command(
-            "vol-delete", name, "--pool", configuration.pool, check=False
-        )
         raise
 
 
@@ -305,19 +336,12 @@ def command_release(arguments: argparse.Namespace) -> int:
     provider = Libvirt(configuration)
     target_uuid = require_uuid(configuration.expected_uuid)
     source_uuid = require_uuid(arguments.source_uuid)
+    if target_uuid == source_uuid:
+        raise ProviderError("workspace_identity_mismatch", "The workspace source is protected")
     target = inspect_domain(configuration, provider)
     if domain_state(configuration, provider) != "stopped":
         raise ProviderError(
             "workspace_running", "Workspace cleanup requires a stopped domain"
-        )
-    name = volume_name(target_uuid)
-    expected_disk = provider.text(
-        "vol-path", "--pool", configuration.pool, name
-    )
-    if target["primaryDisk"]["path"] != expected_disk:
-        raise ProviderError(
-            "workspace_identity_mismatch",
-            "The receipt-owned workspace disk does not match the domain",
         )
     source_configuration = Configuration(
         **{
@@ -327,15 +351,31 @@ def command_release(arguments: argparse.Namespace) -> int:
         }
     )
     source = inspect_domain(source_configuration, provider)
-    target_info = volume_info(configuration, provider, expected_disk)
-    backing = target_info.get("backing")
-    if not isinstance(backing, str) or Path(backing).resolve() != Path(
-        source["primaryDisk"]["path"]
-    ).resolve():
-        raise ProviderError(
-            "workspace_backing_mismatch",
-            "The workspace backing image does not match its exact source",
-        )
+    macos = configuration.profile == MACOS_PROFILE
+    roles = ["primaryDisk", "bootDisk"] if macos else ["primaryDisk"]
+    names = []
+    for role in roles:
+        name = volume_name(target_uuid, role)
+        expected_disk = provider.text("vol-path", "--pool", configuration.pool, name)
+        if target[role]["path"] != expected_disk:
+            raise ProviderError(
+                "workspace_identity_mismatch",
+                "The receipt-owned workspace disk does not match the domain",
+            )
+        backing = volume_info(configuration, provider, expected_disk).get("backing")
+        if not isinstance(backing, str) or Path(backing).resolve() != Path(source[role]["path"]).resolve():
+            raise ProviderError(
+                "workspace_backing_mismatch",
+                "The workspace backing image does not match its exact source",
+            )
+        names.append(name)
+    if macos:
+        nvram_root = Path(arguments.nvram_directory)
+        expected_nvram = nvram_root / nvram_name(target_uuid)
+        if not nvram_root.is_absolute() or Path(target["nvramPath"]) != expected_nvram or (
+            expected_nvram.resolve() == Path(source["nvramPath"]).resolve()
+        ):
+            raise ProviderError("workspace_identity_mismatch", "The workspace NVRAM is not receipt-owned")
     xml_text = provider.text("dumpxml", "--inactive", target_uuid)
     root = ET.fromstring(xml_text)
     arguments_undefine = ["undefine", target_uuid]
@@ -344,17 +384,15 @@ def command_release(arguments: argparse.Namespace) -> int:
     if root.find("./devices/tpm") is not None:
         arguments_undefine.append("--tpm")
     provider.command(*arguments_undefine)
-    provider.command("vol-delete", name, "--pool", configuration.pool)
+    for name in names:
+        provider.command("vol-delete", name, "--pool", configuration.pool)
     if provider.command("domname", target_uuid, check=False).returncode == 0:
         raise ProviderError(
             "workspace_cleanup_incomplete", "The derived domain still exists"
         )
-    if (
-        provider.command(
-            "vol-info", name, "--pool", configuration.pool, check=False
-        ).returncode
-        == 0
-    ):
+    if any(provider.command(
+        "vol-info", name, "--pool", configuration.pool, check=False
+    ).returncode == 0 for name in names):
         raise ProviderError(
             "workspace_cleanup_incomplete", "The derived volume still exists"
         )
@@ -372,6 +410,7 @@ def parse_arguments() -> argparse.Namespace:
     release = commands.add_parser("release")
     release.add_argument("--source-uuid", required=True)
     release.add_argument("--source-name", required=True)
+    release.add_argument("--nvram-directory", default="")
     release.set_defaults(function=command_release)
     return parser.parse_args()
 

@@ -16,8 +16,12 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 **Current:** The [Intel Tahoe on Linux/KVM profile](../platforms/macos/docs/intel-kvm.md)
 uses the published x86_64 app in the guest with pinned SSH and exact-target
-claims. QMP and loopback VNC cover bootstrap and recovery. The planned libvirt
-profile and its open validation are tracked separately from resident behavior.
+claims. QMP and loopback VNC cover bootstrap and recovery for Quickemu and
+libvirt. The independent native probe still observes the console when resident
+status times out. Waking and signing in through the guarded console restored
+the same resident. The idle timeout's cause remains open.
+[Tactical 164](../docs/tactical/164-intel-macos-recovery-and-workspaces.md)
+records the recovery and libvirt evidence.
 
 **Current, unreleased native text repair:** the ordinary packaged Chrome form
 fixture reproduced loss of every LF while preserving other Unicode in AX,

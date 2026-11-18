@@ -16,6 +16,8 @@ def observation(name):
 power = os.environ["MACVM_QEMU_PROBE_POWER"]
 identity = os.environ["MACVM_QEMU_PROBE_IDENTITY"]
 administration = os.environ["MACVM_QEMU_PROBE_ADMINISTRATION"]
+provider = os.environ["MACVM_QEMU_PROBE_PROVIDER"]
+profile = "macos-intel-libvirt-kvm" if provider == "libvirt-linux-macos" else "macos-intel-qemu-kvm"
 response = observation("MACVM_QEMU_PROBE_RESIDENT")
 data = response.get("data")
 if not isinstance(data, dict):
@@ -54,13 +56,13 @@ if sys.argv[1] == "bootstrap-stages":
 else:
     print(json.dumps({
         "schema": "machine-control-doctor/v0",
-        "target": {"platform": "macos", "profile": "macos-intel-qemu-kvm", "kind": "desktop"},
+        "target": {"platform": "macos", "profile": profile, "kind": "desktop"},
         "ready": all(checks.values()),
         "states": states,
         "checks": [{"id": name, "status": "pass" if ready else "fail"}
                    for name, ready in checks.items()],
         "lifecycleOperations": ["status", "up", "shutdown"],
         "extensions": {"targetIdentity": identity, "transport": "ssh",
-                       "provider": "qemu-linux-macos"},
+                       "provider": provider},
     }))
     raise SystemExit(0 if all(checks.values()) else 1)

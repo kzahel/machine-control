@@ -1,11 +1,12 @@
 # Intel macOS on Linux/KVM
 
-This appliance profile uses a native x86_64 Linux/KVM host, Quickemu with
-OpenCore, and an installed Intel macOS guest. Linux owns VM lifecycle and
-recovery. The signed Machine Control app runs its ordinary resident in the
-guest's Aqua session. An outside client uses the same desktop commands over
-pinned SSH. QMP and loopback VNC provide bootstrap and recovery without taking
-over the Linux desktop.
+This appliance profile uses a native x86_64 Linux/KVM host, OpenCore, and an
+installed Intel macOS guest. Quickemu can run the retained guest. Libvirt
+can run an independent copy and derive disposable workspaces. The signed
+Machine Control app runs its ordinary resident in the guest's Aqua session.
+An outside client uses the same desktop commands over pinned SSH. QMP and
+loopback VNC provide bootstrap and recovery without taking over the Linux
+desktop.
 
 ## Prepare or recover the guest
 
@@ -102,12 +103,17 @@ access.
 ## Install and qualify the package
 
 Download the Intel DMG from the [published downloads](https://machinecontrol.dev/downloads/).
-Record its version and SHA-256, carry it over pinned SSH, and verify the
-transfer before mounting it read-only. Check the app with
-`codesign --verify --deep --strict` and
-`spctl --assess --type execute --verbose=2` before installing. Check the
-main executable with `file`, then open the installed app in the logged-in
-Aqua session. Use its Permissions view to grant Accessibility and Screen
+Record its version and SHA-256. Under the exact claim, run
+`testbed -- install-package DMG SHA256`. The command verifies the digest on
+both sides of pinned SSH, mounts the DMG read-only, checks the x86_64
+executable and Developer ID signature, and runs Gatekeeper assessment.
+It installs into `/Applications` when the app is absent. When the app is
+already installed, the command verifies the signed code hash and reports
+the matching version. A different installed build needs the normal update
+workflow.
+
+Open the installed app in the logged-in Aqua session. Use its Permissions
+view to grant Accessibility and Screen
 Recording in System Settings. If Screen & System Audio Recording has no
 Machine Control entry, use its plus button and select the installed app.
 Follow the native prompt to quit and reopen it. Enable Desktop access through
@@ -132,16 +138,51 @@ access again if prompted. Shut it off at the end of testing and release the
 claim. Existing test authorization and GUI login may require an operator or
 authorized recovery at each cold boot.
 
-## Libvirt migration
+## Libvirt base and workspaces
 
-The [Linux libvirt provider](../../../providers/libvirt-linux/libvirt_provider.py)
-already owns native Q35/KVM validation, UUID identity, guarded lifecycle and
-QMP recovery for Windows and Linux. Its existing profile requires one VirtIO
-QCOW2 disk and a QEMU guest-agent channel. Its workspace code assumes one
-writable primary disk. An Intel macOS profile would validate separate
-OpenCore and system disks against their private roles, preserve firmware and
-device topology, and use pinned SSH for readiness. Libvirt should first boot
-and stop a disposable copy with independent NVRAM and boot/system disks, with
-the original offline and its identity preserved. This recipe uses the
-existing Quickemu launcher. Libvirt import, workspace derivation, unattended
-console login, and a stock-security macOS profile are outside its coverage.
+1. Hold the original appliance's claim, shut it down cleanly, and copy the
+   OpenCore and system QCOW2 payloads, firmware code and writable NVRAM
+   into private libvirt storage. Verify the disk copies with
+   `qemu-img compare` and verify the firmware copies byte-for-byte. Restart
+   the original when the independent copies are in place.
+2. Define a dedicated Q35/KVM domain over those copies in `qemu:///system`.
+   Use `sda` over SATA with boot order 1 for OpenCore and `vda` over VirtIO
+   for the system disk. Configure read-only pflash code, separate writable
+   NVRAM, one libvirt-managed VirtIO network, an absolute USB tablet, and
+   loopback-only VNC. Preserve the working setup's virtual CPU and chipset
+   flags. In the qualified copy, Apple EFI progressed after carrying over
+   the Quickemu Haswell-v2 CPU arguments and chipset properties together.
+   The [libvirt validator](../../../providers/libvirt-linux/libvirt_provider.py)
+   permits those explicit extra settings and the private SMC configuration.
+3. In the private target entry, set `MACVM_QEMU_PROVIDER=libvirt`, profile
+   `macos-intel-libvirt-kvm`, and set `MC_LIBVIRT_DOMAIN_NAME`,
+   `MC_LIBVIRT_EXPECTED_UUID`, `MC_LIBVIRT_NETWORK`, and `MC_LIBVIRT_POOL`.
+   The active storage pool must expose both copied disks as volumes.
+   Use the existing SSH and resident settings with the guest SSH port.
+   Set `MACVM_LIBVIRT_SSH_HOST_KEY_ALIAS` to the pinned name in the
+   known-hosts file. The adapter selects the domain's current IPv4 lease.
+   Boot the independent copy once, verify pending console login over SSH,
+   then sign in and verify the resident.
+4. Gracefully stop the verified copy. Set
+   `MACVM_LIBVIRT_READY_BASE_PROVEN=true`,
+   `MACVM_LIBVIRT_WORKSPACE_STORAGE_PATH` to the active pool directory, and
+   `MACVM_LIBVIRT_NVRAM_DIRECTORY` to the libvirt-managed NVRAM directory.
+   Direct start of the sealed base is refused. The isolated workspace
+   receives two UUID-owned QCOW2 overlays and its own writable copy of the
+   stopped base's NVRAM. It inherits the lab base's verified login and SSH
+   host key.
+
+Use `workspace acquire --intent isolated --reason REASON` and carry both
+the returned `--workspace` handle and `--claim` on guest operations.
+For console recovery, release the workspace's ordinary claim and acquire a
+disruptive claim on that same handle. Release the workspace itself with
+`--claim CLAIM workspace release HANDLE`. Release verifies the receipt,
+both overlay backing relationships, and the separate NVRAM before removing
+the stopped workspace.
+
+Libvirt requests ACPI shutdown. On a dedicated appliance whose ACPI request
+has no observed effect, inventory may explicitly enable
+`MACVM_LIBVIRT_ALLOW_SSH_SHUTDOWN=true`. After verifying pinned SSH, the
+adapter submits the stored credential once to the fixed guest sudo shutdown
+command and waits for actual power-off. The provision journal records the
+observed lifecycle. See the [qualification record](../../../docs/tactical/164-intel-macos-recovery-and-workspaces.md).

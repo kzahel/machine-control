@@ -21,5 +21,7 @@ keeps its existing macOS Desktop permission model and is reached over pinned
 SSH. See the [platform guide](../../platforms/macos/docs/intel-kvm.md) for the
 deployment contract and the limits of libvirt reuse.
 
-**Open:** libvirt installation and multi-disk workspace derivation require
-new cold-boot and isolation evidence on a disposable copy.
+**Current, live-tested:** libvirt can run an independent copy when it
+preserves the working virtual CPU and chipset settings. The Mac profile uses
+the copied OpenCore and system disks and pinned SSH. [Tactical 164](../../docs/tactical/164-intel-macos-recovery-and-workspaces.md)
+owns the boot, recovery and workspace evidence.

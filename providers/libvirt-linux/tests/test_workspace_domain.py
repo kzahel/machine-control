@@ -62,6 +62,26 @@ SOURCE_XML = f"""
 
 
 class DerivationTests(unittest.TestCase):
+    def test_intel_macos_workspace_preserves_disk_roles_and_separates_nvram(self):
+        source = (Path(__file__).parent / "fixtures/macos-intel.xml").read_text()
+        result = WORKSPACE.derive_domain_xml(
+            source, source_uuid=SOURCE_UUID, source_name="fixture-macos",
+            target_uuid=TARGET_UUID, target_name="fixture-derived",
+            target_disk="/example/derived-system.qcow2",
+            target_boot_disk="/example/derived-opencore.qcow2",
+            target_nvram="/example/derived-vars.fd", nvram_template="/example/template.fd",
+            require_secure_boot=False, require_tpm2=False, profile=PROVIDER.MACOS_PROFILE,
+        )
+        inspected = PROVIDER.validate_domain_xml(
+            result, expected_uuid=TARGET_UUID, expected_name="fixture-derived",
+            require_secure_boot=False, require_tpm2=False, profile=PROVIDER.MACOS_PROFILE,
+        )
+        self.assertEqual(inspected["primaryDisk"]["path"], "/example/derived-system.qcow2")
+        self.assertEqual(inspected["bootDisk"]["path"], "/example/derived-opencore.qcow2")
+        nvram = ET.fromstring(result).find("./os/nvram")
+        self.assertEqual(nvram.text, "/example/derived-vars.fd")
+        self.assertEqual(nvram.get("template"), "/example/vars.fd")
+
     def derived(self):
         return WORKSPACE.derive_domain_xml(
             SOURCE_XML,

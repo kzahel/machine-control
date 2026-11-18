@@ -178,7 +178,8 @@ libvirt_workspace_acquire_persistent() {
 libvirt_workspace_cleanup_derived() {
     local target_name="$1" target_id="$2" source_name="$3" source_id="$4"
     libvirt_workspace_domain_for "$target_name" "$target_id" release \
-        --source-name "$source_name" --source-uuid "$source_id"
+        --source-name "$source_name" --source-uuid "$source_id" \
+        --nvram-directory "$LIBVIRT_WORKSPACE_NVRAM_DIRECTORY"
 }
 
 libvirt_workspace_acquire_derived() {

@@ -13,6 +13,7 @@ SPEC.loader.exec_module(MODULE)
 
 
 DOMAIN_UUID = "11111111-2222-4333-8444-555555555555"
+MACOS_XML = (Path(__file__).parent / "fixtures/macos-intel.xml").read_text()
 
 
 def domain_xml(
@@ -146,6 +147,29 @@ class RecoveryInputTests(unittest.TestCase):
         self.assertEqual(events[4]["data"]["value"], 0x7FFF)
         with self.assertRaisesRegex(MODULE.ProviderError, "out of bounds"):
             MODULE.pointer_events(1280, 800, 1280, 0, "left")
+
+
+class MacOSLayoutTests(unittest.TestCase):
+    def validate(self, value):
+        return MODULE.validate_domain_xml(
+            value, expected_uuid=DOMAIN_UUID, expected_name="fixture-macos",
+            require_secure_boot=False, require_tpm2=False, profile=MODULE.MACOS_PROFILE,
+        )
+
+    def test_macos_accepts_two_disk_roles_and_ssh_without_guest_agent(self):
+        manifest = self.validate(MACOS_XML)
+        self.assertEqual(manifest["bootDisk"]["path"], "/example/opencore.qcow2")
+        self.assertEqual(manifest["primaryDisk"]["path"], "/example/system.qcow2")
+        self.assertEqual(manifest["readinessTransport"], "ssh")
+        self.assertFalse(manifest["guestAgentChannel"])
+
+    def test_macos_refuses_a_shared_boot_and_system_disk(self):
+        with self.assertRaisesRegex(MODULE.ProviderError, "distinct firmware and disk"):
+            self.validate(MACOS_XML.replace("/example/system.qcow2", "/example/opencore.qcow2"))
+
+    def test_macos_refuses_qemu_arguments_that_override_the_machine(self):
+        with self.assertRaisesRegex(MODULE.ProviderError, "Unexpected macOS QEMU argument"):
+            self.validate(MACOS_XML.replace('value="-cpu"', 'value="-machine"'))
 
 
 if __name__ == "__main__":

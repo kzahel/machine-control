@@ -167,8 +167,9 @@ distinguishes fixture validation from live provider evidence.
 **Current:** Windows and Linux lifecycle use UTM/QEMU on macOS and
 [libvirt QEMU/KVM](https://libvirt.org/drvqemu.html) on Linux. The Tart
 macOS profile owns registered workspaces. The bounded [Intel Tahoe profile](../platforms/macos/docs/intel-kvm.md)
-uses an existing Quickemu/KVM guest with pinned disks. Libvirt import and
-multi-disk workspace derivation are open for that profile.
+uses pinned disks for the retained Quickemu guest and libvirt to derive
+workspaces from a separate stopped base. Libvirt gives each Intel macOS
+workspace separate OpenCore and system overlays and independent writable NVRAM.
 UTM exposes non-persistent start and registered clone operations. Tart exposes
 APFS copy-on-write local clones. Libvirt uses receipt-bound transient domains
 over QCOW2 backing overlays. Existing provider-specific commands remain

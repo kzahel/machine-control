@@ -68,9 +68,9 @@ class QemuIdentityTests(unittest.TestCase):
     def test_changed_console_frame_does_not_open_the_secret(self):
         identity = QemuIdentity()
         with (
-            patch("identity.Keyboard") as constructor,
-            patch("identity.observed_frame", return_value=b"observed"),
-            patch("identity.time.sleep"),
+            patch("recovery.Keyboard") as constructor,
+            patch("recovery.observed_frame", return_value=b"observed"),
+            patch("recovery.time.sleep"),
             patch.object(identity, "screenshot", side_effect=lambda path: path.write_bytes(b"changed")),
         ):
             keyboard = constructor.return_value.__enter__.return_value

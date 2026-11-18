@@ -162,7 +162,7 @@ and [Tactical 037](docs/tactical/037-windows-unlock-arming.md).
 | Repository | Administration/inner control | Outer control |
 | --- | --- | --- |
 | [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM/macOS and libvirt/Linux lifecycle/workspace policy, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM or headless QEMU screenshot and input remain explicit recovery routes |
-| [`platforms/macos`](platforms/macos/README.md) | Authoritative Tart lifecycle/COW-workspace policy, minimized doctor, the macOS resident, and the explicit existing-session unlock helper. The [Intel KVM profile](platforms/macos/docs/intel-kvm.md) binds an existing Quickemu VM to exact-target claims and pinned guest SSH | Tart for Tart guests. Unix QMP and loopback VNC for Intel KVM bootstrap and recovery |
+| [`platforms/macos`](platforms/macos/README.md) | Tart lifecycle and COW workspaces, the macOS resident, and the explicit existing-session unlock helper. The [Intel KVM profile](platforms/macos/docs/intel-kvm.md) owns claimed Quickemu and libvirt lifecycle, libvirt workspaces, and pinned guest SSH | Tart for Tart guests. QMP and loopback VNC for Intel KVM bootstrap and recovery |
 | [`platforms/linux`](platforms/linux/README.md) | Authoritative UTM/macOS and libvirt/Linux lifecycle/workspace policy, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM or headless QEMU screenshot and input remain explicit recovery routes |
 
 These repositories implement the right broad ordering: lifecycle and

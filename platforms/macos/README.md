@@ -32,9 +32,9 @@ The semantic helper has no provider-packaged exclusions for the Dock, menu
 bar, System Settings, or ordinary desktop applications. macOS consent and
 integrity boundaries still apply.
 
-The [Intel Tahoe on Linux/KVM guide](docs/intel-kvm.md) covers the bounded
-Quickemu/OpenCore appliance profile. It uses the installed Intel desktop
-package and native resident through pinned guest SSH, with QMP and loopback
+The [Intel Tahoe on Linux/KVM guide](docs/intel-kvm.md) covers the retained
+Quickemu/OpenCore appliance and disposable libvirt workspaces. Both use the
+installed Intel desktop package through pinned guest SSH, with QMP and loopback
 VNC for bootstrap and recovery. The sections below cover the Tart appliance.
 
 ## Quick Start With A Prepared Image

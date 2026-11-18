@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import ipaddress
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
 import re
 import shutil
@@ -26,6 +26,15 @@ import xml.etree.ElementTree as ET
 HOST_SCHEMA = "machine-control-libvirt-host-doctor/v0"
 INSPECT_SCHEMA = "machine-control-libvirt-domain-inspect/v0"
 ALLOWED_URI = "qemu:///system"
+MACOS_PROFILE = "macos-intel"
+QEMU_NAMESPACE = "http://libvirt.org/schemas/domain/qemu/1.0"
+MACOS_QEMU_GLOBALS = frozenset({
+    "kvm-pit.lost_tick_policy=discard",
+    "ICH9-LPC.disable_s3=1",
+    "ICH9-LPC.acpi-pci-hotplug-with-bridge-support=off",
+    "nec-usb-xhci.msi=off",
+    "driver=cfi.pflash01,property=secure,value=on",
+})
 
 
 class ProviderError(RuntimeError):
@@ -50,6 +59,7 @@ class Configuration:
     minimum_free_bytes: int
     require_secure_boot: bool
     require_tpm2: bool
+    profile: str = "standard"
 
     @classmethod
     def from_environment(cls) -> "Configuration":
@@ -75,6 +85,7 @@ class Configuration:
             require_tpm2=boolean_environment(
                 "MC_LIBVIRT_REQUIRE_TPM2", False
             ),
+            profile=os.environ.get("MC_LIBVIRT_PROFILE", "standard"),
         )
 
 
@@ -351,6 +362,81 @@ def required_element(root: ET.Element, path: str, reason: str) -> ET.Element:
     return element
 
 
+def validate_macos_qemu_args(root: ET.Element) -> None:
+    namespace = f"{{{QEMU_NAMESPACE}}}"
+    extensions = [element for element in root if element.tag.startswith(namespace)]
+    if not extensions:
+        return
+    command = extensions[0]
+    args = list(command)
+    if (
+        len(extensions) != 1 or command.tag != namespace + "commandline"
+        or len(args) % 2 or len(args) > 14
+        or any(arg.tag != namespace + "arg" for arg in args)
+    ):
+        raise ProviderError("domain_incompatible", "Unexpected macOS QEMU extension")
+    seen = set()
+    for option, argument in zip(args[::2], args[1::2]):
+        name = option.get("value", "")
+        value = argument.get("value", "")
+        if name == "-device":
+            valid = re.fullmatch(r"isa-applesmc,osk=[ -~]{1,128}", value) and "," not in value[17:]
+        elif name == "-cpu":
+            model, *features = value.split(",")
+            valid = model == "Haswell-v2" and all(
+                word in {"vendor=GenuineIntel", "vmware-cpuid-freq=on"}
+                or re.fullmatch(r"[+-][a-z0-9_.-]{1,20}", word)
+                for word in features
+            )
+        else:
+            valid = name == "-global" and value in MACOS_QEMU_GLOBALS
+        identity = value if name == "-global" else name
+        if not valid or identity in seen:
+            raise ProviderError("domain_incompatible", "Unexpected macOS QEMU argument")
+        seen.add(identity)
+
+
+def macos_layout(root: ET.Element, disks: list[ET.Element]) -> dict[str, Any]:
+    """Check the explicit OpenCore boot disk and writable Tahoe system disk."""
+    roles = {}
+    for disk in disks:
+        target = disk.find("target")
+        driver = disk.find("driver")
+        source = disk.find("source")
+        if target is None or driver is None or source is None:
+            raise ProviderError("domain_incompatible", "A macOS disk lacks its device definition")
+        device = (target.get("dev"), target.get("bus"))
+        role = {("sda", "sata"): "bootDisk", ("vda", "virtio"): "primaryDisk"}.get(device)
+        path = source.get("file", "")
+        boot = disk.find("boot")
+        if (role is None or role in roles or driver.get("type") != "qcow2"
+                or not PurePosixPath(path).is_absolute() or disk.find("readonly") is not None
+                or (role == "bootDisk" and (boot is None or boot.get("order") != "1"))
+                or (role == "primaryDisk" and boot is not None)):
+            raise ProviderError("domain_incompatible", "A macOS disk does not match its expected role")
+        roles[role] = {"format": "qcow2", "bus": device[1], "path": path}
+    if roles.keys() != {"bootDisk", "primaryDisk"}:
+        raise ProviderError("domain_incompatible", "OpenCore and system disks are required")
+
+    loader = required_element(root, "./os/loader", "macOS UEFI firmware is missing")
+    loader_path = loader.text or ""
+    nvram = root.findtext("./os/nvram") or ""
+    paths = [loader_path, nvram, *(device["path"] for device in roles.values())]
+    if (loader.get("readonly") != "yes" or loader.get("type") != "pflash"
+            or not all(PurePosixPath(path).is_absolute() for path in paths)
+            or len({os.path.realpath(path) for path in paths}) != len(paths)):
+        raise ProviderError("domain_incompatible", "macOS requires distinct firmware and disk files")
+    network = root.findall("./devices/interface")
+    if len(network) != 1 or network[0].get("type") != "network":
+        raise ProviderError("domain_incompatible", "macOS requires one managed network interface")
+    net_source = network[0].find("source")
+    if net_source is None or not net_source.get("network"):
+        raise ProviderError("domain_incompatible", "The macOS managed network is missing")
+
+    validate_macos_qemu_args(root)
+    return {**roles, "nvramPath": nvram, "network": net_source.get("network")}
+
+
 def validate_domain_xml(
     xml_text: str,
     *,
@@ -358,7 +444,10 @@ def validate_domain_xml(
     expected_name: str,
     require_secure_boot: bool,
     require_tpm2: bool,
+    profile: str = "standard",
 ) -> dict[str, Any]:
+    if profile not in {"standard", MACOS_PROFILE}:
+        raise ProviderError("configuration_invalid", "Unknown libvirt domain profile")
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError as error:
@@ -411,12 +500,32 @@ def validate_domain_xml(
         target.get("name") == "org.qemu.guest_agent.0"
         for target in root.findall("./devices/channel/target")
     )
-    if not guest_agent:
+    if profile == "standard" and not guest_agent:
         raise ProviderError(
             "guest_agent_channel_required",
             "The domain must expose the QEMU guest-agent channel",
         )
     disks = root.findall("./devices/disk[@device='disk']")
+    interface_models = {
+        model.get("type") for model in root.findall("./devices/interface/model")
+    }
+    if "virtio" not in interface_models:
+        raise ProviderError(
+            "domain_incompatible", "The domain network must use VirtIO"
+        )
+    report = {
+        "schema": INSPECT_SCHEMA,
+        "identityVerified": True,
+        "architecture": architecture,
+        "domainType": "kvm",
+        "machine": "q35",
+        "acceleration": "kvm",
+        "secureBoot": secure_boot,
+        "tpm2": tpm2,
+        "guestAgentChannel": guest_agent,
+    }
+    if profile == MACOS_PROFILE:
+        return {**report, **macos_layout(root, disks), "readinessTransport": "ssh"}
     if len(disks) != 1:
         raise ProviderError(
             "domain_incompatible", "The domain must have one primary system disk"
@@ -440,23 +549,8 @@ def validate_domain_xml(
         raise ProviderError(
             "domain_incompatible", "The primary disk must have an absolute path"
         )
-    interface_models = {
-        model.get("type") for model in root.findall("./devices/interface/model")
-    }
-    if "virtio" not in interface_models:
-        raise ProviderError(
-            "domain_incompatible", "The domain network must use VirtIO"
-        )
     return {
-        "schema": INSPECT_SCHEMA,
-        "identityVerified": True,
-        "architecture": architecture,
-        "domainType": "kvm",
-        "machine": "q35",
-        "acceleration": "kvm",
-        "secureBoot": secure_boot,
-        "tpm2": tpm2,
-        "guestAgentChannel": guest_agent,
+        **report,
         "primaryDisk": {"format": "qcow2", "bus": "virtio", "path": disk_path},
     }
 
@@ -477,13 +571,17 @@ def inspect_domain(
             "identity_mismatch", "The exact provider identity does not match"
         )
     xml_text = provider.text("dumpxml", "--inactive", expected_uuid)
-    return validate_domain_xml(
+    value = validate_domain_xml(
         xml_text,
         expected_uuid=expected_uuid,
         expected_name=configuration.domain_name,
         require_secure_boot=configuration.require_secure_boot,
         require_tpm2=configuration.require_tpm2,
+        profile=configuration.profile,
     )
+    if configuration.profile == MACOS_PROFILE and value["network"] != configuration.network:
+        raise ProviderError("identity_mismatch", "The macOS network does not match private inventory")
+    return value
 
 
 def resolve_domain_uuid(
@@ -503,6 +601,7 @@ def resolve_domain_uuid(
         expected_name=configuration.domain_name,
         require_secure_boot=configuration.require_secure_boot,
         require_tpm2=configuration.require_tpm2,
+        profile=configuration.profile,
     )
     return actual_uuid
 
@@ -535,7 +634,7 @@ def query_kvm(configuration: Configuration, provider: Libvirt) -> bool:
 
 
 def require_live_kvm(configuration: Configuration, provider: Libvirt) -> None:
-    inspect_domain(configuration, provider)
+    inactive = inspect_domain(configuration, provider)
     if domain_state(configuration, provider) != "started":
         raise ProviderError("target_not_running", "The domain is not running")
     if not query_kvm(configuration, provider):
@@ -543,6 +642,17 @@ def require_live_kvm(configuration: Configuration, provider: Libvirt) -> None:
             "hardware_acceleration_required",
             "The running domain is not using KVM acceleration",
         )
+    if configuration.profile == MACOS_PROFILE:
+        live = validate_domain_xml(
+            provider.text("dumpxml", configuration.expected_uuid),
+            expected_uuid=configuration.expected_uuid,
+            expected_name=configuration.domain_name,
+            require_secure_boot=configuration.require_secure_boot,
+            require_tpm2=configuration.require_tpm2,
+            profile=configuration.profile,
+        )
+        if live != inactive:
+            raise ProviderError("identity_mismatch", "Live macOS layout differs from the pinned domain")
 
 
 def recovery_screenshot(
@@ -580,7 +690,10 @@ def recovery_screenshot(
         arguments = [converter]
         if Path(converter).name == "magick":
             arguments.append("convert")
-        arguments.extend([str(temporary), f"png:{output}"])
+        arguments.append(str(temporary))
+        if configuration.profile == MACOS_PROFILE:
+            arguments.append("-strip")
+        arguments.append(f"png:{output}")
         run(arguments, timeout=60)
         with output.open("rb") as captured:
             header = captured.read(24)
@@ -859,17 +972,19 @@ def shutdown_domain(configuration: Configuration, provider: Libvirt) -> None:
         raise ProviderError(
             "lifecycle_state_invalid", "The domain is not in a stoppable state"
         )
-    result = provider.command(
-        "shutdown",
-        configuration.expected_uuid,
-        "--mode",
-        "agent",
-        check=False,
-    )
-    if result.returncode != 0:
+    if configuration.profile == MACOS_PROFILE:
+        require_live_kvm(configuration, provider)
         provider.command(
             "shutdown", configuration.expected_uuid, "--mode", "acpi"
         )
+    else:
+        result = provider.command(
+            "shutdown", configuration.expected_uuid, "--mode", "agent", check=False
+        )
+        if result.returncode != 0:
+            provider.command(
+                "shutdown", configuration.expected_uuid, "--mode", "acpi"
+            )
     wait_for_state(
         configuration, provider, "stopped", configuration.shutdown_timeout
     )
@@ -882,6 +997,8 @@ def agent_command(
     *,
     timeout: int | None = None,
 ) -> Any:
+    if configuration.profile == MACOS_PROFILE:
+        raise ProviderError("guest_agent_unavailable", "The macOS profile uses pinned SSH")
     result = provider.text(
         "qemu-agent-command",
         configuration.expected_uuid,
@@ -1094,6 +1211,10 @@ def guest_ipv4(
     *,
     allow_start: bool,
 ) -> str:
+    if configuration.profile == MACOS_PROFILE:
+        if allow_start:
+            start_domain(configuration, provider)
+        return dhcp_lease_ipv4(configuration, provider)
     if allow_start:
         start_domain(configuration, provider)
     elif domain_state(configuration, provider) != "started":
@@ -1120,6 +1241,21 @@ def guest_ipv4(
     raise ProviderError(
         "guest_address_unavailable", "The guest IPv4 address is unavailable"
     )
+
+
+def dhcp_lease_ipv4(configuration: Configuration, provider: Libvirt) -> str:
+    require_live_kvm(configuration, provider)
+    leases = provider.text("domifaddr", configuration.expected_uuid, "--source", "lease")
+    addresses = set()
+    for row in leases.splitlines():
+        fields = row.split()
+        if len(fields) == 4 and fields[2] == "ipv4":
+            ip = ipaddress.IPv4Interface(fields[3]).ip
+            if not (ip.is_unspecified or ip.is_loopback or ip.is_link_local or ip.is_multicast):
+                addresses.add(str(ip))
+    if len(addresses) != 1:
+        raise ProviderError("guest_address_unavailable", "One current guest IPv4 lease is required")
+    return addresses.pop()
 
 
 def linux_boot_id(

@@ -15,6 +15,13 @@ qualification record. The [Quickemu dossier](../providers/quickemu.md) describes
 the outer provider and the [Intel KVM guide](../../platforms/macos/docs/intel-kvm.md)
 owns bootstrap and recovery.
 
+**Current, bounded `live-tested`:** The same signed app reached native
+readiness after guarded sign-in on an independent libvirt import and on a
+derived workspace. Separate role-bound QCOW2 overlays and independent NVRAM
+passed a write-and-discard isolation check across two successive workspaces.
+[Tactical 164](../../docs/tactical/164-intel-macos-recovery-and-workspaces.md)
+owns the import, idle recovery, and workspace evidence.
+
 ## Shared ordinary permissions
 
 **Current (2026-11-04), bounded `conformance-tested`:** the unreleased Swift
