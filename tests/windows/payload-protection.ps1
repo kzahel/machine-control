@@ -13,10 +13,23 @@ function Refuses([scriptblock]$Operation) {
     Assert $refused ('Expected filesystem operation to refuse: ' + $Operation.ToString().Trim())
 }
 function Payload {
-    New-Item -ItemType Directory (Join-Path $root 'mc-cli\client'),(Join-Path $root 'runtime') -Force | Out-Null
+    $client = Join-Path $root 'mc-cli\client'
+    $source = Join-Path $client 'fixture.py'
+    New-Item -ItemType Directory $client,(Join-Path $root 'runtime') -Force | Out-Null
     Set-Content -LiteralPath (Join-Path $root 'mc-cli\client-runtime.json') -Value '{"schema":"machine-control-client-identity/v1"}'
     Set-Content -LiteralPath (Join-Path $root 'runtime\desktop-runtime.json') -Value '{"schema":"machine-control-desktop-runtime/v0"}'
-    Set-Content -LiteralPath (Join-Path $root 'mc-cli\client\fixture.py') -Value 'value = 1'
+    Set-Content -LiteralPath $source -Value 'value = 1'
+    # Hosted runners can give children explicit grants before protection.
+    # An inherited deny alone loses to those grants.
+    $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $allow = [Security.AccessControl.FileSystemAccessRule]::new(
+        $sid, [Security.AccessControl.FileSystemRights]::FullControl,
+        [Security.AccessControl.AccessControlType]::Allow)
+    foreach ($path in @($client, $source)) {
+        $acl = Get-Acl -LiteralPath $path
+        $acl.AddAccessRule($allow)
+        Set-Acl -LiteralPath $path -AclObject $acl
+    }
 }
 try {
     Payload

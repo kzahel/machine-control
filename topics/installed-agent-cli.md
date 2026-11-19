@@ -71,8 +71,10 @@ resource directories (`mc-cli` and `runtime`) rather than overlaying files.
 Cleanup refuses links and unrecognized directories; a matching registered
 install location also permits leftovers whose receipts an older uninstaller
 already removed. Product state and registrations are outside these trees.
-The installer applies an inheritable current-user ACL denying file/directory
-writes to `mc-cli`, and removes that exact rule before uninstall or repair.
+The installer explicitly denies current-user writes on each item in `mc-cli`.
+Uninstall removes that deny rule. Repair replaces the owned trees using their
+existing deletion rights. Explicit denies take precedence over existing grants
+on child items.
 The Windows PowerShell helper loads inbox modules from its own installation.
 This keeps ACL commands available when NSIS inherits `PSModulePath` from
 PowerShell 7. Filesystem acceptance checks directory creation and Python
@@ -115,6 +117,12 @@ Windows PowerShell. Loading the host's inbox modules fixed that invocation in
 the VM. The VM's SSH token could create empty directories through the deny
 ACL with backup and restore privileges enabled. Disabling those privileges in
 the Python probe made directory creation fail and left no bytecode cache.
+The next signed candidate passed fresh install and repair, then failed the
+relocated CLI byte inventory. Hosted x64 and ARM64 diagnostics found the
+inherited deny lost to existing explicit grants on child items. A direct import
+created 67 bytecode files on each runner, including in the original protected
+tree. With explicit denies, both hosted architectures passed the full bundled
+CLI smoke and the explicit-grant write, repair, and removal fixture.
 
 **Open:** YA still collapses signature, payload and environment failures into
 one unverified-release message. Its consumer owns that separate diagnostic fix.

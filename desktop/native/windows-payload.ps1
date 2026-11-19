@@ -16,20 +16,22 @@ if (-not (Test-Path -LiteralPath $root)) { return }
 if ((Get-Item -LiteralPath $root -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
     throw 'Installation directory must not be a link'
 }
-$payloads = @('mc-cli', 'runtime') | ForEach-Object { Join-Path $root $_ }
+$cli = Join-Path $root 'mc-cli'
+$runtime = Join-Path $root 'runtime'
+$payloads = @($cli, $runtime)
 # Inspect before changing anything, including junctions below owned directories.
 function Inspect([string]$Path) {
     $item = Get-Item -LiteralPath $Path -Force
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
         throw 'Installed payload must not contain links'
     }
+    $item
     if ($item.PSIsContainer) {
         foreach ($child in Get-ChildItem -LiteralPath $Path -Force) { Inspect $child.FullName }
     }
 }
-foreach ($path in $payloads) {
-    if (Test-Path -LiteralPath $path) { Inspect $path }
-}
+$cliItems = @(if (Test-Path -LiteralPath $cli) { Inspect $cli })
+if (Test-Path -LiteralPath $runtime) { Inspect $runtime | Out-Null }
 if ($Action -eq 'prepare') {
     # An old uninstaller can remove receipts while leaving obsolete files.
     # In that case the installer's registered directory must establish ownership.
@@ -48,20 +50,24 @@ if ($Action -eq 'prepare') {
         }
     }
 }
-$cli = Join-Path $root 'mc-cli'
-if (Test-Path -LiteralPath $cli) {
+if ($Action -ne 'prepare' -and $cliItems.Count -gt 0) {
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
-    # Only deny creating/writing files and directories. Preserve delete and
-    # change-permissions rights so the installer can replace the owned tree.
-    $rule = [Security.AccessControl.FileSystemAccessRule]::new(
-        $sid, [Security.AccessControl.FileSystemRights]'WriteData,AppendData',
+    $rights = [Security.AccessControl.FileSystemRights]'WriteData,AppendData'
+    $deny = [Security.AccessControl.AccessControlType]::Deny
+    # Existing explicit grants take precedence over a deny inherited from the
+    # CLI root. Deny writes on each installed item without removing grants or
+    # denying deletion or ACL changes.
+    $rule = [Security.AccessControl.FileSystemAccessRule]::new($sid, $rights, $deny)
+    $oldRule = [Security.AccessControl.FileSystemAccessRule]::new($sid, $rights,
         [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
-        [Security.AccessControl.PropagationFlags]::None,
-        [Security.AccessControl.AccessControlType]::Deny)
-    $acl = Get-Acl -LiteralPath $cli
-    $acl.RemoveAccessRuleSpecific($rule)
-    if ($Action -eq 'protect') { $acl.AddAccessRule($rule) }
-    Set-Acl -LiteralPath $cli -AclObject $acl
+        [Security.AccessControl.PropagationFlags]::None, $deny)
+    foreach ($item in $cliItems) {
+        $acl = Get-Acl -LiteralPath $item.FullName
+        if ($item.FullName -eq $cliItems[0].FullName) { $acl.RemoveAccessRuleSpecific($oldRule) }
+        $acl.RemoveAccessRuleSpecific($rule)
+        if ($Action -eq 'protect') { $acl.AddAccessRule($rule) }
+        Set-Acl -LiteralPath $item.FullName -AclObject $acl
+    }
 }
 if ($Action -eq 'prepare') {
     # These directories are immutable product resources, not a user-data store.
