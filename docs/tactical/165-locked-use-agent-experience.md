@@ -120,4 +120,28 @@ Run unit and contract tests for any changed code.
 
 ## Results
 
-Pending.
+### Physical workstation, unlocked, published 0.7.2 (2026-11-19)
+
+Operator-approved check against a throwaway local page in one background tab
+of a real Chrome profile; Browser Automatic with a 5-second notice. The tab
+was closed and the claim released afterwards.
+
+- **Current, item 5 confirmed with a refinement.** Each one-shot CLI command
+  that needs ownership opens its own `ControlSession`
+  (`client/control_session.py` `complete_session_handoff`). `browser navigate`
+  and `browser click` each took about 7 seconds, which matches a separate
+  5-second notice per call. `browser snapshot` took 2 seconds: a background-only
+  read does not wait for a notice. One `control stream` paid the notice once
+  (6.5 seconds for its first request), and its following click took 0.2 seconds.
+- **Current, new finding.** A reference from a one-shot `browser snapshot`
+  is refused as `stale_reference` (`delivery: refused`, no click effect) when a
+  separate `browser click` uses it. The reference embeds the owner session, and
+  every one-shot command has a new session. Inside one `control stream`, the
+  same snapshot-then-click sequence had an independently observed effect. This
+  explains the repeated `stale_reference` reports. The one-shot
+  `browser snapshot` / `browser click` pair that the help text suggests cannot
+  work.
+- **Current, item 3 confirmed.** In a Browser `control stream`, a `status`
+  request returned `operation_not_permitted_by_control_channel` as a client
+  error. The stream then exited with code 2 and did not answer the next request.
+  A refusal that was never dispatched still ends the owner.
