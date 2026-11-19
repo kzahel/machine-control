@@ -369,6 +369,36 @@ class ControlSessionTests(unittest.TestCase):
             self.assertEqual(len(results), 1)
             self.assertEqual(self.record.read_text().splitlines().count("effect"), 1)
 
+    def test_stream_survives_refusals_that_dispatched_nothing(self):
+        status = dict(schema="machine-control/v0", requestId="status", operation="status", accepted=True,
+            actualRoute="fixture", generation="fixture-generation", hostInterference="none", elapsedMs=0,
+            delivery="not_applicable", effect="not_applicable", uncertainty="none", data={"desktopState": "locked"})
+        completed = subprocess.CompletedProcess([], 0, stdout=json.dumps(status))
+        requests = (b'{"operation":"status"}\n{"operation":"snapshot"}\n{"operation":"click"}\n'
+                    b'{"operation":"forbidden"}\n{"operation":"desktop.status"}\n{"operation":"snapshot"}\n')
+        with patch.object(mc, "run_adapter", return_value=(completed, status, 1)) as adapter:
+            code, results = self.stream(requests, "refusals")
+        self.assertEqual(code, 0)
+        self.assertEqual([row.get("errorCode") for row in results],
+                         [None, None, "stale_reference", "operation_not_permitted_by_control_channel", None, None])
+        self.assertEqual(results[0]["data"], {"desktopState": "locked"})
+        self.assertEqual(results[3]["retrySafety"], "safe_not_dispatched")
+        self.assertEqual(adapter.call_count, 2)
+        events = self.record.read_text().splitlines()
+        self.assertEqual(events.count("control.open"), 1)
+        self.assertEqual(events.count("effect"), 2)
+        self.assertEqual(events.count("refused"), 2)
+
+    def test_one_shot_call_still_ends_on_any_refusal(self):
+        target = dict(self.target, platform="windows", environment={**self.target["environment"], "MC_ADMISSION_FIXTURE": "refusals"})
+        with redirect_stdout(io.StringIO()) as out:
+            code = handle_control("fixture", target, ["call", '{"operation":"click"}', "--reason", "fixture"])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(out.getvalue())["errorCode"], "stale_reference")
+        with self.assertRaises(mc.ClientError) as error:
+            handle_control("fixture", target, ["call", '{"operation":"forbidden"}', "--reason", "fixture"])
+        self.assertEqual(error.exception.code, "operation_not_permitted_by_control_channel")
+
     def test_refusal_that_ends_the_owner_reports_its_terminal_reason(self):
         code, results = self.stream(b'{"operation":"snapshot"}\n{"operation":"snapshot"}\n', "audit-ended")
         self.assertEqual(code, 1)

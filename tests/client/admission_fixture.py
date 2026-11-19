@@ -111,6 +111,19 @@ for line in sys.stdin.buffer:
                 delivery="refused",effect="refused",uncertainty="none",retrySafety="safe_not_dispatched")
             print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
             continue
+        if mode == "refusals" and request["request"]["operation"] == "click":
+            # A provider refusal before dispatch, such as a stale reference.
+            event("refused")
+            data = dict(schema="machine-control/v0", accepted=False, operation="click", errorCode="stale_reference",
+                delivery="refused", effect="refused", uncertainty="none", retrySafety="safe_not_dispatched")
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
+            continue
+        if mode == "refusals" and request["request"]["operation"] in {"status", "forbidden"}:
+            # The owner channel itself refuses an operation outside its surface.
+            event("refused")
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=False,
+                errorCode="operation_not_permitted_by_control_channel")), flush=True)
+            continue
         if mode == "record-request":
             action = request["request"]
             event("request:" + json.dumps(action, sort_keys=True))

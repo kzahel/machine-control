@@ -589,6 +589,41 @@ def ended_owner(session, error_code, *, settle=3.0):
         time.sleep(0.25)
 
 
+# A stream answers these from ordinary read-only status, not its owner channel.
+STREAM_STATUS_OPERATIONS = frozenset({"status", "desktop.status"})
+# Channel refusals raised before any provider dispatch; the owner stays live.
+CHANNEL_UNDISPATCHED_REFUSALS = frozenset({"operation_not_permitted_by_control_channel"})
+
+
+def stream_status(target, request):
+    if set(request) != {"operation"}:
+        return undispatched_refusal(request, mc.ClientError(
+            "invalid_control_request", "Stream status takes no other fields"))
+    _, parsed, _ = mc.run_adapter(target, ["control", '{"operation":"status"}'], accept_json_failure=True)
+    return mc.validate_resident(parsed, target["platform"])
+
+
+def undispatched_refusal(request, error):
+    return {"accepted": False, "errorCode": error.code, "message": str(error),
+            "operation": str(request.get("operation", "")), "delivery": "refused", "effect": "refused",
+            "uncertainty": "none", "retrySafety": "safe_not_dispatched",
+            **({"data": error.data} if isinstance(error.data, dict) else {})}
+
+
+def stream_continues(session, value):
+    """Keep a live stream after a refusal that provably dispatched nothing.
+
+    Uncertain delivery, unknown or partial effects and any ended owner still
+    end the stream; nothing is ever replayed.
+    """
+    if value.get("accepted") is not False:
+        return value.get("delivery") not in {"unknown", "refused"} and value.get("effect") not in {"unknown", "partial"}
+    if value.get("controlOwner") is not None or session.failure is not None:
+        return False
+    return (value.get("delivery") == "refused" and value.get("uncertainty") == "none"
+            and value.get("retrySafety") == "safe_not_dispatched")
+
+
 def handle_control(alias, target, arguments):
     if arguments == ["status"]:
         return mc.send_resident_request(alias, target, {"operation":"status"})
@@ -655,7 +690,17 @@ def handle_control(alias, target, arguments):
             session.wait()
             request = first
             while True:
-                value = session.call(request)
+                stream = options.command == "stream"
+                if stream and request["operation"] in STREAM_STATUS_OPERATIONS:
+                    # Read-only discovery needs no owner; the channel refuses it.
+                    value = stream_status(target, request)
+                else:
+                    try:
+                        value = session.call(request)
+                    except mc.ClientError as error:
+                        if not stream or error.code not in CHANNEL_UNDISPATCHED_REFUSALS or session.failure is not None:
+                            raise
+                        value = undispatched_refusal(request, error)
                 if not value["accepted"]:
                     owner = ended_owner(session, value.get("errorCode"))
                     if owner is not None:
@@ -664,10 +709,15 @@ def handle_control(alias, target, arguments):
                 # next input. Confirmed delivery with an unverifiable effect
                 # needs a follow-up observation under the same owner. Preserve
                 # that uncertainty; never mistake it for lost delivery.
-                if options.command == "stream":
+                if stream:
                     print(json.dumps(value, separators=(",", ":")), flush=True)
                 else:
                     mc.emit(value)
+                if stream and stream_continues(session, value):
+                    request = next(pending, None)
+                    if request is None:
+                        return 0
+                    continue
                 if not value["accepted"] or value.get("delivery") in {"unknown", "refused"} \
                         or value.get("effect") in {"unknown", "partial"}:
                     return 1
