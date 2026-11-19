@@ -1,6 +1,7 @@
 # Tactical 165 — Locked-use agent experience verification
 
-Status: in progress — reproduction before repair.
+Status: VM-qualified repairs complete; physical takeover cells and Windows
+compilation remain open.
 
 Topics: [macOS locked use](../../topics/macos-locked-use.md),
 [access admission and pause](../../topics/access-admission-and-pause.md),
@@ -145,3 +146,133 @@ was closed and the claim released afterwards.
   request returned `operation_not_permitted_by_control_channel` as a client
   error. The stream then exited with code 2 and did not answer the next request.
   A refusal that was never dispatched still ends the owner.
+
+### Disposable Tart workspace, current source (2026-11-19)
+
+The test was an isolated discard-on-release workspace derived from a local
+Tahoe base: macOS 26.6.2 guest, SIP disabled (Cirrus posture), one display.
+The full desktop app was built from source at this tactical's start, after
+`desktop-v0.7.2`. Only Python client files differ, so the resident behaves as
+0.7.2. The app was ad-hoc signed with the pinned development requirement and
+used the workstation policy. Through the real Settings UI, the setup chose
+Desktop and Browser Automatic until turned off, plus browser while locked and
+prepared tasks behind covers. The native helper was approved in System
+Settings with the stored VM credential through the one-shot transport.
+Chrome for Testing ran an isolated profile. The agent used the installed CLI
+inside the guest under its own claim. Locking used the checked-in
+`session-lock` tool, and lock state was read independently from
+`IOConsoleLocked`.
+
+- **Current, item 1 confirmed.** On a locked console, `target doctor` exits 1
+  with `ready: false` and `fail` for desktop, semantic and input.
+  `browserWhileLocked` reports `active: false, requiresUnlockedApproval:
+  true`, and `deployment.browserOnlyWhileLocked` is false. Yet `browser tabs`,
+  `browser navigate --new-tab` and `browser snapshot`, each opening a new owner
+  after the lock, all succeeded in about 1.7 seconds. There was no unlock, no
+  approval and no notice wait (notices are not shown while locked). `active`
+  stays false because the prepared Desktop route is also ready
+  (`Server.swift` `browserOnlyWhileLocked`), and `requiresUnlockedApproval` is a
+  constant. Both fields told the agent the opposite of what works.
+- **Current, new finding.** A plain one-shot Desktop request while locked,
+  without `--prepared-console`, also works. A flagless `control call`
+  `applications` succeeded in 29 seconds: macOS still admits a flagless owner
+  on a locked console as covered control, unlocks it behind covers and relocks
+  it (ending reason `cancelled`). Prepared-console use is the documented path,
+  but the flagless one-shot path is not refused.
+- **Current, item 3 confirmed while locked.** A prepared-console stream whose
+  first request was `status` answered after 15.7 seconds (covered startup) with
+  `operation_not_permitted_by_control_channel`. It then exited with code 2 and
+  relocked.
+- **Current, prepared hold.** A prepared-console stream whose first request was
+  `capabilities` was accepted. While it was held, `IOConsoleLocked` was false,
+  so the console is genuinely unlocked behind covers and a screen-lock check
+  such as the `xcodebuild` wrapper's would pass. Resident `desktopState` was
+  `unlocked`, `target doctor` reported `ready: true`, and one-shot browser calls
+  from another process still worked. Closing stdin relocked the console in
+  2.6 seconds, as independently observed.
+- **Current, long hold (item 7).** One prepared owner stayed active for 17
+  minutes under the same control session. It renewed about every three
+  minutes (remaining time went from about 100 seconds back to about 290), and
+  read requests at minutes 4, 8, 12 and 16 were accepted. A SIGKILL of the
+  owning CLI process relocked the console in 2.9 seconds. Locked use then
+  showed `recovering` (`owner_disconnected`, recovery condition
+  `same_console_locked_healthy_and_quiet`) and became `ready` again within
+  about 35 seconds, when a fresh prepared call succeeded. The claim has its own
+  four-hour ceiling. Locked use enforces no separate total limit on a renewed
+  owner, so agents' "15-minute" limit is only the renewal interval.
+- **Current, item 4 confirmed.** Restarting the resident while locked left
+  both surfaces Off. A Browser call refused with `surface_disabled` (`This
+  surface is Off`), and a prepared Desktop call ended with `surface_disabled`.
+  Doctor said only "the person enables a surface", without noting that this
+  needs an unlocked console. This is the one case reproduced here where an
+  agent truly needs the person.
+- **Current, new finding.** In a prepared-console stream, a read that races
+  covered activation is refused with `control_generation_changed` (no
+  delivery, no uncertainty) while the owner stays live. Before the repair below,
+  that also ended the stream.
+- **Correction and limit, item 6.** Guest Screen Sharing through a headless
+  AsyncVNC client connected as observe-only ("Your screen is being observed"):
+  typed password characters never reached the login field. So the pointer
+  movement and Escape sent that way during covered control show nothing about
+  how remote human input is classified; they were probably not delivered at
+  all. Kernel `IOHIDPostEvent` movement and an Escape key-down, from the
+  extended `kernel-pointer-fixture --key`, were delivered but did not end the
+  covered owner. The guard counts only events whose source process ID is 0, and
+  these carry the posting process. In this VM profile no available route
+  simulates physical takeover: the outer Tart window route is prohibited here
+  and would drive the controller desktop. Takeover by key, click or scroll,
+  movement tolerance, the `local_use_episode` pause after a password unlock,
+  and quiet resumption therefore remain **Open** for an operator-supervised
+  physical cell. Source review (`LockedUse.swift` event tap,
+  `Broker.m` pause handling) supports the documented design but does not
+  qualify it.
+
+### Repairs and their verification
+
+Commits `4b508f83`, `01bf3b04`, `371a52d9`, `d2e917b9` and `da1e84a3`. The
+same workspace was verified again with a rebuilt resident and the committed
+source client:
+
+- **Streams.** `status` and `desktop.status` inside a stream are answered
+  from ordinary read-only status. A refusal that dispatched nothing
+  (`safe_not_dispatched`) or a read that delivered nothing with no uncertainty
+  keeps the stream open. The locked VM sequence status, generation refusal,
+  capabilities, refused `browser.tabs`, status (now unlocked) and applications
+  ran on one owner and exited 0 with an observed relock. One-shot `control call`
+  is unchanged.
+- **Status.** On the locked console with a prepared route, `browserWhileLocked`
+  now reports `active: true, requiresUnlockedApproval: false` (macOS).
+  `requiresUnlockedApproval` is true only for Ask first on macOS, Linux and
+  Windows. A Browser stream worked while locked.
+- **Doctor.** Host doctors add `extensions.lockedConsole`. The client adds a
+  `locked_console` check, for example: "The console is locked. Browser
+  commands work now without unlocking. For Desktop work, or anything that needs
+  the session unlocked, hold `control stream --surface desktop
+  --prepared-console` ... Do not ask the person to unlock." With a prepared
+  route, the locked `fail` checks become `warn`. After a restart while locked it
+  reports access Off and that only the person can turn it on from an unlocked
+  console. `ready` keeps meaning ordinary unlocked readiness.
+- **keep-unlocked.** `control keep-unlocked --for D --reason TEXT` refused on
+  an unlocked console and when the claim was shorter than the hold. It unlocked
+  in about 12 seconds (`IOConsoleLocked` false and no
+  `CGSSessionScreenIsLocked`). It ended `duration_elapsed` after 2 minutes, and
+  ended `signal_sigterm` on SIGTERM, each with an observed relock.
+- **Agent instructions** describe these rules, the stale one-shot
+  references, and relock on owner process exit.
+
+### Remaining limits
+
+- The Windows `requiresUnlockedApproval` change and Windows `keep-unlocked`
+  use were not compiled or run: this controller lacks the .NET SDK and no
+  Windows target was exercised. Linux has no locked Desktop route;
+  `keep-unlocked` refuses there through `locked_use_unsupported`.
+- One-shot `browser snapshot` references remain stale for later one-shot
+  commands by design (owner-generation fencing). The repair is guidance to use
+  one stream, not a cross-owner reference model.
+- Physical takeover, password-unlock local-use pause and quiet resumption,
+  Touch ID, lid and multiple displays need the physical cell above.
+- A flagless one-shot Desktop request on a locked Mac is still admitted as
+  covered control (about 29 seconds per call). This tactical did not change it.
+- `browser_detached` in the original incident was not reproduced. The extension
+  emits it only when Chrome detaches its debugger, and an unlocked session hit
+  it too, so the lock is not its established cause.
