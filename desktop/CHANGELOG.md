@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.7.3]
+
+- When the console is locked, `target doctor` explains whether Browser
+  commands can run immediately and whether a prepared Desktop route is
+  available. Browser status reports when Ask first requires an unlocked console.
+- On a prepared, locked Mac, `control keep-unlocked --for D --reason TEXT`
+  temporarily holds the console unlocked behind covers. The console relocks
+  when the hold ends.
+- Control streams stay open after refusals that are safe to continue from,
+  including read requests that race the transition to a covered unlock.
 - Protect the bundled Python client from accidental cache and script writes
   in per-user Windows and macOS installs. Windows repair and updates also
   remove obsolete runtime files and Python caches that could make a signed
