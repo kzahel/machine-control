@@ -169,4 +169,20 @@ final class ServerTests: XCTestCase {
         XCTAssertFalse(broker.admission.enabled("desktop")); XCTAssertFalse(broker.admission.enabled("browser"))
         XCTAssertEqual((call(["operation":"browser.profiles"])["accepted"] as? Bool),true)
     }
+    func testLockedBrowserStatusIsTrueWhenPreparedDesktopIsAlsoReady() {
+        // A locked console with prepared covered Desktop control and Automatic
+        // Browser: Browser work is admitted now and needs no person.
+        let view = ResidentServer.browserWhileLockedView(supported:true, enabled:true, locked:true,
+                                                         browserAllowed:true, browserMode:"automatic")
+        XCTAssertEqual(view["active"] as? Bool, true)
+        XCTAssertEqual(view["requiresUnlockedApproval"] as? Bool, false)
+        let ask = ResidentServer.browserWhileLockedView(supported:true, enabled:true, locked:true,
+                                                        browserAllowed:true, browserMode:"ask")
+        XCTAssertEqual(ask["requiresUnlockedApproval"] as? Bool, true)
+        for (enabled, locked, allowed) in [(false, true, true), (true, false, true), (true, true, false)] {
+            let inactive = ResidentServer.browserWhileLockedView(supported:true, enabled:enabled, locked:locked,
+                                                                 browserAllowed:allowed, browserMode:"automatic")
+            XCTAssertEqual(inactive["active"] as? Bool, false)
+        }
+    }
 }

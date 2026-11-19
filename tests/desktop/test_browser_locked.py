@@ -78,6 +78,23 @@ class LockedBrowserTests(unittest.TestCase):
         self.assertEqual(stops, [])
         self.assertEqual(owner.configuration_sessions, {"desktop": login, "browser": login})
 
+    def test_only_ask_first_requires_an_unlocked_approval(self):
+        import ast
+        from types import SimpleNamespace
+        source = Path(__file__).resolve().parents[2] / "desktop/native/linux/desktop.py"
+        cls = next(n for n in ast.parse(source.read_text()).body
+                   if isinstance(n, ast.ClassDef) and n.name == "Desktop")
+        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "browser_while_locked_state")
+        namespace = {}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), namespace)
+        for mode, expected in [("automatic", False), ("ask", True), ("off", False)]:
+            owner = SimpleNamespace(browser_preference=SimpleNamespace(enabled=True),
+                grants=SimpleNamespace(browser_only_while_locked=mode != "off",
+                                       view={"surfaces": {"browser": {"mode": mode}}}))
+            state = namespace["browser_while_locked_state"](owner)
+            self.assertIs(state["requiresUnlockedApproval"], expected)
+            self.assertIs(state["active"], mode != "off")
+
 
 if __name__ == "__main__":
     unittest.main()

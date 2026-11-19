@@ -195,6 +195,8 @@ final class GrantBroker {
     var desktopRouteReady = false
     var browserRouteReady = false
     var browserOnlyWhileLocked = false
+    /// The OS reports this console locked, whatever covered Desktop state.
+    var consoleLocked = false
     /// A different login session owns the screen. Consent is paused, not
     /// revoked, and resumes when the approving session returns.
     var consoleElsewhere = false

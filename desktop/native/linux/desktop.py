@@ -287,8 +287,11 @@ class Desktop:
         return 'desktop_locked_browser_only' if self.grants.browser_only_while_locked else 'desktop_unavailable'
 
     def browser_while_locked_state(self):
+        # Only Ask first needs a person, whose approval needs an unlocked
+        # console; Automatic Browser work proceeds while locked.
+        mode=self.grants.view.get('surfaces',{}).get('browser',{}).get('mode')
         return dict(supported=True,enabled=self.browser_preference.enabled,
-            active=self.grants.browser_only_while_locked,requiresUnlockedApproval=True,route='chrome.extension/cdp')
+            active=self.grants.browser_only_while_locked,requiresUnlockedApproval=mode=='ask',route='chrome.extension/cdp')
 
     def common_deployment(self):
         value=self.grants.deployment()

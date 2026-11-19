@@ -104,7 +104,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         supported = true,
         enabled = _browserWhileLocked,
         active = BrowserOnlyWhileLocked,
-        requiresUnlockedApproval = true,
+        // Only Ask first needs a person, whose approval needs an unlocked
+        // console; Automatic Browser work proceeds while locked.
+        requiresUnlockedApproval = Admission.Surface("browser")["mode"]?.GetValue<string>() == "ask",
         route = "chrome.extension/cdp"
     };
     internal void ConfigureBrowserWhileLocked(bool enabled, bool loading = false)

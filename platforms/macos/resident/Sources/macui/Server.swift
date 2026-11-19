@@ -394,10 +394,21 @@ final class ResidentServer {
     private static let browserWhileLockedKey = "machineControl.browserWhileLocked"
     var browserWhileLockedEnabled: Bool { preferences.bool(forKey: Self.browserWhileLockedKey) }
     var browserWhileLockedStatus: [String:Any] {
-        ["supported":broker.policy.grantMode == .approval,
-         "enabled":browserWhileLockedEnabled,
-         "active":broker.browserOnlyWhileLocked && (broker.browserAllowed || broker.devtoolsAllowed),
-         "requiresUnlockedApproval":true, "route":BrowserRelay.route]
+        Self.browserWhileLockedView(supported:broker.policy.grantMode == .approval, enabled:browserWhileLockedEnabled,
+            locked:broker.consoleLocked, browserAllowed:broker.browserAllowed || broker.devtoolsAllowed,
+            browserMode:broker.admission.surface("browser")["mode"] as? String)
+    }
+    /// Agents read this to decide whether to ask the person to unlock.
+    /// `active` means Browser work is admitted now on a locked console; a
+    /// ready prepared Desktop route must not hide it. Only Ask first needs a
+    /// person, and that approval needs an unlocked console. Enabling the
+    /// preference or a surface always needs the unlocked operator.
+    static func browserWhileLockedView(supported: Bool, enabled: Bool, locked: Bool,
+                                       browserAllowed: Bool, browserMode: String?) -> [String:Any] {
+        ["supported":supported, "enabled":enabled,
+         "active":supported && enabled && locked && browserAllowed,
+         "requiresUnlockedApproval":browserMode == "ask",
+         "route":BrowserRelay.route]
     }
 
     /// Local operator authority only; no agent-facing command changes this.
@@ -571,6 +582,7 @@ final class ResidentServer {
         broker.desktopRouteReady = desktopBound && (unlocked || prepared)
         broker.browserRouteReady = browserBound && (unlocked || state == "locked" && browserWhileLockedEnabled)
         broker.browserOnlyWhileLocked = !broker.desktopRouteReady && broker.browserRouteReady && state == "locked"
+        broker.consoleLocked = state == "locked"
         broker.admission.setReady("desktop", broker.desktopRouteReady, noticeVisible:unlocked && !lockedUse.isCovered)
         broker.admission.setReady("browser", broker.browserRouteReady, noticeVisible:unlocked && !lockedUse.isCovered)
         lockedUse.tick()
