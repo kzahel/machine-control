@@ -670,7 +670,8 @@ def keep_unlocked(target, arguments, *, clock=time.monotonic):
     def requested(signum, _frame):
         ending["reason"] = "signal_" + signal.Signals(signum).name.lower()
         stop.set()
-    previous = {number: signal.signal(number, requested) for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    signals = (signal.SIGINT, signal.SIGTERM, getattr(signal, "SIGHUP", None))
+    previous = {number: signal.signal(number, requested) for number in signals if number is not None}
     try:
         with ControlSession(target, reason=options.reason, surfaces=["desktop"],
                             wait=mc.parse_duration_seconds(options.wait), duration=300,
