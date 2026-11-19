@@ -203,6 +203,17 @@ def prepare(c):
                        and str(e.get('value', '')).lower() in {'0', 'false'}]
             if len(matches) == 1:
                 return matches[0]
+            # macOS 26 lists the developer group as a heading followed by an
+            # unlabeled group switch. Accept only one exact heading and one
+            # adjacent off switch; never guess among several.
+            headings = [index for index, e in enumerate(rows) if e.get('role') == 'AXStaticText'
+                        and 'Machine Control' in {e.get('label'), e.get('value')}]
+            if len(headings) == 1:
+                following = [e for e in rows[headings[0] + 1:headings[0] + 4]
+                             if e.get('role') in {'AXCheckBox', 'AXSwitch'}]
+                if len(following) == 1 and not following[0].get('label') \
+                        and str(following[0].get('value', '')).lower() in {'0', 'false'}:
+                    return following[0]
             return None
         try:
             element = poll(switch, 'exact Machine Control background service switch', timeout=20)
