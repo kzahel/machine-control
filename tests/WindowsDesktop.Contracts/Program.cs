@@ -32,6 +32,19 @@ static void Refuses(Action action, string message)
     try { action(); } catch (ArgumentException) { return; } catch (InvalidOperationException) { return; }
     throw new Exception("Expected refusal: " + message);
 }
+static async Task DeleteJournalDirectory(string path)
+{
+    const int sharingViolation = unchecked((int)0x80070020);
+    for (var attempt = 0; Directory.Exists(path); attempt++)
+    {
+        // The journal's event writer may briefly hold a segment open.
+        try { Directory.Delete(path, recursive: true); return; }
+        catch (IOException error) when (error.HResult == sharingViolation && attempt < 50)
+        {
+            await Task.Delay(20);
+        }
+    }
+}
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
 var ownedRelease = JsonSerializer.SerializeToNode(Contract.ParseRequest(
     "{\"operation\":\"browser.release\",\"ownerClaimId\":\"c-a1a1a1a1a1a1a1a1a1a1a1a1\"," +
@@ -127,12 +140,7 @@ try
     string Submitted(string owner) => JsonSerializer.SerializeToElement(audited.Admission.Submit(owner, owner, ["desktop"], 300, 60, "Audit fixture"), Contract.Json).GetProperty("intentId").GetString()!;
     var activeIntent = Submitted("audit-active"); var queuedIntent = Submitted("audit-queued");
     Assert(JsonSerializer.SerializeToElement(audited.Admission.Inspect("audit-queued", queuedIntent), Contract.Json).GetProperty("state").GetString() == "waiting_for_resource", "Second task queues");
-    for (var attempt = 0; ; attempt++)
-    {
-        // The journal's event writer may briefly hold a segment open.
-        try { Directory.Delete(Path.Combine(failingRoot, "audit"), true); break; }
-        catch (IOException) when (attempt < 50) { await Task.Delay(20); }
-    }
+    await DeleteJournalDirectory(Path.Combine(failingRoot, "audit"));
     File.WriteAllText(Path.Combine(failingRoot, "audit"), "");
     Assert(!failing.Begin("click", "after-loss") && !failing.Available, "Storage loss observed");
     audited.Refresh();
@@ -155,7 +163,7 @@ try
     Assert(auditOpen["accepted"]!.GetValue<bool>() == false && auditOpen["errorCode"]!.GetValue<string>() == "audit_storage_unavailable" &&
         auditOpen["requestId"]!.GetValue<string>() == "audit-open", "Open is refused while audit storage is unavailable");
 }
-finally { if (Directory.Exists(journalRoot)) Directory.Delete(journalRoot, true); }
+finally { await DeleteJournalDirectory(journalRoot); }
 var clock = new TestTime();
 var consent = new Request { Operation = "uac.respond", State = "approve" };
 Assert(DesktopUacPolicy.Refusal(consent, false, true, "Winlogon", true) == "uac_access_disabled", "UAC opt-in required");
