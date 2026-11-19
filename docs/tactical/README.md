@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [165 — Locked-use agent experience verification](165-locked-use-agent-experience.md)
+  (in progress): reproduce why agents ask the operator to unlock, correct
+  status and guidance, and add a bounded keep-unlocked command.
+
 - [164 — Intel macOS recovery and workspaces](164-intel-macos-recovery-and-workspaces.md)
   (bounded acceptance complete): locked console recovery, packaged bootstrap, and libvirt
   isolation on a disposable Intel Tahoe copy.
