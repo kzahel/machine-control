@@ -314,6 +314,15 @@ package and environment boundaries.
   Signed installed Settings acceptance, physical hardware and other Linux
   desktops remain separate qualification.
 
+- **Current (2026-11-19), source:** `browserWhileLocked.active` means
+  Browser work is admitted now on a locked console. On macOS a ready prepared
+  Desktop route previously hid it. `requiresUnlockedApproval` is true only when
+  Browser is Ask first, on macOS, Linux and Windows (Windows not compiled in
+  this slice). Each one-shot Browser command is its own owner, so its snapshot
+  references are stale for the next one-shot command; multi-step work uses
+  one stream. [Tactical 165](../docs/tactical/165-locked-use-agent-experience.md)
+  owns the evidence.
+
 - **Current, unreleased Windows x64 candidate:** `browser.upload` uses the
   shared extension's direct CDP input/chooser interception with native local-file
   validation, browser scope and live ownership. All 23 focused VM checks pass,

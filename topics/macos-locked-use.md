@@ -8,6 +8,25 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-11-19), [Tactical 165](../docs/tactical/165-locked-use-agent-experience.md):**
+agent-facing locked behavior, reproduced in a disposable Tart workspace (no
+physical qualification):
+- With Browser while locked on, new one-shot Browser owners work on a locked
+  console, with no unlock, approval or notice wait.
+- `browserWhileLocked.active` now reports that even when prepared Desktop is
+  also ready. `requiresUnlockedApproval` is true only for Ask first.
+- Host doctor's `locked_console` check names the usable routes and says not
+  to ask the person to unlock. The person is needed when access is Off (as after
+  any resident restart) or no locked route is ready.
+- A held prepared owner leaves `IOConsoleLocked` false and renews indefinitely
+  within the claim. It relocks within about 3 seconds when it closes or its
+  process dies.
+- `control keep-unlocked --for D` is the bounded way to hold that for a
+  program such as a build.
+- Takeover by physical input is not VM-qualifiable here: neither Screen
+  Sharing nor kernel-posted HID events count as physical. It remains a
+  physical cell.
+
 **Current (2026-11-06), [Tactical 159](../docs/tactical/159-platform-contract-alignment.md):**
 - A plain CLI/SDK owner may request `preparedConsole: true` and receives the
   same covered owner as a flagless one. Disposable-workspace evidence: 18/18
