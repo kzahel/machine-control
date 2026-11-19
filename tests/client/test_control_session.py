@@ -374,20 +374,21 @@ class ControlSessionTests(unittest.TestCase):
             actualRoute="fixture", generation="fixture-generation", hostInterference="none", elapsedMs=0,
             delivery="not_applicable", effect="not_applicable", uncertainty="none", data={"desktopState": "locked"})
         completed = subprocess.CompletedProcess([], 0, stdout=json.dumps(status))
-        requests = (b'{"operation":"status"}\n{"operation":"snapshot"}\n{"operation":"click"}\n'
+        requests = (b'{"operation":"status"}\n{"operation":"capabilities"}\n{"operation":"snapshot"}\n{"operation":"click"}\n'
                     b'{"operation":"forbidden"}\n{"operation":"desktop.status"}\n{"operation":"snapshot"}\n')
         with patch.object(mc, "run_adapter", return_value=(completed, status, 1)) as adapter:
             code, results = self.stream(requests, "refusals")
         self.assertEqual(code, 0)
         self.assertEqual([row.get("errorCode") for row in results],
-                         [None, None, "stale_reference", "operation_not_permitted_by_control_channel", None, None])
+                         [None, "control_generation_changed", None, "stale_reference",
+                          "operation_not_permitted_by_control_channel", None, None])
         self.assertEqual(results[0]["data"], {"desktopState": "locked"})
-        self.assertEqual(results[3]["retrySafety"], "safe_not_dispatched")
+        self.assertEqual(results[4]["retrySafety"], "safe_not_dispatched")
         self.assertEqual(adapter.call_count, 2)
         events = self.record.read_text().splitlines()
         self.assertEqual(events.count("control.open"), 1)
         self.assertEqual(events.count("effect"), 2)
-        self.assertEqual(events.count("refused"), 2)
+        self.assertEqual(events.count("refused"), 3)
 
     def test_one_shot_call_still_ends_on_any_refusal(self):
         target = dict(self.target, platform="windows", environment={**self.target["environment"], "MC_ADMISSION_FIXTURE": "refusals"})

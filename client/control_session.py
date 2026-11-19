@@ -620,8 +620,13 @@ def stream_continues(session, value):
         return value.get("delivery") not in {"unknown", "refused"} and value.get("effect") not in {"unknown", "partial"}
     if value.get("controlOwner") is not None or session.failure is not None:
         return False
-    return (value.get("delivery") == "refused" and value.get("uncertainty") == "none"
-            and value.get("retrySafety") == "safe_not_dispatched")
+    if value.get("uncertainty") != "none":
+        return False
+    # Refused before dispatch, or a read that never delivers anything, such
+    # as control_generation_changed when covered unlock replaces the desktop
+    # generation just after a prepared owner starts.
+    return (value.get("delivery") == "refused" and value.get("retrySafety") == "safe_not_dispatched") or \
+        (value.get("delivery") == "not_applicable" and value.get("effect") == "not_applicable")
 
 
 def handle_control(alias, target, arguments):

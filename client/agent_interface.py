@@ -167,12 +167,17 @@ retire active ownership. Movement alone does not interrupt. Deliberate input
 yields to a fixed minute of cooldown, then a fresh warning. Use SDK wait() for
 a new owner and observe again before issuing new work. Never replay an uncertain
 mutation. A stream ends on interrupted/uncertain work; inspect the outcome and
-start a fresh task deliberately. Denial, Off and cancellation are terminal.
+start a fresh task deliberately. A refusal that dispatched nothing, such as
+stale_reference or control_generation_changed just after a prepared console
+unlocks, keeps the stream open: observe again and continue. `status` works
+inside a stream. Denial, Off and cancellation are terminal.
 Waits and heartbeats never extend finite consent. Renewal requires explicitly
 advertised provider support; a heartbeat alone is not renewal.
 
 References are scoped to runtime/session/desktop/provider generations;
-rediscover after ownership changes, navigation or restart. Request acceptance,
+rediscover after ownership changes, navigation or restart. Each one-shot
+command is its own owner, so a reference from one one-shot snapshot is stale
+for the next one-shot click: snapshot and act within one stream. Request acceptance,
 delivery, observed effect and uncertainty are different facts. Verify the
 intended application effect independently. Capture results contain bounded
 artifact handles; pass the full returned handle unchanged to
@@ -182,12 +187,18 @@ your harness's image viewer. A JSON pathname alone is not an image observation.
 For a native Open or Save panel an app has already shown (macOS), use
 `desktop dialog choose --path /absolute/path --target APP` within its admitted
 Desktop task. Browser permission does not authorize OS-dialog fallback.
-Locked console: when `desktop status` reports desktopState "locked", open the
-Desktop owner with `control stream|call --surface desktop --prepared-console`
+Locked console: run `target doctor` and read its locked_console check before
+asking the person anything. With Browser while locked on, browser commands work
+while the console stays locked; no unlock is needed. Ask the person to unlock
+only when doctor reports access Off (for example after Machine Control
+restarted) or no locked route. For Desktop work, or a program that needs the
+session unlocked, open the Desktop owner with `control stream|call --surface desktop --prepared-console`
 (or `ControlSession(..., prepared_console=True)`); it is the same on macOS and
 Windows. Once accepted, the console is unlocked behind covers and relocks when
 the owner ends; no separate unlock request is needed. Keep the task owner
-alive; closing, expiry or a safety failure triggers native cleanup/relock.
+alive; closing, expiry or a safety failure triggers native cleanup/relock, as
+does the owner process exiting (for example a harness killing a background
+command).
 Prepared owners renew automatically on macOS and Windows, so a long locked
 task needs no new owner. Linux has no locked use and refuses with locked_use_unsupported.
 Report setup refusals such as locked_use_disabled, prepared_console_unavailable

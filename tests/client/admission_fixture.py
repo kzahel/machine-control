@@ -118,6 +118,14 @@ for line in sys.stdin.buffer:
                 delivery="refused", effect="refused", uncertainty="none", retrySafety="safe_not_dispatched")
             print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
             continue
+        if mode == "refusals" and request["request"]["operation"] == "capabilities":
+            # A read refused because covered unlock replaced the desktop generation.
+            event("refused")
+            data = dict(schema="machine-control/v0", accepted=False, operation="capabilities",
+                errorCode="control_generation_changed", delivery="not_applicable", effect="not_applicable",
+                uncertainty="none", retrySafety="not_applicable")
+            print(json.dumps(dict(schema=channel_schema, requestId=request["requestId"], accepted=True, data=data)), flush=True)
+            continue
         if mode == "refusals" and request["request"]["operation"] in {"status", "forbidden"}:
             # The owner channel itself refuses an operation outside its surface.
             event("refused")
