@@ -34,12 +34,23 @@ static void Refuses(Action action, string message)
 }
 static async Task DeleteJournalDirectory(string path)
 {
-    const int sharingViolation = unchecked((int)0x80070020);
     for (var attempt = 0; Directory.Exists(path); attempt++)
     {
-        // The journal's event writer may briefly hold a segment open.
+        // Queued journal events can hold a segment open or add a file while
+        // recursive deletion is in progress.
         try { Directory.Delete(path, recursive: true); return; }
-        catch (IOException error) when (error.HResult == sharingViolation && attempt < 50)
+        catch (IOException) when (attempt < 50)
+        {
+            await Task.Delay(20);
+        }
+    }
+}
+static async Task<FileStream> OpenJournalSegmentExclusively(string path)
+{
+    for (var attempt = 0; ; attempt++)
+    {
+        try { return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None); }
+        catch (IOException) when (attempt < 50)
         {
             await Task.Delay(20);
         }
@@ -140,8 +151,10 @@ try
     string Submitted(string owner) => JsonSerializer.SerializeToElement(audited.Admission.Submit(owner, owner, ["desktop"], 300, 60, "Audit fixture"), Contract.Json).GetProperty("intentId").GetString()!;
     var activeIntent = Submitted("audit-active"); var queuedIntent = Submitted("audit-queued");
     Assert(JsonSerializer.SerializeToElement(audited.Admission.Inspect("audit-queued", queuedIntent), Contract.Json).GetProperty("state").GetString() == "waiting_for_resource", "Second task queues");
-    await DeleteJournalDirectory(Path.Combine(failingRoot, "audit"));
-    File.WriteAllText(Path.Combine(failingRoot, "audit"), "");
+    // Hold the existing segment exclusively for the duration of the failure
+    // assertions. Deleting its directory races the journal's event writer.
+    var segment = Directory.GetFiles(Path.Combine(failingRoot, "audit"), "*.jsonl").Single();
+    using var heldSegment = await OpenJournalSegmentExclusively(segment);
     Assert(!failing.Begin("click", "after-loss") && !failing.Available, "Storage loss observed");
     audited.Refresh();
     foreach (var (owner, intent) in new[] { ("audit-active", activeIntent), ("audit-queued", queuedIntent) })
