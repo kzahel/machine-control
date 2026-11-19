@@ -4228,6 +4228,9 @@ Commands:
                                     Wait, accept, execute once and release
   control stream --reason TEXT [--surface desktop|browser] [--prepared-console]
                                     JSON lines; one live owner
+  control keep-unlocked --for D --reason TEXT
+                                    Hold a locked console unlocked behind covers
+                                    (max 4h); relocks when it exits
   control frames                    Diagnostic: raw channel frames from stdin
                                     caller_not_verified: see agent instructions
   mcp [--reason TEXT] [--observe action|explicit]

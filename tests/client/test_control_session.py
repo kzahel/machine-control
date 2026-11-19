@@ -390,6 +390,39 @@ class ControlSessionTests(unittest.TestCase):
         self.assertEqual(events.count("effect"), 2)
         self.assertEqual(events.count("refused"), 3)
 
+    def keep_unlocked(self, arguments, states, expires_in=3600, clock=None):
+        import control_session
+        expires = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat().replace("+00:00", "Z")
+        statuses = iter([{"data": {"desktopState": state}} for state in states])
+        target = dict(self.target, platform="macos", claimPolicy="required", _claimId="c-fixture")
+        with patch.object(mc, "require_selected_claim", return_value={"claimId": "c-fixture", "expiresAt": expires}), \
+                patch.object(control_session, "stream_status", side_effect=lambda *_: next(statuses)), \
+                redirect_stdout(io.StringIO()) as out:
+            code = control_session.keep_unlocked(target, arguments, **({"clock": clock} if clock else {}))
+        return code, [json.loads(line) for line in out.getvalue().splitlines()]
+
+    def test_keep_unlocked_holds_one_prepared_owner_until_its_interval_ends(self):
+        ticks = iter(range(0, 10_000, 40))
+        code, lines = self.keep_unlocked(["--for", "1m", "--reason", "fixture"], ["locked", "locked", "unlocked"],
+                                         clock=lambda: next(ticks))
+        self.assertEqual(code, 0)
+        self.assertEqual([line["event"] for line in lines], ["unlocked", "ended"])
+        self.assertEqual(lines[0]["desktopState"], "unlocked")
+        self.assertEqual(lines[1]["reason"], "duration_elapsed")
+        events = self.record.read_text().splitlines()
+        self.assertEqual(events.count("control.open"), 1)
+        self.assertIn("control.cancel", events)
+
+    def test_keep_unlocked_refuses_before_opening_an_owner(self):
+        for arguments, states, expires_in, code in [
+                (["--for", "1m", "--reason", "fixture"], ["unlocked"], 3600, "console_not_locked"),
+                (["--for", "2h", "--reason", "fixture"], ["locked"], 600, "claim_shorter_than_hold"),
+                (["--for", "5h", "--reason", "fixture"], ["locked"], 3600, "invalid_duration")]:
+            with self.assertRaises(mc.ClientError) as error:
+                self.keep_unlocked(arguments, states, expires_in)
+            self.assertEqual(error.exception.code, code)
+        self.assertFalse(self.record.exists() and "control.open" in self.record.read_text())
+
     def test_one_shot_call_still_ends_on_any_refusal(self):
         target = dict(self.target, platform="windows", environment={**self.target["environment"], "MC_ADMISSION_FIXTURE": "refusals"})
         with redirect_stdout(io.StringIO()) as out:

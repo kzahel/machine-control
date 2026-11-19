@@ -629,7 +629,95 @@ def stream_continues(session, value):
         (value.get("delivery") == "not_applicable" and value.get("effect") == "not_applicable")
 
 
+KEEP_UNLOCKED_MAXIMUM = 14400
+
+
+def keep_unlocked(target, arguments, *, clock=time.monotonic):
+    """Hold a locked console unlocked behind covers for a bounded interval.
+
+    This composes the existing prepared-console Desktop owner; it adds no
+    authority. The owner renews itself, and it ends with an independent relock
+    on --for expiry, a signal, owner loss, Stop, Pause, deliberate physical
+    input, or claim expiry.
+    """
+    import signal
+    parser = argparse.ArgumentParser(prog="machine-control control keep-unlocked")
+    parser.add_argument("--for", dest="hold", required=True, help="How long to hold, for example 30m or 2h (max 4h)")
+    parser.add_argument("--reason", required=True)
+    parser.add_argument("--wait", default="2m")
+    options = parser.parse_args(arguments)
+    hold = mc.parse_duration_seconds(options.hold)
+    if not 60 <= hold <= KEEP_UNLOCKED_MAXIMUM:
+        raise mc.ClientError("invalid_duration", "--for must be between 1m and 4h")
+    claim = mc.require_selected_claim(target)
+    remaining = None
+    if isinstance(claim, dict) and isinstance(claim.get("expiresAt"), str):
+        from datetime import datetime, timezone
+        expires = datetime.fromisoformat(claim["expiresAt"].replace("Z", "+00:00"))
+        remaining = (expires - datetime.now(timezone.utc)).total_seconds()
+    if type(remaining) in (int, float) and remaining < hold and not os.environ.get("MACHINE_CONTROL_SCOPE_FILE"):
+        raise mc.ClientError("claim_shorter_than_hold",
+            "The claim expires before --for ends; renew it, or run this inside `machine-control run`, which renews it",
+            data={"claimRemainingSeconds": int(remaining), "holdSeconds": hold})
+    state = stream_status(target, {"operation": "status"}).get("data") or {}
+    if state.get("desktopState") != "locked":
+        raise mc.ClientError("console_not_locked",
+            "keep-unlocked holds a locked console unlocked behind covers; this console is " +
+            str(state.get("desktopState", "unknown")))
+    stop = threading.Event()
+    ending = {"reason": None}
+
+    def requested(signum, _frame):
+        ending["reason"] = "signal_" + signal.Signals(signum).name.lower()
+        stop.set()
+    previous = {number: signal.signal(number, requested) for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    try:
+        with ControlSession(target, reason=options.reason, surfaces=["desktop"],
+                            wait=mc.parse_duration_seconds(options.wait), duration=300,
+                            prepared_console=True) as session:
+            session.wait()
+            # Activation replaces the desktop generation once; a read that
+            # races it is refused without delivery. Never retry an effect.
+            for _ in range(10):
+                value = session.call({"operation": "capabilities"})
+                if value.get("accepted") or value.get("errorCode") != "control_generation_changed":
+                    break
+                time.sleep(0.5)
+            if not value.get("accepted"):
+                raise mc.ClientError(value.get("errorCode") or "prepared_console_unavailable",
+                                     "The prepared console did not become usable", data=value)
+            # Covers precede the native unlock observation by a moment.
+            settle = time.monotonic() + 15
+            while True:
+                observed = (stream_status(target, {"operation": "status"}).get("data") or {}).get("desktopState")
+                if observed == "unlocked" or time.monotonic() >= settle:
+                    break
+                time.sleep(0.5)
+            deadline = clock() + hold
+            print(json.dumps({"event": "unlocked", "desktopState": observed, "holdSeconds": hold,
+                              "controlSessionId": session.view.get("sessionId"),
+                              "note": "The console relocks when this command exits"}), flush=True)
+            while not stop.wait(1):
+                if clock() >= deadline:
+                    ending["reason"] = "duration_elapsed"
+                    break
+                if session.failure is not None:
+                    ending["reason"] = getattr(session.failure, "code", "owner_failed")
+                    break
+                if isinstance(session.view, dict) and session.view.get("state") == "ended":
+                    ending["reason"] = session.view.get("terminalReason") or "control_ended"
+                    break
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+    reason = ending["reason"] or "owner_failed"
+    print(json.dumps({"event": "ended", "reason": reason, "relock": "requested_by_owner_end"}), flush=True)
+    return 0 if reason == "duration_elapsed" or reason.startswith("signal_") else 1
+
+
 def handle_control(alias, target, arguments):
+    if arguments[:1] == ["keep-unlocked"]:
+        return keep_unlocked(target, arguments[1:])
     if arguments == ["status"]:
         return mc.send_resident_request(alias, target, {"operation":"status"})
     if arguments == ["frames"]:

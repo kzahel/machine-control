@@ -198,7 +198,11 @@ Windows. Once accepted, the console is unlocked behind covers and relocks when
 the owner ends; no separate unlock request is needed. Keep the task owner
 alive; closing, expiry or a safety failure triggers native cleanup/relock, as
 does the owner process exiting (for example a harness killing a background
-command).
+command). For a program outside Machine Control that needs the session
+unlocked, such as a build, `control keep-unlocked --for 1h --reason TEXT`
+holds one prepared owner and relocks when the interval ends, on a signal or on
+owner loss. Run it in the background for the program's duration, inside
+`machine-control run` when the claim must be renewed.
 Prepared owners renew automatically on macOS and Windows, so a long locked
 task needs no new owner. Linux has no locked use and refuses with locked_use_unsupported.
 Report setup refusals such as locked_use_disabled, prepared_console_unavailable
