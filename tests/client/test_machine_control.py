@@ -19,6 +19,33 @@ import machine_control  # noqa: E402
 
 
 class ClientTests(unittest.TestCase):
+    def locked_doctor(self, routes):
+        return {"states": {"desktop": "locked"}, "extensions": {"lockedConsole": routes},
+                "checks": [{"id": "desktop", "status": "fail", "summary": "Desktop state: locked"},
+                           {"id": "semantic", "status": "fail", "summary": "Semantic state: unavailable"},
+                           {"id": "capture", "status": "pass", "summary": "Capture state: ready"}]}
+
+    def test_locked_console_guidance_names_routes_and_keeps_readiness(self):
+        value = self.locked_doctor({"browser": "available", "desktop": "prepared_console", "access": "on"})
+        machine_control.annotate_locked_console(value)
+        guidance = value["checks"][-1]
+        self.assertEqual((guidance["id"], guidance["status"]), ("locked_console", "pass"))
+        self.assertIn("Browser commands work now", guidance["summary"])
+        self.assertIn("--prepared-console", guidance["summary"])
+        self.assertIn("Do not ask the person to unlock", guidance["summary"])
+        self.assertEqual([c["status"] for c in value["checks"][:3]], ["warn", "warn", "pass"])
+        browser_only = self.locked_doctor({"browser": "available", "desktop": "unsupported", "access": "on"})
+        machine_control.annotate_locked_console(browser_only)
+        self.assertNotIn("--prepared-console", browser_only["checks"][-1]["summary"])
+        self.assertEqual(browser_only["checks"][0]["status"], "fail")
+        off = self.locked_doctor({"browser": "unavailable", "desktop": "unavailable", "access": "off"})
+        machine_control.annotate_locked_console(off)
+        self.assertEqual(off["checks"][-1]["status"], "warn")
+        self.assertIn("Only the person can turn access on", off["checks"][-1]["summary"])
+        unlocked = {"states": {"desktop": "unlocked"}, "extensions": {}, "checks": []}
+        machine_control.annotate_locked_console(unlocked)
+        self.assertEqual(unlocked["checks"], [])
+
     def test_precreation_is_available_without_unfencing_guest_operations(self):
         for command in (["factory-create", "unused", "media"],
                         ["factory-stages", "preflight", "--json"],

@@ -16,6 +16,13 @@ spec.loader.exec_module(winhost)
 
 
 class WindowsHostTests(unittest.TestCase):
+    def test_locked_console_routes_are_normalized(self):
+        data = {"admission": {"surfaces": {"desktop": {"mode": "automatic"}, "browser": {"mode": "automatic"}}},
+                "lockedUse": {"phase": "ready"}, "browserWhileLocked": {"active": True}}
+        self.assertEqual(winhost.locked_console(data),
+                         {"browser": "available", "desktop": "prepared_console", "access": "on"})
+        self.assertEqual(winhost.locked_console({}), {"browser": "unavailable", "desktop": "unavailable", "access": "off"})
+
     def test_doctor_projects_public_deployment_state(self):
         deployment = {'policy': {'grantMode': 'approval'}, 'grant': {'scopes': ['observe']}}
         replies = [{'accepted': True, 'generation': 'native-generation',

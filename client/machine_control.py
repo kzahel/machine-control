@@ -1755,7 +1755,46 @@ def doctor(alias: str, target: dict[str, Any]) -> tuple[dict[str, Any], int]:
         "kind": "authoritative_testbed",
         "elapsedMs": elapsed_ms,
     }
+    annotate_locked_console(value)
     return value, 0 if value["ready"] else 1
+
+
+LOCKED_STATE_CHECKS = frozenset({"desktop", "semantic", "input"})
+
+
+def annotate_locked_console(value: dict[str, Any]) -> None:
+    """Tell an agent what works on a locked console before it asks a person.
+
+    `ready` keeps meaning ordinary unlocked readiness. The guidance only
+    restates the resident's normalized routes; it grants nothing.
+    """
+    routes = value.get("extensions", {}).get("lockedConsole")
+    if value["states"].get("desktop") != "locked" or not isinstance(routes, dict):
+        return
+    browser = routes.get("browser") == "available"
+    desktop = routes.get("desktop") == "prepared_console"
+    parts = ["The console is locked."]
+    if browser:
+        parts.append("Browser commands work now without unlocking.")
+    if desktop:
+        parts.append("For Desktop work, or anything that needs the session unlocked, hold "
+                     "`control stream --surface desktop --prepared-console`: it unlocks behind "
+                     "covers and relocks when the owner ends.")
+    if browser or desktop:
+        parts.append("Do not ask the person to unlock.")
+    elif routes.get("access") == "off":
+        parts.append("Desktop and Browser access are Off, as after Machine Control restarts. "
+                     "Only the person can turn access on, from an unlocked console.")
+    else:
+        parts.append("No locked route is ready. The person must unlock, or enable Browser "
+                     "while locked or prepared locked use in Machine Control Settings.")
+    value["checks"].append({"id": "locked_console", "status": "pass" if browser or desktop else "warn",
+                            "summary": " ".join(parts)})
+    if desktop:
+        for check in value["checks"]:
+            if check.get("id") in LOCKED_STATE_CHECKS and check.get("status") == "fail":
+                check["status"] = "warn"
+                check["summary"] = str(check.get("summary", "")) + " (locked; see locked_console)"
 
 
 def maintenance_spec(target: dict[str, Any]) -> dict[str, Any]:

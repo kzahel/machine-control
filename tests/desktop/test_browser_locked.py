@@ -96,5 +96,16 @@ class LockedBrowserTests(unittest.TestCase):
             self.assertIs(state["active"], mode != "off")
 
 
+    def test_linux_doctor_reports_no_locked_desktop_route(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "linuxhost_locked", Path(__file__).resolve().parents[2] / "platforms/linux/host/linuxhost.py")
+        linuxhost = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(linuxhost)
+        data = {"admission": {"surfaces": {"desktop": {"mode": "automatic"}, "browser": {"mode": "automatic"}}},
+                "browserWhileLocked": {"active": True}}
+        self.assertEqual(linuxhost.locked_console(data, desktop_supported=False),
+                         {"browser": "available", "desktop": "unsupported", "access": "on"})
+
 if __name__ == "__main__":
     unittest.main()

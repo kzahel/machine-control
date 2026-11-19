@@ -79,6 +79,19 @@ def live_claim_checker(identifier):
     return check
 
 
+def locked_console(data, desktop_supported=True):
+    """Normalized routes usable now on a locked console, for agent guidance."""
+    admission = data.get("admission") if isinstance(data.get("admission"), dict) else {}
+    surfaces = admission.get("surfaces") if isinstance(admission.get("surfaces"), dict) else {}
+    mode = lambda name: (surfaces.get(name) or {}).get("mode")
+    browser = data.get("browserWhileLocked") if isinstance(data.get("browserWhileLocked"), dict) else {}
+    phase = data.get("lockedUse", {}).get("phase") if isinstance(data.get("lockedUse"), dict) else None
+    desktop = ("unsupported" if not desktop_supported else
+               "prepared_console" if mode("desktop") in {"ask", "automatic"} and phase in {"ready", "active"} else "unavailable")
+    return {"browser": "available" if browser.get("active") is True else "unavailable", "desktop": desktop,
+            "access": "on" if mode("desktop") in {"ask", "automatic"} or mode("browser") in {"ask", "automatic"} else "off"}
+
+
 def doctor():
     states = dict(power="running", administration="unavailable", resident="unavailable",
                   desktop="unknown", semantic="unavailable", capture="unavailable",
@@ -102,6 +115,9 @@ def doctor():
         extensions["deployment"] = {**deployment, **{k: data[k] for k in ["grant", "pendingRequest"] if k in data}}
         if isinstance(data.get("browserWhileLocked"), dict):
             extensions["browserWhileLocked"] = data["browserWhileLocked"]
+        if states["desktop"] == "locked":
+            # Linux has no locked Desktop route; Browser may continue.
+            extensions["lockedConsole"] = locked_console(data, desktop_supported=False)
         extensions["runtimeGeneration"] = status["generation"]
         checks.append(dict(id="resident", status="pass", summary="Desktop resident is reachable"))
         surfaces = data.get("admission", {}).get("surfaces", {})

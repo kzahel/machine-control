@@ -76,6 +76,19 @@ def require_claim() -> None:
         raise ValueError("The target-use claim is unavailable or belongs to another target")
 
 
+def locked_console(data, desktop_supported=True):
+    """Normalized routes usable now on a locked console, for agent guidance."""
+    admission = data.get("admission") if isinstance(data.get("admission"), dict) else {}
+    surfaces = admission.get("surfaces") if isinstance(admission.get("surfaces"), dict) else {}
+    mode = lambda name: (surfaces.get(name) or {}).get("mode")
+    browser = data.get("browserWhileLocked") if isinstance(data.get("browserWhileLocked"), dict) else {}
+    phase = data.get("lockedUse", {}).get("phase") if isinstance(data.get("lockedUse"), dict) else None
+    desktop = ("unsupported" if not desktop_supported else
+               "prepared_console" if mode("desktop") in {"ask", "automatic"} and phase in {"ready", "active"} else "unavailable")
+    return {"browser": "available" if browser.get("active") is True else "unavailable", "desktop": desktop,
+            "access": "on" if mode("desktop") in {"ask", "automatic"} or mode("browser") in {"ask", "automatic"} else "off"}
+
+
 def surface_check(data: dict, deployment: dict) -> dict:
     """Report the person's surface modes; per-request grants no longer exist."""
     admission = data.get("admission") if isinstance(data.get("admission"), dict) else {}
@@ -126,6 +139,8 @@ def doctor() -> int:
         extensions["deployment"] = deployment
         if isinstance(data.get("lockedUse"), dict):
             extensions["lockedUsePhase"] = data["lockedUse"].get("phase")
+        if states["desktop"] == "locked":
+            extensions["lockedConsole"] = locked_console(data)
         extensions["runtimeGeneration"] = status.get("generation")
         checks.append(dict(id="resident", status="pass", summary="Desktop resident is reachable"))
         checks.append(surface_check(data, deployment))

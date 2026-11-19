@@ -110,6 +110,18 @@ def surface_check(data: dict[str, Any]) -> dict[str, str]:
     return {"id": "grant", "status": "pass", "summary": "Surface access: " + ", ".join(enabled)}
 
 
+def locked_console(data: dict[str, Any]) -> dict[str, str]:
+    """Normalized routes usable now on a locked console, for agent guidance."""
+    surfaces = data.get("admission", {}).get("surfaces", {}) if isinstance(data.get("admission"), dict) else {}
+    desktop_on = surfaces.get("desktop", {}).get("mode") in {"ask", "automatic"}
+    browser = data.get("browserWhileLocked") if isinstance(data.get("browserWhileLocked"), dict) else {}
+    phase = data.get("lockedUse", {}).get("phase") if isinstance(data.get("lockedUse"), dict) else None
+    return {"browser": "available" if browser.get("active") is True else "unavailable",
+            "desktop": "prepared_console" if desktop_on and phase in {"ready", "active"} else "unavailable",
+            "access": "on" if any(surfaces.get(name, {}).get("mode") in {"ask", "automatic"}
+                                  for name in ("desktop", "browser")) else "off"}
+
+
 def doctor() -> int:
     checks: list[dict[str, str]] = []
     states = {
@@ -162,6 +174,8 @@ def doctor() -> int:
         if locked_use.get("enabled") or locked_use.get("phase") in {"paused", "recovering"}:
             checks.append({"id":"locked_use", "status":"pass" if locked_use.get("phase") == "ready" else "warn",
                            "summary":"Covered control phase: " + str(locked_use.get("phase", "unknown"))})
+        if states["desktop"] == "locked":
+            extensions["lockedConsole"] = locked_console(data)
         if extensions.get("browser", {}).get("health") == "degraded":
             checks.append({"id":"browser", "status":"warn", "summary":"Browser requests have timed out; connection alone does not establish route health"})
         checks.append({"id": "resident", "status": "pass",

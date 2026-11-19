@@ -49,6 +49,20 @@ class SurfaceCheckTests(unittest.TestCase):
         self.assertEqual(value['states']['desktop'], 'locked')
         self.assertEqual(value['extensions']['lockedUse']['phase'], 'relocking')
 
+    def test_locked_console_reports_routes_usable_now(self):
+        prepared = doctor({'desktopState': 'locked', **surfaces('automatic', 'automatic'),
+                           'lockedUse': {'supported': True, 'enabled': True, 'phase': 'ready'},
+                           'browserWhileLocked': {'enabled': True, 'active': True}})
+        self.assertEqual(prepared['extensions']['lockedConsole'],
+                         {'browser': 'available', 'desktop': 'prepared_console', 'access': 'on'})
+        off = doctor({'desktopState': 'locked', **surfaces(),
+                      'lockedUse': {'supported': True, 'enabled': True, 'phase': 'ready'},
+                      'browserWhileLocked': {'enabled': True, 'active': False}})
+        self.assertEqual(off['extensions']['lockedConsole'],
+                         {'browser': 'unavailable', 'desktop': 'unavailable', 'access': 'off'})
+        unlocked = doctor({'desktopState': 'unlocked', **surfaces('automatic')})
+        self.assertNotIn('lockedConsole', unlocked['extensions'])
+
 
 if __name__ == '__main__':
     unittest.main()
