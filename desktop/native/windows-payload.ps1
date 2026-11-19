@@ -6,6 +6,11 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# A native installer started from PowerShell 7 can pass its module path to
+# Windows PowerShell. Load inbox cmdlets from the running host's own modules.
+Import-Module "$PSHOME\Modules\Microsoft.PowerShell.Management"
+Import-Module "$PSHOME\Modules\Microsoft.PowerShell.Security"
+Import-Module "$PSHOME\Modules\Microsoft.PowerShell.Utility"
 $root = [IO.Path]::GetFullPath($Directory)
 if (-not (Test-Path -LiteralPath $root)) { return }
 if ((Get-Item -LiteralPath $root -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {

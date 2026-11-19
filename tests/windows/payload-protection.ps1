@@ -10,7 +10,7 @@ function Assert($Value, [string]$Message) { if (-not $Value) { throw $Message } 
 function Refuses([scriptblock]$Operation) {
     $refused = $false
     try { & $Operation } catch { $refused = $true }
-    Assert $refused 'Expected filesystem operation to refuse'
+    Assert $refused ('Expected filesystem operation to refuse: ' + $Operation.ToString().Trim())
 }
 function Payload {
     New-Item -ItemType Directory (Join-Path $root 'mc-cli\client'),(Join-Path $root 'runtime') -Force | Out-Null
@@ -26,10 +26,8 @@ try {
     & $Helper -Action protect -Directory $root
     Refuses { Set-Content -LiteralPath (Join-Path $root 'mc-cli\new.py') -Value 'accidental' }
     Refuses { Set-Content -LiteralPath (Join-Path $root 'mc-cli\client\fixture.py') -Value 'accidental' }
-    Refuses { New-Item -ItemType Directory (Join-Path $root 'mc-cli\client\__pycache__') | Out-Null }
-    & $Python -I -c 'import sys;sys.path.insert(0,sys.argv[1]);import fixture;assert fixture.value==1' (Join-Path $root 'mc-cli\client')
-    Assert ($LASTEXITCODE -eq 0) 'Python cannot import protected source'
-    Assert (-not (Test-Path -LiteralPath (Join-Path $root 'mc-cli\client\__pycache__'))) 'Python wrote caches into a protected payload'
+    & $Python -I (Join-Path $PSScriptRoot 'payload-write-probe.py') (Join-Path $root 'mc-cli\client')
+    Assert ($LASTEXITCODE -eq 0) 'Ordinary Python payload write or import check failed'
     & $Helper -Action unprotect -Directory $root
     New-Item -ItemType Directory (Join-Path $root 'mc-cli\client\__pycache__') | Out-Null
     Set-Content -LiteralPath (Join-Path $root 'mc-cli\client\__pycache__\obsolete.pyc') -Value 'stale'

@@ -73,6 +73,10 @@ install location also permits leftovers whose receipts an older uninstaller
 already removed. Product state and registrations are outside these trees.
 The installer applies an inheritable current-user ACL denying file/directory
 writes to `mc-cli`, and removes that exact rule before uninstall or repair.
+The Windows PowerShell helper loads inbox modules from its own installation.
+This keeps ACL commands available when NSIS inherits `PSModulePath` from
+PowerShell 7. Filesystem acceptance checks directory creation and Python
+imports in a process with Windows backup and restore privileges disabled.
 
 **Current, unreleased:** Mac signing establishes a CLI write-deny ACL, and the
 app/public CLI reapplies it on launch because updater archives may omit ACLs.
@@ -104,11 +108,13 @@ prove write refusal, unchanged inventory and deletion/rename; the staged ARM64
 runtime passes relocated/direct execution without payload changes, and a signed
 fixture retains its code seal after protection. Windows hooks compile with
 NSIS. The portable repository checks, 100 release tests and 21 Mac Rust tests
-pass, as do formatting and clippy. Native Windows validation could not run:
-the accepted test appliance's administration route remained unavailable after
-its startup window. The filesystem/repair test is wired into signed Windows
-candidate acceptance, which remains unexecuted for this change. These changes
-are not yet published.
+pass, as do formatting and clippy. The 0.7.3 candidate failed at its first
+silent install on both Windows architectures. An ARM64 Windows VM reproduced
+the payload helper's exit 1 when a native child of PowerShell 7 invoked
+Windows PowerShell. Loading the host's inbox modules fixed that invocation in
+the VM. The VM's SSH token could create empty directories through the deny
+ACL with backup and restore privileges enabled. Disabling those privileges in
+the Python probe made directory creation fail and left no bytecode cache.
 
 **Open:** YA still collapses signature, payload and environment failures into
 one unverified-release message. Its consumer owns that separate diagnostic fix.
