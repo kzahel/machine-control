@@ -111,3 +111,20 @@ desktop adapters. A second probe closed an owner while the first endpoint
 was waiting for the loopback listener to start. The policy still published
 an accepted endpoint reply after the owner yielded. The native boundary
 continues to reject use by that ended owner. [Loopback bridge](../runtime/node/cdp.ts)
+
+## A late CDP authorization can strand a native audit
+
+**Open, fixture-tested in the shared bridge.** The policy resolves an
+unanswered native CDP `begin` after three seconds. The WebSocket upgrade
+refuses the connection and sends no `result` if that response is false.
+A delayed native side can already have created the audit entry when the
+policy times out.
+
+A probe used the production policy, a loopback WebSocket client, and a
+native fixture that recorded the audit but delayed its positive reply
+past the deadline. The socket closed, the late reply arrived, and the
+fixture still held one audit without a result. The desktop adapters limit
+their live audit tables to 256 entries. Exhaustion of a live native
+adapter's table remains source-reviewed.
+[Shared bridge](../runtime/node/cdp.ts),
+[native check deadline](../runtime/node/policy-host.ts)
