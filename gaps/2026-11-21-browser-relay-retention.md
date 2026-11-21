@@ -94,11 +94,20 @@ second profile connected.
   profile. Windows overlapped lookup handling and the named-pipe relay's
   handoff remain source-reviewed.
 
-## Separate endpoint lifetime question
+## Shared endpoints remain allocated after owner release
 
-**Open, source-reviewed.** The shared endpoint table has no production call
+**Open, fixture-tested.** The shared endpoint table has no production call
 to `Streams.ownerEnded`. A native owner ending fences its token at the
 native boundary, but an endpoint with a still-current browser approval can
-continue occupying a shared slot. Verify whether sequential owner sessions
-can fill the shared table under one uninterrupted approval and whether
-owner end can race a pending endpoint issuance.
+continue occupying a shared slot. [Shared endpoint table](../runtime/src/streams.ts)
+
+A bounded probe against the production policy granted 16 sequential owners
+one endpoint each under the same browser approval. The probe closed each
+owner through the production admission path, observed its yield, and
+checked that active owner count returned to zero. Owner 17 received
+`browser_stream_capacity`. Stopping Browser and reapproving it let the next
+owner obtain an endpoint. This exhausts a fixed table shared by the three
+desktop adapters. A second probe closed an owner while the first endpoint
+was waiting for the loopback listener to start. The policy still published
+an accepted endpoint reply after the owner yielded. The native boundary
+continues to reject use by that ended owner. [Loopback bridge](../runtime/node/cdp.ts)
