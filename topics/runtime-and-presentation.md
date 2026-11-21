@@ -78,6 +78,15 @@ the last live surface choices unless a person acted, or any stop was counted
 inside the resident, after they were observed. The incident and evidence
 are in the [companion-deadline gap](../gaps/2026-11-06-companion-deadline-drops-resident.md).
 
+**Current (Mac heap growth and liveness):** installed 0.7.2 accumulated a
+31.9 GB footprint and stopped responding through the menu bar and resident
+socket. Allocation stacks from a fresh launch identify retained JSON parser
+objects on the long-lived Swift policy reader. The unreleased reader drains
+Foundation temporaries after each frame, with a live-allocation regression
+test. The [incident and profiling recipe](../gaps/2026-11-21-macos-policy-reader-heap-growth.md)
+record the repair and the open supervisor coverage gap. What first stopped
+the socket and menu bar from responding remains unknown.
+
 ## Product direction
 
 **Proposal:** the [desktop access experience](desktop-access-experience.md)

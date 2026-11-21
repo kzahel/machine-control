@@ -251,6 +251,15 @@ framework, layout, login-window and outer-recovery coverage.
 
 ## Resident responsiveness
 
+**Current (2026-11-21), `live-tested` and `source-reviewed`:** installed Mac
+0.7.2 on Apple silicon had a full resident socket queue and an unresponsive
+menu bar with a 31.9 GB footprint. A fresh-launch allocation trace localized
+ongoing heap growth to Foundation JSON decoding in the Swift policy reader,
+including with Desktop and Browser access off. The
+[incident record](../../gaps/2026-11-21-macos-policy-reader-heap-growth.md)
+owns the allocation measurements, the isolated comparison and the limits of
+the evidence about the original menu bar failure.
+
 **Current (2026-10-11), `source-reviewed` and bounded `live-tested`:** two
 samples of an installed 0.5.8 desktop process caught its main UI thread in
 `ResidentService.unlockStatus()` waiting in socket reads, through resident

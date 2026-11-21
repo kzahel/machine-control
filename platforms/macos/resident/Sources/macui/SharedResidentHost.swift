@@ -191,55 +191,61 @@ final class SharedResidentHost {
     private func readLoop() {
         do {
             while true {
-                let header = try readExactly(4)
-                let size = Int(UInt32(header[0]) | UInt32(header[1]) << 8 |
-                    UInt32(header[2]) << 16 | UInt32(header[3]) << 24)
-                guard (1...Self.maximum).contains(size),
-                      let frame = try JSONSerialization.jsonObject(with: readExactly(size)) as? Frame,
-                      let type = frame["type"] as? String else {
-                    throw SharedPolicyError(code: "ipc_invalid_frame")
-                }
-                if type == "reply" {
-                    let id = frame["id"] as? String ?? ""
-                    lock.lock(); let waiting = pending.removeValue(forKey: id); lock.unlock()
-                    guard let waiting else {
-                        if id.hasPrefix("native-reply:") { continue }
-                        throw SharedPolicyError(code: "ipc_unknown_reply")
-                    }
-                    waiting.timeout.cancel()
-                    if frame["ok"] as? Bool == true {
-                        waiting.complete(.success(frame["data"] as? Frame ?? [:]))
-                    } else {
-                        waiting.complete(.failure(SharedPolicyError(code:
-                            frame["errorCode"] as? String ?? "control_policy_refused")))
-                    }
-                } else if type == "browser.state", let value = frame["state"] as? Frame {
-                    lock.lock(); snapshot = value; lock.unlock()
-                } else if ["provider.send", "provider.close", "access.event", "native.check"].contains(type) {
-                    let bytes = try JSONSerialization.data(withJSONObject: frame).count
-                    lock.lock()
-                    eventCount += 1; eventBytes += bytes
-                    let full = eventCount > 512 || eventBytes > 2 * Self.maximum
-                    lock.unlock()
-                    guard !full else { throw SharedPolicyError(code: "ipc_event_capacity") }
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        defer {
-                            self.lock.lock(); self.eventCount -= 1; self.eventBytes -= bytes; self.lock.unlock()
-                        }
-                        guard self.alive else { return }
-                        if type == "native.check" {
-                            guard let id = frame["nativeId"] as? String else { self.fail("ipc_invalid_frame"); return }
-                            do { try self.enqueue(["id": "native-reply:" + id, "method": "native.reply",
-                                "nativeId": id, "accepted": self.native(frame)]) }
-                            catch { self.fail("ipc_write_failed") }
-                        } else { self.receive(frame) }
-                    }
-                } else if type != "request.finished" {
-                    throw SharedPolicyError(code: "ipc_invalid_event")
-                }
+                // This detached thread needs to drain Foundation's temporary
+                // JSON allocations before it waits for the next policy frame.
+                try autoreleasepool { try receiveFrame() }
             }
         } catch { fail((error as? SharedPolicyError)?.code ?? "ipc_invalid_json") }
+    }
+
+    private func receiveFrame() throws {
+        let header = try readExactly(4)
+        let size = Int(UInt32(header[0]) | UInt32(header[1]) << 8 |
+            UInt32(header[2]) << 16 | UInt32(header[3]) << 24)
+        guard (1...Self.maximum).contains(size),
+              let frame = try JSONSerialization.jsonObject(with: readExactly(size)) as? Frame,
+              let type = frame["type"] as? String else {
+            throw SharedPolicyError(code: "ipc_invalid_frame")
+        }
+        if type == "reply" {
+            let id = frame["id"] as? String ?? ""
+            lock.lock(); let waiting = pending.removeValue(forKey: id); lock.unlock()
+            guard let waiting else {
+                if id.hasPrefix("native-reply:") { return }
+                throw SharedPolicyError(code: "ipc_unknown_reply")
+            }
+            waiting.timeout.cancel()
+            if frame["ok"] as? Bool == true {
+                waiting.complete(.success(frame["data"] as? Frame ?? [:]))
+            } else {
+                waiting.complete(.failure(SharedPolicyError(code:
+                    frame["errorCode"] as? String ?? "control_policy_refused")))
+            }
+        } else if type == "browser.state", let value = frame["state"] as? Frame {
+            lock.lock(); snapshot = value; lock.unlock()
+        } else if ["provider.send", "provider.close", "access.event", "native.check"].contains(type) {
+            let bytes = try JSONSerialization.data(withJSONObject: frame).count
+            lock.lock()
+            eventCount += 1; eventBytes += bytes
+            let full = eventCount > 512 || eventBytes > 2 * Self.maximum
+            lock.unlock()
+            guard !full else { throw SharedPolicyError(code: "ipc_event_capacity") }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                defer {
+                    self.lock.lock(); self.eventCount -= 1; self.eventBytes -= bytes; self.lock.unlock()
+                }
+                guard self.alive else { return }
+                if type == "native.check" {
+                    guard let id = frame["nativeId"] as? String else { self.fail("ipc_invalid_frame"); return }
+                    do { try self.enqueue(["id": "native-reply:" + id, "method": "native.reply",
+                        "nativeId": id, "accepted": self.native(frame)]) }
+                    catch { self.fail("ipc_write_failed") }
+                } else { self.receive(frame) }
+            }
+        } else if type != "request.finished" {
+            throw SharedPolicyError(code: "ipc_invalid_event")
+        }
     }
 
     private func fail(_ code: String) {

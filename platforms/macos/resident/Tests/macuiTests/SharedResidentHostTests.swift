@@ -29,6 +29,11 @@ final class SharedResidentHostTests: XCTestCase {
         r=read();m=r['method']
         if m=='close':sys.exit(0)
         if m=='stall':time.sleep(60)
+        if m=='allocation':
+            data=dict(rows=[dict(label=f'fixture-row-{i}',active=False) for i in range(12)])
+            for _ in range(r['count']):
+                send(dict(type='reply',id='native-reply:fixture',ok=True,data=data))
+            reply(r,data);continue
         if m=='invalid':
             sys.stdout.buffer.write(struct.pack('<I',0));sys.stdout.buffer.flush();time.sleep(60)
         if m=='event':
@@ -68,6 +73,28 @@ final class SharedResidentHostTests: XCTestCase {
         let reply = try value.call(["method": "inspect"])
         XCTAssertEqual(reply["method"] as? String, "inspect")
         XCTAssertEqual(reply["sentinelInherited"] as? Bool, false)
+    }
+
+    func testReaderDrainsTemporaryJSONAllocationsBetweenFrames() throws {
+        let value = try host()
+        defer { value.stop(); reaped(value.processID) }
+
+        func liveBlocksAfterBatch() throws -> UInt32 {
+            try autoreleasepool {
+                // Ignored native acknowledgements exercise the same decoder
+                // without scheduling a deadline for every frame. The ordinary
+                // reply follows the entire batch on the same pipe.
+                let reply = try value.call(["method": "allocation", "count": 1_500], timeout: 10)
+                XCTAssertEqual((reply["rows"] as? [[String: Any]])?.count, 12)
+            }
+            var statistics = malloc_statistics_t()
+            malloc_zone_statistics(nil, &statistics)
+            return statistics.blocks_in_use
+        }
+
+        let baseline = try liveBlocksAfterBatch()
+        let after = try liveBlocksAfterBatch()
+        XCTAssertLessThan(after, baseline + 4_000, "The live reader must release decoded JSON between replies")
     }
 
     func testRepliesProgressWithoutMainEventDelivery() throws {

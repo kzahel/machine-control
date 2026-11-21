@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Fix a macOS memory leak that retained decoded policy replies while Machine
+  Control was idle, including when Desktop and Browser access were off.
+
 ## [0.7.3]
 
 - When the console is locked, `target doctor` explains whether Browser

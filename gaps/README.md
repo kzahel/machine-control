@@ -15,3 +15,4 @@ belongs to the owning topic.
 - [2026-11-06 — Linux native messaging host crashes while the resident is down](2026-11-06-linux-browser-host-resident-down.md)
 - [2026-11-06 — locked-console route differs by platform and misled an agent](2026-11-06-prepared-console-platform-divergence.md)
 - [2026-11-06 — accidental platform divergences in the common agent surface](2026-11-06-accidental-platform-divergences.md)
+- [2026-11-21 — macOS policy reader retains decoded JSON between replies](2026-11-21-macos-policy-reader-heap-growth.md)
