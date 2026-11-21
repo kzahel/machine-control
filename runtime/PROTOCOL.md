@@ -104,8 +104,15 @@ The native parent also uses `browser.attach` with its authenticated extension
 origin, bounded worker hello/profile metadata and private transport tag;
 `operator.configure` with exact profile IDs/scopes and the original remaining
 lifetime; `native.state` with native safety/epoch observations; `browser.call`
-with an admitted native owner handle and public request; and `provider.retire`
-after permanent transport disposal. These remain trusted inherited calls.
+with an admitted native owner handle and public request. On permanent native
+peer disposal, `browser.detach` fences and retires the connection associated
+with the exact transport tag, including when the parent never observed the
+attach reply. A missing tag association is a no-op. A live tag cannot bind a
+second connection. The parent uses a fresh tag for each accepted peer, sends
+detach on the same ordered channel after any attach for that tag, and never
+attaches that tag again.
+`provider.retire` remains available to fixtures using connection IDs. These
+remain trusted inherited calls.
 
 `browser.call` supports the ordinary operation vocabulary and profile discovery.
 An omitted selector chooses only a single explicitly approved profile, including

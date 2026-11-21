@@ -22,6 +22,14 @@ and
 
 ## Platform acceptance surface
 
+**Current (2026-11-21), fixture-tested:** the managed Windows transport lost a
+successful browser attachment when its reply arrived after the caller
+cancelled. The relay now cleans up by exact peer tag, which a managed .NET
+fixture verifies against the policy child on the ARM64 VM. Windows
+named-pipe timing and overlapped endpoint lookup handling remain
+source-reviewed.
+[Browser relay gap](../../gaps/2026-11-21-browser-relay-retention.md)
+
 **Current — focused x64 native pointer conformance:** the owned Win32 adapter now includes move,
 bounded drag and both wheel axes. Windows wheel units and absolute virtual-screen
 coordinates follow [MOUSEINPUT](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput).

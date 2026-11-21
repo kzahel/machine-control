@@ -15,6 +15,7 @@ internal static class BrowserDevToolsFixtures
         await WithoutPoolProcess("--sync-ipc-without-pool");
         await WithoutPoolProcess("--async-ipc-without-pool");
         BlockedWriter();
+        await CancelledAttachAsync();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
         start.ArgumentList.Add(Path.GetFullPath("runtime/node/main.ts"));
         SharedBrowserHost? host = null;
@@ -165,6 +166,61 @@ internal static class BrowserDevToolsFixtures
                 host.Failure == "ipc_reply_timeout" && failure, "private timeout identifies its method and fails closed");
         }
         Console.WriteLine("Shared browser/native IPC contracts passed");
+    }
+
+    private static async Task CancelledAttachAsync()
+    {
+        var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MACHINE_CONTROL_NODE") ?? "node");
+        start.ArgumentList.Add("--input-type=module");
+        start.ArgumentList.Add("--eval");
+        start.ArgumentList.Add("""
+            import { FrameDecoder, writeFrame } from './runtime/node/framing.ts';
+            import { PolicyHost } from './runtime/node/policy-host.ts';
+            const send = frame => writeFrame(process.stdout, frame, 16 * 1024 * 1024);
+            let attachId, held;
+            const host = new PolicyHost(message => {
+              if (message.type === 'reply' && message.id === attachId) held = message;
+              else send(message);
+            });
+            const decoder = new FrameDecoder(frame => {
+              if (frame.method === 'browser.attach' && attachId === undefined) attachId = frame.id;
+              if (frame.method === 'browser.detach' && held) { send(held); held = undefined; }
+              host.receive(frame);
+            }, 16 * 1024 * 1024);
+            process.stdin.on('data', chunk => decoder.push(chunk));
+            process.stdin.on('end', () => host.close());
+            """);
+        using var host = new SharedBrowserHost(start, _ => { }, _ => false, () => { });
+        JsonObject Attach(string tag) => new()
+        {
+            ["method"] = "browser.attach",
+            ["transportTag"] = tag,
+            ["extensionId"] = new string('a', 32),
+            ["hello"] = new JsonObject
+            {
+                ["protocolVersion"] = 1,
+                ["extensionVersion"] = "fixture",
+                ["profile"] = new JsonObject
+                { ["protocolVersion"] = 1, ["installationId"] = "00000000-0000-4000-8000-000000000001", ["name"] = "Fixture", ["enabled"] = true }
+            }
+        };
+        using var cancel = new CancellationTokenSource();
+        var attaching = host.CallAsync(Attach("lost"), cancel.Token);
+        var profiles = host.Call(new JsonObject
+        {
+            ["method"] = "browser.call",
+            ["authorityId"] = "metadata",
+            ["requestId"] = "profiles",
+            ["request"] = new JsonObject { ["operation"] = "browser.profiles" }
+        });
+        Require(profiles["data"]!["profiles"]![0]!["connected"]!.GetValue<bool>() && !attaching.IsCompleted,
+            "policy accepts the profile while its attach reply is held");
+        cancel.Cancel();
+        try { await attaching; throw new Exception("Expected attach cancellation"); }
+        catch (OperationCanceledException) { }
+        host.Call(new JsonObject { ["method"] = "browser.detach", ["transportTag"] = "lost" });
+        Require(host.Call(Attach("replacement"))["connectionId"] is not null && host.Alive,
+            "detach by native tag retires the cancelled attach on the same host");
     }
 
     private static async Task WithoutPoolProcess(string option)

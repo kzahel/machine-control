@@ -4,6 +4,9 @@
 
 - Fix a macOS memory leak that retained decoded policy replies while Machine
   Control was idle, including when Desktop and Browser access were off.
+- Stop the macOS Chrome helper accumulating incoming message buffers. Browser
+  streams reuse their authority for repeated endpoint lookups, and an
+  interrupted Chrome connection can reconnect to the same profile.
 
 ## [0.7.3]
 

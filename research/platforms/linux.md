@@ -14,6 +14,12 @@ needs a kernel boot workaround and factory/workspace adoption is unfinished.
 
 ## Browser recovery smoke
 
+**Current (2026-11-21), fixture-tested:** the production Python relay and
+policy child reuse live endpoint authority and retire a profile connection
+when its peer closes before the attach reply arrives. The
+[browser relay gap](../../gaps/2026-11-21-browser-relay-retention.md) owns the
+original measurements and regression evidence.
+
 **Current — live-tested, unreleased source (2026-10-25):** Ubuntu 24.04
 GNOME 46 Wayland ARM64 and native Chrome for Testing 156 pass ten focused
 relay checks with extension 0.8.1. Independent HTTP/PNG effects, typed dialog

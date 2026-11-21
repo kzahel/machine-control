@@ -31,14 +31,17 @@ func runBrowserHost(origin: String, socketPath: String = defaultResidentSocket) 
     Thread.detachNewThread {
         let input = FileHandle.standardInput
         while true {
-            let header = input.readData(ofLength: 4)
-            guard header.count == 4 else { exit(0) }
-            let size = header.withUnsafeBytes { Int(UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))) }
-            guard size > 0, size <= 64 * 1_048_576 else { exit(1) }
-            var message = input.readData(ofLength: size)
-            guard message.count == size else { exit(0) }
-            message.append(0x0a)
-            guard (try? writeSocket(resident, data: message)) != nil else { exit(0) }
+            // FileHandle can autorelease buffers on this detached thread.
+            autoreleasepool {
+                let header = input.readData(ofLength: 4)
+                guard header.count == 4 else { exit(0) }
+                let size = header.withUnsafeBytes { Int(UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))) }
+                guard size > 0, size <= 64 * 1_048_576 else { exit(1) }
+                var message = input.readData(ofLength: size)
+                guard message.count == size else { exit(0) }
+                message.append(0x0a)
+                guard (try? writeSocket(resident, data: message)) != nil else { exit(0) }
+            }
         }
     }
 

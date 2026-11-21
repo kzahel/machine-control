@@ -25,7 +25,11 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     private int _stopped = 1;
     private int _disposed;
     private (string Generation, bool Readable, bool Writable)? _nativeState;
-    private sealed record Authority(Request Request, string Generation);
+    private sealed record Authority(Request Request, string Generation)
+    {
+        internal int Pending = 1;
+        internal bool Issued;
+    }
     private sealed record NativeCheckTiming(string Phase, double ElapsedMs, bool Accepted);
     private NativeCheckTiming _slowestNativeCheck = new("none", 0, false);
     private sealed class Peer(NamedPipeServerStream pipe)
@@ -148,6 +152,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     {
         var peer = new Peer(pipe);
         _peers[peer.Tag] = peer;
+        var attachSubmitted = false;
         try
         {
             using var handshake = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -160,6 +165,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
             if (hello?["type"]?.GetValue<string>() != "hello") return;
             try
             {
+                attachSubmitted = true;
                 var reply = await _host.CallAsync(new JsonObject
                 {
                     ["method"] = "browser.attach",
@@ -189,12 +195,12 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         {
             _peers.TryRemove(peer.Tag, out _);
             peer.Pipe.Dispose();
-            if (peer.ConnectionId is { } id && _host.Alive)
+            if (attachSubmitted && _host.Alive)
             {
                 try
                 {
-                    _host.Call(new JsonObject { ["method"] = "provider.disconnect", ["connectionId"] = id });
-                    _host.Call(new JsonObject { ["method"] = "provider.retire", ["connectionId"] = id });
+                    // Cancellation can win after the attach write but before its reply.
+                    _host.Call(new JsonObject { ["method"] = "browser.detach", ["transportTag"] = peer.Tag });
                 }
                 catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException) { }
             }
@@ -283,25 +289,45 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         Uncertainty = confirmed ? "application_effect_not_independently_observed" : "browser_completion_not_observed",
         RetrySafety = confirmed ? "unsafe_to_replay" : "unsafe_delivery_unknown"
     };
-    private string AuthorityFor(Request request, bool retained)
+    private string BeginAuthority(Request request)
     {
-        foreach (var item in _authorities)
+        lock (_grants.Gate)
         {
-            if (_grants.AuthorizeNative(item.Value.Request, item.Value.Generation) is not null) _authorities.TryRemove(item.Key, out _);
-            else if (retained && item.Value.Request.Operation == "browser.endpoint" && item.Value.Generation == _grants.BrowserGeneration &&
-                item.Value.Request.ControlOwnership?.Owner == request.ControlOwnership?.Owner &&
-                item.Value.Request.ControlOwnership?.Intent == request.ControlOwnership?.Intent &&
-                item.Value.Request.ControlOwnership?.Session == request.ControlOwnership?.Session) return item.Key;
+            foreach (var item in _authorities)
+            {
+                if (_grants.AuthorizeNative(item.Value.Request, item.Value.Generation) is not null) _authorities.TryRemove(item.Key, out _);
+                else if (request.Operation == "browser.endpoint" && item.Value.Request.Operation == "browser.endpoint" &&
+                    item.Value.Generation == _grants.BrowserGeneration &&
+                    item.Value.Request.ControlOwnership?.Owner == request.ControlOwnership?.Owner &&
+                    item.Value.Request.ControlOwnership?.Intent == request.ControlOwnership?.Intent &&
+                    item.Value.Request.ControlOwnership?.Session == request.ControlOwnership?.Session)
+                {
+                    item.Value.Pending++;
+                    return item.Key;
+                }
+            }
+            if (_authorities.Count >= 128) throw new InvalidOperationException("browser_stream_capacity");
+            var id = Guid.NewGuid().ToString("n");
+            _authorities[id] = new Authority(request, _grants.BrowserGeneration);
+            return id;
         }
-        if (_authorities.Count >= 128) throw new InvalidOperationException("browser_stream_capacity");
-        var id = Guid.NewGuid().ToString("n");
-        _authorities[id] = new Authority(request, _grants.BrowserGeneration); return id;
+    }
+    private void EndAuthority(string id, bool issued)
+    {
+        lock (_grants.Gate)
+        {
+            if (!_authorities.TryGetValue(id, out var authority)) return;
+            authority.Issued |= issued;
+            if (--authority.Pending == 0 && !authority.Issued)
+                _authorities.TryRemove(id, out _);
+        }
     }
     internal async Task<Result> ExecuteAsync(Request request, Result result, CancellationToken cancellation, bool controlled = false)
     {
         result = result with { ActualRoute = Route, Fidelity = "chromium_tab_cdp", FocusConsequence = "browser_tab_may_activate", CursorConsequence = "unchanged_expected" };
         if (request.TimeoutMs is < 100 or > 45000) return result with { ErrorCode = "invalid_request" };
         string? authorityId = null;
+        var accepted = false;
         var id = Guid.NewGuid().ToString("n");
         try
         {
@@ -313,7 +339,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
                 if (upload.ErrorCode is not null) return result with { ErrorCode = upload.ErrorCode };
                 request = request with { Files = upload.Files };
             }
-            authorityId = request.Operation == "browser.profiles" ? "metadata" : AuthorityFor(request, request.Operation == "browser.endpoint");
+            authorityId = request.Operation == "browser.profiles" ? "metadata" : BeginAuthority(request);
             var generation = _grants.BrowserGeneration;
             var reply = await _host.CallAsync(new JsonObject
             {
@@ -342,7 +368,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
                 identified["browserProfileId"] = profile.DeepClone();
                 identified["providerGeneration"] = reply["providerGeneration"]?.DeepClone();
             }
-            var accepted = reply["accepted"]?.GetValue<bool>() == true;
+            accepted = reply["accepted"]?.GetValue<bool>() == true;
             var observes = BrowserWire.Observes(request.Operation) || request.Operation is "browser.endpoint" or "browser.profiles" or "browser.release";
             return result with
             {
@@ -362,7 +388,8 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
         { return result with { ErrorCode = "browser_completion_unavailable", Delivery = "unknown", Effect = "unknown", Uncertainty = "browser_completion_not_observed", RetrySafety = "unsafe_delivery_unknown" }; }
         finally
         {
-            if (authorityId is not null && request.Operation != "browser.endpoint") _authorities.TryRemove(authorityId, out _);
+            if (authorityId is not null && authorityId != "metadata")
+                EndAuthority(authorityId, request.Operation == "browser.endpoint" && accepted);
             if (cancellation.IsCancellationRequested && _host.Alive)
                 try { _host.Call(new JsonObject { ["method"] = "browser.cancel", ["requestId"] = id }); } catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException) { }
         }

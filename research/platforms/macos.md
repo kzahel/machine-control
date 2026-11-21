@@ -251,6 +251,12 @@ framework, layout, login-window and outer-recovery coverage.
 
 ## Resident responsiveness
 
+**Current (2026-11-21), fixture-tested:** the separate Chrome native-messaging
+helper retained incoming message buffers on its detached reader. A per-frame
+autorelease pool eliminated measured live-block growth in local and ARM64 VM
+relay fixtures. The VM also verified attach and reconnect against the signed
+app. [Browser relay gap](../../gaps/2026-11-21-browser-relay-retention.md)
+
 **Current (2026-11-21), `live-tested` and `source-reviewed`:** installed Mac
 0.7.2 on Apple silicon had a full resident socket queue and an unresponsive
 menu bar with a 31.9 GB footprint. A fresh-launch allocation trace localized

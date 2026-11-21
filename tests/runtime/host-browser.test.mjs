@@ -3,6 +3,41 @@ import assert from "node:assert/strict";
 import { PolicyHost } from "../../runtime/node/policy-host.ts";
 import { ReferenceBrowser } from "../../runtime/testing/reference-browser.ts";
 
+test("a lost attach reply can retire only its native transport", () => {
+  const replies = new Map();
+  let sequence = 0;
+  const host = new PolicyHost(message => {
+    if (message.type === "reply") replies.set(message.id, message);
+  });
+  function call(method, fields = {}) {
+    const id = `rpc-${++sequence}`;
+    host.receive({ id, method, ...fields });
+    return replies.get(id);
+  }
+  const attach = (tag, suffix) => call("browser.attach", {
+    transportTag: tag,
+    extensionId: "a".repeat(32),
+    hello: { protocolVersion: 1, extensionVersion: "fixture", profile: {
+      protocolVersion: 1, installationId: `00000000-0000-4000-8000-00000000000${suffix}`,
+      name: "Fixture", enabled: true,
+    } },
+  });
+  try {
+    assert.equal(call("hello", { protocolVersion: 2 }).ok, true);
+    assert.equal(attach("lost", 1).ok, true);
+    assert.equal(attach("other", 2).ok, true);
+    assert.equal(attach("other", 3).errorCode, "browser_transport_conflict");
+    assert.equal(call("browser.call", {
+      requestId: "profiles", authorityId: "metadata", request: { operation: "browser.profiles" },
+    }).data.data.profiles.length, 2);
+    assert.equal(call("browser.detach", { transportTag: "lost" }).ok, true);
+    assert.equal(attach("replacement", 1).ok, true);
+    assert.equal(call("browser.detach", { transportTag: "lost" }).ok, true);
+    assert.equal(attach("repeat", 1).errorCode, "profile_conflict");
+    assert.equal(attach("repeat", 2).errorCode, "profile_conflict");
+  } finally { host.close(); }
+});
+
 test(
   "production host uses profile identity, exact selection and shared reference effects",
   { timeout: 5000 },

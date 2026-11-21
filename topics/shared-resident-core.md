@@ -10,6 +10,13 @@ records the candidate gates and remaining qualification limits.
 [Tactical 154](../docs/tactical/154-macos-shared-surface-adoption.md) owns the
 macOS acceptance, cleanup and remaining qualification limits.
 
+**Current (browser relay lifetimes):** the macOS Chrome helper drains
+incoming message buffers per frame. The macOS, Linux and Windows relays
+reuse live endpoint authority and retire interrupted attachments by exact
+native transport tag. The
+[gap record](../gaps/2026-11-21-browser-relay-retention.md) owns the
+measurements and remaining qualification.
+
 ## Motivation
 
 **Current:** this workstream began with reported contention between two

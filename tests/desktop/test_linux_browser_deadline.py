@@ -1,6 +1,7 @@
 """The Linux transport delegates routing and deadlines to the real child."""
 from pathlib import Path
 import queue
+import socket
 import sys
 import threading
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ import unittest
 from unittest import mock
 import test_linux_policy
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'desktop/native/linux'))
-from browser import Browser
+from browser import Browser, Peer
 from policy import Policy
 
 
@@ -41,6 +42,59 @@ class BrowserBoundaryTests(unittest.TestCase):
         while not replies:self.callbacks.get(timeout=2)()
         self.assertTrue(replies[0]['accepted'])
         self.assertEqual(replies[0]['data']['profiles'],[])
+
+    def test_endpoints_reuse_authority_and_failed_first_lookup_releases_it(self):
+        profile=self.host.call(dict(method='browser.attach',extensionId='a'*32,hello=self.hello()))['profileId']
+        self.owner.grants.view={'surfaces':{'browser':{'mode':'automatic','ready':True}}}
+        self.browser.configure([profile],None,True)
+        authority=dict(owner='fixture-owner',session='fixture-session',profiles=[profile],validate=lambda:None)
+
+        def endpoint(selector):
+            replies=[]
+            self.browser.execute(dict(operation='browser.endpoint',browserProfileId=selector),replies.append,authority)
+            while not replies:self.callbacks.get(timeout=2)()
+            return replies[0]
+
+        self.assertFalse(endpoint('unknown-profile')['accepted'])
+        self.assertEqual(self.browser.authorities,{})
+
+        overlapping=[]
+        for selector in ('unknown-profile',profile):
+            self.browser.execute(dict(operation='browser.endpoint',browserProfileId=selector),overlapping.append,authority)
+        self.assertEqual(len(self.browser.authorities),1)
+        while len(overlapping)<2:self.callbacks.get(timeout=2)()
+        self.assertFalse(overlapping[0]['accepted'])
+        first=overlapping[1]
+        self.assertTrue(first['accepted'],first.get('errorCode'))
+        self.assertFalse(endpoint('unknown-profile')['accepted'])
+        for _ in range(20):
+            self.assertEqual(endpoint(profile)['data']['browserEndpoint'],first['data']['browserEndpoint'])
+        self.assertEqual(len(self.browser.authorities),1)
+        self.browser.event(dict(type='access.event',event='ended',sessionId=authority['session']))
+        self.assertEqual(self.browser.authorities,{})
+
+    @staticmethod
+    def hello():
+        return dict(type='hello',protocolVersion=1,extensionVersion='fixture',profile=dict(
+            protocolVersion=1,installationId='00000000-0000-4000-8000-000000000001',name='Fixture',enabled=True))
+
+    def test_disconnect_before_attach_completion_releases_profile(self):
+        peer,remote=socket.socketpair()
+        with peer,remote:
+            self.browser.peers[peer]=Peer(peer,'a'*32)
+            completed=[]
+            self.browser.message(peer,self.hello(),lambda:completed.append(True))
+            self.assertTrue(self.browser.peers[peer].attaching)
+            self.browser.disconnect(peer)
+            # A synchronous call is a pipe barrier without running any of the
+            # coordinator callbacks, including the abandoned attach reply.
+            registry=self.host.call(dict(method='browser.call',requestId='profiles',authorityId='metadata',
+                                         request=dict(operation='browser.profiles')))
+            self.assertFalse(registry['data']['profiles'][0]['connected'])
+            replacement=self.host.call(dict(method='browser.attach',extensionId='a'*32,hello=self.hello()))
+            self.assertEqual(replacement['profileId'],registry['data']['profiles'][0]['profileId'])
+            while not completed:self.callbacks.get(timeout=2)()
+            self.assertEqual(self.browser.peers,{})
 
     def test_claim_attribution_reaches_the_shared_runtime_unchanged(self):
         claim='c-'+'a1'*12

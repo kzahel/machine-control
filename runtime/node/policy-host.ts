@@ -141,6 +141,62 @@ export class PolicyHost {
     return provider;
   }
 
+  #connectProvider(profileId: string, tag: string | undefined, deferred: boolean) {
+    const connection = this.core.connect(
+      profileId,
+      "chrome.extension/cdp",
+    );
+    const connectionId = `${this.bootId}:${++this.#sequence}`;
+    if (tag !== undefined) this.#transportTags.set(connectionId, tag);
+    const provider = new ExtensionProvider(this.core, connection, {
+      namespace: connectionId,
+      send: (payload, command) =>
+        this.#send({
+          type: "provider.send",
+          connectionId,
+          transportTag: this.#transportTags.get(connectionId),
+          frame: payload,
+          ...(command
+            ? {
+                authorityId: this.#requestAuthorities.get(
+                  command.requestId,
+                ),
+              }
+            : {}),
+        }),
+      effects: (effects) => this.#consume(effects),
+      fault: () => this.#send({ type: "provider.close", connectionId }),
+    });
+    this.#providers.set(connectionId, provider);
+    if (!deferred) provider.synchronize();
+    return { connectionId, generation: connection.generation };
+  }
+
+  #availableTransportTag(value: unknown): string | undefined {
+    this.#prune();
+    if (this.#providers.size >= 80) throw new Error("host_capacity");
+    if (value === undefined) return undefined;
+    const tag = string(value);
+    if ([...this.#transportTags.values()].includes(tag))
+      throw new Error("browser_transport_conflict");
+    return tag;
+  }
+
+  #disconnectProvider(id: string, provider: ExtensionProvider): void {
+    provider.disconnected();
+    const profile = this.#profileConnections.get(id);
+    if (profile) this.#profiles.disconnected(profile, provider.connection);
+    this.#cdp?.sweep();
+    this.#retired.add(id);
+  }
+
+  #removeProvider(id: string): void {
+    this.#providers.delete(id);
+    this.#retired.delete(id);
+    this.#profileConnections.delete(id);
+    this.#transportTags.delete(id);
+  }
+
   #invoke(frame: NativeFrame): unknown {
     if (typeof frame.method === "string" && frame.method.startsWith("access.")) return this.#access(frame);
     switch (frame.method) {
@@ -160,47 +216,13 @@ export class PolicyHost {
             rssBytes: process.memoryUsage().rss,
           },
         };
-      case "provider.connect": {
-        this.#prune();
-        if (this.#providers.size >= 80) throw new Error("host_capacity");
-        const connection = this.core.connect(
-          string(frame.profileId),
-          "chrome.extension/cdp",
+      case "provider.connect":
+        return this.#connectProvider(
+          string(frame.profileId), this.#availableTransportTag(frame.transportTag), frame.defer === true,
         );
-        const connectionId = `${this.bootId}:${++this.#sequence}`;
-        if (typeof frame.transportTag === "string") this.#transportTags.set(connectionId, string(frame.transportTag));
-        const provider = new ExtensionProvider(this.core, connection, {
-          namespace: connectionId,
-          send: (payload, command) =>
-            this.#send({
-              type: "provider.send",
-              connectionId,
-              transportTag: this.#transportTags.get(connectionId),
-              frame: payload,
-              ...(command
-                ? {
-                    authorityId: this.#requestAuthorities.get(
-                      command.requestId,
-                    ),
-                  }
-                : {}),
-            }),
-          effects: (effects) => this.#consume(effects),
-          fault: () => this.#send({ type: "provider.close", connectionId }),
-        });
-        this.#providers.set(connectionId, provider);
-        if (frame.defer !== true) provider.synchronize();
-        return { connectionId, generation: connection.generation };
-      }
       case "provider.disconnect": {
-        const provider = this.#provider(frame.connectionId);
-        provider.disconnected();
-        const profile = this.#profileConnections.get(
-          string(frame.connectionId),
-        );
-        if (profile) this.#profiles.disconnected(profile, provider.connection);
-        this.#cdp?.sweep();
-        this.#retired.add(string(frame.connectionId));
+        const id = string(frame.connectionId);
+        this.#disconnectProvider(id, this.#provider(id));
         this.#prune();
         return {};
       }
@@ -248,16 +270,12 @@ export class PolicyHost {
           hello.extensionVersion.length > 32
         )
           throw new Error("browser_profile_protocol_required");
+        const tag = this.#availableTransportTag(frame.transportTag);
         const profile = this.#profiles.announce(
           string(frame.extensionId),
           hello.profile,
         );
-        const data = this.#invoke({
-          method: "provider.connect",
-          profileId: profile.profileId,
-          defer: true,
-          transportTag: frame.transportTag,
-        }) as { connectionId: string };
+        const data = this.#connectProvider(profile.profileId, tag, true);
         const provider = this.#provider(data.connectionId);
         profile.connection = provider.connection;
         this.#profileConnections.set(data.connectionId, profile);
@@ -281,10 +299,17 @@ export class PolicyHost {
           provider = this.#providers.get(id);
         if (!provider) return {};
         this.core.retire(provider.connection);
-        this.#providers.delete(id);
-        this.#retired.delete(id);
-        this.#profileConnections.delete(id);
-        this.#transportTags.delete(id);
+        this.#removeProvider(id);
+        return {};
+      }
+      case "browser.detach": {
+        const tag = string(frame.transportTag);
+        const id = [...this.#transportTags].find(([, value]) => tag === value)?.[0];
+        if (id === undefined) return {};
+        const provider = this.#provider(id);
+        this.#disconnectProvider(id, provider);
+        this.core.retire(provider.connection);
+        this.#removeProvider(id);
         return {};
       }
       case "native.state":
@@ -748,12 +773,7 @@ export class PolicyHost {
 
   #prune(): void {
     for (const id of this.#retired) {
-      if (this.#providers.get(id)?.pendingCount === 0) {
-        this.#providers.delete(id);
-        this.#profileConnections.delete(id);
-        this.#transportTags.delete(id);
-        this.#retired.delete(id);
-      }
+      if (this.#providers.get(id)?.pendingCount === 0) this.#removeProvider(id);
     }
   }
 }

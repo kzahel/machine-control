@@ -81,7 +81,7 @@ final class BrowserRelay {
         var input = Data(), output = Data()
         var outputOffset = 0
         var connectionID: String?, profileID: String?, problem: String?
-        var attaching = false, closed = false
+        var attaching = false, attachSubmitted = false, closed = false
         var waiting: [[String: Any]] = []
         init(_ descriptor: Int32, extensionID: String) {
             self.descriptor = descriptor; self.extensionID = extensionID
@@ -91,6 +91,9 @@ final class BrowserRelay {
         let owner: Authority
         let caller: CallerIdentity
         let generation: String
+        let endpoint: Bool
+        var pending = 0
+        var issued = false
     }
     let service: ResidentService
     let broker: GrantBroker
@@ -225,6 +228,7 @@ final class BrowserRelay {
                     }
                     guard frame["type"] as? String == "hello" else { disconnect(peer); return }
                     peer.attaching = true
+                    peer.attachSubmitted = true
                     host?.request(["method": "browser.attach", "extensionId": peer.extensionID,
                         "hello": frame, "transportTag": peer.tag], timeout: 10) { [weak self, weak peer] result in
                         DispatchQueue.main.async {
@@ -261,10 +265,8 @@ final class BrowserRelay {
         queuedBytes -= peer.output.count - peer.outputOffset
         peer.output.removeAll(); peer.writer?.cancel(); peer.writeDeadline?.cancel()
         peer.source?.cancel(); peer.source = nil; peers.removeValue(forKey: peer.tag)
-        if let id = peer.connectionID, let host, host.alive {
-            host.request(["method": "provider.disconnect", "connectionId": id]) { [weak host] _ in
-                host?.request(["method": "provider.retire", "connectionId": id]) { _ in }
-            }
+        if peer.attachSubmitted, let host, host.alive {
+            host.request(["method": "browser.detach", "transportTag": peer.tag]) { _ in }
         }
     }
     private func enqueue(_ frame: [String: Any], _ peer: Peer) {
@@ -364,14 +366,16 @@ final class BrowserRelay {
         let id = UUID().uuidString
         let authorityID: String
         if retained, let authority, let existing = authorities.first(where: {
-            $0.value.owner.ownerSession == authority.ownerSession && $0.value.generation == generation
+            $0.value.endpoint && $0.value.owner.ownerSession == authority.ownerSession
+                && $0.value.generation == generation && $0.value.owner.validate() == nil
         }) { authorityID = existing.key }
         else if let authority {
             guard authorities.count < 128 else { return service.refusal(original,
                 code: "browser_stream_capacity", message: "Browser owner capacity reached") }
             authorityID = UUID().uuidString
-            authorities[authorityID] = Authorized(owner: authority, caller: caller, generation: generation)
+            authorities[authorityID] = Authorized(owner: authority, caller: caller, generation: generation, endpoint: retained)
         } else { authorityID = "metadata" }
+        authorities[authorityID]?.pending += 1
         host.request(["method": "browser.call", "requestId": id, "authorityId": authorityID,
             "ownerSession": authority?.ownerSession as Any? ?? NSNull(),
             "ownerProfileIds": authority?.profileIDs ?? [], "request": request], timeout: 50) { [weak self] result in
@@ -421,7 +425,11 @@ final class BrowserRelay {
                     response["accepted"] = false; response["errorCode"] = "stale_control_session"
                     response["uncertainty"] = "interrupted_after_possible_dispatch"; response["retrySafety"] = "unsafe"
                 }
-                if !retained { self.authorities.removeValue(forKey: authorityID) }
+                if var entry = self.authorities[authorityID] {
+                    entry.pending -= 1
+                    entry.issued = entry.issued || (retained && response["accepted"] as? Bool == true)
+                    self.authorities[authorityID] = entry.pending > 0 || entry.issued ? entry : nil
+                }
                 if let completion { completion(response) }
                 else { self.respond?(client, original, response, caller, claimID); Darwin.close(client) }
             }

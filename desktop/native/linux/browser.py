@@ -27,7 +27,7 @@ class Peer:
     def __init__(self,client,origin):
         self.client,self.origin=client,origin
         self.tag=uuid.uuid4().hex;self.connection=None;self.problem=None
-        self.attaching=False;self.waiting=[];self.closed=threading.Event()
+        self.attaching=False;self.attach_submitted=False;self.waiting=[];self.closed=threading.Event()
         self.outgoing=queue.Queue(maxsize=32);self.inbound=threading.BoundedSemaphore(8)
 
 
@@ -192,6 +192,7 @@ class Browser:
                 completed();return
             if frame.get('type')!='hello':self.disconnect(client);completed();return
             peer.attaching=True
+            peer.attach_submitted=True
             def attached(value,error):
                 peer.attaching=False
                 if not peer.closed.is_set():
@@ -219,11 +220,9 @@ class Browser:
         peer.closed.set()
         try:client.shutdown(socket.SHUT_RDWR)
         except OSError:pass
-        if peer.connection and self.policy.alive:
-            identifier=peer.connection
-            self.policy.request(dict(method='provider.disconnect',connectionId=identifier),
-                lambda *_:self.policy.request(dict(method='provider.retire',connectionId=identifier),lambda *_:None)
-                if self.policy.alive else None)
+        if self.policy.alive and peer.attach_submitted:
+            # The queued attach may still be ahead of cleanup on the pipe.
+            self.policy.request(dict(method='browser.detach',transportTag=peer.tag),lambda *_:None)
 
     def event(self,message):
         kind=message.get('type')
@@ -291,13 +290,21 @@ class Browser:
         if operation!='browser.profiles' and (authority is None or authority['validate']() is not None):
             finish(self.owner.provider.fail(request,operation,'control_session_required','Use one live Browser owner'));return
         self.sync();identifier=uuid.uuid4().hex;retained=operation=='browser.endpoint'
-        authority_id='metadata'
+        authority_id='metadata';bound=None
         if authority is not None:
-            if len(self.authorities)>=128:
-                finish(self.owner.provider.fail(request,operation,'browser_stream_capacity','Browser owner capacity reached'));return
-            authority_id=uuid.uuid4().hex
-            authority={**authority,'generation':self.generation,'revoked':threading.Event()}
-            self.authorities[authority_id]=authority
+            existing=next((key for key,value in self.authorities.items()
+                if value['endpoint'] and value['owner']==authority['owner'] and value['session']==authority['session']
+                and self.valid(value)),None) if retained else None
+            if existing is not None:
+                authority_id=existing
+            else:
+                if len(self.authorities)>=128:
+                    finish(self.owner.provider.fail(request,operation,'browser_stream_capacity','Browser owner capacity reached'));return
+                authority_id=uuid.uuid4().hex
+                self.authorities[authority_id]={**authority,'generation':self.generation,
+                    'revoked':threading.Event(),'endpoint':retained,'pending':0,'issued':False}
+            bound=self.authorities[authority_id]
+            bound['pending']+=1
         def completed(reply,error):
             result=self.owner.provider.envelope(request,operation)
             result['actualRoute']='chrome.extension/cdp'
@@ -317,9 +324,13 @@ class Browser:
                     try:data['artifact']=artifacts.write(base64.b64decode(data.pop('png'),validate=True))
                     except (ValueError,KeyError,OSError):result=self.owner.provider.fail(request,operation,'artifact_failed','Capture artifact unavailable')
                 result['data']=data
-            if authority is not None and not self.valid(authority):
+            if bound is not None and not self.valid(bound):
                 result.update(accepted=False,errorCode='stale_control_session',uncertainty='interrupted_after_possible_dispatch',retrySafety='unsafe')
-            if not retained:self.authorities.pop(authority_id,None)
+            if bound is not None:
+                bound['pending']-=1
+                bound['issued']|=retained and result.get('accepted') is True
+                if bound['pending']==0 and not bound['issued']:
+                    self.authorities.pop(authority_id,None)
             finish(result)
         self.policy.request(dict(method='browser.call',requestId=identifier,authorityId=authority_id,
             ownerSession=authority['owner']+':'+authority['session'] if authority else None,

@@ -141,6 +141,58 @@ final class BrowserRelayTests: XCTestCase {
         XCTAssertEqual(server.browser.profiles.filter { $0["connected"] as? Bool == true }.count,2)
         withExtendedLifetime([work,personal,copied]) {}
     }
+    func testPeerClosingAfterHelloDoesNotReserveProfile() throws {
+        server.browser.identityCheck = { _ in true }
+        let path = socketPath
+        let provider = try XCTUnwrap(onBackground { () -> FakeProvider? in
+            guard let provider = FakeProvider(socketPath: path) else { return nil }
+            provider.send(["operation":"browser.provider", "origin":"chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/"])
+            return provider.next()?["type"] as? String == "registered" ? provider : nil
+        })
+        // Queue the hello and the EOF before pumping the relay's main queue.
+        provider.send(["type":"hello", "protocolVersion":1, "extensionVersion":"fixture",
+            "profile":["protocolVersion":1, "installationId":"00000000-0000-4000-8000-000000000001",
+                "name":"Work", "enabled":true]])
+        XCTAssertEqual(Darwin.shutdown(provider.descriptor, SHUT_RDWR), 0)
+        settle { self.server.browser.profiles.first?["connected"] as? Bool == false }
+        let replacement = try attach("Work","1")
+        settle { self.server.browser.profiles.first?["connected"] as? Bool == true }
+        withExtendedLifetime(replacement) {}
+    }
+    func testOverlappingEndpointRefusalPreservesTheSuccessfulLookup() throws {
+        server.browser.identityCheck = { _ in true }
+        let provider = try attach("Work","1")
+        settle { self.server.browser.profiles.first?["connected"] as? Bool == true }
+        let profile = try XCTUnwrap(server.browser.profiles.first?["profileId"] as? String)
+        try server.configureSurface("browser",mode:"automatic",seconds:nil,profiles:[profile])
+        let authority = BrowserRelay.Authority(ownerSession:"fixture-owner:fixture-session",profileIDs:[profile],validate:{ nil })
+        let caller = CallerIdentity(uid:getuid(),chain:[])
+        func lookup(_ selector: String, completion: @escaping ([String: Any]) -> Void) {
+            XCTAssertNil(server.browser.forward(-1,["operation":"browser.endpoint","browserProfileId":selector],
+                caller:caller,claimID:nil,authority:authority,completion:completion))
+        }
+        let refused = expectation(description:"overlapping refusal")
+        let issued = expectation(description:"overlapping success")
+        var endpoint: String?
+        lookup("unknown-profile") { result in
+            XCTAssertEqual(result["accepted"] as? Bool,false)
+            refused.fulfill()
+        }
+        lookup(profile) { result in
+            XCTAssertEqual(result["accepted"] as? Bool,true)
+            endpoint = (result["data"] as? [String:Any])?["browserEndpoint"] as? String
+            XCTAssertNotNil(endpoint)
+            issued.fulfill()
+        }
+        wait(for:[refused,issued],timeout:5)
+        let repeated = expectation(description:"same authority and endpoint reused")
+        lookup(profile) { result in
+            XCTAssertEqual((result["data"] as? [String:Any])?["browserEndpoint"] as? String,endpoint)
+            repeated.fulfill()
+        }
+        wait(for:[repeated],timeout:5)
+        withExtendedLifetime(provider) {}
+    }
     func testRealSharedBrowserCallRequiresExactLiveOwnerAndProfile() throws {
         server.browser.identityCheck = { _ in true }
         let provider = try attach("Work","1")
