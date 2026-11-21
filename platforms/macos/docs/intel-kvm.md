@@ -89,7 +89,10 @@ field, capture a fresh QMP screenshot and call
 an independently observed locked or signed-out console via pinned SSH and
 the bundled probe. It compares the fresh private screenshot with the live
 frame before opening the owner-only credential file, then enters and submits
-the password once. If the frame changed before delivery, inspect a new one.
+the password once. A blinking caret can produce two different frames. Inspect
+both while the same password field is focused and pass a second
+`--observed-password-field SCREENSHOT` so the live frame can match either
+observation exactly. If the frame changed before delivery, inspect a new one.
 After a delivered attempt, verify the native session state before deciding
 next steps. Use the dedicated loopback VNC viewer for initial bootstrap
 before SSH and the session probe are available. An ordinary claim covers
@@ -139,6 +142,26 @@ claim. Existing test authorization and GUI login may require an operator or
 authorized recovery at each cold boot.
 
 ## Libvirt base and workspaces
+
+To move a previously qualified libvirt guest to another Linux controller,
+recover the inactive domain definition, both QCOW2 disks, read-only OVMF
+code, and writable NVRAM from a cleanly stopped source or a verified backup.
+Mount any reconstructed backup read-only. Verify the disk and firmware
+copies before defining the local domain. Keep the working CPU, chipset,
+disk roles and firmware settings. Assign the local domain a new libvirt
+UUID, bind its files to the local pool and network, and keep its recovery
+display on loopback. For owner-only firmware files, grant the libvirt QEMU
+account read access to the firmware code and read/write access to NVRAM.
+Recover the guest-specific SSH identity, pinned host
+key and login password through the controller's private inventory and
+owner-only secret store.
+
+Run common doctor and acquire an exact claim on the new domain. Verify
+pinned SSH and the native resident after a disk-only boot. A backup that
+contains a previously qualified guest still needs a local boot and readiness
+check. Use the ordinary unsealed profile when this is the retained
+development VM. Enable workspace derivation only after the stopped base
+qualifies through the workflow below.
 
 1. Hold the original appliance's claim, shut it down cleanly, and copy the
    OpenCore and system QCOW2 payloads, firmware code and writable NVRAM

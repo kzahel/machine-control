@@ -143,9 +143,18 @@ $mc --target windows --claim "$claim_id" desktop capture \
   --scope window --target active_window
 ```
 
-A semantic snapshot returns ephemeral, generation-scoped element references.
-Use those references for actions and rediscover them after navigation, process
-restart, or window recreation.
+A semantic snapshot returns ephemeral element references. When a provider
+uses Desktop ownership, those references also belong to the owner that
+observed them. Keep related snapshots and actions in one stream:
+
+```bash
+$mc --target TARGET --claim "$claim_id" control stream \
+  --surface desktop --reason 'verify the desktop fixture'
+```
+
+Send one request object per line and read the result before sending the next
+request. Rediscover references after ownership changes, navigation, process
+restart, or window recreation. Close the stream when the task ends.
 
 ### Use a physical iOS target
 

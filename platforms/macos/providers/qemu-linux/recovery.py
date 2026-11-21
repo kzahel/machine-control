@@ -9,24 +9,42 @@ import time
 from vnc import KEYS, Keyboard, observed_frame
 
 
+class ConsoleFrameChanged(ValueError):
+    """The recovery guard refused before opening the credential file."""
+
+
 class RecoveryConsole:
     """The caller first binds the active backend to an exact appliance."""
 
-    def recovery_keyboard(self, action, value):
+    def recovery_keyboard(self, action, *values):
         with Keyboard(self) as keyboard:
             if action == "key":
-                keyboard.chord(KEYS[value])
+                keyboard.chord(KEYS[values[0]])
                 return
-            expected = observed_frame(value)
+            observations = {observed_frame(value): value for value in values}
             with tempfile.TemporaryDirectory(prefix="macvm-qemu-") as directory:
                 output = Path(directory) / "console.png"
-                for _ in range(3):
+                deadline = time.monotonic() + 12
+                # A blinking insertion point can repeatedly land in the
+                # opposite phase when grabs are spaced at a fixed interval.
+                for delay in (0.12, 0.21, 0.30, 0.39) * 5:
                     self.screenshot(output)
-                    if output.read_bytes() == expected:
+                    frame = output.read_bytes()
+                    if frame in observations:
                         break
-                    time.sleep(0.25)
+                    if time.monotonic() >= deadline:
+                        raise ConsoleFrameChanged(
+                            "The observed password field frame changed before credential entry"
+                        )
+                    time.sleep(delay)
                 else:
-                    raise ValueError("The observed password field frame changed")
+                    raise ConsoleFrameChanged(
+                        "The observed password field frame changed before credential entry"
+                    )
+            if observed_frame(observations[frame]) != frame:
+                raise ConsoleFrameChanged(
+                    "The observed password field screenshot changed before credential entry"
+                )
             keyboard.verify_exclusive_client(self)
             keyboard.type_password(os.environ["MACVM_QEMU_LOGIN_SECRET_FILE"])
 
@@ -72,7 +90,9 @@ def recover(console, arguments):
         console.screenshot(private_screenshot_path(arguments[1]))
     elif len(arguments) == 3 and arguments[0] == "click":
         console.click(int(arguments[1]), int(arguments[2]))
-    elif len(arguments) == 2 and arguments[0] in {"key", "type-secret"}:
+    elif len(arguments) == 2 and arguments[0] == "key":
+        console.recovery_keyboard(*arguments)
+    elif len(arguments) in {2, 3} and arguments[0] == "type-secret":
         console.recovery_keyboard(*arguments)
     else:
         return 2

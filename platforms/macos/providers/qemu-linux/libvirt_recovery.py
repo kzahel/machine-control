@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import sys
 
-from recovery import RecoveryConsole, recover
+from recovery import ConsoleFrameChanged, RecoveryConsole, recover
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "providers/libvirt-linux"))
 from libvirt_provider import (  # noqa: E402
@@ -36,6 +36,9 @@ if __name__ == "__main__":
         provider = Libvirt(configuration)
         require_live_kvm(configuration, provider)
         raise SystemExit(recover(LibvirtConsole(configuration, provider), sys.argv[1:]))
+    except ConsoleFrameChanged as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(1)
     except (OSError, ValueError, KeyError, TypeError, ProviderError):
         print("Could not verify or operate the pinned libvirt console", file=sys.stderr)
         raise SystemExit(1)

@@ -194,7 +194,14 @@ case "$command" in
         ;;
     type-secret)
         require_claim --required-use-class disruptive
-        [[ $# == 2 && "$1" == --observed-password-field ]] || exit 2
+        if [[ $# == 4 && "$1" == --observed-password-field &&
+              "$3" == --observed-password-field ]]; then
+            set -- "$2" "$4"
+        elif [[ $# == 2 && "$1" == --observed-password-field ]]; then
+            set -- "$2"
+        else
+            exit 2
+        fi
         ssh_select
         observed="$(probe_session)" || exit
         if ! jq -e '.desktopState == "locked" or .desktopState == "no_session"' <<<"$observed" >/dev/null; then
@@ -202,9 +209,9 @@ case "$command" in
             exit 1
         fi
         if [[ "$provider" == libvirt-linux-macos ]]; then
-            exec python3 "$root/platforms/macos/providers/qemu-linux/libvirt_recovery.py" type-secret "$2"
+            exec python3 "$root/platforms/macos/providers/qemu-linux/libvirt_recovery.py" type-secret "$@"
         fi
-        exec python3 "$backend" type-secret "$2"
+        exec python3 "$backend" type-secret "$@"
         ;;
     shutdown)
         require_claim

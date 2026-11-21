@@ -9,7 +9,7 @@ import stat
 import struct
 import sys
 
-from recovery import RecoveryConsole, recover
+from recovery import ConsoleFrameChanged, RecoveryConsole, recover
 
 
 class QemuOffline(ConnectionError):
@@ -154,6 +154,9 @@ def main(arguments):
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
+    except ConsoleFrameChanged as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(1)
     except (OSError, ValueError, KeyError, TypeError):
         print("Could not verify or operate the pinned QEMU target", file=sys.stderr)
         raise SystemExit(1)

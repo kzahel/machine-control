@@ -78,6 +78,37 @@ class QemuIdentityTests(unittest.TestCase):
                 identity.recovery_keyboard("type-secret", self.root / "console.png")
             keyboard.type_password.assert_not_called()
 
+    def test_blinking_console_field_waits_for_an_exact_fresh_frame(self):
+        identity = QemuIdentity()
+        frames = iter([b"changed"] * 5 + [b"observed"])
+        with (
+            patch.dict(os.environ, {"MACVM_QEMU_LOGIN_SECRET_FILE": "test-secret"}),
+            patch("recovery.Keyboard") as constructor,
+            patch("recovery.observed_frame", return_value=b"observed") as observe,
+            patch("recovery.time.sleep"),
+            patch.object(identity, "screenshot", side_effect=lambda path: path.write_bytes(next(frames))),
+        ):
+            keyboard = constructor.return_value.__enter__.return_value
+            identity.recovery_keyboard("type-secret", self.root / "console.png")
+            self.assertEqual(observe.call_count, 2)
+            keyboard.verify_exclusive_client.assert_called_once_with(identity)
+            keyboard.type_password.assert_called_once_with("test-secret")
+
+    def test_console_accepts_either_exact_observed_frame(self):
+        identity = QemuIdentity()
+        first = self.root / "caret-on.png"
+        second = self.root / "caret-off.png"
+        with (
+            patch.dict(os.environ, {"MACVM_QEMU_LOGIN_SECRET_FILE": "test-secret"}),
+            patch("recovery.Keyboard") as constructor,
+            patch("recovery.observed_frame", side_effect=[b"caret-on", b"caret-off", b"caret-off"]) as observe,
+            patch.object(identity, "screenshot", side_effect=lambda path: path.write_bytes(b"caret-off")),
+        ):
+            keyboard = constructor.return_value.__enter__.return_value
+            identity.recovery_keyboard("type-secret", first, second)
+            self.assertEqual([call.args[0] for call in observe.call_args_list], [first, second, second])
+            keyboard.type_password.assert_called_once_with("test-secret")
+
     def test_concurrent_vnc_viewer_refuses_before_connecting(self):
         qmp = Mock()
         qmp.request.return_value = {
