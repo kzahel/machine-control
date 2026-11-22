@@ -273,8 +273,8 @@ credential metadata. Generic virtual input is not a secret transport.
 **Current implementation:** A Linux controller can create a fresh native
 x86_64 appliance from an official Ubuntu 24.04 or 26.04 amd64 QCOW2 cloud
 image. The stock Ubuntu 26.04.1 GNOME 50 build passed disk-only boot,
-credential handoff and the native GDM/AT-SPI unlock probe. Its legacy
-`gnome-screenshot` route timed out on Wayland.
+credential handoff, ordinary resident smoke and the native GDM/AT-SPI
+unlock probe.
 [Tactical 166](../../../docs/tactical/166-linux-gnome-unlock.md) records the
 evidence. The host-side factory validates QCOW2 input, copies and expands it to a
 128-GiB volume in the configured dedicated libvirt pool, defines a Q35 UEFI

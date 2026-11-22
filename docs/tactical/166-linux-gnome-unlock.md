@@ -122,9 +122,25 @@ on the human-readable session table. The stored credential was verified
 after the disk-only boot. Both the factory credential-handoff and promotion
 stages passed.
 
-The ordinary smoke suite stopped at display capture. On GNOME 50,
-`gnome-screenshot` 41 could not use the GNOME Shell screenshot interface.
-Its X11 fallback produced no screenshot in the active Wayland session.
-A second run with the two capture checks omitted verified app launch and
-termination, an AT-SPI button press, pointer click, Unicode text entry,
-and scroll. The fixture did not record the expected drag release.
+The first ordinary smoke stopped at display capture. On GNOME 50,
+`gnome-screenshot` 41 could not use the GNOME Shell screenshot interface
+and its X11 fallback produced no screenshot on Wayland. The VM resident now
+uses GNOME Shell's default full-display and active-window shortcuts, which
+save a PNG in the user's Pictures folder and set the clipboard. It validates
+the new PNG and copies it to the normal artifact namespace. GNOME 46 retains
+its existing executable route.
+
+The first drag attempted to use GTK's AT-SPI screen extents, which were
+window-local in this session. The start landed outside the canvas despite
+confirmed input delivery. The smoke now locates the painted canvas in a
+fresh display capture and independently requires both drag motion and release.
+The restored full smoke passed on stock Ubuntu 26.04.1, followed by the native
+GDM unlock, GTK effect, relock and wrong-password refusal probe. Capture while
+locked returned a typed refusal without an artifact.
+
+The GNOME 46 regression run initially captured an unpainted canvas. The retained
+Ubuntu 24.04 ARM64 guest lacked `python3-gi-cairo`, which the GTK draw callback
+requires. Bootstrap and resident deployment now install it. The fixture checks
+for Cairo before opening, so a missing bridge cannot pass as a visual target.
+The Ubuntu 24.04 ARM64 full smoke then passed using the existing GNOME 46
+capture route.

@@ -57,6 +57,7 @@ packages=(
     qemu-guest-agent
     spice-vdagent
     python3-gi
+    python3-gi-cairo
     gir1.2-atspi-2.0
     gnome-screenshot
     python3-evdev

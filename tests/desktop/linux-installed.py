@@ -6,6 +6,7 @@ import concurrent.futures
 import json
 import os
 from pathlib import Path
+import runpy
 import select
 import signal
 import socket
@@ -277,10 +278,12 @@ try:
         check("installed semantic delivery", call("action", reference=button["reference"])["accepted"])
         poll(lambda: fixture()["semanticPresses"] == before + 1)
         check("installed independent semantic effect", True)
-        canvas = next(n for n in elements if n["label"] == "Visual Canvas")["bounds"]
+        fixture_capture = call("capture")
+        check("installed fixture capture", fixture_capture["accepted"])
+        locate = runpy.run_path(str(args.fixture))["portal_canvas_center"]
+        center = locate(fixture_capture["data"])
         before = fixture()["visualClicks"]
-        check("installed pointer delivery", call("input.click", x=canvas["x"] + canvas["width"] / 2,
-              y=canvas["y"] + canvas["height"] / 2)["accepted"])
+        check("installed pointer delivery", call("input.click", **center)["accepted"])
         poll(lambda: fixture()["visualClicks"] == before + 1)
         check("installed independent pointer effect", True)
         entry = next(n for n in elements if n["label"] == "Fixture Text")

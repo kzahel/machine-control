@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import gettext
 import hashlib
 import json
 import os
 import re
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -18,13 +20,14 @@ import tempfile
 import time
 import uuid
 from collections import OrderedDict
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
 import gi
 
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, Gio
+from gi.repository import Gdk, Gio, GLib
 
 import linuxui
 
@@ -32,6 +35,14 @@ import linuxui
 SCHEMA = "machine-control/v0"
 ROUTE = "guest.user/linux.atspi"
 CAPTURE_ROUTE = "guest.user/gnome-screenshot"
+SHELL_CAPTURE_ROUTE = "guest.user/gnome-shell-screenshot-shortcut"
+SHELL_CAPTURE_KEYS = {
+    "display": ("screenshot", "<Shift>Print", "shift+sysrq"),
+    "active_window": ("screenshot-window", "<Alt>Print", "alt+sysrq"),
+}
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+PNG_END = b"\x00\x00\x00\x00IEND\xaeB`\x82"
+MAX_CAPTURE_BYTES = 64 * 1024 * 1024
 ARTIFACT_DIRECTORY = Path.home() / ".cache/linuxvm-testbed/artifacts"
 INPUT_SOCKET = Path("/run/linuxvm-testbed/input.sock")
 INPUT_ROUTE = "guest.system/linux.uinput"
@@ -84,6 +95,10 @@ class ControlFailure(RuntimeError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+class UnverifiedCapture(ControlFailure):
+    """The appliance broker delivered the shortcut, with no usable artifact observed."""
 
 
 # Common request names (contracts/request-v0.schema.json) and the appliance's
@@ -241,18 +256,20 @@ class Resident:
     def status(self, request: dict[str, Any]) -> dict[str, Any]:
         root = linuxui.desktop()
         applications = linuxui.application_roots(root)
+        desktop_state = self.desktop_state()
+        input_ready = self.input_ready()
         result = self.envelope(request, "status")
         result["data"] = {
             "semanticState": "ready",
-            "captureState": "ready",
-            "inputState": "ready" if self.input_ready() else "unavailable",
+            "captureState": self.capture_state(desktop_state, input_ready),
+            "inputState": "ready" if input_ready else "unavailable",
             "sessionType": os.environ.get("XDG_SESSION_TYPE", "wayland"),
             "desktopName": os.environ.get("XDG_CURRENT_DESKTOP", "GNOME"),
             "applicationCount": len(applications),
             "displayGeometry": self.display_geometry(),
             "residentPid": os.getpid(),
             "uptimeMs": int((time.monotonic() - self.started) * 1000),
-            "desktopState": self.desktop_state(),
+            "desktopState": desktop_state,
             # The dedicated appliance admits its claimed same-user callers
             # without per-surface consent: a standing appliance policy.
             "deployment": {
@@ -269,6 +286,8 @@ class Resident:
 
     def capabilities(self, request: dict[str, Any]) -> dict[str, Any]:
         result = self.envelope(request, "capabilities")
+        input_ready = self.input_ready()
+        shell_shortcut = self.capture_route == SHELL_CAPTURE_ROUTE
         result["data"] = {
             "provider": "linux-native",
             "operations": [
@@ -297,14 +316,16 @@ class Resident:
                 "sessionRequirement": "active_user_atspi",
             },
             "capture": {
-                "state": "ready",
-                "route": CAPTURE_ROUTE,
+                "state": self.capture_state(self.desktop_state(), input_ready),
+                "route": self.capture_route,
                 "targets": ["display", "active_window"],
                 "artifactLifetime": "until_cleanup",
-                "sessionRequirement": "active_user_gnome_wayland",
+                "sessionRequirement": "unlocked_active_user_gnome_wayland",
+                "clipboardImageSideEffect": shell_shortcut,
+                "savesScreenshotInPictures": shell_shortcut,
             },
             "input": {
-                "state": "ready" if self.input_ready() else "unavailable",
+                "state": "ready" if input_ready else "unavailable",
                 "route": INPUT_ROUTE,
                 "fidelity": "virtual_hid",
                 "privilege": "root_test_appliance",
@@ -648,45 +669,128 @@ class Resident:
         }
         return result
 
-    def capture(self, request: dict[str, Any]) -> dict[str, Any]:
-        target = str(request.get("target") or "display")
-        if target not in ("display", "active_window"):
-            raise ControlFailure(
-                "unsupported_target",
-                "Capture target must be display or active_window",
+    @cached_property
+    def capture_route(self) -> str:
+        try:
+            version = subprocess.check_output(
+                ["/usr/bin/gnome-shell", "--version"], text=True, timeout=3,
+                stderr=subprocess.DEVNULL,
             )
+        except (OSError, subprocess.SubprocessError):
+            return CAPTURE_ROUTE
+        match = re.search(r"\bGNOME Shell (\d+)\b", version)
+        if match and int(match[1]) >= 50:
+            return SHELL_CAPTURE_ROUTE
+        return CAPTURE_ROUTE
 
-        ARTIFACT_DIRECTORY.mkdir(parents=True, exist_ok=True)
-        artifact_id = str(uuid.uuid4())
-        artifact_path = ARTIFACT_DIRECTORY / f"{artifact_id}.png"
+    def capture_state(self, desktop_state: str, input_ready: bool) -> str:
+        if desktop_state != "unlocked":
+            return "unavailable"
+        if self.capture_route == SHELL_CAPTURE_ROUTE and not input_ready:
+            return "unavailable"
+        return "ready"
+
+    def legacy_capture(self, target: str, artifact_path: Path) -> bytes:
         command = ["/usr/bin/gnome-screenshot"]
         if target == "active_window":
             command.append("--window")
         command.extend(("--file", str(artifact_path)))
-        completed = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-            timeout=15,
-        )
+        self.before_effect()
+        try:
+            completed = subprocess.run(
+                command, capture_output=True, check=False, timeout=15,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise ControlFailure("capture_failed", "GNOME screenshot timed out") from error
         if completed.returncode != 0 or not artifact_path.is_file():
-            artifact_path.unlink(missing_ok=True)
             detail = completed.stderr.decode("utf-8", errors="replace").strip()
             raise ControlFailure(
                 "capture_failed",
                 detail or "GNOME screenshot provider did not produce an artifact",
             )
+        return artifact_path.read_bytes()
 
-        content = artifact_path.read_bytes()
-        if len(content) < 24 or content[:8] != b"\x89PNG\r\n\x1a\n":
+    def shell_capture(self, target: str) -> bytes:
+        binding, accelerator, key = SHELL_CAPTURE_KEYS[target]
+        settings = Gio.Settings.new("org.gnome.shell.keybindings")
+        lockdown = Gio.Settings.new("org.gnome.desktop.lockdown")
+        if (accelerator not in settings.get_strv(binding)
+                or lockdown.get_boolean("disable-save-to-disk")):
+            raise ControlFailure(
+                "capture_unavailable", "GNOME Shell screenshot shortcut or saving is disabled",
+            )
+
+        pictures = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES)
+        directory = Path(pictures or Path.home()) / gettext.dgettext("gnome-shell", "Screenshots")
+        previous = set(directory.glob("*.png"))
+        self.before_effect()
+        self.call_input({"operation": "key", "key": key})
+        try:
+            return self.read_shell_capture(directory, previous)
+        except OSError as error:
+            raise UnverifiedCapture("capture_failed", "Cannot read the new GNOME screenshot") from error
+
+    def read_shell_capture(self, directory: Path, previous: set[Path]) -> bytes:
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            candidates = set(directory.glob("*.png")) - previous
+            if len(candidates) > 1:
+                raise UnverifiedCapture("capture_failed", "GNOME Shell produced ambiguous screenshot files")
+            if candidates:
+                # GNOME writes to the final name. Wait for its complete PNG
+                # and refuse symlinks or non-regular files.
+                path = next(iter(candidates))
+                flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+                with os.fdopen(os.open(path, flags), "rb") as source:
+                    info = os.fstat(source.fileno())
+                    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+                        raise UnverifiedCapture("capture_failed", "Invalid GNOME Shell screenshot file")
+                    content = source.read(MAX_CAPTURE_BYTES + 1)
+                if len(content) > MAX_CAPTURE_BYTES:
+                    raise UnverifiedCapture("capture_failed", "GNOME Shell screenshot exceeds the artifact limit")
+                if content.endswith(PNG_END):
+                    return content
+            time.sleep(0.05)
+        raise UnverifiedCapture("capture_failed", "GNOME Shell did not produce a complete screenshot")
+
+    def capture(self, request: dict[str, Any]) -> dict[str, Any]:
+        target = str(request.get("target") or "display")
+        if target not in SHELL_CAPTURE_KEYS:
+            raise ControlFailure(
+                "unsupported_target", "Capture target must be display or active_window",
+            )
+        if self.desktop_state() != "unlocked":
+            raise ControlFailure("capture_unavailable", "The GNOME session must be unlocked")
+
+        ARTIFACT_DIRECTORY.mkdir(parents=True, exist_ok=True, mode=0o700)
+        artifact_id = str(uuid.uuid4())
+        artifact_path = ARTIFACT_DIRECTORY / f"{artifact_id}.png"
+        shell_shortcut = self.capture_route == SHELL_CAPTURE_ROUTE
+        capture_failure = UnverifiedCapture if shell_shortcut else ControlFailure
+        try:
+            if shell_shortcut:
+                content = self.shell_capture(target)
+            else:
+                content = self.legacy_capture(target, artifact_path)
+            if (len(content) < 24 or not content.startswith(PNG_SIGNATURE)
+                    or content[12:16] != b"IHDR" or not content.endswith(PNG_END)):
+                raise capture_failure("capture_failed", "Capture artifact is not a complete PNG")
+            width, height = struct.unpack(">II", content[16:24])
+            if not width or not height:
+                raise capture_failure("capture_failed", "Capture artifact has invalid dimensions")
+            if self.desktop_state() != "unlocked":
+                raise capture_failure("capture_unavailable", "The GNOME session locked during capture")
+            if shell_shortcut:
+                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                with os.fdopen(os.open(artifact_path, flags, 0o600), "wb") as artifact:
+                    artifact.write(content)
+        except (OSError, ControlFailure):
             artifact_path.unlink(missing_ok=True)
-            raise ControlFailure("capture_failed", "Capture artifact is not a PNG")
-        width, height = struct.unpack(">II", content[16:24])
+            raise
         result = self.envelope(request, "capture")
         result.update(
             {
-                "actualRoute": CAPTURE_ROUTE,
+                "actualRoute": self.capture_route,
                 "fidelity": (
                     "pixel_exact_active_window"
                     if target == "active_window"
@@ -708,6 +812,8 @@ class Resident:
             },
             "target": target,
             "selection": "current_active_window" if target == "active_window" else None,
+            "clipboardImageSideEffect": shell_shortcut,
+            "savesScreenshotInPictures": shell_shortcut,
         }
         return result
 
@@ -935,6 +1041,10 @@ class Resident:
                     "unsupported_operation", f"Unsupported operation: {operation}"
                 )
             result = dispatch[operation](request)
+        except UnverifiedCapture as error:
+            result = self.fail(request, operation, error.code, str(error))
+            result.update(actualRoute=SHELL_CAPTURE_ROUTE, delivery="confirmed",
+                          effect="unverifiable", uncertainty="no_artifact_observed")
         except ControlFailure as error:
             result = self.fail(request, operation, error.code, str(error))
         except linuxui.UIError as error:

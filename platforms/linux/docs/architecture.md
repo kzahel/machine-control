@@ -126,12 +126,14 @@ Chromium providers publish unnamed native action slots; the facade may invoke
 the first such slot for a requested press, but only an independent fixture or
 OS effect can accept the result.
 
-The same resident invokes Ubuntu's packaged `gnome-screenshot` from the active
-GNOME session for full-display and current-active-window PNGs. Artifacts live
-in a private cache namespace, carry dimensions and a digest in the result, and
-can be fetched by UUID through the outside wrapper without admitting arbitrary
-guest paths. This is target-native capture; it neither observes nor focuses the
-UTM window.
+The resident supports full-display and current-active-window PNGs inside the
+unlocked guest session. GNOME 46 uses Ubuntu's packaged `gnome-screenshot`.
+GNOME 50 uses the Shell's default shortcuts through the dedicated appliance
+input broker and waits for the new PNG in the user's screenshot directory.
+The result reports the capture route and the shortcut's clipboard and
+Pictures-folder effects. The installed Linux desktop uses its consented
+portal stream. Appliance artifacts live in a private cache namespace, carry
+dimensions and a digest, and are fetched by UUID through the outside wrapper.
 
 The target-native visual-input fallback is a root system service with one
 persistent `/dev/uinput` device. It accepts a bounded JSON vocabulary over a

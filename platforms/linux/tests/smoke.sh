@@ -77,8 +77,10 @@ jq -e '.accepted == true and .effect == "application_terminated"' \
     <<<"$lifecycle_stop" >/dev/null
 
 capture="$($LINUXVM control '{"operation":"capture","target":"display"}')"
-jq -e '.accepted == true and
-       .actualRoute == "guest.user/gnome-screenshot" and
+capture_route="$($LINUXVM control '{"operation":"capabilities"}' |
+    jq -er '.data.capture.route')"
+jq -e --arg route "$capture_route" '.accepted == true and
+       .actualRoute == $route and
        .fidelity == "pixel_full_display" and
        .data.artifact.mediaType == "image/png" and
        .data.artifact.width > 0 and .data.artifact.height > 0' \
@@ -115,18 +117,21 @@ jq -e '.semanticPresses == 1' <<<"$($LINUXVM fixture state)" >/dev/null
 
 fixture_snapshot="$($LINUXVM control \
     '{"operation":"snapshot","target":"machine-control-fixture"}')"
-canvas_x="$(jq \
-    '.data.elements[] | select(.label == "Visual Canvas") |
-     .bounds.x + (.bounds.width / 2 | floor)' <<<"$fixture_snapshot")"
-canvas_y="$(jq \
-    '.data.elements[] | select(.label == "Visual Canvas") |
-     .bounds.y + (.bounds.height / 2 | floor)' <<<"$fixture_snapshot")"
-text_x="$(jq \
-    '.data.elements[] | select(.label == "Fixture Text") |
-     .bounds.x + (.bounds.width / 2 | floor)' <<<"$fixture_snapshot")"
-text_y="$(jq \
-    '.data.elements[] | select(.label == "Fixture Text") |
-     .bounds.y + (.bounds.height / 2 | floor)' <<<"$fixture_snapshot")"
+text_reference="$(jq -er '.data.elements[] | select(.label == "Fixture Text") |
+    .reference' <<<"$fixture_snapshot")"
+
+# GTK on Wayland can return window-local bounds for AT-SPI screen extents.
+# Find the fixture in the actual GNOME display capture before sending input.
+display_path="$($LINUXVM control '{"operation":"capture","target":"display"}' |
+    jq -er '.data.artifact.guestPath')"
+canvas="$($LINUXVM user-exec -- /usr/bin/python3 \
+    /usr/local/libexec/linuxvm-testbed/control_fixture.py \
+    --locate-canvas "$display_path")"
+geometry="$(jq -e '.data.displayGeometry' <<<"$remote_status")"
+canvas_x="$(jq -er --argjson g "$geometry" \
+    'select(.width == $g.width and .height == $g.height) | .x + $g.x' <<<"$canvas")"
+canvas_y="$(jq -er --argjson g "$geometry" \
+    'select(.width == $g.width and .height == $g.height) | .y + $g.y' <<<"$canvas")"
 
 host_before="$($LINUXVM host-state | jq -cS .)"
 "$LINUXVM" control "$(jq -nc --argjson x "$canvas_x" --argjson y "$canvas_y" \
@@ -136,9 +141,8 @@ test "$host_before" = "$host_after"
 jq -e '.visualClicks == 1 and .dragReleases == 1' \
     <<<"$($LINUXVM fixture state)" >/dev/null
 
-"$LINUXVM" control-local \
-    "$(jq -nc --argjson x "$text_x" --argjson y "$text_y" \
-    '{operation:"input.click",x:$x,y:$y}')" >/dev/null
+"$LINUXVM" control-local "$(jq -nc --arg reference "$text_reference" \
+    '{operation:"focus",reference:$reference}')" | jq -e '.accepted' >/dev/null
 fixture_text='Hello, 世界 👋'
 "$LINUXVM" control "$(jq -nc --arg text "$fixture_text" \
     '{operation:"input.text",text:$text}')" >/dev/null
@@ -150,16 +154,21 @@ jq -e --arg text "$fixture_text" \
 "$LINUXVM" control "$(jq -nc \
     --argjson x1 "$((canvas_x - 80))" --argjson y1 "$canvas_y" \
     --argjson x2 "$((canvas_x + 80))" --argjson y2 "$((canvas_y + 60))" \
-    '{operation:"input.drag",x1:$x1,y1:$y1,x2:$x2,y2:$y2}')" >/dev/null
+    '{operation:"input.drag",x1:$x1,y1:$y1,x2:$x2,y2:$y2}')" |
+    jq -e '.accepted and .delivery == "confirmed"' >/dev/null
+jq -e '.dragReleases == 2 and .dragMotions > 0' \
+    <<<"$($LINUXVM fixture state)" >/dev/null
 "$LINUXVM" control "$(jq -nc --argjson x "$canvas_x" --argjson y "$canvas_y" \
     '{operation:"input.scroll",x:$x,y:$y,dy:-2}')" >/dev/null
 fixture_state="$($LINUXVM fixture state)"
-jq -e '.dragReleases >= 2 and .scrollY != 0' <<<"$fixture_state" >/dev/null
+jq -e '.scrollY != 0' <<<"$fixture_state" >/dev/null
 
 window_capture="$($LINUXVM control \
     '{"operation":"capture","target":"active_window"}')"
-jq -e '.accepted == true and .fidelity == "pixel_exact_active_window" and
-       .data.artifact.width < 1280 and .data.artifact.height < 800' \
+jq -e --arg route "$capture_route" --argjson g "$geometry" \
+    '.accepted == true and .fidelity == "pixel_exact_active_window" and
+       .actualRoute == $route and
+       .data.artifact.width < $g.width and .data.artifact.height < $g.height' \
     <<<"$window_capture" >/dev/null
 cleanup_fixture
 trap - EXIT

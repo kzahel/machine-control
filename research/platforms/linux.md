@@ -65,6 +65,13 @@ owns the acceptance scope and the
 [Linux locked-use topic](../../topics/linux-locked-use.md) owns the integration
 decision.
 
+**Current — live-tested (2026-11-22):** The same GNOME 50 VM passes ordinary
+appliance smoke with GNOME Shell screenshot shortcuts and screenshot-grounded
+GTK drag. These are target-native appliance operations. GNOME Shell's
+non-interactive shortcuts update the clipboard and save a file in Pictures.
+[Tactical 166](../../docs/tactical/166-linux-gnome-unlock.md#stock-ubuntu-26041-vm)
+records the provider and fixture evidence.
+
 ## Shared policy and physical activity observation
 
 **Current (2026-11-04), `built` and bounded `live-tested`:** the Python process

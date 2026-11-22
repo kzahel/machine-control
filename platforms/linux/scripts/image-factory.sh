@@ -129,7 +129,7 @@ render_seed() {
               "systemctl start qemu-guest-agent.service; " +
               "DEBIAN_FRONTEND=noninteractive apt-get " +
               "-o Dpkg::Options::=--force-confold install -y " +
-              "ubuntu-desktop openssh-server spice-vdagent python3-gi " +
+              "ubuntu-desktop openssh-server spice-vdagent python3-gi python3-gi-cairo " +
               "gir1.2-atspi-2.0 gnome-screenshot python3-evdev " +
               "python3-pyqt5 wl-clipboard jq git build-essential " +
               "python3-venv; " +

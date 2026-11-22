@@ -123,6 +123,9 @@ GNOME 46 Settings on the accepted image publishes recognizable AT-SPI labels
 with zero-sized widget bounds. Ground the fixed appliance window with resident
 capture, use the resident virtual HID fallback, and verify the setting through
 an independent OS read. Do not present those coordinates as semantic bounds.
+On GNOME 50, GTK can report window-local AT-SPI coordinates even when a client
+asks for screen extents. For visual fixture actions, locate the painted target
+in a fresh display capture and use the corresponding display coordinates.
 
 ## Normalized Coordinates
 

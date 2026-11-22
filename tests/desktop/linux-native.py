@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import select
 import socket
 import subprocess
@@ -181,24 +182,22 @@ try:
     png = Path(artifact["guestPath"]).read_bytes()
     check("capture hash", hashlib.sha256(png).hexdigest() == artifact["sha256"])
     check("capture dimensions", artifact["width"] > 0 and artifact["height"] > 0)
-    nodes = snapshot()
-    canvas = next(n for n in nodes if n["label"] == "Visual Canvas")
-    bounds = canvas["bounds"]
+    locate = runpy.run_path(str(args.fixture))["portal_canvas_center"]
+    center = locate(image["data"])
     before = fixture()["visualClicks"]
-    click = call("input.click", x=bounds["x"] + bounds["width"] / 2,
-                 y=bounds["y"] + bounds["height"] / 2)
+    click = call("input.click", **center)
     check("portal pointer delivery", click["accepted"] and click["actualRoute"] == "user/linux.portal-notify")
     poll(lambda: fixture()["visualClicks"] == before + 1)
     check("independent pointer effect", fixture()["visualClicks"] == before + 1)
-    center = {"x": bounds["x"] + bounds["width"] / 2, "y": bounds["y"] + bounds["height"] / 2}
     before = fixture()["visualClicks"]
     check("double-click delivery", call("input.click", **center, count=2)["accepted"])
     poll(lambda: fixture()["visualClicks"] >= before + 2)
     check("independent double-click effect", True)
     releases = fixture()["dragReleases"]
+    motions = fixture()["dragMotions"]
     check("drag delivery", call("input.drag", x=center["x"] - 40, y=center["y"],
                                 x2=center["x"] + 40, y2=center["y"] + 20)["accepted"])
-    poll(lambda: fixture()["dragReleases"] > releases)
+    poll(lambda: fixture()["dragReleases"] > releases and fixture()["dragMotions"] > motions)
     check("independent drag effect", True)
     previous_scroll = fixture()["scrollY"]
     check("scroll delivery", call("input.scroll", **center, dy=-2)["accepted"])
@@ -211,7 +210,7 @@ try:
     check("selected foreground mismatch refused", not mismatch["accepted"] and
           mismatch["delivery"] == "refused" and mismatch["errorCode"] in
           {"foreground_mismatch", "foreground_unavailable"})
-    entry = next(n for n in nodes if n["label"] == "Fixture Text")
+    entry = next(n for n in snapshot() if n["label"] == "Fixture Text")
     check("semantic focus", call("focus", reference=entry["reference"])["accepted"])
     check("clear entry", call("input.key", key="ctrl+a")["accepted"])
     check("Unicode delivery", call("input.text", text="Linux 世界 café",

@@ -5,14 +5,54 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 import gi
 
 gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GLib, Gtk
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
+
+
+CANVAS_BORDER = (51, 179, 243)
+
+
+def locate_canvas(path: str) -> dict[str, int]:
+    """Locate the fixture's painted border in display pixels."""
+    image = GdkPixbuf.Pixbuf.new_from_file(path)
+    channels = image.get_n_channels()
+    pixel = bytes((*CANVAS_BORDER, 255) if image.get_has_alpha() else CANVAS_BORDER)
+    run = pixel * 128
+    pixels = image.get_pixels()
+    stride = image.get_rowstride()
+    width, height = image.get_width(), image.get_height()
+    rows = []
+    for y in range(height):
+        row = pixels[y * stride : y * stride + width * channels]
+        first, last = row.find(run), row.rfind(run)
+        if first >= 0 and first % channels == last % channels == 0:
+            rows.append((y, first // channels, last // channels + 128))
+    if not rows:
+        raise ValueError("Fixture canvas border is missing from the display capture")
+    top, left, right = rows[0]
+    bottom = rows[-1][0]
+    if (bottom - top < 200 or len(rows) > 20
+            or any((x1, x2) != (left, right) for _, x1, x2 in rows)
+            or any(top + 10 < y < bottom - 10 for y, _, _ in rows)):
+        raise ValueError("Fixture canvas border is ambiguous in the display capture")
+    return {"x": (left + right) // 2, "y": (top + bottom) // 2,
+            "width": width, "height": height}
+
+
+def portal_canvas_center(capture: dict[str, Any]) -> dict[str, float]:
+    """Convert the painted center from PipeWire pixels to shared-screen points."""
+    canvas = locate_canvas(capture["artifact"]["guestPath"])
+    width, height = capture["logicalSize"]
+    return {"x": canvas["x"] * width / canvas["width"],
+            "y": canvas["y"] * height / canvas["height"]}
 
 
 STATE_PATH = Path.home() / ".cache/linuxvm-testbed/fixture/state.json"
@@ -28,6 +68,7 @@ class Fixture:
             "semanticPresses": 0,
             "visualClicks": 0,
             "dragReleases": 0,
+            "dragMotions": 0,
             "scrollX": 0,
             "scrollY": 0,
             "text": "",
@@ -132,6 +173,7 @@ class Fixture:
 
     def on_motion(self, _canvas: Gtk.DrawingArea, event: Gdk.EventMotion) -> bool:
         if self.dragging:
+            self.state["dragMotions"] += 1
             self.state["lastPointer"] = self.pointer(event)
             self.save("pointer_drag")
         return True
@@ -156,7 +198,7 @@ class Fixture:
         allocation = canvas.get_allocation()
         context.set_source_rgb(0.08, 0.12, 0.20)
         context.paint()
-        context.set_source_rgb(0.20, 0.70, 0.95)
+        context.set_source_rgb(*(component / 255 for component in CANVAS_BORDER))
         context.rectangle(24, 24, allocation.width - 48, allocation.height - 48)
         context.set_line_width(4)
         context.stroke()
@@ -169,6 +211,10 @@ class Fixture:
 
 
 def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "--locate-canvas":
+        print(json.dumps(locate_canvas(sys.argv[2])))
+        return 0
+    gi.require_foreign("cairo")
     Fixture()
     Gtk.main()
     return 0

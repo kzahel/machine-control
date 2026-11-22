@@ -18,6 +18,12 @@ protected login planes, and physical Linux hardware remain research-stage.
 owns the native GDM reauthentication provider and its Ubuntu GNOME appliance
 evidence. Prepared Desktop owners still require workstation integration.
 
+**Current (2026-11-22):** Stock Ubuntu 26.04.1 GNOME 50 Wayland x64 passes
+the [ordinary appliance smoke](../docs/tactical/166-linux-gnome-unlock.md#stock-ubuntu-26041-vm).
+The resident uses the Shell's built-in screenshot shortcuts for display and
+focused-window capture. The GTK fixture's painted canvas establishes global
+pointer coordinates for drag, click and scroll acceptance.
+
 **Current:** Retained UTM appliances can explicitly select
 `LINUXVM_ADMIN_TRANSPORT=ssh` after guest-agent host-key pinning. Root
 administration and transfer then use pinned key-only SSH and appliance sudo;

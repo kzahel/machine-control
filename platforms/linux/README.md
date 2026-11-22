@@ -154,12 +154,14 @@ semantic, capture, input, and outer states without publishing the configured
 machine identity, desktop user, or network address. It is read-only and exits
 nonzero when the accepted resident surface is not ready.
 
-Resident capture runs `gnome-screenshot` in the active user session. It writes
-an owned, UUID-named PNG beneath `~/.cache/linuxvm-testbed/artifacts`; the
-result reports its guest path, dimensions, size, and digest. `linuxvm artifact`
-fetches only that bounded UUID namespace. `display` is full-display fidelity.
-`active_window` means the window active when GNOME performs the capture; it is
-not arbitrary hidden-window capture.
+Resident capture uses `gnome-screenshot` on GNOME 46 and the default GNOME
+Shell screenshot shortcuts on GNOME 50. Both run inside the unlocked guest
+session. The shortcuts also set the image clipboard, show a notification and
+save a copy in the user's Pictures folder. The resident returns an owned,
+UUID-named PNG beneath `~/.cache/linuxvm-testbed/artifacts` with dimensions,
+size and digest. `linuxvm artifact` fetches only that UUID namespace.
+`display` captures the full display. `active_window` captures the window that
+has focus when GNOME handles the request.
 
 Pointer, click, drag, scroll, key, and Unicode text fallback use a root system
 service that owns one `/dev/uinput` virtual HID device. Its mode-`0600` socket
@@ -386,7 +388,7 @@ Guest:
 
 - Ubuntu GNOME with an active Wayland desktop session
 - `qemu-guest-agent` and `spice-vdagent`
-- Python 3, PyGObject, PyQt5, the AT-SPI introspection data,
+- Python 3, PyGObject with Cairo, PyQt5, the AT-SPI introspection data,
   `gnome-screenshot`, `python3-evdev`, and `wl-clipboard`
 - For the development profile: Git, `build-essential`, and `python3-venv`
 - A stable configured display size (1280×800 by default)

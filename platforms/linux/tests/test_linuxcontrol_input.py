@@ -1,7 +1,9 @@
 """Common request names reach the appliance broker and activation unchanged."""
 
+import base64
 import importlib
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -17,6 +19,7 @@ def load():
     repository = types.ModuleType("gi.repository")
     repository.Gdk = types.SimpleNamespace()
     repository.Gio = types.SimpleNamespace()
+    repository.GLib = types.SimpleNamespace()
     gi.repository = repository
     linuxui = types.ModuleType("linuxui")
     linuxui.UIError = type("UIError", (Exception,), {})
@@ -141,6 +144,73 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(deployment["policy"]["protectedAdministration"], False)
         self.assertEqual(deployment["availability"], {"paused": False, "blockingReasons": []})
         self.assertIs(deployment["browserOnlyWhileLocked"], False)
+
+
+class CaptureTests(unittest.TestCase):
+    PNG = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0YAAAAASUVORK5CYII="
+    )
+
+    def test_route_selects_native_shortcut_on_gnome_50(self):
+        for version, route in (("50.1", linuxcontrol.SHELL_CAPTURE_ROUTE),
+                               ("46.0", linuxcontrol.CAPTURE_ROUTE)):
+            with self.subTest(version=version), mock.patch.object(
+                    linuxcontrol.subprocess, "check_output", return_value=f"GNOME Shell {version}\n"):
+                self.assertEqual(Recorder().capture_route, route)
+
+    def test_shell_capture_returns_the_new_complete_screenshot(self):
+        with tempfile.TemporaryDirectory() as root:
+            home = Path(root)
+            pictures = home / "Screenshots"
+            pictures.mkdir()
+            (pictures / "old.png").write_bytes(b"old screenshot")
+            resident = Recorder()
+            resident.capture_route = linuxcontrol.SHELL_CAPTURE_ROUTE
+
+            def key(request):
+                self.assertEqual(request, {"operation": "key", "key": "alt+sysrq"})
+                (pictures / "fresh.png").write_bytes(self.PNG)
+                return {"accepted": True}
+
+            settings = types.SimpleNamespace(get_strv=lambda _: ["<Alt>Print"],
+                                              get_boolean=lambda _: False)
+            gio = types.SimpleNamespace(Settings=types.SimpleNamespace(new=lambda _: settings))
+            glib = types.SimpleNamespace(get_user_special_dir=lambda _: str(home),
+                                         UserDirectory=types.SimpleNamespace(DIRECTORY_PICTURES=0))
+            with (mock.patch.object(linuxcontrol, "Gio", gio),
+                  mock.patch.object(linuxcontrol, "GLib", glib),
+                  mock.patch.object(linuxcontrol, "ARTIFACT_DIRECTORY", home / "artifacts"),
+                  mock.patch.object(resident, "desktop_state", return_value="unlocked"),
+                  mock.patch.object(resident, "call_input", side_effect=key)):
+                result = resident.handle({"operation": "capture", "target": "active_window"})
+            self.assertTrue(result["accepted"], result)
+            self.assertEqual(result["actualRoute"], linuxcontrol.SHELL_CAPTURE_ROUTE)
+            self.assertEqual(result["fidelity"], "pixel_exact_active_window")
+            self.assertTrue(result["data"]["clipboardImageSideEffect"])
+            self.assertEqual(Path(result["data"]["artifact"]["guestPath"]).read_bytes(), self.PNG)
+
+    def test_capture_refuses_locked_session_without_input(self):
+        resident = Recorder()
+        with mock.patch.object(resident, "desktop_state", return_value="locked"):
+            result = resident.handle({"operation": "capture"})
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["errorCode"], "capture_unavailable")
+        self.assertEqual(resident.sent, [])
+
+    def test_unobserved_capture_reports_delivered_shortcut(self):
+        resident = Recorder()
+        resident.capture_route = linuxcontrol.SHELL_CAPTURE_ROUTE
+        failure = linuxcontrol.UnverifiedCapture("capture_failed", "No usable screenshot")
+        with tempfile.TemporaryDirectory() as root:
+            with (mock.patch.object(linuxcontrol, "ARTIFACT_DIRECTORY", Path(root)),
+                  mock.patch.object(resident, "desktop_state", return_value="unlocked"),
+                  mock.patch.object(resident, "shell_capture", side_effect=failure)):
+                result = resident.handle({"operation": "capture"})
+            self.assertEqual(list(Path(root).iterdir()), [])
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["actualRoute"], linuxcontrol.SHELL_CAPTURE_ROUTE)
+        self.assertEqual(result["delivery"], "confirmed")
+        self.assertEqual(result["effect"], "unverifiable")
 
 
 if __name__ == "__main__":

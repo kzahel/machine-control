@@ -23,13 +23,13 @@ readonly POST_UPDATE_SOURCE="$LINUXVM_REPO_DIR/guests/ubuntu/bootstrap/post_upda
 readonly STAGING="/var/tmp/linuxvm-resident.$$"
 
 linuxvm_assert_mutation_target
-if ! "$LINUXVM" exec -- /usr/bin/dpkg-query -W \
-        gnome-screenshot python3-evdev python3-pyqt5 wl-clipboard \
-        >/dev/null 2>&1; then
+packages=(gnome-screenshot python3-evdev python3-gi-cairo python3-pyqt5 wl-clipboard)
+if ! installed="$("$LINUXVM" exec -- /usr/bin/dpkg-query -W \
+        -f='${db:Status-Status}\n' "${packages[@]}" 2>/dev/null)" ||
+        grep -qvx installed <<<"$installed"; then
     "$LINUXVM" exec -- /usr/bin/apt-get update -qq
     "$LINUXVM" exec -- /usr/bin/env DEBIAN_FRONTEND=noninteractive \
-        /usr/bin/apt-get install -y gnome-screenshot python3-evdev \
-        python3-pyqt5 wl-clipboard
+        /usr/bin/apt-get install -y "${packages[@]}"
 fi
 user="$($LINUXVM desktop-user)"
 uid="$($LINUXVM exec -- /usr/bin/id -u "$user")"
