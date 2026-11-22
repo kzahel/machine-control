@@ -20,7 +20,7 @@ shutdown=namespace['shutdown']
 @unittest.skipUnless(hasattr(socket, 'AF_UNIX'), 'Requires native Unix-domain sockets')
 class ShutdownTests(unittest.TestCase):
     def test_each_cleanup_failure_still_closes_endpoints_and_reaps_notice(self):
-        for failed in ('audit','work','access','policy','portal','browser','channel','activity','presentation'):
+        for failed in ('cover','locked-use-setup','audit','work','access','policy','portal','browser','channel','activity','presentation'):
             with self.subTest(failed=failed),tempfile.TemporaryDirectory(prefix='mc-shutdown-') as tmp:
                 events=[];inhibit=threading.Event()
                 def action(name):
@@ -35,6 +35,8 @@ class ShutdownTests(unittest.TestCase):
                 self.addCleanup(listener.close);self.addCleanup(recovery.close)
                 notice=SimpleNamespace(poll=lambda:None,terminate=action('notice-terminate'),wait=action('notice-wait'))
                 owner=SimpleNamespace(stopped=False,inhibit=inhibit,
+                    covered=SimpleNamespace(stop=action('cover')),
+                    locked_use=SimpleNamespace(cancel_setup=SimpleNamespace(set=action('locked-use-setup'))),
                     journal=SimpleNamespace(event=action('audit'),diagnostic=action('diagnostic')),
                     work=SimpleNamespace(cancel=action('work')),grants=SimpleNamespace(stop=action('access')),
                     policy=SimpleNamespace(stop=action('policy')),portal=SimpleNamespace(close=action('portal')),
@@ -46,6 +48,7 @@ class ShutdownTests(unittest.TestCase):
                 shutdown(owner)
                 self.assertEqual(listener.fileno(),-1);self.assertEqual(recovery.fileno(),-1)
                 self.assertFalse(endpoint.exists());self.assertFalse(recovery_endpoint.exists())
+                self.assertEqual(events[:1],['cover'])
                 self.assertIn('policy',events);self.assertIn('notice-wait',events)
                 self.assertEqual(events[-1],'loop-quit')
                 previous=list(events);shutdown(owner);self.assertEqual(events,previous)

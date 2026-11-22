@@ -93,6 +93,17 @@ def inventory(directory, target, version, revision, purpose="candidate"):
                 if entry and (entry["byteLength"] != file.stat().st_size or entry["sha256"] != digest(file)):
                     raise ValueError("Runtime source receipt mismatch")
                 files.append({"name": "linux-runtime/" + name, "size": file.stat().st_size, "sha256": digest(file)})
+            if package.suffix == ".deb" and "gnome-cover/metadata.json" in expected:
+                system_cover = root / "usr/share/gnome-shell/extensions/covered-desktop@machine-control.dev"
+                broker = root / "usr/lib/machine-control/locked-runtime"
+                for directory, subdir, names in (
+                    (system_cover, "gnome-cover", ("metadata.json", "extension.js")),
+                    (broker, "", ("locked-credential.py", "gnome_unlock.py", "activity.py")),
+                ):
+                    for name in names:
+                        file = directory / name
+                        if file.is_symlink() or digest(file) != digest(runtime / subdir / name):
+                            raise ValueError("Debian protected GNOME payload mismatch")
             policy=root/'usr/share/machine-control/shared-policy'
             entries=metadata.get('policyFiles',[])
             expected={entry['path'] for entry in entries}
@@ -238,6 +249,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
         required={'machine-control','linux-runtime/desktop-runtime.json'}
         required.update('linux-runtime/'+file.name for file in (ROOT/'desktop/native/linux').glob('*.py'))
         required.update({'linux-runtime/linuxui.py','linux-runtime/linuxcontrol.py'})
+        required.update('linux-runtime/'+name for name in (
+            'gnome_unlock.py', 'gnome_cover.py', 'gnome-cover/metadata.json', 'gnome-cover/extension.js'))
         extension=ROOT/'providers/chrome-extension'
         required.update('linux-runtime/extension/'+file.relative_to(extension).as_posix()
             for file in extension.rglob('*') if file.is_file() and

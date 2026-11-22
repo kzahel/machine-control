@@ -436,7 +436,7 @@ function App() {
         ? "Choose at least one permission"
         : "Turn access on";
   const lockedUse =
-    (mac || windows) && !standing && (unifiedPolicy || state?.deployment.policy.grantMode === "approval")
+    (mac || windows || linux) && !standing && (unifiedPolicy || state?.deployment.policy.grantMode === "approval")
       ? state.lockedUse
       : undefined;
   const accessTitle = !state
@@ -599,7 +599,7 @@ function App() {
         )}
         {state?.accessPolicy?.schema === "machine-control-admission/v2" &&
           <SurfaceAccess visible={page === "access"} policy={state.accessPolicy} profiles={state.browser.profiles ?? []} browser={state.browser}
-            busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} />}
+            busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} platform={platform} />}
         {page === "access" && !unifiedPolicy && (
           <>
             {state && <p role="status" className="note">This platform uses the legacy control model while unified surface permissions are being migrated.</p>}
@@ -1106,14 +1106,15 @@ function App() {
                         {state.activityObserver.setupState === "authorizing" ? "Authorizing…" : "Set up activity observer"}
                       </button>
                     </div>
-                    <p className="note">Administrator approval installs a read-only observer for clicks, keys and scrolling. It retains no input content and cannot control the computer. Mouse movement does not interrupt agents. Desktop work waits while observation is unavailable.</p>
+                    <p className="note">Administrator approval installs a read-only observer. It keeps no input content. During a covered task, local mouse movement, clicks, and keys relock the console. Desktop work waits while observation is unavailable.</p>
                     {state.activityObserver.setupError && <p role="alert" className="note">{state.activityObserver.setupError}</p>}
                   </>}
                   <div className="setting-row">
                     <span className="row-label">
-                      Lock screen and other users
+                      Covered desktop while locked
                     </span>
-                    <span className="row-status">Unavailable</span>
+                    <span className="row-status">{state?.lockedUse?.enabled ? "Enabled" : "Off"}</span>
+                    {state?.lockedUse?.supported && <button onClick={() => navigate("access")}>Open access settings</button>}
                   </div>
                 </>
               )}

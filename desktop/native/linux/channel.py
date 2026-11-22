@@ -10,6 +10,7 @@ import time
 import uuid
 from policy import PolicyError
 from operations import SURFACE_OPERATIONS
+from gnome_unlock import UnlockRefused
 
 SCHEMA='machine-control-admission-channel/v2'
 
@@ -29,10 +30,14 @@ class Channel:
         self.owner,self.client,self.pid,self.start=owner,client,pid,start
         self.label=uuid.uuid4().hex;self.sequence=0;self.intent=None
         self.surfaces=[];self.profiles=[];self.closed=threading.Event()
+        self.prepared=False
+        self.started_unlocked=False
+        self.covered=None
         self.incoming=threading.BoundedSemaphore(32)
         self.outgoing=queue.Queue(maxsize=32);self.bytes=0;self.lock=threading.Lock()
         self.dispatching=False;self.accepting=False;self.ticket=None
         self.closing=False
+        self.renewing=False
         threading.Thread(target=self.writer,daemon=True,name='mc-owner-writer').start()
 
     def authority(self):
@@ -48,6 +53,12 @@ class Channel:
             value['data']=data or {}
             if value['data'].get('schema')=='machine-control-admission/v2':
                 value['data']={**value['data'],'requestSequencing':'strict'}
+                if self.covered is not None:
+                    task=self.covered
+                    value['data']['consoleUnlock'] = (
+                        {'state':'unlocked'} if task.unlocked else
+                        {'state':'failed','errorCode':task.reason or 'console_unlock_interrupted'} if task.cancelled.is_set() else
+                        {'state':'unlocking'})
         body=json.dumps(value,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()+b'\n'
         with self.lock:
             if self.closed.is_set() or self.closing:return
@@ -89,6 +100,7 @@ class Channel:
     def close(self):
         if self.closed.is_set():return
         self.closed.set()
+        if self.covered is not None:self.covered.stop()
         if self.ticket:self.ticket.cancelled.set()
         try:self.client.shutdown(socket.SHUT_RDWR)
         except OSError:pass
@@ -124,15 +136,14 @@ class Channel:
                     raise ValueError('unsupported_admission_schema')
                 allowed=common|{'schema','surfaces','profileIds','operations','waitSeconds','durationSeconds','reason','claimId','preparedConsole'}
                 if not set(request)<=allowed:raise ValueError('invalid_admission_request')
-                if 'preparedConsole' in request:
-                    # Linux has no covered locked use. Say so plainly instead of
-                    # a generic refusal when an agent asks for a prepared console.
-                    if request['preparedConsole'] is not True:raise ValueError('invalid_prepared_console_request')
-                    raise ValueError('locked_use_unsupported')
                 surfaces=request.get('surfaces');profiles=request.get('profileIds',[]);operations=request.get('operations')
                 if (not isinstance(surfaces,list) or not 1<=len(surfaces)<=2 or
                         any(not isinstance(s,str) or s not in SURFACE_OPERATIONS for s in surfaces) or len(set(surfaces))!=len(surfaces)):
                     raise ValueError('invalid_admission_surfaces')
+                if 'preparedConsole' in request:
+                    if request['preparedConsole'] is not True or surfaces != ['desktop']:
+                        raise ValueError('invalid_prepared_console_request')
+                    self.prepared=True
                 if (not isinstance(profiles,list) or len(profiles)>64 or
                         any(not isinstance(p,str) or not 0<len(p)<=128 for p in profiles) or len(set(profiles))!=len(profiles)):
                     raise ValueError('invalid_browser_profiles')
@@ -150,6 +161,8 @@ class Channel:
                 duration=self.integer(request.get('durationSeconds'),1,900)
                 self.surfaces,self.profiles=surfaces,profiles
                 refusal=self.authority()
+                if not refusal and 'desktop' in surfaces:
+                    refusal=self.owner.desktop_open_refusal(self)
                 if refusal:raise ValueError(refusal)
                 value=self.owner.grants.submit(self.label,dict(requestId=request['requestId'],surfaces=surfaces,
                     profileIds=profiles,operations=operations,reason=reason.strip(),
@@ -167,6 +180,7 @@ class Channel:
             if operation in ('control.status','control.heartbeat'):
                 self.reply(request,access.inspect(self.label,operation=='control.heartbeat'))
             elif operation=='control.cancel':
+                if self.covered is not None:self.covered.stop()
                 access.cancel(self.label);self.reply(request,access.inspect(self.label));self.owner.changed()
             elif operation=='control.accept':
                 if self.accepting:raise ValueError('activation_in_progress')
@@ -178,9 +192,15 @@ class Channel:
                     try:
                         self.owner.refresh_availability()
                         if self.authority():raise ValueError(self.authority())
-                        # Node revalidates the exact offer after the native
-                        # boundary. No effect is dispatched by acceptance.
-                        self.reply(request,access.accept(self.label,generation))
+                        # Admission revalidates the exact offer before a
+                        # locked-origin task can start its native guard.
+                        value=access.accept(self.label,generation)
+                        if 'desktop' in self.surfaces:
+                            try:self.owner.activate_cover(self,value)
+                            except ValueError:
+                                access.cancel(self.label)
+                                raise
+                        self.reply(request,value)
                     except (ValueError,PolicyError,KeyError) as error:self.reply(request,error=str(error))
                     self.owner.changed()
                 self.owner.refresh_availability()
@@ -191,7 +211,29 @@ class Channel:
                 fence=self.fence(request)
                 seconds=request.get('durationSeconds')
                 if type(seconds) is not int or not 1<=seconds<=900:raise ValueError('invalid_renewal_duration')
-                self.reply(request,access.send('renew',owner=self.label,fence=fence,durationMs=seconds*1000))
+                if self.renewing:raise ValueError('control_action_in_progress')
+                if self.covered is not None and not self.covered.active.is_set():
+                    raise ValueError('control_renewal_unavailable')
+                value=access.send('renew',owner=self.label,fence=fence,durationMs=seconds*1000)
+                if self.covered is None:
+                    self.reply(request,value)
+                else:
+                    until=time.monotonic()+min(900,max(0,value['activeRemainingSeconds']))
+                    try:renewal=self.covered.request_renewal(until)
+                    except UnlockRefused as error:raise ValueError(str(error)) from None
+                    self.renewing=True
+                    deadline=time.monotonic()+3
+                    def confirm():
+                        if not renewal.finished.is_set() and time.monotonic()<deadline and not self.closed.is_set():
+                            return True
+                        self.renewing=False
+                        if renewal.granted and self.covered.permitted():
+                            self.reply(request,value)
+                        else:
+                            self.covered.stop()
+                            self.reply(request,error='control_renewal_failed')
+                        return False
+                    self.owner.scheduler.timer(50,confirm)
             elif operation=='control.dispatch':
                 if self.dispatching or self.accepting:raise ValueError('control_action_in_progress')
                 fence=self.fence(request);action=request.get('request')
@@ -199,7 +241,7 @@ class Channel:
                 action={**action,'requestId':request['requestId']}
                 operation=action['operation']
                 if not operation.startswith('browser.') and operation!='capabilities':
-                    refusal=self.owner.locked_desktop_refusal()
+                    refusal=self.owner.locked_desktop_refusal(self)
                     if refusal:raise ValueError(refusal)
                 refusal=access.authorize(self.label,fence['sessionId'],fence['resourceGenerations'],operation)
                 if refusal:raise ValueError(refusal)

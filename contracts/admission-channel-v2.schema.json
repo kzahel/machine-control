@@ -205,6 +205,8 @@
         "invalid_admission_request",
         "invalid_request_sequence",
         "prepared_console_required",
+        "prepared_console_unavailable",
+        "covered_console_owned",
         "invalid_prepared_console_request",
         "audit_storage_unavailable",
         "control_renewal_unavailable",
@@ -302,7 +304,7 @@
         },
         "consoleUnlock": {
           "type": "object",
-          "description": "Windows prepared owners: progress of the covered unlock started at control.accept. The owner's first action waits for it."
+          "description": "Progress of a covered unlock started at control.accept. The owner's first action waits for it."
         }
       }
     }

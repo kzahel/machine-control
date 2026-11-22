@@ -115,9 +115,12 @@ def doctor():
         extensions["deployment"] = {**deployment, **{k: data[k] for k in ["grant", "pendingRequest"] if k in data}}
         if isinstance(data.get("browserWhileLocked"), dict):
             extensions["browserWhileLocked"] = data["browserWhileLocked"]
+        protected = data.get("lockedUse")
+        if isinstance(protected, dict):
+            extensions["lockedUse"] = protected
         if states["desktop"] == "locked":
-            # Linux has no locked Desktop route; Browser may continue.
-            extensions["lockedConsole"] = locked_console(data, desktop_supported=False)
+            extensions["lockedConsole"] = locked_console(data,
+                desktop_supported=isinstance(protected, dict) and protected.get("supported") is True)
         extensions["runtimeGeneration"] = status["generation"]
         checks.append(dict(id="resident", status="pass", summary="Desktop resident is reachable"))
         surfaces = data.get("admission", {}).get("surfaces", {})

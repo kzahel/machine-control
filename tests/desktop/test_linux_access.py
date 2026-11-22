@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'desktop/native/linux'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'platforms/linux/guests/ubuntu/ui'))
 from access import Access
 from channel import Channel,process_token
 from policy import Policy,PolicyError
@@ -161,12 +162,12 @@ class AccessTests(unittest.TestCase):
         cls=next(n for n in ast.parse(source.read_text()).body if isinstance(n,ast.ClassDef) and n.name=='Desktop')
         methods=[n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name in ('desktop_state','locked_desktop_refusal')]
         namespace={};exec(compile(ast.Module(body=methods,type_ignores=[]),str(source),'exec'),namespace)
-        state=lambda **f:namespace['desktop_state'](SimpleNamespace(**f))
+        state=lambda **f:namespace['desktop_state'](SimpleNamespace(covered=None,**f))
         self.assertEqual(state(locked=True,unlocked=False,session_identity=('1',1,':1')),'locked')
         self.assertEqual(state(locked=False,unlocked=True,session_identity=('1',1,':1')),'unlocked')
         self.assertEqual(state(locked=False,unlocked=False,session_identity=None),'no_session')
         self.assertEqual(state(locked=False,unlocked=False,session_identity=('1',1,':1')),'unknown')
-        refusal=lambda locked,browser:namespace['locked_desktop_refusal'](SimpleNamespace(locked=locked,
+        refusal=lambda locked,browser:namespace['locked_desktop_refusal'](SimpleNamespace(locked=locked,covered=None,
             grants=SimpleNamespace(browser_only_while_locked=browser)))
         self.assertIsNone(refusal(False,True))
         self.assertEqual(refusal(True,True),'desktop_locked_browser_only')
@@ -175,9 +176,9 @@ class AccessTests(unittest.TestCase):
     def test_locked_desktop_dispatch_is_refused_before_shared_authority(self):
         server,client=socket.socketpair();client.settimeout(2)
         self.addCleanup(server.close);self.addCleanup(client.close)
-        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,desktop_open_refusal=lambda _:None,
             scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
-            channels=set(),changed=lambda:None,locked_desktop_refusal=lambda:'desktop_locked_browser_only')
+            channels=set(),changed=lambda:None,locked_desktop_refusal=lambda _:'desktop_locked_browser_only')
         channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
         channel.authority=lambda:None
         self.addCleanup(channel.close)
@@ -203,7 +204,7 @@ class AccessTests(unittest.TestCase):
     def test_live_channel_sequence_owner_binding_and_close(self):
         server,client=socket.socketpair();client.settimeout(2)
         self.addCleanup(server.close);self.addCleanup(client.close)
-        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,desktop_open_refusal=lambda _:None,
             scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
             channels=set(),changed=lambda:None)
         channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
@@ -242,6 +243,7 @@ class AccessTests(unittest.TestCase):
         server,client=socket.socketpair();client.settimeout(2)
         self.addCleanup(server.close);self.addCleanup(client.close)
         owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+            desktop_open_refusal=lambda channel:'prepared_console_unavailable' if channel.prepared else None,
             scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
             channels=set(),changed=lambda:None)
         channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
@@ -283,7 +285,8 @@ class AccessTests(unittest.TestCase):
             (dict(durationSeconds=None),'invalid_admission_request'),
             (dict(durationSeconds=901),'invalid_admission_request'),
             (dict(requestId='r'*81),'invalid_admission_request'),
-            (dict(preparedConsole=True),'locked_use_unsupported'),
+            (dict(preparedConsole=True),'prepared_console_unavailable'),
+            (dict(preparedConsole=True,surfaces=['browser'],profileIds=['work']),'invalid_prepared_console_request'),
             (dict(preparedConsole=1),'invalid_prepared_console_request'),
         ]:
             with self.subTest(fields=fields):self.assertEqual(self.failed_open(**fields),code)
@@ -291,7 +294,7 @@ class AccessTests(unittest.TestCase):
     def test_channel_operation_and_renewal_codes(self):
         server,client=socket.socketpair();client.settimeout(2)
         self.addCleanup(server.close);self.addCleanup(client.close)
-        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,desktop_open_refusal=lambda _:None,
             scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
             channels=set(),changed=lambda:None)
         channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))
@@ -318,7 +321,7 @@ class AccessTests(unittest.TestCase):
     def test_sdk_open_negotiates_the_first_required_sequence(self):
         server,client=socket.socketpair();client.settimeout(2)
         self.addCleanup(server.close);self.addCleanup(client.close)
-        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,
+        owner=SimpleNamespace(grants=self.access,native_authority=lambda _:None,desktop_open_refusal=lambda _:None,
             scheduler=SimpleNamespace(post=lambda f,*a:self.callbacks.put(lambda:f(*a))),
             channels=set(),changed=lambda:None)
         channel=Channel(owner,server,os.getpid(),process_token(os.getpid()))

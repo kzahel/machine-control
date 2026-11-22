@@ -5,9 +5,9 @@ Topic: `linux-locked-use`
 Status: native GDM reauthentication exercised on Ubuntu 24.04 GNOME Wayland
 appliances. Unlock, a native application effect and relock passed on the
 x64 appliance with the upstream accessibility fix, and on stock Ubuntu
-26.04.1 x64 with GNOME 50.1. A GNOME 50 VM prototype also passes covered
-unlock, GUI control and relock. Workstation enrollment and Desktop-owner
-integration are open.
+26.04.1 x64 with GNOME 50.1. The GNOME 50 VM prototype passes covered unlock,
+GUI control, and relock. The installed Debian integration adds enrollment
+and the prepared Desktop owner. Package and physical acceptance are in progress.
 
 ## Current
 
@@ -24,9 +24,12 @@ simulated motion. The cover paints on the physical scene while the authorized
 capture uses a private offscreen framebuffer. The root activity observer
 supplies opaque input and motion facts independent of compositor routing.
 
-The Linux desktop package still refuses prepared locked Desktop owners.
-Approved Browser work can still proceed while the console is locked under its
-[separate setting](linux-desktop.md).
+The Debian integration uses a native setup dialog and a privileged GDM
+helper. The helper releases the password only to its bound authentication
+worker after verifying the locked session and the compositor cover. The
+Desktop owner, helper and compositor each enforce a bounded task lifetime.
+The [operator guide](../desktop/LINUX-LOCKED-USE.md) describes setup and
+revocation. Approved Browser work uses its [separate setting](linux-desktop.md).
 
 ## Decision
 
@@ -51,11 +54,9 @@ authentication policy and allow one recognized password prompt per operation.
   accessibility cache fix in the target distribution.
 - Extend compositor-level coverage acceptance beyond the single-display VM.
   Verify hotplug, real displays and physical devices across the lock transitions.
-- Add operator-authorized enrollment and revocation with a secret transport
-  separate from ordinary requests. Qualify unavailable, changed, and expired
-  credentials and interrupted PAM conversations.
-- Integrate the covered AT-SPI, offscreen capture, and compositor input route
-  with the ordinary desktop's authorized owner. Qualify keyboard, scrolling,
-  and drag separately. Ordinary portal sharing still ends at lock.
+- Qualify unavailable, changed, and expired credentials and interrupted PAM
+  conversations through the packaged helper.
+- Qualify keyboard, scrolling, and drag separately through the installed
+  Desktop owner. Ordinary portal sharing still ends at lock.
 - Qualify the covered route through the packaged app on GNOME 50, including
   physical takeover, displays and actual native effects.

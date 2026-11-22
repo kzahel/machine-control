@@ -19,13 +19,21 @@ def stage(destination, revision, arch=None):
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
+    guest_ui = ROOT / "platforms/linux/guests/ubuntu/ui"
     sources = list((ROOT / "desktop/native/linux").glob("*.py")) + [
-        ROOT / "platforms/linux/guests/ubuntu/ui" / name for name in ["linuxcontrol.py", "linuxui.py"]]
+        guest_ui / name for name in ["linuxcontrol.py", "linuxui.py", "gnome_unlock.py", "gnome_cover.py"]]
     files = []
     for source in sorted(sources):
         shutil.copyfile(source, destination / source.name)
         files.append({"path": source.name, "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                       "byteLength": source.stat().st_size})
+    cover = destination / "gnome-cover"
+    cover.mkdir()
+    for name in ("metadata.json", "extension.js"):
+        data = (guest_ui / "gnome-cover" / name).read_bytes()
+        (cover / name).write_bytes(data)
+        files.append({"path": f"gnome-cover/{name}", "sha256": hashlib.sha256(data).hexdigest(),
+                      "byteLength": len(data)})
     extension = destination / "extension"
     extension.mkdir()
     # Runtime files only: Web Store tooling, sources and docs stay behind.

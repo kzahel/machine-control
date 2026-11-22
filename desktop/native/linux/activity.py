@@ -57,6 +57,7 @@ class Activity:
         self.generation=None;self.token=None;self.binding=None
         self.observed=0.0;self.through=0.0;self.barrier_request=None
         self.installed=False;self.positive=False
+        self.motion_supported=False
         self.problem='activity_observer_unavailable'
         self.requests=queue.Queue(maxsize=1)
         self.thread=threading.Thread(target=self.worker,daemon=True,name='mc-activity')
@@ -102,6 +103,8 @@ class Activity:
         deliberate=(self.positive and not changed and self.binding==value['consoleBinding'] and
                     self.token is not None and self.token!=value['activityToken'])
         self.installed=True;self.observed=time.monotonic();self.through=value['observedThroughUptime'];self.positive=value['healthy']
+        motion=value.get('motionToken')
+        self.motion_supported=isinstance(motion,str) and len(motion)==32
         self.generation,self.token,self.binding=value['generation'],value['activityToken'],value['consoleBinding']
         self.problem=value.get('problem') if value.get('problem') in {'inactive','device_generation_changed','input_coverage_unavailable','input_stream_lost','console_generation_changed'} else None
         self.changed(changed,deliberate)

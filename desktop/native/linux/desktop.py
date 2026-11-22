@@ -16,6 +16,9 @@ import subprocess
 import sys
 import threading
 import time
+
+# System Python runs in isolated mode when the product launches the resident.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from browser_preference import BrowserPreference
 import session as desktop_session
 
@@ -50,6 +53,9 @@ from access import Access
 from activity import Activity
 from access_preferences import AccessPreferences
 from channel import Channel,process_token
+from covered_session import CoveredSession
+from locked_use import LockedUse
+from gnome_unlock import UnlockRefused
 import notice_environment
 
 class Desktop:
@@ -75,6 +81,9 @@ class Desktop:
         self.work = Work(self.scheduler.post, linuxui.Atspi.init, pump)
         self.stopped=False;self.channels=set();self.inhibit=threading.Event()
         self.configuration_sessions={'desktop':None,'browser':None}
+        self.covered = None
+        self.covered_owner = None
+        self.covered_session = None
         self.notice_pending=False;self.notice_seconds=10
         self.operator_state=None
         # Stops counted where they arrive, so the supervisor can tell that a
@@ -104,6 +113,7 @@ class Desktop:
         except (OSError,ValueError):self.journal.diagnostic('browser.setup','browser_registration_invalid')
         self.activity=Activity(self.scheduler.post,self.activity_changed)
         self.activity_setup=None;self.activity_setup_error=None
+        self.locked_use = LockedUse(self)
         self.dialog = None
         self.dialog_id = None
         self.unlocked = False
@@ -140,6 +150,8 @@ class Desktop:
 
     def policy_changed(self,desktop_changed):
         if desktop_changed:self.work.cancel()
+        if self.covered is not None and not self.covered_intent_active():
+            self.covered.stop()
         if hasattr(self,'browser'):self.browser.cancel_invalid()
         self.changed()
 
@@ -153,6 +165,7 @@ class Desktop:
 
     def policy_failed(self,code):
         self.inhibit.set();self.work.cancel()
+        if self.covered is not None:self.covered.stop()
         if hasattr(self,'browser'):
             self.browser.invalidate()
             for client in list(self.browser.peers):self.browser.disconnect(client)
@@ -241,9 +254,16 @@ class Desktop:
         notice_ready=not self.unlocked or not state.get('requests') or self.notice_visible
         for surface in ('desktop','browser'):
             bound=known and desktop_session.same_logon(self.configuration_sessions[surface],self.session_identity)
-            ready=healthy and notice_ready and bound and (self.unlocked or surface=='browser' and self.locked and self.browser_preference.enabled)
+            covered = self.covered is not None
+            if surface == 'desktop':
+                route = (self.covered_intent_active() and not self.covered.cancelled.is_set()) if covered else (
+                    self.unlocked and notice_ready or self.locked and self.locked_use.ready)
+            else:
+                route = self.unlocked and not covered and notice_ready or (
+                    (self.locked or covered) and self.browser_preference.enabled)
+            ready=healthy and bound and route
             if surface=='desktop' and self.portal.state=='pending':ready=False
-            self.grants.fact(surface,(bool(ready),bool(self.unlocked and notice_health)))
+            self.grants.fact(surface,(bool(ready),bool(self.unlocked and not covered and notice_health)))
         self.browser.sync()
 
     def apply_session(self,unlocked,locked,identity,elsewhere=False):
@@ -254,8 +274,17 @@ class Desktop:
         if elsewhere!=self.grants.console_elsewhere:
             self.grants.console_elsewhere=elsewhere
             self.journal.event('access.console_elsewhere' if elsewhere else 'access.console_returned')
+        was_unlocked = self.unlocked
         self.unlocked,self.locked,self.session_identity=unlocked,locked,identity
         self.session_observed=time.monotonic()
+        if self.covered is not None and not desktop_session.same_logon(self.covered.identity, identity):
+            self.covered.stop()
+        if unlocked and self.covered is None:
+            self.locked_use.manual_unlock()
+        elif was_unlocked and locked and self.covered is None and self.policy.alive:
+            # A normal grant can pause on a physical lock. Re-admission must
+            # go through a new offer before it can reach the protected route.
+            self.grants.fact('desktop',(False,False))
         if not unlocked and self.portal.state!='off':self.portal.close()
         self.refresh_availability()
 
@@ -270,21 +299,83 @@ class Desktop:
             try:desktop_session.observe(self.portal.bus,observed)
             except GLib.Error:observed(False,False,None)
         if self.policy.alive:
+            self.locked_use.refresh()
             self.refresh_availability();self.grants.refresh()
+            self.refresh_cover()
         self.changed()
         return True
 
     def desktop_state(self):
         """Common desktopState from the bound GNOME/logind observation."""
         if self.locked:return 'locked'
+        if self.covered is not None and not self.covered.active.is_set():return 'unknown'
         if self.unlocked:return 'unlocked'
         return 'no_session' if self.session_identity is None else 'unknown'
 
-    def locked_desktop_refusal(self):
+    def locked_desktop_refusal(self, channel=None):
         """A positively observed lock refuses Desktop work; Browser-only
         access may continue when its locked preference is active."""
+        if self.covered is not None:
+            return None if channel is self.covered_owner else 'covered_console_owned'
         if not self.locked:return None
+        if channel is not None and channel.prepared:return None
         return 'desktop_locked_browser_only' if self.grants.browser_only_while_locked else 'desktop_unavailable'
+
+    def desktop_open_refusal(self, channel):
+        if self.covered is not None:
+            return 'covered_console_owned'
+        if channel.prepared:
+            return None if self.locked_use.ready else 'prepared_console_unavailable'
+        if self.locked and self.locked_use.ready:
+            return 'prepared_console_required'
+        return None
+
+    def covered_intent_active(self):
+        return self.covered_owner is not None and any(
+            row.get('intentId') == self.covered_owner.intent
+            and row.get('sessionId') == self.covered_session and row.get('state') == 'active'
+            for row in self.grants.view.get('requests', ()))
+
+    def activate_cover(self, channel, view):
+        if self.covered is not None:
+            raise ValueError('covered_console_owned')
+        if not self.locked:
+            if not self.unlocked:raise ValueError('desktop_unavailable')
+            channel.started_unlocked = True
+            return
+        if not channel.prepared:raise ValueError('prepared_console_required')
+        if channel.started_unlocked:raise ValueError('task_did_not_start_locked')
+        if not self.locked_use.ready or not self.activity.healthy(self.session_identity):
+            raise ValueError('prepared_console_unavailable')
+        self.covered_owner = channel
+        self.covered_session = view['sessionId']
+        self.covered = channel.covered = CoveredSession(self.session_identity,
+            lambda: (not self.inhibit.is_set() and not channel.authority()
+                     and (not self.covered.active.is_set() or self.locked_use.permission_ready)),
+            self.locked_use.authenticate,
+            lambda: self.scheduler.post(self.cover_changed),
+            time.monotonic()+min(900,max(0,view['activeRemainingSeconds'])))
+        self.covered.start()
+
+    def cover_changed(self):
+        task = self.covered
+        if task is None:return False
+        if task.cancelled.is_set() and self.covered_owner.label in self.grants.owners and self.policy.alive:
+            self.grants.end(self.covered_owner.label, 'locked_use_guard_failed')
+        if task.finished.is_set():
+            self.locked_use.ended(task)
+            if task.relock_verified:
+                if task.cover is not None and task.cover.begin_attempted:
+                    self.unlocked,self.locked = False,True
+                self.covered = self.covered_owner = self.covered_session = None
+        self.refresh_availability()
+        self.changed()
+        return False
+
+    def refresh_cover(self):
+        if self.covered is not None:
+            if self.covered_intent_active():self.covered.pulse()
+            else:self.covered.stop()
 
     def browser_while_locked_state(self):
         # Only Ask first needs a person, whose approval needs an unlocked
@@ -305,6 +396,8 @@ class Desktop:
     def emergency_fence(self):
         self.stops+=1
         self.inhibit.set();self.work.cancel()
+        if self.covered is not None:self.covered.stop()
+        self.locked_use.cancel_setup.set()
         for authority in list(self.browser.authorities.values()):authority['revoked'].set()
 
     def stop_access(self,reason='stopped_by_person'):
@@ -326,6 +419,7 @@ class Desktop:
             permissions=dict(accessibility=self.unlocked,screenRecording=self.portal.ready),
             portal=dict(state=self.portal.state,error=self.portal.error,pointer=bool(self.portal.devices&2),keyboard=bool(self.portal.devices&1)),
             browser=self.browser.state(),browserWhileLocked=self.browser_while_locked_state(),desktopState=self.desktop_state(),
+            lockedUse=self.locked_use.state(),
             socket=str(self.endpoint),startOnLogin=self.startup.enabled,stopShortcutAvailable=self.shortcut.available,
             stopShortcut='Ctrl+Alt+Shift+.',activity=[],logging=self.journal.health,stops=stops)
 
@@ -365,7 +459,8 @@ class Desktop:
         if method in {'surface.configure','configure_surface'}:
             surface=command.get('surface');mode=command.get('mode')
             if surface not in ('desktop','browser') or mode not in ('off','ask','automatic'):raise ValueError('Choose a surface mode')
-            if mode!='off' and (not self.unlocked or self.session_identity is None or self.grants.updating or not self.journal.health['available']):
+            if mode!='off' and (not self.unlocked or self.session_identity is None or self.grants.updating
+                    or self.locked_use.setup_process or self.covered is not None or not self.journal.health['available']):
                 raise ValueError('Use the unlocked console before enabling access')
             duration=command.get('duration',900)
             if type(duration) is not int or duration<0 or duration>28800:raise ValueError('Invalid duration')
@@ -414,6 +509,7 @@ class Desktop:
             if type(enabled) is not bool or enabled and not self.unlocked:raise ValueError('Use the unlocked console')
             self.browser_preference.set(enabled);self.refresh_availability()
         elif method=='activity.setup':self.prepare_activity()
+        elif method=='locked_use':self.locked_use.set_enabled(command.get('enabled'))
         elif method in {'pause','resume'}:
             if method=='pause':
                 duration=command.get('duration')
@@ -433,6 +529,10 @@ class Desktop:
                     raise ValueError("Browser registered; could not open the Chrome Web Store")
             return {"ok": True, "extensionPath": extension}
         elif method == "permission":
+            if command.get("permission") == "lockedUse":
+                self.locked_use.setup(remove=command.get("remove") is True)
+                self.changed()
+                return {"ok": True}
             if not self.unlocked or self.grants.updating:
                 raise ValueError("Stop access before changing sharing")
             self.portal.connect()
@@ -484,20 +584,22 @@ class Desktop:
         threading.Thread(target=wait,daemon=True,name='mc-activity-setup').start()
         self.changed()
 
-    def discovery(self,request):
+    def discovery(self,request,covered=False):
         operation=request.get('operation')
         result=self.provider.envelope(request,operation)
         result.update(delivery='not_applicable',effect='not_applicable')
         if operation in ('status','grant.status'):
             # Older readers use the spread deployment keys; the common
             # projection is desktopState plus the nested deployment.
+            covered=self.covered is not None and self.covered.active.is_set()
             result['data']={**self.grants.deployment(),'admission':self.grants.state(),
                 'desktopState':self.desktop_state(),'deployment':self.common_deployment(),
                 'browserWhileLocked':self.browser_while_locked_state(),
+                'lockedUse':self.locked_use.state(),
                 'desktopProduct':True,'ready':self.grants.ready,'sourceRevision':self.identity.get('sourceRevision'),
-                'semanticState':'ready' if self.unlocked else 'unavailable',
-                'captureState':'ready' if self.portal.ready else 'unavailable',
-                'inputState':'ready' if self.provider.input_ready() else 'unavailable',
+                'semanticState':'ready' if self.unlocked and (self.covered is None or covered) else 'unavailable',
+                'captureState':'ready' if covered or self.portal.ready else 'unavailable',
+                'inputState':'ready' if covered or self.provider.input_ready() else 'unavailable',
                 'browser':self.browser.state(),'physicalActivity':self.activity.state(self.session_identity),
                 'nativeNotice':self.notice_capability(),
                 'admissionChannel':dict(schema='machine-control-admission-channel/v2',
@@ -510,6 +612,12 @@ class Desktop:
                 physicalActivity=self.activity.state(self.session_identity),nativeNotice=self.notice_capability(),
                 protectedDesktop=False,hostInterference='none',
                 operatorProtection=dict(processTree=True,approvalPrompt='physical_input_and_gnome_shell_semantics_withheld_while_pending'))
+            if covered:
+                result['data'].update(
+                    capture=dict(route='user/linux.gnome-covered-offscreen',state='ready',scope='covered_desktop'),
+                    input=dict(route='user/linux.gnome-covered-virtual',authorization='covered_console_owner',
+                               coordinateSpace='gnome_stage_logical'),
+                    protectedDesktop=True)
         return result
 
     def handle(self,request,caller,complete,caller_pid=None):
@@ -547,6 +655,31 @@ class Desktop:
             finish(value)
         if self.inhibit.is_set() or channel.authority():
             finish(self.provider.fail(request,operation,'owner_disconnected','Owner ended'));return
+        if channel is self.covered_owner:
+            task = self.covered
+            deadline = time.monotonic() + 18
+            def guarded():
+                refusal = self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
+                if (refusal or self.covered is not task or not task.permitted()
+                        or time.monotonic() >= deadline):
+                    finish(self.provider.fail(request,operation,refusal or 'locked_use_guard_failed',
+                        'Covered Desktop preparation ended'))
+                    return False
+                if not task.active.is_set():
+                    return True
+                if not self.journal.begin(operation,request['requestId'],self.grants.generation,channel.pid):
+                    finish(self.provider.fail(request,operation,'audit_storage_unavailable','Audit unavailable'))
+                    return False
+                if operation == 'capabilities':
+                    try:task.require_active()
+                    except UnlockRefused:
+                        complete(self.provider.fail(request,operation,'locked_use_guard_failed','Cover ended'))
+                    else:complete(self.discovery(request,covered=True))
+                    return False
+                self.provider_work(request,complete,channel,fence,covered=task)
+                return False
+            if guarded():self.scheduler.timer(100,guarded)
+            return
         if not self.journal.begin(operation,request['requestId'],self.grants.generation,channel.pid):
             finish(self.provider.fail(request,operation,'audit_storage_unavailable','Audit unavailable'));return
         if operation=='capabilities':complete(self.discovery(request));return
@@ -563,7 +696,8 @@ class Desktop:
             self.apply_session(unlocked,locked,identity,elsewhere)
             refusal=channel.authority()
             if not refusal and self.grants.console_elsewhere:refusal='console_session_elsewhere'
-            if not refusal and not unlocked:refusal=self.locked_desktop_refusal() or 'desktop_unavailable'
+            if not refusal:refusal=self.locked_desktop_refusal(channel)
+            if not refusal and not unlocked:refusal='desktop_unavailable'
             refusal=refusal or self.grants.authorize(channel.label,fence['sessionId'],fence['resourceGenerations'],operation)
             if refusal:
                 finish(self.provider.fail(request,operation,refusal,'Desktop owner unavailable'));return
@@ -671,7 +805,7 @@ class Desktop:
             client.close()
             self.recovery_slots.release()
 
-    def provider_work(self, request, finish, channel, fence):
+    def provider_work(self, request, finish, channel, fence, covered=None):
         operation = request["operation"]
         grant = self.grants.grant
         ticket = Ticket(self.grants.generation, grant["expires"] if grant else None)
@@ -681,6 +815,8 @@ class Desktop:
                 raise Cancelled('Owner ended')
             value=self.policy.call(dict(method='access.authorize',owner=channel.label,fence=fence,operation=operation))
             if value.get('refusal'):raise Cancelled('Shared authority ended')
+            if covered:covered.require_active()
+            elif self.covered is not None:raise Cancelled('Covered Desktop is reserved')
         ticket.authority=authority
         ticket.request_id = request["requestId"]
         replied = False
@@ -714,11 +850,15 @@ class Desktop:
                 self.provider.generation = active.generation
                 self.provider.snapshots.clear()
             self.provider.ticket = active
+            self.provider.covered = covered
             self.portal.ticket = active
             try:
+                if covered:
+                    authority()
                 return self.provider.handle(request)
             finally:
                 self.provider.ticket = self.portal.ticket = None
+                self.provider.covered = None
 
         if not self.work.submit(ticket, run, completed):
             if channel.ticket is ticket:channel.ticket=None
@@ -849,6 +989,8 @@ class Desktop:
                 # listeners, peers or children. Diagnostics carry no payload.
                 try:self.journal.diagnostic('resident.cleanup',name)
                 except Exception:pass
+        if self.covered is not None:close('cover',self.covered.stop)
+        close('locked-use-setup',self.locked_use.cancel_setup.set)
         close('audit',lambda:self.journal.event('resident.stop'))
         close('work',self.work.cancel)
         close('access',lambda:self.grants.stop('operator_disconnected'))

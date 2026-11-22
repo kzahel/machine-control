@@ -297,12 +297,14 @@ export function SurfaceAccess({
   act,
   protectedAccess,
   lockedBrowser,
+  platform,
   browser,
 }: {
   visible?: boolean;
   policy: SurfacePolicy;
   profiles: Profile[];
   browser?: BrowserConnection;
+  platform?: string;
   busy: boolean;
   act: Act;
   lockedBrowser?: { supported: boolean; enabled: boolean };
@@ -314,6 +316,7 @@ export function SurfaceAccess({
     controlSessionId: string | null;
     setupState: string;
     setupError: string | null;
+    helperNote?: string | null;
   };
 }) {
   const [saved, setSaved] = useState(() => choices(policy));
@@ -859,7 +862,18 @@ export function SurfaceAccess({
               turns access off. Browser-only work can stay locked using its
               separate setting.
             </p>
-            {(!protectedAccess.permissionReady ||
+            {platform === "linux" && (
+              <p className="note">
+                {protectedAccess.helperNote === "gnome_covered_extension_enable_or_relogin"
+                  ? "After setup, sign out and back in to load the GNOME extension."
+                  : !protectedAccess.supported
+                    ? "Requires the Debian package on Ubuntu with GNOME 50 Wayland."
+                    : !protectedAccess.permissionReady
+                      ? "Set up your Ubuntu account password and the physical activity observer. Keep access off during setup."
+                      : "Local keyboard or mouse activity relocks the console and pauses covered tasks until you unlock it yourself."}
+              </p>
+            )}
+            {(platform !== "linux" || protectedAccess.supported) && (!protectedAccess.permissionReady ||
               (protectedAccess.credentialSource !== undefined &&
                 protectedAccess.credentialSource !==
                   "service_enrolled_password")) && (
@@ -875,6 +889,22 @@ export function SurfaceAccess({
               >
                 Set up covered desktop access
               </button>
+            )}
+            {platform === "linux" && protectedAccess.credentialSource === "service_enrolled_password" && (
+              <div className="lock-row">
+                <button
+                  disabled={busy || protectedAccess.setupState !== "idle" || !!protectedAccess.controlSessionId}
+                  onClick={() => void act({ method: "permission", permission: "lockedUse" })}
+                >
+                  Update saved password…
+                </button>
+                <button
+                  disabled={busy || protectedAccess.setupState !== "idle" || !!protectedAccess.controlSessionId}
+                  onClick={() => void act({ method: "permission", permission: "lockedUse", remove: true })}
+                >
+                  Remove unlock setup…
+                </button>
+              </div>
             )}
             {protectedAccess.setupError && (
               <p role="alert" className="note">

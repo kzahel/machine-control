@@ -9,7 +9,8 @@
     "resources": {
       "native/linux-runtime/*.py": "linux-runtime/",
       "native/linux-runtime/desktop-runtime.json": "linux-runtime/desktop-runtime.json",
-      "native/linux-runtime/extension/": "linux-runtime/extension/"
+      "native/linux-runtime/extension/": "linux-runtime/extension/",
+      "native/linux-runtime/gnome-cover/": "linux-runtime/gnome-cover/"
     },
     "linux": {
       "deb": {
@@ -21,15 +22,21 @@
           "python3-gi",
           "gir1.2-gtk-3.0",
           "gir1.2-atspi-2.0",
+          "gir1.2-gdm-1.0",
           "gir1.2-gst-plugins-base-1.0",
           "gstreamer1.0-pipewire",
           "gstreamer1.0-plugins-good",
+          "pkexec",
           "xdg-desktop-portal",
           "xdg-desktop-portal-gnome"
         ],
         "files": {
           "/usr/share/machine-control/mc-cli": "native/mc-cli/",
-          "/usr/share/machine-control/shared-policy": "native/linux-runtime/shared-policy/"
+          "/usr/share/machine-control/shared-policy": "native/linux-runtime/shared-policy/",
+          "/usr/share/gnome-shell/extensions/covered-desktop@machine-control.dev": "native/linux-runtime/gnome-cover/",
+          "/usr/lib/machine-control/locked-runtime/locked-credential.py": "native/linux-runtime/locked-credential.py",
+          "/usr/lib/machine-control/locked-runtime/gnome_unlock.py": "native/linux-runtime/gnome_unlock.py",
+          "/usr/lib/machine-control/locked-runtime/activity.py": "native/linux-runtime/activity.py"
         }
       },
       "appimage": {

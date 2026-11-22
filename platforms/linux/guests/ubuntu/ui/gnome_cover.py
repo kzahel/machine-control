@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 import re
 import threading
@@ -14,6 +15,17 @@ from activity import ENDPOINT, console_binding, read_sample
 
 PATH = "/dev/machinecontrol/CoveredDesktop"
 INTERFACE = "dev.machinecontrol.CoveredDesktop1"
+INPUT_REFUSALS = frozenset({
+    "gnome_covered_input_unavailable", "gnome_covered_input_invalid", "gnome_covered_key_refused",
+    "gnome_covered_target_shell", "gnome_covered_target_protected", "gnome_covered_target_mismatch",
+    "gnome_covered_text_unavailable",
+})
+
+
+class InputRefused(UnlockRefused):
+    def __init__(self, reason, *, dispatched=False):
+        super().__init__(reason)
+        self.dispatched = dispatched
 
 
 class Takeover:
@@ -50,17 +62,21 @@ class Takeover:
 
 
 class GnomeCover:
-    def __init__(self, provider, console, takeover=None):
+    def __init__(self, provider, console, takeover=None, permitted=None):
         self.provider = provider
         self.console = console
         self.takeover = takeover if takeover is not None else Takeover(console)
+        self.permitted = permitted or (lambda: True)
         self.connection = None
         self.identifier = None
+        self.begin_attempted = False
         self.stop_renewing = threading.Event()
         self.lost = threading.Event()
         self.worker = None
 
-    def open(self):
+    def open(self, seconds=None):
+        if not self.permitted():
+            raise UnlockRefused("gnome_unlock_cancelled")
         self.provider.require_locked(self.console)
         self.takeover.prepare()
         gio = self.provider.Gio
@@ -81,7 +97,13 @@ class GnomeCover:
                     != self.bus_query("GetConnectionUnixProcessID", self.console.shell_owner, "(u)")):
                 raise UnlockRefused("gnome_cover_console_changed")
             self.provider.require_locked(self.console)
-            self.identifier = self.call("Begin", None, "(s)")[0]
+            if not self.permitted():
+                raise UnlockRefused("gnome_unlock_cancelled")
+            self.begin_attempted = True
+            if seconds is None:
+                self.identifier = self.call("Begin", None, "(s)")[0]
+            else:
+                self.identifier = self.call("BeginWithin", ("(u)", (seconds,)), "(s)")[0]
             self.worker = threading.Thread(target=self.renew, daemon=True)
             self.worker.start()
             deadline = time.monotonic() + 3
@@ -104,9 +126,12 @@ class GnomeCover:
         )[0]
 
     def call(self, method, parameters, signature):
+        connection = self.connection
+        if connection is None:
+            raise UnlockRefused("gnome_cover_unavailable")
         try:
             return self.provider.call(
-                self.connection, self.shell, PATH, INTERFACE,
+                connection, self.shell, PATH, INTERFACE,
                 method, parameters, signature, timeout=500,
             )
         except UnlockRefused:
@@ -120,7 +145,7 @@ class GnomeCover:
 
     def covered(self):
         return (
-            not self.lost.is_set() and not self.stop_renewing.is_set()
+            self.permitted() and not self.lost.is_set() and not self.stop_renewing.is_set()
             and self.call("Check", ("(s)", (self.identifier,)), "(b)")[0] is True
         )
 
@@ -129,8 +154,11 @@ class GnomeCover:
 
     def capture(self):
         gio, glib = self.provider.Gio, self.provider.GLib
+        connection = self.connection
+        if connection is None:
+            raise UnlockRefused("gnome_cover_unavailable")
         try:
-            reply = self.connection.call_sync(
+            reply = connection.call_sync(
                 self.shell, PATH, INTERFACE, "Capture", glib.Variant("(s)", (self.identifier,)),
                 glib.VariantType("(ay)"), gio.DBusCallFlags.NONE, 3000, None,
             )
@@ -145,11 +173,53 @@ class GnomeCover:
     def click(self, x, y):
         self.call("Click", ("(sii)", (self.identifier, x, y)), "()")
 
+    def extend(self, seconds):
+        if self.call("Renew", ("(su)", (self.identifier, seconds)), "(u)")[0] != seconds:
+            raise UnlockRefused("gnome_cover_renewal_unconfirmed")
+
+    def input(self, request):
+        connection = self.connection
+        if connection is None:
+            raise InputRefused("gnome_covered_input_unavailable")
+        operation = request["operation"]
+        timeout = 2500 if operation == "input.text" else 1500
+        if operation == "input.drag":
+            duration = request.get("durationMs", 200)
+            if type(duration) is not int or not 1 <= duration <= 5000:
+                raise InputRefused("gnome_covered_input_invalid")
+            timeout += duration
+        try:
+            body = json.dumps(request, allow_nan=False, separators=(",", ":"))
+        except (TypeError, ValueError):
+            raise InputRefused("gnome_covered_input_invalid") from None
+        gio, glib = self.provider.Gio, self.provider.GLib
+        try:
+            value, = connection.call_sync(
+                self.shell, PATH, INTERFACE, "Input",
+                glib.Variant("(ss)", (self.identifier, body)), glib.VariantType("(s)"),
+                gio.DBusCallFlags.NONE, timeout, None,
+            ).unpack()
+            result = json.loads(value)
+            if (result.get("schema") == "machine-control-covered-input/v1"
+                    and result.get("operation") == operation and result.get("delivery") == "compositor_adopted"):
+                return result
+        except glib.Error as error:
+            name = gio.DBusError.get_remote_error(error) or ""
+            prefix = "dev.machinecontrol.CoveredDesktop.Error."
+            reason = name.removeprefix(prefix) if name.startswith(prefix) else ""
+            if reason in INPUT_REFUSALS:
+                raise InputRefused(reason) from None
+            if reason == "gnome_covered_input_interrupted":
+                raise InputRefused(reason, dispatched=True) from None
+        except (AttributeError, ValueError, TypeError):
+            pass
+        raise InputRefused("gnome_covered_input_unconfirmed", dispatched=True)
+
     def renew(self):
         while not self.stop_renewing.wait(0.3):
             try:
-                activity = self.takeover.state()
-                if activity != "quiet":
+                activity = self.takeover.state() if self.permitted() else "unavailable"
+                if activity != "quiet" or not self.permitted():
                     self.lost.set()
                     self.call("Interrupt" if activity == "local_input" else "End",
                               ("(s)", (self.identifier,)), "()")

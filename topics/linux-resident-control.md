@@ -10,13 +10,13 @@ protected login planes, and physical Linux hardware remain research-stage.
   `applicationId`.
 - Desktop-product resident: projects `desktopState` (including `locked`) and
   the common `deployment`, closes channels after ordering and open failures,
-  uses the common refusal codes, and refuses `preparedConsole` with
-  `locked_use_unsupported`.
+  and uses the common refusal codes. Builds from this date refuse
+  `preparedConsole` with `locked_use_unsupported`.
 - Host doctor maps `locked` and checks surface modes.
 
 **Current (2026-11-22):** The [Linux locked-use topic](linux-locked-use.md)
-owns the native GDM reauthentication provider and its Ubuntu GNOME appliance
-evidence. Prepared Desktop owners still require workstation integration.
+owns the native GDM reauthentication provider, the installed Debian
+workstation integration, and their Ubuntu GNOME acceptance evidence.
 
 **Current (2026-11-22):** Stock Ubuntu 26.04.1 GNOME 50 Wayland x64 passes
 the [ordinary appliance smoke](../docs/tactical/166-linux-gnome-unlock.md#stock-ubuntu-26041-vm).

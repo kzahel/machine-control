@@ -134,6 +134,7 @@ pub fn sanitize_system_command(command: &mut Command) -> Result<(), String> {
     for name in [
         "LD_LIBRARY_PATH",
         "LD_PRELOAD",
+        "LD_AUDIT",
         "GI_TYPELIB_PATH",
         "GST_PLUGIN_PATH",
         "GST_PLUGIN_SYSTEM_PATH",
@@ -156,6 +157,10 @@ pub fn sanitize_system_command(command: &mut Command) -> Result<(), String> {
         "APPDIR",
         "PYTHONHOME",
         "PYTHONPATH",
+        "PYTHONUSERBASE",
+        "PYTHONPLATLIBDIR",
+        "PYTHONINSPECT",
+        "PYTHONSTARTUP",
     ] {
         command.env_remove(name);
     }
@@ -226,6 +231,7 @@ fn spawn(app: &tauri::AppHandle) -> Result<(), String> {
     let parent = std::process::id();
     let mut command = Command::new("/usr/bin/python3");
     command
+        .args(["-I", "-B"])
         .arg(directory.join("desktop.py"))
         .env("PYTHONDONTWRITEBYTECODE", "1")
         .stdin(Stdio::piped())
@@ -338,8 +344,15 @@ pub fn command(command: Value) -> Result<Value, String> {
         return Err("Operator authority changed before dispatch".into());
     }
     let mut command = command;
-    if ["arm", "resume", "pause", "permission", "prepare_update"]
-        .contains(&command["method"].as_str().unwrap_or(""))
+    if [
+        "arm",
+        "resume",
+        "pause",
+        "permission",
+        "prepare_update",
+        "locked_use",
+    ]
+    .contains(&command["method"].as_str().unwrap_or(""))
     {
         command["expectedGeneration"] =
             json!(GENERATION.lock().map_err(|e| e.to_string())?.clone());

@@ -9,6 +9,18 @@ import linuxcontrol
 import linuxui
 import artifacts
 from work import Cancelled
+from gnome_unlock import UnlockRefused
+from gnome_cover import InputRefused
+
+
+COVERED_INPUT_FIELDS = {
+    "input.move": ("x", "y"),
+    "input.click": ("x", "y", "button", "count"),
+    "input.drag": ("x1", "y1", "x2", "y2", "steps", "durationMs"),
+    "input.scroll": ("x", "y", "dx", "dy"),
+    "input.key": ("key",),
+    "input.text": ("text",),
+}
 
 
 class Provider(linuxcontrol.Resident):
@@ -16,6 +28,7 @@ class Provider(linuxcontrol.Resident):
         super().__init__()
         self.owner = owner
         self.ticket = None
+        self.covered = None
 
     def before_effect(self):
         try:
@@ -71,14 +84,16 @@ class Provider(linuxcontrol.Resident):
         if len(active) != 1:
             raise linuxcontrol.ControlFailure("foreground_unavailable", "Foreground window is uncertain")
         self.protect_node(active[0])
+        foreground = linuxui.safe(active[0].get_application)
+        pid = linuxui.safe(foreground.get_process_id, 0) if foreground else 0
         if request.get("target"):
             selected = linuxui.choose_application(linuxui.desktop(), request["target"])
-            foreground = linuxui.safe(active[0].get_application)
-            if not foreground or linuxui.safe(foreground.get_process_id, 0) != linuxui.safe(selected.get_process_id, -1):
+            if not pid or pid != linuxui.safe(selected.get_process_id, -1):
                 raise linuxcontrol.ControlFailure("foreground_mismatch", "Selected application is not foreground")
         for node, info in linuxui.walk(active[0], 8, 400):
             if info["role"] == "password text":
                 raise linuxcontrol.ControlFailure("protected_surface", "Authentication dialogs are unavailable")
+        return pid
 
     def snapshot(self, request):
         if not request.get("target"):
@@ -95,6 +110,19 @@ class Provider(linuxcontrol.Resident):
     def capture(self, request):
         if request.get("scope", "display") != "display":
             raise linuxcontrol.ControlFailure("unsupported_operation", "Only the shared screen is available")
+        if self.covered:
+            try:
+                self.ticket.effect()
+                artifact = artifacts.write(self.covered.require_active().capture())
+                self.covered.require_active()
+            except UnlockRefused as error:
+                raise linuxcontrol.ControlFailure(str(error), "Covered capture ended") from None
+            result = self.envelope(request, "capture")
+            result.update(actualRoute="user/linux.gnome-covered-offscreen", fidelity="display_pixels",
+                          delivery="confirmed", effect="artifact_observed")
+            result["data"] = {"artifact": artifact, "coordinateSpace": "gnome_stage_logical",
+                              "logicalSize": [artifact["width"], artifact["height"]]}
+            return result
         data = self.owner.portal.capture()
         artifact = artifacts.write(data)
         result = self.envelope(request, "capture")
@@ -107,7 +135,9 @@ class Provider(linuxcontrol.Resident):
         return result
 
     def input(self, request):
-        self.protect_input(request)
+        foreground = self.protect_input(request)
+        if self.covered:
+            return self.covered_input(request, foreground)
         before = self.owner.portal.deliveries
         try:
             return self.dispatch_input(request)
@@ -118,6 +148,32 @@ class Provider(linuxcontrol.Resident):
             result.update(actualRoute="user/linux.portal-notify", delivery="unknown", effect="unknown",
                           uncertainty="provider_failed_after_dispatch", retrySafety="unsafe_delivery_unknown")
             return result
+
+    def covered_input(self, request, foreground):
+        operation = request["operation"]
+        fields = COVERED_INPUT_FIELDS.get(operation)
+        if fields is None:
+            raise linuxcontrol.ControlFailure("unsupported_operation", "Covered input operation is unavailable")
+        if foreground <= 1:
+            raise linuxcontrol.ControlFailure("foreground_unavailable", "Foreground process is uncertain")
+        guard = {"protectedPids": [os.getpid(), self.owner.operator_pid], "targetPid": foreground}
+        body = {key: request[key] for key in fields if key in request}
+        self.ticket.effect()
+        try:
+            outcome = self.covered.require_active().input(dict(body, operation=operation, guard=guard))
+        except UnlockRefused as error:
+            result = self.fail(request, operation, str(error), "Covered input refused or interrupted")
+            result["actualRoute"] = "user/linux.gnome-covered-virtual"
+            if isinstance(error, InputRefused) and error.dispatched:
+                result.update(delivery="unknown", effect="unknown", uncertainty="provider_failed_after_dispatch",
+                              retrySafety="unsafe_delivery_unknown")
+            return result
+        result = self.envelope(request, operation)
+        result.update(actualRoute="user/linux.gnome-covered-virtual", fidelity="foreground_input",
+                      delivery="confirmed", effect="unverifiable", uncertainty="no_independent_state_change")
+        result["data"] = {**outcome, "privilege": "ordinary_user",
+                          "foregroundConsequence": "foreground_window_receives_input"}
+        return result
 
     def dispatch_input(self, request):
         portal = self.owner.portal

@@ -193,8 +193,9 @@ while the console stays locked; no unlock is needed. Ask the person to unlock
 only when doctor reports access Off (for example after Machine Control
 restarted) or no locked route. For Desktop work, or a program that needs the
 session unlocked, open the Desktop owner with `control stream|call --surface desktop --prepared-console`
-(or `ControlSession(..., prepared_console=True)`); it is the same on macOS and
-Windows. Once accepted, the console is unlocked behind covers and relocks when
+(or `ControlSession(..., prepared_console=True)`). This route is available on
+macOS, Windows, and configured Ubuntu GNOME 50 installations. Once accepted,
+the console is unlocked behind covers and relocks when
 the owner ends; no separate unlock request is needed. Keep the task owner
 alive; closing, expiry or a safety failure triggers native cleanup/relock, as
 does the owner process exiting (for example a harness killing a background
@@ -203,8 +204,8 @@ unlocked, such as a build, `control keep-unlocked --for 1h --reason TEXT`
 holds one prepared owner and relocks when the interval ends, on a signal or on
 owner loss. Run it in the background for the program's duration, inside
 `machine-control run` when the claim must be renewed.
-Prepared owners renew automatically on macOS and Windows, so a long locked
-task needs no new owner. Linux has no locked use and refuses with locked_use_unsupported.
+On installations that expose owner renewal, prepared owners can renew without
+starting a new task. Older Linux residents refuse with locked_use_unsupported.
 Report setup refusals such as locked_use_disabled, prepared_console_unavailable
 or desktop_unavailable to the operator; do not work around them. macOS still
 accepts a flagless owner on a locked console for older clients. On macOS,
