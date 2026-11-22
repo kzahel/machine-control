@@ -20,6 +20,7 @@ find "$REPO_DIR/bin" "$REPO_DIR/scripts" "$REPO_DIR/providers" \
 "$PYTHON" -m py_compile \
     "$REPO_DIR/guests/ubuntu/ui/linuxui.py" \
     "$REPO_DIR/guests/ubuntu/ui/linuxcontrol.py" \
+    "$REPO_DIR/guests/ubuntu/ui/gnome_unlock.py" \
     "$REPO_DIR/guests/ubuntu/input/linuxinputd.py" \
     "$REPO_DIR/guests/ubuntu/fixtures/control_fixture.py" \
     "$REPO_DIR/guests/ubuntu/fixtures/qt_fixture.py" \

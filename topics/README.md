@@ -90,6 +90,8 @@ its `Topic:` trailers.
 - [`linux-resident-control.md`](linux-resident-control.md): accepted Ubuntu
   GNOME Wayland logged-in appliance and remaining compositor, portal,
   protected-plane, and physical-hardware profiles.
+- [`linux-locked-use.md`](linux-locked-use.md): native GDM reauthentication,
+  appliance evidence and workstation covered-access requirements.
 - [`macos-resident-control.md`](macos-resident-control.md): current macOS
   resident implementation, accepted logged-in Aqua Tart software testing,
   and accepted SIP-enabled appliance lock state/unlock with outer UI prohibited.

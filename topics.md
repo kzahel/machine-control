@@ -61,6 +61,8 @@ commits with no expected follow-up do not need a trailer or registry entry.
   companion supervision, signed installers, and installed acceptance.
 - `linux-desktop` — ordinary-user Linux Tauri app, portal consent, grants,
   native approvals, packages, and installed GNOME acceptance.
+- `linux-locked-use` — GNOME session reauthentication, covered Desktop
+  access, operator enrollment, and verified relock.
 
 - `native-sudo` — native per-command macOS authentication, helper packaging and YA opt-in.
 

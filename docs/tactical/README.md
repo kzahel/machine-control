@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [166 — Native Ubuntu GNOME session unlock](166-linux-gnome-unlock.md)
+  (x64 VM Desktop sequence passed with upstream accessibility fix):
+  same-session GDM reauthentication, native application effect and relock.
+
 - [165 — Locked-use agent experience verification](165-locked-use-agent-experience.md)
   (VM-qualified; physical takeover open): why agents asked the operator to
   unlock, truthful locked status and doctor guidance, resilient streams and

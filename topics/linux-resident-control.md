@@ -14,6 +14,10 @@ protected login planes, and physical Linux hardware remain research-stage.
   `locked_use_unsupported`.
 - Host doctor maps `locked` and checks surface modes.
 
+**Current (2026-11-22):** The [Linux locked-use topic](linux-locked-use.md)
+owns the native GDM reauthentication provider and its Ubuntu GNOME appliance
+evidence. Prepared Desktop owners still require workstation integration.
+
 **Current:** Retained UTM appliances can explicitly select
 `LINUXVM_ADMIN_TRANSPORT=ssh` after guest-agent host-key pinning. Root
 administration and transfer then use pinned key-only SSH and appliance sudo;
@@ -139,9 +143,9 @@ capability, result, and reference vocabulary.
   inventory before declaring login/unlock a human gate. The controller-local
   secret file is the source of truth; public guides contain only generic
   locator rules. See the [credential contract](../docs/target-registry.md#credentials-and-private-data).
-  Stored disposable-VM credentials may be used unattended. Linux currently
-  lacks a dedicated secret-safe password submission operation; distinguish
-  that provider gap from missing credential metadata or a human-only step.
+  Stored disposable-VM credentials may be used unattended. The GNOME
+  acceptance harness uses pinned SSH stdin for password delivery; the
+  desktop product has no password submission operation.
 
 - Treat GNOME Wayland as a concrete platform profile, not generic “Linux.”
   Capability reports name the desktop session, compositor, XWayland use,

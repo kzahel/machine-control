@@ -48,6 +48,21 @@ unknown authority. Other compositors, X11, physical systems and sleep remain
 unqualified. [Tactical 131](../../docs/tactical/131-windows-linux-browser-while-locked.md)
 owns the execution record and portable contract tests.
 
+## GDM existing-session reauthentication
+
+**Current — live-tested (2026-11-22):** A user process launched through the
+graphical user's systemd manager authenticates through the stock GDM
+password service on Ubuntu 24.04 GNOME 46 Wayland, on ARM64 UTM and x64 KVM.
+GNOME Shell ScreenShield state and logind `LockedHint` verify same-session
+unlock and relock. Native application operations after unlock exposed an
+ATK bridge cache crash. The x64 KVM Desktop sequence passed using the
+upstream fix on the otherwise identical bridge version. An Ubuntu 26.04
+GNOME 50.1 physical machine with a newer bridge passes read-only provider
+discovery. [Tactical 166](../../docs/tactical/166-linux-gnome-unlock.md)
+owns the acceptance scope and the
+[Linux locked-use topic](../../topics/linux-locked-use.md) owns the integration
+decision.
+
 ## Shared policy and physical activity observation
 
 **Current (2026-11-04), `built` and bounded `live-tested`:** the Python process
