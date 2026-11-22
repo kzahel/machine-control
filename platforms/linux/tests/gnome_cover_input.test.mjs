@@ -777,15 +777,15 @@ test('a Shell modal opening mid-drag ends the drag with a release', async () => 
     assert.equal(extension.cover.reason, 'virtual_input_failed');
 });
 
-test('one request at a time and unconfirmed delivery keeps the cover', async () => {
+test('submission without a stage event reports what Mutter acknowledged', async () => {
     const {extension, input} = await coveredSession();
     const first = input({operation: 'input.click', x: 100, y: 120});
     const second = input({operation: 'input.key', key: 'a'});
     await flush();
     assert.equal(second.error, 'gnome_covered_input_unavailable');
     await advance(1000);
-    assert.equal(first.error, 'gnome_covered_input_unconfirmed');
-    assert.equal(JSON.parse(first.message).issuedEvents, 3);
+    assert.equal(result(first).delivery, 'submitted_to_compositor');
+    assert.equal(result(first).issuedEvents, 3);
     assert.equal(extension.cover.phase, 'covered');
     assert.equal(extension.cover.busy(), false);
     // A late arrival is no longer expected: it is local input.

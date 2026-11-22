@@ -112,6 +112,7 @@ const MAX_DRAG_DURATION_MS = 5000;
 // Bound for the compositor to adopt everything issued, and for the
 // selection read-back before a paste.
 const ADOPTION_MS = 1000;
+const EVENT_DRAIN_MS = 150;
 // Mutter can emit more than one event for one virtual call with the same
 // timestamp: a discrete scroll step, or a key with its level modifier.
 const DUPLICATE_US = 1_000_000;
@@ -1000,22 +1001,20 @@ class Cover {
         try {
             await this.perform(request, sequence);
             if (!this.queue.empty) {
-                try {
-                    await this.waitFor(sequence, ADOPTION_MS, 'gnome_covered_input_unconfirmed', done => {
-                        sequence.progress = () => this.queue.empty && done();
-                    });
-                } catch (error) {
-                    if (error.message === 'gnome_covered_input_unconfirmed')
-                        this.queue.clear();
-                    throw error;
-                }
+                await this.waitFor(sequence, EVENT_DRAIN_MS, null, done => {
+                    sequence.progress = () => this.queue.empty && done();
+                });
             }
-            if (sequence.aborted)
-                throw inputError('gnome_covered_input_interrupted');
+            this.requireCovered(sequence);
+            // Mutter's native virtual-device API can deliver input to
+            // Wayland even when Clutter never reports the event to this
+            // stage filter. Report the actual acknowledgement in each case.
+            const adopted = this.queue.empty;
+            this.queue.clear();
             const result = {
                 schema: INPUT_SCHEMA,
                 operation: request.operation,
-                delivery: 'compositor_adopted',
+                delivery: adopted ? 'compositor_adopted' : 'submitted_to_compositor',
                 issuedEvents: sequence.issued,
                 targetPid,
                 coordinateSpace: 'gnome_stage_logical',

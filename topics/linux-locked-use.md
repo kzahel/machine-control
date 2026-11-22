@@ -13,9 +13,12 @@ A private Debian installation on the matching Ubuntu 26.04.1 VM has
 enrolled the account, accepted a prepared Desktop owner, and unlocked behind
 the GNOME cover. The fixture verified offscreen capture and an AT-SPI
 effect. The same console relocked after owner disconnect and task expiry.
-The VM also recorded a pointer click during a delivery-reporting failure.
-The follow-up checks compositor input reporting and simulated physical
-takeover before workstation or release acceptance.
+A rebuilt package also relocked and paused access on simulated physical
+movement through the kernel observer. Uninstall removed the service and
+enrollment. Mutter delivered a pointer press and release without supplying
+the expected stage-filter acknowledgement. The input contract records
+whether the compositor reported adoption or accepted virtual input for
+dispatch. Hardware and interrupted authentication remain release gates.
 
 ## Current
 

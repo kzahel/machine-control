@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--ending", choices=("disconnect", "expiry", "takeover", "stop", "resident"), required=True)
     parser.add_argument("--skip-pointer", action="store_true")
+    parser.add_argument("--extended-input", action="store_true")
     args = parser.parse_args()
     sys.path.insert(0, str(args.runtime))
     from gnome_unlock import GnomeUnlock
@@ -126,6 +127,25 @@ def main():
                              and result["dragReleases"] == 1,
                              "Independent fixture did not observe covered pointer action")
                         print("covered_pointer_effect_confirmed", flush=True)
+                    if args.extended_input:
+                        send("control.heartbeat")
+                        action("input.key", key="tab")
+                        poll(lambda: json.loads(state.read_text())["lastKey"] == "Tab",
+                             "Independent fixture did not observe covered keyboard input")
+                        snapshot = action("snapshot", target="machine-control-fixture", query="Fixture Text")
+                        entry, = (node for node in snapshot["elements"] if node["label"] == "Fixture Text")
+                        action("focus", reference=entry["reference"])
+                        action("input.text", text="covered ✓ text")
+                        poll(lambda: json.loads(state.read_text())["text"] == "covered ✓ text",
+                             "Independent fixture did not observe covered text")
+                        send("control.heartbeat")
+                        action("input.drag", x=point["x"], y=point["y"], x2=point["x"] + 70, y2=point["y"])
+                        poll(lambda: json.loads(state.read_text())["dragReleases"] == 2,
+                             "Independent fixture did not observe covered drag release")
+                        action("input.scroll", x=point["x"], y=point["y"], dy=3)
+                        poll(lambda: json.loads(state.read_text())["scrollY"] > 0,
+                             "Independent fixture did not observe covered scrolling")
+                        print("covered_key_text_drag_scroll_effects_confirmed", flush=True)
                 if args.ending == "takeover":
                     with connect("/run/linuxvm-testbed/input.sock") as device:
                         reply = message(device, "move_relative", dx=32, dy=-12)

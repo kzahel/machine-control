@@ -202,7 +202,8 @@ class GnomeCover:
             ).unpack()
             result = json.loads(value)
             if (result.get("schema") == "machine-control-covered-input/v1"
-                    and result.get("operation") == operation and result.get("delivery") == "compositor_adopted"):
+                    and result.get("operation") == operation
+                    and result.get("delivery") in {"compositor_adopted", "submitted_to_compositor"}):
                 return result
         except glib.Error as error:
             name = gio.DBusError.get_remote_error(error) or ""
