@@ -20,6 +20,36 @@ def console_binding(identity):
     return hashlib.sha256(json.dumps(list(identity[:2]),separators=(',',':')).encode()).hexdigest()
 
 
+def read_sample(endpoint, watch, binding):
+    info = endpoint.lstat()
+    parent = endpoint.parent.lstat()
+    if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != 0
+            or not stat.S_ISDIR(parent.st_mode) or parent.st_uid != 0 or parent.st_mode & 0o022):
+        raise ValueError('activity_observer_unavailable')
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
+        peer.settimeout(.7)
+        peer.connect(str(endpoint))
+        _pid, uid, _gid = struct.unpack('3i', peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+        if uid != 0:
+            raise ValueError('activity_observer_unavailable')
+        request = dict(schema=SCHEMA, operation='sample', watch=watch)
+        peer.sendall(json.dumps(request).encode() + b'\n')
+        with peer.makefile('rb') as stream:
+            body = stream.readline(2049)
+    if len(body) > 2048 or not body.endswith(b'\n'):
+        raise ValueError('activity_observer_unavailable')
+    value = json.loads(body)
+    if (not isinstance(value, dict) or value.get('schema') != SCHEMA or value.get('accepted') is not True
+            or type(value.get('healthy')) is not bool
+            or type(value.get('observedThroughUptime')) not in (int, float)
+            or not 0 <= value['observedThroughUptime'] <= time.monotonic() + .1
+            or any(not isinstance(value.get(key), str) or len(value[key]) != 32
+                   for key in ('generation', 'activityToken'))
+            or value.get('consoleBinding') != binding):
+        raise ValueError('activity_observer_unavailable')
+    return value
+
+
 class Activity:
     def __init__(self,post,changed,endpoint=ENDPOINT):
         self.post,self.changed,self.endpoint=post,changed,Path(endpoint)
@@ -54,23 +84,7 @@ class Activity:
             if request is None:return
             watch,binding=request
             try:
-                info=self.endpoint.lstat();parent=self.endpoint.parent.lstat()
-                if not stat.S_ISSOCK(info.st_mode) or info.st_uid!=0 or parent.st_uid!=0 or parent.st_mode&0o022:
-                    raise ValueError('activity_observer_unavailable')
-                with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as peer:
-                    peer.settimeout(.7);peer.connect(str(self.endpoint))
-                    _pid,uid,_gid=struct.unpack('3i',peer.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12))
-                    if uid!=0:raise ValueError('activity_observer_unavailable')
-                    peer.sendall(json.dumps(dict(schema=SCHEMA,operation='sample',watch=watch)).encode()+b'\n')
-                    with peer.makefile('rb') as stream:body=stream.readline(2049)
-                if len(body)>2048 or not body.endswith(b'\n'):raise ValueError('activity_observer_unavailable')
-                value=json.loads(body)
-                if (not isinstance(value,dict) or value.get('schema')!=SCHEMA or value.get('accepted') is not True or
-                    type(value.get('healthy')) is not bool or type(value.get('observedThroughUptime')) not in (int,float) or
-                    not 0<=value['observedThroughUptime']<=time.monotonic()+.1 or any(not isinstance(value.get(key),str) or len(value[key])!=32
-                    for key in ('generation','activityToken')) or value.get('consoleBinding')!=binding):
-                    raise ValueError('activity_observer_unavailable')
-                self.post(self.completed,value,None)
+                self.post(self.completed,read_sample(self.endpoint,watch,binding),None)
             except TimeoutError:self.post(self.completed,None,'activity_observer_silent')
             except (OSError,ValueError,KeyError,TypeError):self.post(self.completed,None,'activity_observer_unavailable')
 

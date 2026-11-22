@@ -7,12 +7,19 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'desktop/native/linux'))
-from activity_events import EVENT,bitmap,deliberate
+from activity_events import EVENT,bitmap,deliberate,movement
 from activityd import Tracker
 from activity import Activity,console_binding
 
 
 class ActivityTests(unittest.TestCase):
+    def test_movement_is_separate_from_deliberate_activity(self):
+        for event in [(2,0,3),(2,1,-1),(3,0,0),(3,1,512),(3,0x35,40),(3,0x36,10)]:
+            self.assertTrue(movement(*event),event)
+            self.assertFalse(deliberate(*event),event)
+        for event in [(2,0,0),(2,8,1),(1,30,1),(3,24,5)]:
+            self.assertFalse(movement(*event),event)
+
     def test_deliberate_input_excludes_motion_releases_and_tool_presence(self):
         for event in [(2,0,10),(2,1,-20),(3,0,40),(3,1,50),(1,30,0),(1,0x110,0),(1,0x145,1)]:
             self.assertFalse(deliberate(*event),event)
@@ -35,10 +42,12 @@ class ActivityTests(unittest.TestCase):
         tracker.devices['fixture']=((),read);tracker.healthy=True
         self.addCleanup(tracker.close,'test_cleanup')
         loop.add_reader(read,lambda:None)
-        initial=tracker.activity
+        initial=tracker.activity;motion=tracker.motion
         os.write(write,b''.join(EVENT.pack(0,0,*v) for v in [(2,0,90),(2,1,10),(0,0,0)]))
         tracker.read('fixture',read)
+        tracker.sample_boundary()
         self.assertEqual(tracker.activity,initial)
+        self.assertNotEqual(tracker.motion,motion)
         os.write(write,EVENT.pack(0,0,1,30,1))
         tracker.read('fixture',read)
         tracker.sample_boundary()

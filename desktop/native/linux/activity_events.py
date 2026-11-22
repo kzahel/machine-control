@@ -21,6 +21,13 @@ def deliberate(kind, code, value):
     return kind==2 and code in (6,8,11,12) and value!=0
 
 
+def movement(kind, code, value):
+    # Relative mouse axes and absolute pointer/touch coordinates. An
+    # absolute coordinate can legitimately move to zero.
+    return (kind == 2 and code in (0, 1) and value != 0
+            or kind == 3 and code in (0, 1, 0x35, 0x36))
+
+
 def overflow(kind,code):
     return kind==0 and code==3  # SYN_DROPPED invalidates observation.
 

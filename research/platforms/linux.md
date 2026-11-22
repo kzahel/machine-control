@@ -72,6 +72,13 @@ non-interactive shortcuts update the clipboard and save a file in Pictures.
 [Tactical 166](../../docs/tactical/166-linux-gnome-unlock.md#stock-ubuntu-26041-vm)
 records the provider and fixture evidence.
 
+**Current — live-tested (2026-11-22):** [Tactical 167](../../docs/tactical/167-gnome-compositor-cover.md)
+qualifies a GNOME Shell 50 cover and offscreen capture on stock Ubuntu 26.04.1.
+The same-session probe observes the opaque compositor frame, a separate
+underlying image, GTK effects and relock. Its independent read-only input
+observer counts motion from the selected test HID. Installed-app enrollment,
+physical devices, hotplug and additional input operations remain open.
+
 ## Shared policy and physical activity observation
 
 **Current (2026-11-04), `built` and bounded `live-tested`:** the Python process

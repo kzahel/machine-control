@@ -1,0 +1,7 @@
+{
+  "uuid": "covered-desktop@machine-control.dev",
+  "name": "Machine Control Covered Desktop",
+  "description": "Keep the GNOME console covered until it is locked again.",
+  "shell-version": ["50"],
+  "session-modes": ["user", "unlock-dialog"]
+}

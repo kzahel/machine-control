@@ -14,7 +14,7 @@ import sys
 import time
 import uuid
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from activity_events import EVENT,MAXIMUM_DEVICES,bitmap,deliberate,overflow,relevant
+from activity_events import EVENT,MAXIMUM_DEVICES,bitmap,deliberate,movement,overflow,relevant
 
 SCHEMA='machine-control-physical-activity/v1'
 SOCKET=Path('/run/machine-control-activity/activity.sock')
@@ -27,6 +27,8 @@ class Tracker:
         self.generation=uuid.uuid4().hex
         self.activity=uuid.uuid4().hex
         self.pending_activity=False
+        self.motion=uuid.uuid4().hex
+        self.pending_motion=False
         self.observed_through=0.0
         self.healthy=False
         self.problem='inactive'
@@ -40,6 +42,7 @@ class Tracker:
         self.healthy=False
         self.observed_through=0.0
         self.pending_activity=False
+        self.pending_motion=False
         self.problem=problem
         self.generation=uuid.uuid4().hex
 
@@ -90,10 +93,13 @@ class Tracker:
             body=os.read(fd,EVENT.size*256)
             if not body or len(body)%EVENT.size:raise ValueError('input_stream_lost')
             changed=False
+            moved=False
             for _seconds,_microseconds,kind,code,value in EVENT.iter_unpack(body):
                 if overflow(kind,code):raise ValueError('input_overflow')
                 changed=changed or deliberate(kind,code,value)
+                moved=moved or movement(kind,code,value)
             self.pending_activity=self.pending_activity or changed
+            self.pending_motion=self.pending_motion or moved
         except BlockingIOError:pass
         except (OSError,ValueError):self.close('input_stream_lost')
 
@@ -110,6 +116,8 @@ class Tracker:
                 self.close('input_stream_lost');return
         if self.pending_activity:
             self.activity=uuid.uuid4().hex;self.pending_activity=False
+        if self.pending_motion:
+            self.motion=uuid.uuid4().hex;self.pending_motion=False
         self.observed_through=time.monotonic()
 
 
@@ -173,9 +181,11 @@ async def main():
             now=time.monotonic()
             if console.uid!=uid or now-console.observed>1.5:raise ValueError('active_console_required')
             if request['watch']:tracker.watch_until=now+4
+            if tracker.healthy:tracker.sample_boundary()
             value=dict(schema=SCHEMA,accepted=True,generation=tracker.generation,
                        consoleBinding=console.binding,healthy=tracker.healthy and now-tracker.observed_through<=1.5,
-                       activityToken=tracker.activity,observedThroughUptime=tracker.observed_through,problem=tracker.problem)
+                       activityToken=tracker.activity,motionToken=tracker.motion,
+                       observedThroughUptime=tracker.observed_through,problem=tracker.problem)
             writer.write(json.dumps(value,separators=(',',':')).encode()+b'\n')
             await asyncio.wait_for(writer.drain(),1)
         except Exception:

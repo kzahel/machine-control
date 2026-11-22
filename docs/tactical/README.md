@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [167 — GNOME compositor cover](167-gnome-compositor-cover.md) exercises
+  GNOME Shell coverage, same-session unlock, and compositor-owned relock.
+
 - [166 — Native Ubuntu GNOME session unlock](166-linux-gnome-unlock.md)
   (x64 VM Desktop sequence passed on stock Ubuntu 26.04):
   same-session GDM reauthentication, native application effect and relock.

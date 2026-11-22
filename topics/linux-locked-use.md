@@ -5,8 +5,9 @@ Topic: `linux-locked-use`
 Status: native GDM reauthentication exercised on Ubuntu 24.04 GNOME Wayland
 appliances. Unlock, a native application effect and relock passed on the
 x64 appliance with the upstream accessibility fix, and on stock Ubuntu
-26.04.1 x64 with GNOME 50.1. Workstation enrollment and covered Desktop
-access are open.
+26.04.1 x64 with GNOME 50.1. A GNOME 50 VM prototype also passes covered
+unlock, GUI control and relock. Workstation enrollment and Desktop-owner
+integration are open.
 
 ## Current
 
@@ -16,6 +17,12 @@ conversation. The provider waits for both the compositor and logind to confirm
 that the original session unlocked. It also supports re-locking that same
 session and verifying the result. [Tactical 166](../docs/tactical/166-linux-gnome-unlock.md)
 owns the acceptance evidence and reproduction.
+
+[Tactical 167](../docs/tactical/167-gnome-compositor-cover.md) qualifies
+the GNOME 50 cover, underlying pixels, a typed pointer click, and relock on
+simulated motion. The cover paints on the physical scene while the authorized
+capture uses a private offscreen framebuffer. The root activity observer
+supplies opaque input and motion facts independent of compositor routing.
 
 The Linux desktop package still refuses prepared locked Desktop owners.
 Approved Browser work can still proceed while the console is locked under its
@@ -42,14 +49,13 @@ authentication policy and allow one recognized password prompt per operation.
 - Qualify the packaged Desktop sequence. The native prototype passes on
   stock Ubuntu 26.04.1. Ubuntu 24.04 qualification needs the equivalent
   accessibility cache fix in the target distribution.
-- Prove compositor-level coverage across lock transitions and monitor changes.
-  A normal application window has no guarantee of staying over every physical
-  display. Establish an independent relock mechanism and exercise process loss.
+- Extend compositor-level coverage acceptance beyond the single-display VM.
+  Verify hotplug, real displays and physical devices across the lock transitions.
 - Add operator-authorized enrollment and revocation with a secret transport
   separate from ordinary requests. Qualify unavailable, changed, and expired
   credentials and interrupted PAM conversations.
-- Verify which AT-SPI, capture and input operations can safely work under a
-  cover. The ordinary Linux resident closes its portal when the session locks;
-  any restored capture/input needs compositor and portal acceptance.
+- Integrate the covered AT-SPI, offscreen capture, and compositor input route
+  with the ordinary desktop's authorized owner. Qualify keyboard, scrolling,
+  and drag separately. Ordinary portal sharing still ends at lock.
 - Qualify the covered route through the packaged app on GNOME 50, including
   physical takeover, displays and actual native effects.
