@@ -189,6 +189,7 @@ UMask=0077
 Environment=LANG=C LC_ALL=C
 NoNewPrivileges=true
 CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_SETUID
 ProtectSystem=strict
 ProtectHome=read-only
 ProtectKernelTunables=true
@@ -548,7 +549,7 @@ def run_bounded(argv, data, limit, seconds, code):
 
 
 class Sealer:
-    """Host-bound (and TPM-bound when available) systemd credentials."""
+    """Machine-bound systemd credentials under the root-only host key."""
 
     def __init__(self, run=run_bounded):
         self.run = run
@@ -558,7 +559,7 @@ class Sealer:
         return f'machine-control-locked-use-{uid}'
 
     def seal(self, uid, payload):
-        output = self.run([SYSTEMD_CREDS, 'encrypt', f'--name={self.name(uid)}', '--with-key=auto', '-', '-'],
+        output = self.run([SYSTEMD_CREDS, 'encrypt', f'--name={self.name(uid)}', '--with-key=host', '-', '-'],
                           payload, 1 << 16, 30, 'locked_credential_sealing_unavailable')
         return bytes(output)
 
@@ -1209,6 +1210,7 @@ class WorkerProcess:
                        DBUS_SESSION_BUS_ADDRESS=f'unix:path=/run/user/{account.uid}/bus')
             self.process = subprocess.Popen(
                 [SETPRIV, '--reuid', str(account.uid), '--regid', str(account.gid), '--clear-groups',
+                 '--ambient-caps=-all', '--inh-caps=-all',
                  '--no-new-privs', '--', str(PYTHON), '-I', '-B', str(SCRIPT), 'worker',
                  str(child.fileno()), str(read_fd), str(os.getpid())],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, cwd='/',
@@ -1993,6 +1995,10 @@ def worker_main(argv):
     channel = WorkerChannel(control_fd, secret_fd)
     stage = 'locked_worker_job_invalid'
     try:
+        caps = {key: value.strip() for item in Path('/proc/self/status').read_text().splitlines()
+                for key, _, value in (item.partition(':'),) if key in ('CapEff', 'CapPrm', 'CapAmb')}
+        if len(caps) != 3 or any(int(value, 16) for value in caps.values()):
+            raise Refused('locked_worker_identity_denied')
         job = channel.job(time.monotonic() + 5)
         if job['uid'] != uid:
             raise Refused('locked_worker_failed')

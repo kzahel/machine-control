@@ -40,5 +40,8 @@ def fixture_candidates():
 if __name__ == "__main__":
     native_candidates = activityd.Tracker.candidates
     activityd.Tracker.candidates = staticmethod(fixture_candidates)
-    activityd.SOCKET = Path("/run/machine-control-cover-test/activity.sock")
+    if sys.argv[1:] == []:
+        activityd.SOCKET = Path("/run/machine-control-cover-test/activity.sock")
+    elif sys.argv[1:] != ["--resident-observer"]:
+        raise SystemExit("Use --resident-observer only on the claimed appliance")
     asyncio.run(activityd.main())

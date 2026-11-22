@@ -445,7 +445,8 @@ function windowIdentities(window) {
 
 function checkWindow(window, guard) {
     const pid = window.get_pid();
-    if (!Number.isInteger(pid) || pid <= 0 || pid === global.get_pid() ||
+    const shellPid = new Gio.Credentials().get_unix_pid();
+    if (!Number.isInteger(shellPid) || shellPid <= 0 || !Number.isInteger(pid) || pid <= 0 || pid === shellPid ||
         windowIdentities(window).some(identity => PROTECTED_IDENTITIES.has(identity) ||
             PROTECTED_IDENTITY_PREFIXES.some(prefix => identity.startsWith(prefix))) ||
         guardedProcess(pid, guard.protectedPids))
@@ -710,7 +711,11 @@ class Cover {
     issue(kind, type, multiple, notify) {
         const device = this.device(kind);
         const time = this.nextTime();
-        this.queue.expect(kind, type, time, multiple);
+        // Mutter can consume cleanup releases without routing them through
+        // the stage filter. Require independent adoption of each disruptive
+        // event. A release still has to be issued successfully.
+        if (EVENT_TYPES.has(type))
+            this.queue.expect(kind, type, time, multiple);
         this.lastIssued = time;
         if (this.sequence)
             this.sequence.issued++;

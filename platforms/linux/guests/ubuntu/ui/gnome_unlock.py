@@ -52,7 +52,10 @@ def observe_console(system, session, call, uid):
             continue
         fields = call(system, LOGIN, path, properties, "GetAll",
                       ("(s)", (LOGIN + ".Session",)), "(a{sv})")[0]
-        if fields.get("Type") in {"wayland", "x11"}:
+        # A terminating session remains listed until its systemd scope is
+        # reaped. It cannot be selected for an unlock. Any other graphical
+        # login for the same UID still makes GDM's selection ambiguous.
+        if fields.get("Type") in {"wayland", "x11"} and fields.get("State") != "closing":
             candidates.append((session_id, seat, path, fields))
     if len(candidates) != 1:
         raise UnlockRefused("gnome_console_unavailable")

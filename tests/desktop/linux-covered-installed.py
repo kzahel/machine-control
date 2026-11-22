@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--ending", choices=("disconnect", "expiry", "takeover", "stop", "resident"), required=True)
+    parser.add_argument("--skip-pointer", action="store_true")
     args = parser.parse_args()
     sys.path.insert(0, str(args.runtime))
     from gnome_unlock import GnomeUnlock
@@ -111,14 +112,28 @@ def main():
                     snapshot = action("snapshot", target="machine-control-fixture", query="Semantic Increment")
                     button, = (node for node in snapshot["elements"] if node["label"] == "Semantic Increment")
                     action("action", reference=button["reference"], action="press")
-                    action("input.click", x=point["x"], y=point["y"])
-                    poll(lambda: (result := json.loads(state.read_text()))["semanticPresses"] == 1
-                         and result["visualClicks"] == 1, "Independent fixture did not observe covered actions")
-                    print("offscreen_capture_and_semantic_and_pointer_effect_confirmed", flush=True)
+                    poll(lambda: json.loads(state.read_text())["semanticPresses"] == 1,
+                         "Independent fixture did not observe covered semantic action")
+                    print("offscreen_capture_and_semantic_effect_confirmed", flush=True)
+                    if not args.skip_pointer:
+                        try:
+                            action("input.click", x=point["x"], y=point["y"])
+                        except AssertionError:
+                            result = json.loads(state.read_text())
+                            print("pointer_events_observed", result["visualClicks"], result["dragReleases"], flush=True)
+                            raise
+                        poll(lambda: (result := json.loads(state.read_text()))["visualClicks"] == 1
+                             and result["dragReleases"] == 1,
+                             "Independent fixture did not observe covered pointer action")
+                        print("covered_pointer_effect_confirmed", flush=True)
                 if args.ending == "takeover":
                     with connect("/run/linuxvm-testbed/input.sock") as device:
                         reply = message(device, "move_relative", dx=32, dy=-12)
                         assert reply["accepted"], reply
+                    def interrupted():
+                        view = send("control.heartbeat")
+                        return view["state"] == "ended" and native.observe().locked
+                    poll(interrupted, "Input takeover did not relock the live owner", 4)
                 elif args.ending == "stop":
                     with connect(root / "operator.sock") as operator:
                         operator.sendall(b'{"method":"stop"}\n')
@@ -137,6 +152,8 @@ def main():
                 if args.ending != "disconnect":
                     poll(lambda: native.observe().locked, "Console did not relock with owner connected")
             poll(lambda: (result := native.observe()).console == console and result.locked, "Original console did not relock")
+            if args.ending == "takeover":
+                poll(lambda: status()["lockedUse"]["pausedUntilManualUnlock"], "Takeover did not pause covered access")
             print("original_console_relocked_after_" + args.ending, flush=True)
         finally:
             fixture.terminate()

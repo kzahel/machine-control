@@ -14,6 +14,7 @@
     },
     "linux": {
       "deb": {
+        "preRemoveScript": "../scripts/linux-deb-prerm.sh",
         "depends": [
           "wl-clipboard",
           "libwebkit2gtk-4.1-0",

@@ -23,9 +23,10 @@ INPUT_REFUSALS = frozenset({
 
 
 class InputRefused(UnlockRefused):
-    def __init__(self, reason, *, dispatched=False):
+    def __init__(self, reason, *, dispatched=False, facts=None):
         super().__init__(reason)
         self.dispatched = dispatched
+        self.facts = facts or {}
 
 
 class Takeover:
@@ -209,8 +210,19 @@ class GnomeCover:
             reason = name.removeprefix(prefix) if name.startswith(prefix) else ""
             if reason in INPUT_REFUSALS:
                 raise InputRefused(reason) from None
-            if reason == "gnome_covered_input_interrupted":
-                raise InputRefused(reason, dispatched=True) from None
+            if reason in {"gnome_covered_input_interrupted", "gnome_covered_input_unconfirmed"}:
+                gio.DBusError.strip_remote_error(error)
+                facts = {}
+                try:
+                    details = json.loads(error.message) if len(error.message) <= 2048 else {}
+                    if (details.get("schema") == "machine-control-covered-input/v1"
+                            and details.get("operation") == operation and details.get("reason") == reason):
+                        keys = ("issuedEvents", "releasedButtons", "releasedKeys", "releasePoint",
+                                "clipboardTextSideEffect", "cursorConsequence")
+                        facts = {key: details[key] for key in keys if key in details}
+                except (AttributeError, TypeError, ValueError):
+                    pass
+                raise InputRefused(reason, dispatched=True, facts=facts) from None
         except (AttributeError, ValueError, TypeError):
             pass
         raise InputRefused("gnome_covered_input_unconfirmed", dispatched=True)

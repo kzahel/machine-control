@@ -167,6 +167,8 @@ class Provider(linuxcontrol.Resident):
             if isinstance(error, InputRefused) and error.dispatched:
                 result.update(delivery="unknown", effect="unknown", uncertainty="provider_failed_after_dispatch",
                               retrySafety="unsafe_delivery_unknown")
+                if error.facts:
+                    result["data"] = error.facts
             return result
         result = self.envelope(request, operation)
         result.update(actualRoute="user/linux.gnome-covered-virtual", fidelity="foreground_input",

@@ -34,7 +34,7 @@ input tokens are unchanged and the observer covers the same console.
 The client checks the already-bound console again before native GDM
 reauthentication. The claimed appliance probe sends the canonical password
 over its existing one-shot transport only after the cover and GDM prompt
-events. GNOME Shell and logind independently report the resulting lock
+events. GNOME Shell and logind both report the resulting lock
 state. An independent fixture counter verifies the semantic press and
 the covered pointer click. The physical compositor image contains only
 the cover before authentication and after capture and input. The private

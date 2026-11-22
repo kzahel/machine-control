@@ -9,6 +9,14 @@ x64 appliance with the upstream accessibility fix, and on stock Ubuntu
 GUI control, and relock. The installed Debian integration adds enrollment
 and the prepared Desktop owner. Package and physical acceptance are in progress.
 
+A private Debian installation on the matching Ubuntu 26.04.1 VM has
+enrolled the account, accepted a prepared Desktop owner, and unlocked behind
+the GNOME cover. The fixture verified offscreen capture and an AT-SPI
+effect. The same console relocked after owner disconnect and task expiry.
+The VM also recorded a pointer click during a delivery-reporting failure.
+The follow-up checks compositor input reporting and simulated physical
+takeover before workstation or release acceptance.
+
 ## Current
 
 The GNOME provider opens GDM's reauthentication channel for the active,

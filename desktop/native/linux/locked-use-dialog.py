@@ -9,7 +9,7 @@ import sys
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import GLib, Gtk
 
 
 HELPER = "/usr/lib/machine-control/locked-runtime/locked-credential.py"
@@ -21,6 +21,8 @@ def main(action):
         return {"accepted": False, "errorCode": "native_password_dialog_unavailable"}
     if action not in ("setup", "remove"):
         return {"accepted": False, "errorCode": "invalid_locked_use_setup"}
+    GLib.set_prgname("machine-control-locked-setup")
+    GLib.set_application_name("Machine Control Covered Desktop Setup")
     removing = action == "remove"
     dialog = Gtk.Dialog(title="Remove covered access" if removing else "Set up covered desktop access",
                         modal=True)

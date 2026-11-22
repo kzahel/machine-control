@@ -16,6 +16,7 @@ class ConsoleTests(unittest.TestCase):
             "Active": True, "TimestampMonotonic": 3123, "LockedHint": True,
         }
         self.sessions = [("1", 1000, "fixture", "seat0", self.path)]
+        self.session_fields = {}
         self.pids = {":1.10": 20, ":1.11": 20}
         self.active = True
 
@@ -23,7 +24,8 @@ class ConsoleTests(unittest.TestCase):
         if method == "ListSessions":
             return (self.sessions,)
         if method == "GetAll":
-            return ({**self.fields, "Id": next(row[0] for row in self.sessions if row[4] == path)},)
+            return ({**self.fields, "Id": next(row[0] for row in self.sessions if row[4] == path),
+                     **self.session_fields.get(path, {})},)
         if method == "GetNameOwner":
             return (":1.10" if parameters[1][0] == "org.gnome.Shell.ScreenShield" else ":1.11",)
         if method == "GetConnectionUnixProcessID":
@@ -63,6 +65,11 @@ class ConsoleTests(unittest.TestCase):
         self.sessions.append(("2", 1000, "fixture", "", "/fixture/second"))
         with self.assertRaisesRegex(UnlockRefused, "gnome_console_unavailable"):
             self.observe()
+
+    def test_ignores_a_closing_graphical_session(self):
+        self.sessions.append(("2", 1000, "fixture", "seat0", "/fixture/old"))
+        self.session_fields["/fixture/old"] = {"State": "closing", "Active": False}
+        self.assertEqual(self.observe().console.session_id, "1")
 
     def test_refuses_screensaver_owned_by_another_process(self):
         self.pids[":1.10"] = 19

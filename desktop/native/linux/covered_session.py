@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+import math
 from dataclasses import dataclass, field
 
 from gnome_cover import GnomeCover
@@ -69,10 +70,12 @@ class CoveredSession:
 
     @staticmethod
     def remaining(until):
-        seconds = min(900, int(until - time.monotonic()))
-        if seconds < 1:
+        remaining = until - time.monotonic()
+        if remaining <= 0:
             raise UnlockRefused("locked_guard_deadline")
-        return seconds
+        # The native protocols accept whole seconds. This owner still
+        # enforces the original shared deadline with subsecond precision.
+        return min(900, math.ceil(remaining))
 
     def maintain(self, client, provider, console):
         keep = 0.0

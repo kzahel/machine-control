@@ -67,6 +67,9 @@ jobs:
           python3 -m unittest discover -s tests/desktop -p test_linux_notice.py
           python3 -m unittest discover -s tests/desktop -p test_linux_activity.py
           python3 -m unittest discover -s tests/desktop -p test_linux_access.py
+          python3 -m unittest discover -s tests/desktop -p test_linux_covered_session.py
+          python3 -m unittest discover -s tests/desktop -p test_linux_locked_credential.py
+          node --test platforms/linux/tests/gnome_cover_input.test.mjs
           python3 -m unittest discover -s tests/desktop -p test_linux_browser_deadline.py
           python3 tests/desktop/linux-startup.py
           platforms/linux/tests/smoke.sh --static

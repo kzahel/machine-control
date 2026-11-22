@@ -16,6 +16,7 @@ from gi.repository import Gio, GLib
 from gnome_cover import INTERFACE, PATH
 from gnome_unlock import UnlockRefused
 from one_shot import read_reply
+import notice_environment
 
 
 UUID = "covered-desktop@machine-control.dev"
@@ -153,6 +154,7 @@ class LockedUse:
             ["/usr/bin/python3", "-I", "-B", str(Path(__file__).with_name("locked-use-dialog.py")),
              "remove" if remove else "setup"],
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            env=notice_environment.prepare(os.environ),
         )
         self.setup_process = process
         self.cancel_setup.clear()

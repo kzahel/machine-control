@@ -215,6 +215,9 @@ globalThis.__coverStub = {
         Mtk: {Rectangle: class {}},
         St: {Widget, Clipboard: {get_default: () => clipboard}, ClipboardType: {CLIPBOARD: 0}},
         Gio: {
+            Credentials: class {
+                get_unix_pid() { return 999; }
+            },
             DBus: {session: {}},
             BusNameWatcherFlags: {NONE: 0},
             bus_watch_name_on_connection(_connection, owner, _flags, _appeared, vanished) {
@@ -390,7 +393,6 @@ async function coveredSession({unlock = true, within = null} = {}) {
     clipboard.text = null;
     globalThis.__coverStub.setModalCount(0);
     globalThis.get_pointer = () => [state.pointer.x, state.pointer.y, 0];
-    globalThis.get_pid = () => 999;
     globalThis.display = {focus: window(4242), get_focus_window() {
         return this.focus;
     }};
