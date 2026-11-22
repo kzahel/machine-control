@@ -1,8 +1,9 @@
 # 166 — Native Ubuntu GNOME session unlock
 
 Status: GNOME 46 authentication proof on both VM architectures. The x64
-Desktop sequence passes with the upstream accessibility fix loaded.
-Workstation integration remains open.
+Desktop sequence passes with the upstream accessibility fix loaded and
+on stock Ubuntu 26.04.1 with GNOME 50.1. Workstation integration remains
+open.
 
 Topics: [Linux locked use](../../topics/linux-locked-use.md),
 [Linux resident control](../../topics/linux-resident-control.md).
@@ -103,3 +104,27 @@ The Ubuntu 26.04 GNOME 50.1 physical target has Ubuntu's AT-SPI 2.60.4
 package, whose upstream tag includes the cache fix. Evidence on that
 target remains read-only. The corrected ARM64 application-effect sequence
 and packaged workstation route remain open.
+
+### Stock Ubuntu 26.04.1 VM
+
+A separate amd64 libvirt candidate cold-booted from its own disk after the
+NoCloud seed was detached. Ubuntu reports 26.04.1. GNOME Shell
+`50.1-0ubuntu1.5`, GDM `50.1-0ubuntu0.1` and AT-SPI
+`2.60.4-0ubuntu0.1` match the physical reference. The stock candidate
+passed native same-session lock, GDM reauthentication, a GTK button
+press verified by the fixture counter, relock and bad-password refusal.
+
+Provisioning on this release required two compatibility fixes. The
+credential tool now reads an exact shadow entry through guest-local NSS
+because the guest's Python 3.14 lacks `spwd`. The input broker and CLI
+fallback now query logind for the active seat session instead of relying
+on the human-readable session table. The stored credential was verified
+after the disk-only boot. Both the factory credential-handoff and promotion
+stages passed.
+
+The ordinary smoke suite stopped at display capture. On GNOME 50,
+`gnome-screenshot` 41 could not use the GNOME Shell screenshot interface.
+Its X11 fallback produced no screenshot in the active Wayland session.
+A second run with the two capture checks omitted verified app launch and
+termination, an AT-SPI button press, pointer click, Unicode text entry,
+and scroll. The fixture did not record the expected drag release.

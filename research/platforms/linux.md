@@ -58,7 +58,9 @@ unlock and relock. Native application operations after unlock exposed an
 ATK bridge cache crash. The x64 KVM Desktop sequence passed using the
 upstream fix on the otherwise identical bridge version. An Ubuntu 26.04
 GNOME 50.1 physical machine with a newer bridge passes read-only provider
-discovery. [Tactical 166](../../docs/tactical/166-linux-gnome-unlock.md)
+discovery. Stock Ubuntu 26.04.1 x64 with matching GNOME Shell, GDM and
+AT-SPI versions passes the native same-session unlock, GTK application
+effect, relock and bad-password refusal. [Tactical 166](../../docs/tactical/166-linux-gnome-unlock.md)
 owns the acceptance scope and the
 [Linux locked-use topic](../../topics/linux-locked-use.md) owns the integration
 decision.

@@ -270,9 +270,13 @@ credential metadata. Generic virtual input is not a secret transport.
 
 ## Native x86_64 libvirt image factory
 
-**Current implementation:** A Linux controller can now create a fresh native
-x86_64 appliance from an explicit official Ubuntu 24.04 amd64 QCOW2 cloud
-image. The host-side factory validates QCOW2 input, copies and expands it to a
+**Current implementation:** A Linux controller can create a fresh native
+x86_64 appliance from an official Ubuntu 24.04 or 26.04 amd64 QCOW2 cloud
+image. The stock Ubuntu 26.04.1 GNOME 50 build passed disk-only boot,
+credential handoff and the native GDM/AT-SPI unlock probe. Its legacy
+`gnome-screenshot` route timed out on Wayland.
+[Tactical 166](../../../docs/tactical/166-linux-gnome-unlock.md) records the
+evidence. The host-side factory validates QCOW2 input, copies and expands it to a
 128-GiB volume in the configured dedicated libvirt pool, defines a Q35 UEFI
 KVM domain with CPU host passthrough and VirtIO devices, and refuses any
 existing destination. The configured pool path must resolve exactly to

@@ -21,19 +21,40 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "bin/linuxvm"
 MAX_AGE = 24 * 60 * 60
 
+# Keep shadow lookups on the guest via NSS, including on Python versions
+# without the spwd module. Capture the entry locally and return fixed results.
+SHADOW_LOOKUP = """
+import subprocess
+
+def shadow_entry(user):
+    row = subprocess.check_output(
+        ['/usr/bin/getent', 'shadow', user], text=True,
+        stderr=subprocess.DEVNULL, timeout=5,
+    ).splitlines()
+    if len(row) != 1:
+        raise ValueError()
+    fields = row[0].split(':')
+    if len(fields) != 9 or fields[0] != user:
+        raise ValueError()
+    return fields
+"""
+
 # Only the result leaves the guest. The password arrives once on SSH stdin;
 # neither the shadow entry nor its hash is returned through guest-agent JSON.
-VERIFY_SCRIPT = """
-import ctypes, hmac, spwd, sys, time
+VERIFY_SCRIPT = SHADOW_LOOKUP + """
+import ctypes, hmac, sys, time
 try:
-    entry = spwd.getspnam(sys.argv[1])
+    entry = shadow_entry(sys.argv[1])
+    last_changed, maximum_age, expires = (
+        int(entry[index]) if entry[index] else -1 for index in (2, 4, 7)
+    )
     today = int(time.time() // 86400)
-    if entry.sp_expire >= 0 and today >= entry.sp_expire:
+    if expires >= 0 and today >= expires:
         raise ValueError()
-    if entry.sp_lstchg == 0 or (entry.sp_max >= 0 and
-            today >= entry.sp_lstchg + entry.sp_max):
+    if last_changed == 0 or (maximum_age >= 0 and
+            today >= last_changed + maximum_age):
         raise ValueError()
-    stored = entry.sp_pwdp
+    stored = entry[1]
     if sys.argv[2] == 'password-free':
         valid = stored.startswith(('!', '*'))
     else:
@@ -55,19 +76,19 @@ print('verified')
 
 # This is account bootstrap, not recovery of an unknown password. A second
 # invocation verifies an already established password without replacing it.
-ACCOUNT_STATE_SCRIPT = """
-import spwd, sys
+ACCOUNT_STATE_SCRIPT = SHADOW_LOOKUP + """
+import sys
 try:
-    value = spwd.getspnam(sys.argv[1]).sp_pwdp
+    value = shadow_entry(sys.argv[1])[1]
     print('locked' if value.startswith(('!', '*')) else 'configured')
 except Exception:
     sys.exit(1)
 """
-ESTABLISH_SCRIPT = """
-import spwd, subprocess, sys
+ESTABLISH_SCRIPT = SHADOW_LOOKUP + """
+import sys
 try:
     user = sys.argv[1]
-    if not spwd.getspnam(user).sp_pwdp.startswith(('!', '*')):
+    if not shadow_entry(user)[1].startswith(('!', '*')):
         raise ValueError()
     password = sys.stdin.buffer.read(4097).removesuffix(b'\\n')
     if not password or len(password) > 4096 or any(c in password for c in (b'\\n', b'\\r', b'\\0', b':')):

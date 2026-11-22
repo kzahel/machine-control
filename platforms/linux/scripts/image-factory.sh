@@ -13,9 +13,9 @@ Usage:
   image-factory.sh validate-cloud-image UBUNTU_CLOUD_IMAGE
   image-factory.sh render-seed USERNAME CONTROLLER_PUBLIC_KEY
 
-The source must be an official Ubuntu 24.04 QCOW2 cloud image matching the
-guest architecture of the selected route: amd64 for the libvirt/Linux factory,
-arm64 for the UTM/macOS factory. Generated NoCloud seed media is written under
+Use an official Ubuntu QCOW2 cloud image for the selected route. The native
+libvirt factory has exercised Ubuntu 24.04 and 26.04 amd64. The UTM factory
+has exercised Ubuntu 24.04 arm64. Generated NoCloud seed media is written under
 ignored .factory.local storage. The seed creates a locked, key-only
 dedicated-appliance account with passwordless sudo, installs QEMU guest-agent
 and the Ubuntu GNOME development package profile, enables GNOME Wayland

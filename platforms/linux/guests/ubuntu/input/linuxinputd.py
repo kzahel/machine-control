@@ -50,22 +50,44 @@ class InputFailure(RuntimeError):
     pass
 
 
+def logind(*arguments: str) -> str:
+    try:
+        result = subprocess.run(
+            ["/usr/bin/loginctl", *arguments],
+            check=True, capture_output=True, text=True, timeout=5,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout.strip()
+
+
+def active_console_user() -> pwd.struct_passwd | None:
+    session = logind("show-seat", "seat0", "--property=ActiveSession", "--value")
+    if not session:
+        return None
+    fields = dict(
+        line.split("=", 1) for line in logind(
+            "show-session", "--property=User", "--property=Active", "--property=Type",
+            "--property=Class", "--property=Remote", "--property=Seat", "--", session,
+        ).splitlines() if "=" in line
+    )
+    if (fields.get("Active") != "yes" or fields.get("Type") != "wayland"
+            or fields.get("Class") != "user" or fields.get("Remote") != "no"
+            or fields.get("Seat") != "seat0"):
+        return None
+    try:
+        uid = int(fields["User"])
+        return pwd.getpwuid(uid) if uid > 0 else None
+    except (KeyError, ValueError):
+        return None
+
+
 def active_user() -> pwd.struct_passwd:
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:
-        result = subprocess.run(
-            ["/usr/bin/loginctl", "list-sessions", "--no-legend", "--no-pager"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        for line in result.stdout.splitlines():
-            fields = line.split()
-            if "active" in fields and len(fields) >= 3:
-                try:
-                    return pwd.getpwnam(fields[2])
-                except KeyError:
-                    continue
+        owner = active_console_user()
+        if owner is not None:
+            return owner
         time.sleep(1)
     raise InputFailure("No active desktop user became available")
 

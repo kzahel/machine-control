@@ -56,7 +56,7 @@ class CredentialTests(unittest.TestCase):
             return "verified"
         if "target-id" in args:
             return IDENTIFIER
-        if "getent" in " ".join(args):
+        if "/usr/bin/getent" in args:
             return "appliance:x:1000:1000::/home/appliance:/bin/bash"
         if "ip" in args:
             return "192.0.2.10"
@@ -139,10 +139,9 @@ class CredentialTests(unittest.TestCase):
                 MODULE.inspect("establish")
 
     def test_guest_establishment_never_replaces_configured_password(self):
-        entry = types.SimpleNamespace(sp_pwdp="$existing$hash")
+        entry = "appliance:$existing$hash:20000:0:90:7:::\n"
         stdin = mock.Mock()
-        with mock.patch.dict(sys.modules, {"spwd": types.SimpleNamespace(
-                getspnam=lambda _user: entry)}), \
+        with mock.patch("subprocess.check_output", return_value=entry), \
              mock.patch.object(sys, "argv", ["establish", "appliance"]), \
              mock.patch.object(sys, "stdin", stdin), \
              mock.patch("subprocess.run") as run:
@@ -150,6 +149,21 @@ class CredentialTests(unittest.TestCase):
                 exec(MODULE.ESTABLISH_SCRIPT, {})
         stdin.buffer.read.assert_not_called()
         run.assert_not_called()
+
+    def test_guest_refuses_unbound_shadow_results_before_reading_password(self):
+        rows = ("", "other:!:20000:0:90:7:::\n", "appliance:!\n",
+                "appliance:!:20000:0:90:7:::\nappliance:!:20000:0:90:7:::\n")
+        for entry in rows:
+            stdin = mock.Mock()
+            with self.subTest(entry=entry), \
+                 mock.patch("subprocess.check_output", return_value=entry), \
+                 mock.patch.object(sys, "argv", ["establish", "appliance"]), \
+                 mock.patch.object(sys, "stdin", stdin), \
+                 mock.patch("subprocess.run") as run:
+                with self.assertRaises(SystemExit):
+                    exec(MODULE.ESTABLISH_SCRIPT, {})
+            stdin.buffer.read.assert_not_called()
+            run.assert_not_called()
 
     def test_metadata_alone_never_qualifies_and_status_does_not_read_secret(self):
         with mock.patch.object(MODULE.os, "read", side_effect=AssertionError("secret read")):
@@ -247,15 +261,14 @@ class CredentialTests(unittest.TestCase):
             ("password-free", "$fixture$hash", b"", -1, today - 1, 90, False),
         ]
         for profile, stored, password, expiry, changed, maximum, valid in cases:
-            entry = types.SimpleNamespace(sp_pwdp=stored, sp_expire=expiry,
-                                          sp_lstchg=changed, sp_max=maximum)
+            expiry_field = str(expiry) if expiry >= 0 else ""
+            entry = f"appliance:{stored}:{changed}:0:{maximum}:7::{expiry_field}:\n"
             library = types.SimpleNamespace(crypt=mock.Mock(side_effect=lambda p, _s:
                 b"$fixture$hash" if p == b"correct" else b"$fixture$mismatch"))
             output = io.StringIO()
             with self.subTest(profile=profile, stored=stored, password=password, expiry=expiry,
                               changed=changed), \
-                 mock.patch.dict(sys.modules, {"spwd": types.SimpleNamespace(
-                     getspnam=lambda _user: entry)}), \
+                 mock.patch("subprocess.check_output", return_value=entry) as lookup, \
                  mock.patch("ctypes.CDLL", return_value=library), \
                  mock.patch.object(sys, "argv", ["verify", "appliance", profile]), \
                  mock.patch.object(sys, "stdin", types.SimpleNamespace(buffer=io.BytesIO(password))), \
@@ -268,6 +281,7 @@ class CredentialTests(unittest.TestCase):
                         exec(MODULE.VERIFY_SCRIPT, {})
                     self.assertEqual(failure.exception.code, 1)
                     self.assertEqual(output.getvalue(), "")
+            self.assertEqual(lookup.call_args.args[0], ["/usr/bin/getent", "shadow", "appliance"])
 
 
 if __name__ == "__main__":

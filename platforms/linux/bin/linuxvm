@@ -76,8 +76,12 @@ desktop_user() {
         printf '%s\n' "$LINUXVM_DESKTOP_USER"
         return
     fi
-    "$PROVIDER" exec /usr/bin/bash -lc \
-        "loginctl list-sessions --no-legend | awk '\$6 == \"active\" { print \$3; exit }'"
+    "$PROVIDER" exec /usr/bin/bash -ec '
+        session=$(/usr/bin/loginctl show-seat seat0 --property=ActiveSession --value)
+        [[ -n "$session" ]]
+        [[ "$(/usr/bin/loginctl show-session --property=Class --value -- "$session")" == user ]]
+        /usr/bin/loginctl show-session --property=Name --value -- "$session"
+    '
 }
 
 user_exec() {

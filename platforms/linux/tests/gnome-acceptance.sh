@@ -229,8 +229,8 @@ jq -e '.semanticPresses == 1 and .text == "Qt semantic value"' \
 # HID fallback for controls whose AT-SPI action names are incomplete.
 stage 'exercise Chromium semantics, Unicode input, and visual fallback'
 "$LINUXVM" fixture browser reset
-home="$($LINUXVM exec -- /usr/bin/bash -lc \
-    'user=$(loginctl list-sessions --no-legend | awk '\''$6 == "active" {print $3; exit}'\''); getent passwd "$user" | cut -d: -f6')"
+desktop_user="$($LINUXVM desktop-user)"
+home="$($LINUXVM exec -- /usr/bin/getent passwd "$desktop_user" | cut -d: -f6)"
 browser_request="$(jq -nc --arg profile \
     "$home/.cache/linuxvm-testbed/chromium-acceptance-profile" '
     {operation:"application.launch",command:[

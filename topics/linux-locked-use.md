@@ -4,8 +4,9 @@ Topic: `linux-locked-use`
 
 Status: native GDM reauthentication exercised on Ubuntu 24.04 GNOME Wayland
 appliances. Unlock, a native application effect and relock passed on the
-x64 appliance with the upstream accessibility fix. Workstation
-enrollment and covered Desktop access are open.
+x64 appliance with the upstream accessibility fix, and on stock Ubuntu
+26.04.1 x64 with GNOME 50.1. Workstation enrollment and covered Desktop
+access are open.
 
 ## Current
 
@@ -38,10 +39,9 @@ authentication policy and allow one recognized password prompt per operation.
 
 ## Open
 
-- Qualify the post-unlock application sequence on the stock target
-  distributions. The x64 test isolated a known accessibility cache defect
-  in Ubuntu 24.04 and passed with GNOME's fix. Ubuntu 26.04 ships a newer
-  upstream version with that fix.
+- Qualify the packaged Desktop sequence. The native prototype passes on
+  stock Ubuntu 26.04.1. Ubuntu 24.04 qualification needs the equivalent
+  accessibility cache fix in the target distribution.
 - Prove compositor-level coverage across lock transitions and monitor changes.
   A normal application window has no guarantee of staying over every physical
   display. Establish an independent relock mechanism and exercise process loss.
