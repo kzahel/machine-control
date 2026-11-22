@@ -2,23 +2,27 @@
 
 Topic: `linux-locked-use`
 
-Status: native GDM reauthentication exercised on Ubuntu 24.04 GNOME Wayland
-appliances. Unlock, a native application effect and relock passed on the
-x64 appliance with the upstream accessibility fix, and on stock Ubuntu
-26.04.1 x64 with GNOME 50.1. The GNOME 50 VM prototype passes covered unlock,
-GUI control, and relock. The installed Debian integration adds enrollment
-and the prepared Desktop owner. Package and physical acceptance are in progress.
+Status: the installed Debian package passed covered Desktop tasks on stock
+Ubuntu 26.04.1 x64 with GNOME Shell 50.1. Other Ubuntu releases and physical
+workstations have separate acceptance gates.
 
-A private Debian installation on the matching Ubuntu 26.04.1 VM has
-enrolled the account, accepted a prepared Desktop owner, and unlocked behind
-the GNOME cover. The fixture verified offscreen capture and an AT-SPI
-effect. The same console relocked after owner disconnect and task expiry.
-A rebuilt package also relocked and paused access on simulated physical
-movement through the kernel observer. Uninstall removed the service and
-enrollment. Mutter delivered a pointer press and release without supplying
-the expected stage-filter acknowledgement. The input contract records
-whether the compositor reported adoption or accepted virtual input for
-dispatch. Hardware and interrupted authentication remain release gates.
+The private package built from `c324588` displayed the native password dialog,
+including its protected text field. The claimed VM's one-shot credential
+transport exercised the packaged helper's enrollment. A prepared Desktop
+owner unlocked behind the cover. The fixture verified offscreen capture,
+AT-SPI, a pointer press and release, keyboard input, Unicode text, drag, and
+scroll. The same console relocked after owner disconnect, expiry, simulated
+physical movement, and Stop. Simulated movement also paused covered access.
+Uninstall removed the privileged service and its enrollment.
+The same package stayed locked on early cancellation, renewed the same
+covered owner, and relocked after the resident was killed. In a separate
+fault-injected VM run, the GDM worker flushed the password submission and
+then died. The native observations found no uncovered unlock, and the
+helper invalidated the enrollment because delivery could not be verified.
+
+Mutter can deliver native virtual events without reporting them to the stage
+filter. The response identifies submission or observed compositor adoption.
+An application or OS observation is needed to verify the effect.
 
 ## Current
 
@@ -60,14 +64,12 @@ authentication policy and allow one recognized password prompt per operation.
 
 ## Open
 
-- Qualify the packaged Desktop sequence. The native prototype passes on
-  stock Ubuntu 26.04.1. Ubuntu 24.04 qualification needs the equivalent
-  accessibility cache fix in the target distribution.
+- The native GDM prototype also passed on Ubuntu 24.04 with an upstream
+  accessibility fix. The packaged covered route still requires GNOME 50.
 - Extend compositor-level coverage acceptance beyond the single-display VM.
   Verify hotplug, real displays and physical devices across the lock transitions.
-- Qualify unavailable, changed, and expired credentials and interrupted PAM
-  conversations through the packaged helper.
-- Qualify keyboard, scrolling, and drag separately through the installed
-  Desktop owner. Ordinary portal sharing still ends at lock.
-- Qualify the covered route through the packaged app on GNOME 50, including
-  physical takeover, displays and actual native effects.
+- Qualify changed and expired credentials end to end and test slower PAM
+  conversations beyond the stock VM configuration.
+- Qualify installed setup and physical takeover on a workstation, including
+  a display that has entered power saving. Ordinary portal sharing still
+  ends at lock.

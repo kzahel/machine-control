@@ -25,7 +25,8 @@ Ubuntu password change. **Remove unlock setup** erases the saved credential.
 ## Start a task
 
 ```sh
-machine-control --target TARGET control stream --surface desktop --prepared-console
+machine-control --target TARGET control stream --surface desktop --prepared-console \
+  --reason 'Work in the covered desktop'
 ```
 
 Pass the target's claim when required. The app starts one covered unlock at

@@ -26,9 +26,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--fixture", type=Path, required=True)
-    parser.add_argument("--ending", choices=("disconnect", "expiry", "takeover", "stop", "resident"), required=True)
+    parser.add_argument("--ending", choices=("disconnect", "expiry", "preparing", "takeover", "stop", "resident"), required=True)
     parser.add_argument("--skip-pointer", action="store_true")
     parser.add_argument("--extended-input", action="store_true")
+    parser.add_argument("--renew", action="store_true")
     args = parser.parse_args()
     sys.path.insert(0, str(args.runtime))
     from gnome_unlock import GnomeUnlock
@@ -87,6 +88,16 @@ def main():
                 active = send("control.accept", offerGeneration=offer["offerGeneration"])
                 assert active["consoleUnlock"]["state"] in ("unlocking", "unlocked"), active
                 fence = {key: active[key] for key in ("sessionId", "resourceGenerations")}
+                if args.ending == "preparing":
+                    assert active["consoleUnlock"]["state"] == "unlocking", active
+                    cancelled = send("control.cancel")
+                    assert cancelled["state"] == "ended", cancelled
+                    for _ in range(45):
+                        observed = native.observe()
+                        assert observed.console == console and observed.locked
+                        time.sleep(.1)
+                    print("console_stayed_locked_when_prepared_owner_cancelled", flush=True)
+                    return
                 def unlocked():
                     view = send("control.heartbeat")
                     native_status = view["consoleUnlock"]
@@ -102,6 +113,11 @@ def main():
                 capability = action("capabilities")
                 assert capability["protectedDesktop"] and native.observe().unlocked
                 print("admitted_and_covered_unlocked", flush=True)
+                if args.renew:
+                    assert args.ending == "expiry"
+                    renewed = send("control.renew", durationSeconds=15, **fence)
+                    assert renewed["activeRemainingSeconds"] > 8 and renewed["sessionId"] == fence["sessionId"], renewed
+                    print("same_prepared_owner_renewed", flush=True)
                 if args.ending != "expiry":
                     capture = action("capture")["artifact"]
                     artifact = Path(capture["guestPath"])
