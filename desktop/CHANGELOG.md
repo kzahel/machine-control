@@ -16,6 +16,7 @@
   repeated endpoint lookups reuse the same browser stream, and an interrupted
   Chrome connection can reconnect to the same profile.
 - Update the shared desktop URL parser to fix RUSTSEC-2026-0592.
+- Update the shared desktop cookie dependency to fix RUSTSEC-2026-0594.
 
 ## [0.7.3]
 
