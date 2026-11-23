@@ -80,7 +80,7 @@ def inventory(directory, target, version, revision, purpose="candidate"):
             files = [{"name": "machine-control", "size": binary.stat().st_size, "sha256": digest(binary)}]
             entries = metadata.get("files", [])
             expected = {entry["path"] for entry in entries} | {"desktop-runtime.json"}
-            actual = {str(file.relative_to(runtime)) for file in runtime.rglob("*") if file.is_file()}
+            actual = {file.relative_to(runtime).as_posix() for file in runtime.rglob("*") if file.is_file()}
             if expected != actual:
                 raise ValueError("Uninventoried runtime payload")
             for name in sorted(expected):
@@ -96,12 +96,12 @@ def inventory(directory, target, version, revision, purpose="candidate"):
             if package.suffix == ".deb" and "gnome-cover/metadata.json" in expected:
                 system_cover = root / "usr/share/gnome-shell/extensions/covered-desktop@machine-control.dev"
                 broker = root / "usr/lib/machine-control/locked-runtime"
-                for directory, subdir, names in (
+                for installed_directory, subdir, names in (
                     (system_cover, "gnome-cover", ("metadata.json", "extension.js")),
                     (broker, "", ("locked-credential.py", "gnome_unlock.py", "activity.py")),
                 ):
                     for name in names:
-                        file = directory / name
+                        file = installed_directory / name
                         if file.is_symlink() or digest(file) != digest(runtime / subdir / name):
                             raise ValueError("Debian protected GNOME payload mismatch")
             policy=root/'usr/share/machine-control/shared-policy'

@@ -18,6 +18,69 @@ VERSION = '0.3.3'
 REVISION = 'a' * 40
 
 
+class LinuxPackageInventoryTests(unittest.TestCase):
+    def test_protected_debian_inventory_is_written_beside_packages(self):
+        linux = release.linux_package
+        version = '0.5.0'  # The bundled CLI is independent of this inventory fixture.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifacts = root / 'artifacts'
+            artifacts.mkdir()
+            for name in ('fixture.AppImage', 'fixture.deb'):
+                (artifacts / name).write_bytes(b'fixture container')
+
+            extracted = root / 'extracted'
+            binary = extracted / 'usr/bin/machine-control'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'fixture binary')
+            runtime = extracted / 'usr/lib/Machine Control/linux-runtime'
+            policy = extracted / 'usr/share/machine-control/shared-policy'
+
+            def write_resource(folder, name):
+                file = folder / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(name.encode())
+                return {'path': name, 'byteLength': file.stat().st_size, 'sha256': linux.digest(file)}
+
+            cover = ['gnome-cover/metadata.json', 'gnome-cover/extension.js']
+            broker = ['locked-credential.py', 'gnome_unlock.py', 'activity.py']
+            (runtime / 'desktop-runtime.json').parent.mkdir(parents=True)
+            (runtime / 'desktop-runtime.json').write_text(json.dumps({
+                'schema': 'machine-control-linux-desktop-runtime/v0', 'sourceRevision': REVISION,
+                'profile': 'gnome_wayland', 'privilege': 'ordinary_user',
+                'policyInstallation': 'usr_share', 'admissionSchema': 'machine-control-admission/v2',
+                'files': [write_resource(runtime, name) for name in cover + broker],
+                'policyFiles': [write_resource(policy, 'payload.json')],
+            }))
+            compiled = {
+                'schema': 'machine-control-desktop-identity/v0', 'sourceRevision': REVISION,
+                'version': version, 'platform': 'linux', 'arch': 'x86_64',
+            }
+
+            def extract(arguments, *, cwd=None, **_):
+                if cwd is not None:
+                    shutil.copytree(extracted, cwd / 'squashfs-root')
+                    return
+                deb = Path(arguments[-1])
+                shutil.copytree(extracted, deb, dirs_exist_ok=True)
+                for names, destination in (
+                    (cover, deb / 'usr/share/gnome-shell/extensions/covered-desktop@machine-control.dev'),
+                    (broker, deb / 'usr/lib/machine-control/locked-runtime'),
+                ):
+                    destination.mkdir(parents=True)
+                    for name in names:
+                        shutil.copyfile(runtime / name, destination / Path(name).name)
+
+            with patch.object(linux.subprocess, 'run', side_effect=extract), \
+                    patch.object(linux.subprocess, 'check_output', side_effect=[
+                        json.dumps(compiled), 'amd64', version, json.dumps(compiled)]):
+                linux.inventory(artifacts, 'x86_64-unknown-linux-gnu', version, REVISION)
+
+            payload = json.loads((artifacts / 'payload.json').read_text())
+            self.assertEqual([record['package'] for record in payload['packages']],
+                             ['fixture.AppImage', 'fixture.deb'])
+
+
 @unittest.skipUnless(shutil.which("minisign"), "minisign required")
 class DesktopReleaseTests(unittest.TestCase):
     def setUp(self):
