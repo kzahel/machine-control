@@ -2,6 +2,7 @@
 
 import base64
 import importlib
+import os
 import sys
 import tempfile
 import types
@@ -158,6 +159,7 @@ class CaptureTests(unittest.TestCase):
                     linuxcontrol.subprocess, "check_output", return_value=f"GNOME Shell {version}\n"):
                 self.assertEqual(Recorder().capture_route, route)
 
+    @unittest.skipUnless(hasattr(os, "getuid"), "Screenshot trust check requires POSIX ownership")
     def test_shell_capture_returns_the_new_complete_screenshot(self):
         with tempfile.TemporaryDirectory() as root:
             home = Path(root)

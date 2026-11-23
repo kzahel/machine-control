@@ -6,6 +6,10 @@ from unittest import mock
 import sys
 
 
+if sys.platform == 'win32':
+    raise unittest.SkipTest('The Linux input broker requires the POSIX account database')
+
+
 SOURCE = Path(__file__).resolve().parents[1] / "guests/ubuntu/input/linuxinputd.py"
 SPEC = importlib.util.spec_from_file_location("linuxinputd_console", SOURCE)
 MODULE = importlib.util.module_from_spec(SPEC)

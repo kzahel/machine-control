@@ -62,6 +62,7 @@ class LockedBrowserTests(unittest.TestCase):
         events, stops = [], []
         login = ("fixture", 1, ":1.2")
         owner = SimpleNamespace(configuration_sessions={"desktop": login, "browser": login},
+            unlocked=False, covered=None, locked_use=SimpleNamespace(manual_unlock=lambda: None),
             grants=SimpleNamespace(console_elsewhere=False), journal=SimpleNamespace(event=events.append),
             portal=SimpleNamespace(state="off", close=lambda: None), refresh_availability=lambda: None,
             stop_access=stops.append)

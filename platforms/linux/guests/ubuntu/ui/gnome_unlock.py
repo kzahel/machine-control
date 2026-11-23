@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-import pwd
 import time
 
 
@@ -165,6 +164,8 @@ class GnomeUnlock:
         caller is still authorized and GDM is awaiting its password. An unlock
         observation alone cannot establish readiness for Desktop operations.
         """
+        import pwd
+
         self.require_locked(console)
         if not allowed():
             raise UnlockRefused("gnome_unlock_cancelled")

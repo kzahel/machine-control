@@ -2,11 +2,20 @@
 
 ## [Unreleased]
 
+## [0.7.4]
+
+- On Ubuntu with GNOME 50 Wayland, the Debian package can run a prepared
+  Desktop task from the locked console after you opt in and set up your
+  Ubuntu password. An opaque cover stays in place during the task. The
+  console relocks when the task ends, access stops, or you use the local
+  keyboard or mouse. An interrupted unlock keeps the encrypted enrollment
+  available for a fresh authorized task after relock.
 - Fix a macOS memory leak that retained decoded policy replies while Machine
   Control was idle, including when Desktop and Browser access were off.
-- Stop the macOS Chrome helper accumulating incoming message buffers. Browser
-  streams reuse their authority for repeated endpoint lookups, and an
-  interrupted Chrome connection can reconnect to the same profile.
+- Fix a memory leak in the macOS Chrome helper. On macOS, Windows, and Linux,
+  repeated endpoint lookups reuse the same browser stream, and an interrupted
+  Chrome connection can reconnect to the same profile.
+- Update the shared desktop URL parser to fix RUSTSEC-2026-0592.
 
 ## [0.7.3]
 

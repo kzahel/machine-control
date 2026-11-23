@@ -14,6 +14,10 @@ import time
 import unittest
 
 
+if os.name != 'posix':
+    raise unittest.SkipTest('The GNOME credential helper requires POSIX files and pipes')
+
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'platforms/linux/guests/ubuntu/ui'))
 import gnome_unlock  # noqa: E402  (no GI import at module load)
