@@ -9,10 +9,13 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import plistlib
 import socket
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 
 
 def poll(function, label, timeout=45):
@@ -31,6 +34,35 @@ def require_managed_observer(value):
     assert policy['grantMode']=='standing' or (
         policy['grantMode']=='surface_modes' and policy.get('protectedAdministration') is True)
     assert value['nativeSemanticState']=='ready'
+
+
+@contextlib.contextmanager
+def aqua_observer(binary, endpoint, log):
+    """Keep capture responsibility with the already-consented observer app."""
+    domain = f'gui/{os.getuid()}'
+    label = f'org.machine-control.acceptance-observer.{uuid.uuid4().hex}'
+    service = f'{domain}/{label}'
+    job = {
+        'Label': label,
+        'ProgramArguments': [str(binary), 'serve', str(endpoint)],
+        'LimitLoadToSessionType': 'Aqua',
+        'ProcessType': 'Interactive',
+        'RunAtLoad': True,
+        'StandardOutPath': str(log),
+        'StandardErrorPath': str(log),
+    }
+    started = False
+    with tempfile.TemporaryDirectory(dir=endpoint.parent) as directory:
+        plist = Path(directory) / 'observer.plist'
+        plist.write_bytes(plistlib.dumps(job))
+        try:
+            subprocess.run(['/bin/launchctl', 'bootstrap', domain, str(plist)],
+                           capture_output=True, check=True, timeout=30)
+            started = True
+            yield
+        finally:
+            subprocess.run(['/bin/launchctl', 'bootout', service],
+                           capture_output=True, check=started, timeout=30)
 
 
 def generation_bound_status(observe):

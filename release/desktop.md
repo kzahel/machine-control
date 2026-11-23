@@ -68,6 +68,10 @@ session, an existing healthy managed appliance resident, and normal Developer ID
 consent. It verifies updater signatures, notarization and bundle identity before
 installation, temporarily selects the stricter workstation policy, and restores
 the original app/policy/LaunchAgent/operator state and original power state.
+The independent display observer runs as a temporary Aqua LaunchAgent. This
+keeps capture attributed to the managed observer's existing macOS permission
+when the controller reaches the guest through Tart. A native permission prompt
+over the cover still fails the independent display check.
 
 ```bash
 bin/machine-control --target macos run \

@@ -6,6 +6,7 @@ deliberately leaves the candidate installed for disposal: this is not an
 in-place appliance upgrade or a release receipt. No outer UI is used.
 """
 import argparse
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
@@ -30,7 +31,7 @@ def wait(fn, label, seconds=60):
 
 def guest(stage, claim, verify, protected_stop=False):
     sys.path.insert(0,str(stage/'source/tests/macos'))
-    from surface_fixture import require_managed_observer
+    from surface_fixture import aqua_observer, require_managed_observer
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).startswith(b'VirtualMac')
     home = Path.home()
     installed = home / 'Applications/Machine Control.app'
@@ -82,17 +83,18 @@ def guest(stage, claim, verify, protected_stop=False):
     # The appliance observer is independent of the candidate. After either
     # boot the candidate has already loaded workstation policy; only the
     # observer loads temporary appliance policy. Restore it immediately.
-    observer = None
+    observer = ExitStack()
+    observer_started = False
     try:
-        select_policy('appliance')
-        observer_socket.unlink(missing_ok=True)
-        with (stage / ('observer-post.log' if verify else 'observer-pre.log')).open('wb') as log:
-            observer = subprocess.Popen([str(stage / 'Original.app/Contents/MacOS/macui'),
-                'serve', str(observer_socket)], stdout=log, stderr=log)
-        require_managed_observer(wait(lambda:status(observer_socket), 'Independent observer unavailable'))
-    finally:
-        select_policy('workstation')
-    try:
+        try:
+            select_policy('appliance')
+            observer_socket.unlink(missing_ok=True)
+            log = stage / ('observer-post.log' if verify else 'observer-pre.log')
+            observer.enter_context(aqua_observer(stage / 'Original.app/Contents/MacOS/macui', observer_socket, log))
+            observer_started = True
+            require_managed_observer(wait(lambda:status(observer_socket), 'Independent observer unavailable'))
+        finally:
+            select_policy('workstation')
         if not verify:
             exchange(endpoint, 'server.stop')
             command('/bin/launchctl','bootout',service_label,check=False)
@@ -190,13 +192,12 @@ def guest(stage, claim, verify, protected_stop=False):
             (stage / 'reboot-choices.json').write_text(json.dumps(report))
             print(json.dumps(report),flush=True)
     finally:
-        select_policy('workstation')
-        if observer:
-            exchange(observer_socket,'server.stop')
-            try:
-                observer.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                observer.terminate(); observer.wait(timeout=10)
+        try:
+            select_policy('workstation')
+            if observer_started:
+                exchange(observer_socket,'server.stop')
+        finally:
+            observer.close()
 
 
 def main():

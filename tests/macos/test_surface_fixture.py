@@ -1,15 +1,45 @@
 """Fixture lifetime must not turn native failure into acceptance evidence."""
 import importlib.util
 from pathlib import Path
+import plistlib
+import tempfile
 import threading
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 spec=importlib.util.spec_from_file_location('surface_fixture',Path(__file__).with_name('surface_fixture.py'))
 fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 
 
 class SurfaceFixtureTests(unittest.TestCase):
+    def test_aqua_observer_unloads_its_exact_job_after_fixture_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / 'Original.app/Contents/MacOS/macui'
+            endpoint = root / 'observer.sock'
+            calls = []
+
+            def launch(arguments, **options):
+                calls.append(arguments)
+                self.assertTrue(options['check'])
+                if arguments[1] == 'bootstrap':
+                    job = plistlib.loads(Path(arguments[-1]).read_bytes())
+                    self.assertEqual(job['ProgramArguments'], [str(binary), 'serve', str(endpoint)])
+                    self.assertEqual(job['LimitLoadToSessionType'], 'Aqua')
+                    self.assertEqual(arguments[2], 'gui/501')
+                    self.assertEqual(job['StandardOutPath'], str(root / 'observer.log'))
+                    self.assertEqual(job['StandardErrorPath'], str(root / 'observer.log'))
+                    calls.append(job['Label'])
+
+            with patch.object(fixture.os, 'getuid', return_value=501, create=True), \
+                    patch.object(fixture.subprocess, 'run', side_effect=launch):
+                with self.assertRaisesRegex(ValueError, 'fixture failed'):
+                    with fixture.aqua_observer(binary, endpoint, root / 'observer.log'):
+                        raise ValueError('fixture failed')
+            self.assertEqual(calls[-1], ['/bin/launchctl', 'bootout', 'gui/501/' + calls[1]])
+            self.assertFalse(Path(calls[0][-1]).exists())
+
     def test_stop_never_enables_access_or_claims_a_measurement_when_already_off(self):
         rig=fixture.SurfaceFixture.__new__(fixture.SurfaceFixture)
         calls=[];rig.settings=lambda:None;rig.close_owners=lambda:calls.append('close')

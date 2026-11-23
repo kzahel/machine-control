@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Private-stage guest half of packaged-acceptance.py; dedicated VirtualMac only."""
 import argparse
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -12,7 +13,7 @@ import stat
 import subprocess
 import sys
 import time
-from surface_fixture import require_managed_observer
+from surface_fixture import aqua_observer, require_managed_observer
 
 
 def main():
@@ -124,13 +125,14 @@ def main():
         saved[name] = (f.read_bytes(), stat.S_IMODE(f.stat().st_mode)) if f.exists() else None
     prefs = command('/usr/bin/defaults', 'export', 'org.machine-control.app', '-', check=False)
     (backup / 'preferences.plist').write_bytes(prefs.stdout)
-    observer = None
+    observer = ExitStack()
+    observer_started = False
     mutated = False
     try:
         observer_socket.parent.mkdir(mode=0o700)
-        with (output / 'observer.log').open('wb') as log:
-            observer = subprocess.Popen([str(backup / 'Original.app/Contents/MacOS/macui'),
-                'serve', str(observer_socket)], stdout=log, stderr=log)
+        observer.enter_context(aqua_observer(backup / 'Original.app/Contents/MacOS/macui',
+                                              observer_socket, output / 'observer.log'))
+        observer_started = True
         observed = wait(lambda: status(observer_socket), 'Observer unavailable')
         require_managed_observer(observed)
         mutated = True
@@ -268,16 +270,17 @@ def main():
                 print('Original app, policy, LaunchAgent and operator state restored', flush=True)
             except BaseException as error:
                 errors.append(str(error))
-        if observer is not None:
+        try:
+            if observer_started:
+                try:
+                    exchange(observer_socket, 'server.stop')
+                except (OSError, ValueError):
+                    pass
+        finally:
             try:
-                exchange(observer_socket, 'server.stop')
-            except (OSError, ValueError):
-                pass
-            try:
-                observer.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                observer.terminate()
-                observer.wait(timeout=10)
+                observer.close()
+            except (OSError, subprocess.SubprocessError) as error:
+                errors.append(str(error))
         (output / 'cleanup.json').write_text(json.dumps({'restored': not errors and not a.remote_arming,
             'appStateRestored': not errors, 'workspaceDiscardRequired': a.remote_arming, 'errors': errors}) + '\n')
         if errors:
