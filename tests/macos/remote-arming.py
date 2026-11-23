@@ -12,6 +12,17 @@ import subprocess
 import time
 
 
+def wait_for_dialog_reattachment(call, poll, tab):
+    def observe():
+        result = call('browser.dialog', tabId=tab)
+        observer = result['observerState']
+        state = result['state']
+        assert state == 'not_observed' and observer in {'pending', 'ready'}, (observer, state)
+        return observer == 'ready'
+
+    return poll(observe, 'reattachment event readiness after dialog resolution', timeout=5)
+
+
 def _run(context):
     raw, call, check, poll, exchange = (context[k] for k in ['raw', 'call', 'check', 'poll', 'exchange'])
     observer, pid, resident, tab, url, effects = (context[k] for k in ['observer', 'pid', 'resident', 'tab', 'url', 'effects'])
@@ -159,9 +170,8 @@ def _run(context):
         call('browser.dialog', tabId=tab, action='dismiss', dialogId=current['id'])
         pending.result(timeout=10)  # Never replay the uncertain reload.
         call('browser.release')
-        reattached = call('browser.dialog', tabId=tab)
         check('reattachment reports event readiness after dialog resolution',
-              reattached['observerState'] == 'ready' and reattached['state'] == 'not_observed')
+              wait_for_dialog_reattachment(call, poll, tab))
         stale = raw('browser.dialog', tabId=tab, action='dismiss', dialogId=dialog['id'])
         check('completed release fences the previous dialog identity', not stale['accepted'])
         before = effects['clicks']
@@ -300,9 +310,8 @@ def _run_surfaces(context):
         check('refused release preserves the actual dialog attachment', current['id'] == dialog['id'])
         call('browser.dialog', tabId=tab, action='dismiss', dialogId=current['id'])
         call('browser.release')
-        reattached = call('browser.dialog', tabId=tab)
         check('reattachment reports event readiness after dialog resolution',
-              reattached['observerState'] == 'ready' and reattached['state'] == 'not_observed')
+              wait_for_dialog_reattachment(call, poll, tab))
         stale = raw('browser.dialog', tabId=tab, action='dismiss', dialogId=dialog['id'])
         check('completed release fences the previous dialog identity', not stale['accepted'])
         before = effects['clicks']
