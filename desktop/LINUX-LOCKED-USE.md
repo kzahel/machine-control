@@ -22,6 +22,10 @@ and pauses covered work until you unlock it yourself. Use **Stop access** to
 revoke access. **Update saved password** replaces the enrollment after an
 Ubuntu password change. **Remove unlock setup** erases the saved credential.
 
+If an unlock is interrupted, Machine Control ends the task and relocks the
+console. It keeps the encrypted password for a fresh authorized task. A
+password change or an explicit rejection requires updating the saved password.
+
 ## Start a task
 
 ```sh

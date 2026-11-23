@@ -18,7 +18,10 @@ The same package stayed locked on early cancellation, renewed the same
 covered owner, and relocked after the resident was killed. In a separate
 fault-injected VM run, the GDM worker flushed the password submission and
 then died. The native observations found no uncovered unlock, and the
-helper invalidated the enrollment because delivery could not be verified.
+tested build erased the enrollment when it could not verify delivery.
+Repeating the fault on the same VM with the updated helper kept the encrypted
+enrollment. After the console relocked, a fresh covered task unlocked with
+that enrollment, captured the fixture, and relocked on disconnect.
 
 Mutter can deliver native virtual events without reporting them to the stage
 filter. The response identifies submission or observed compositor adoption.
@@ -56,6 +59,11 @@ workstation's guarded task lifecycle. The task must acquire coverage of
 every physical display before credential delivery. Keep covers in place
 until the exact console is independently observed locked, including after
 Stop, owner or resident loss, expiry, input takeover and display changes.
+
+End interrupted or unconfirmed attempts and keep the encrypted enrollment.
+There is no automatic retry. A fresh authorized task can use the saved
+password after verified relock and cover teardown. A changed account password,
+an explicit rejection or an invalid credential store still invalidates setup.
 
 Only the GNOME Wayland provider is in scope. Qualify Ubuntu 24.04 and 26.04
 independently. Other compositors and greeter sessions need their own native

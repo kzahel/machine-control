@@ -242,17 +242,16 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(os.stat(self.store.path(ME, suffix)).st_mode & 0o777, 0o600)
         self.assertNotIn(b'opaque', self.store.path(ME, 'json').read_bytes())
 
-    def test_invalidate_and_recover(self):
+    def test_recover_discards_old_attempt_marker_and_keeps_enrollment(self):
         self.commit()
+        marker = self.store.path(ME, 'attempt')
         with self.store.locked():
-            self.store.begin_attempt(ME, 'a' * 32)
+            marker.write_text(json.dumps(dict(schema='machine-control-locked-credential-attempt/v1',
+                                              uid=ME, enrollment='a' * 32)))
+            marker.chmod(0o600)
             self.store.recover()
-        self.assertEqual(self.store.state(ME), ('invalidated', 'locked_credential_delivery_unknown'))
-        self.assertFalse(self.store.path(ME, 'cred').exists())
-        self.assertFalse(self.store.path(ME, 'attempt').exists())
-        with self.assertRaises(lc.Refused) as caught:
-            self.store.ready(ME)
-        self.assertEqual(caught.exception.code, 'locked_credential_invalidated')
+        self.assertEqual(self.store.sealed(self.store.ready(ME)), b'opaque-sealed')
+        self.assertFalse(marker.exists())
 
     def test_tamper_and_permissions_refuse(self):
         self.commit()
@@ -540,15 +539,14 @@ class AttemptTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline)
             time.sleep(0.01)
 
-    def release(self):
-        worker = self.worker()
+    def release(self, worker=None):
+        worker = worker if worker is not None else self.worker()
         self.assertEqual(worker.job['coverOwner'], ':1.42')
         self.assertEqual(worker.job['peerPid'], 100)
         worker.emit('ready')
         worker.emit('prompt')
         self.wait(lambda: worker.delivered is not None)
         self.assertEqual(worker.delivered, bytes(lc.encode_secret_frame(bytearray(b'hunter2'))))
-        self.assertTrue(self.store.path(ME, 'attempt').exists())
         return worker
 
     def reply(self, stream, skip=('accepted', 'submitted')):
@@ -597,15 +595,46 @@ class AttemptTests(unittest.TestCase):
         self.assertEqual(self.host.locks, ['2'])
         self.assertTrue(self.host.locked)
 
-    def test_worker_loss_after_release_invalidates(self):
+    def test_worker_loss_after_submission_relocks_and_keeps_saved_password(self):
         client, thread, stream = self.open()
         worker = self.release()
+        worker.emit('dispatched')
+        self.host.locked = False  # The native side may still unlock.
         worker.running = False
         worker.peer.close()
         value = self.reply(stream)
-        self.assertEqual((value['errorCode'], value['credential'], value['delivery']),
-                         ('locked_worker_exited', 'invalidated', 'unknown'))
-        self.assertEqual(self.store.state(ME), ('invalidated', 'locked_credential_delivery_unknown'))
+        self.assertEqual((value['accepted'], value['errorCode'], value['credential'], value['delivery'], value['relock']),
+                         (False, 'locked_worker_exited', 'kept', 'unknown', 'verified'))
+        thread.join(5)
+        self.assertEqual(self.host.locks, ['2'])
+        self.assertEqual(self.store.sealed(self.store.ready(ME)), b'opaque-sealed')
+        self.assertEqual(len(self.workers), 1)
+
+        next_token = '1f5b2a4e-1c3d-4e5f-8a9b-0c1d2e3f4a5b'
+        client, thread, stream = self.open(coverToken=next_token)
+        self.wait(lambda: len(self.workers) == 2)
+        worker = self.release(self.workers[-1])
+        self.assertEqual(worker.job['coverToken'], next_token)
+        worker.emit('dispatched')
+        worker.emit('verified')
+        self.host.locked = False
+        worker.emit('unlocked')
+        self.assertEqual(self.reply(stream)['event'], 'unlocked')
+        client.sendall(b'{"schema":"%s","operation":"end"}\n' % lc.SCHEMA.encode())
+        self.assertEqual(self.reply(stream)['relock'], 'verified')
+        thread.join(5)
+
+    def test_rejection_does_not_erase_a_replacement_enrollment(self):
+        client, thread, stream = self.open()
+        worker = self.release()
+        worker.emit('dispatched')
+        with self.store.locked():
+            self.store.commit(self.account, 'b' * 32, b'replacement')
+        worker.emit('failed', code='gnome_authentication_failed')
+        value = self.reply(stream)
+        self.assertEqual((value['credential'], value['delivery']), ('kept', 'rejected'))
+        self.assertEqual(self.store.sealed(self.store.ready(ME)), b'replacement')
+        thread.join(5)
 
     def test_stale_shadow_during_prompt_withholds_secret(self):
         client, thread, stream = self.open()
@@ -781,6 +810,17 @@ class ConversationTests(unittest.TestCase):
         self.conversation.query('gdm-password', 'Password:')
         self.now = 31
         self.assertFalse(self.conversation.tick())
+        self.assertEqual(self.channel.events[-1], ('failed', 'gnome_unlock_delivery_unknown'))
+
+    def test_native_stop_after_submission_is_unknown(self):
+        self.conversation.query('gdm-password', 'Password:')
+        self.conversation.stopped()
+        self.assertEqual(self.channel.events[-1], ('failed', 'gnome_unlock_delivery_unknown'))
+
+    def test_verification_failure_during_cancellation_is_unknown(self):
+        self.conversation.query('gdm-password', 'Password:')
+        self.channel.cancelled = True
+        self.conversation.verification_failed('gdm-password')
         self.assertEqual(self.channel.events[-1], ('failed', 'gnome_unlock_delivery_unknown'))
 
     def test_second_prompt_after_submission_is_rejection(self):

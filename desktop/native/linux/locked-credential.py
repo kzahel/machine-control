@@ -95,7 +95,6 @@ import time
 SCHEMA = 'machine-control-locked-credential/v1'
 RECEIPT_SCHEMA = 'machine-control-locked-credential-enrollment/v1'
 SEALED_SCHEMA = 'machine-control-locked-credential-sealed/v1'
-ATTEMPT_SCHEMA = 'machine-control-locked-credential-attempt/v1'
 RUNTIME_SCHEMA = 'machine-control-linux-desktop-runtime/v0'
 
 RUNTIME = Path('/usr/lib/machine-control/locked-runtime')
@@ -729,7 +728,7 @@ class Store:
 
     def invalidate(self, uid, reason):
         if reason not in INVALIDATION_REASONS:
-            reason = 'locked_credential_delivery_unknown'
+            raise ValueError('unknown credential invalidation reason')
         self.unlink(uid, 'cred')
         try:
             receipt = self.receipt(uid)
@@ -738,13 +737,6 @@ class Store:
             return
         if receipt is not None:
             self.write_receipt(uid, {**receipt, 'state': 'invalidated', 'reason': reason, 'sealedSha256': None})
-        self.unlink(uid, 'attempt')
-
-    def begin_attempt(self, uid, enrollment):
-        write_atomic(self.path(uid, 'attempt'),
-                     json.dumps(dict(schema=ATTEMPT_SCHEMA, uid=uid, enrollment=enrollment)).encode() + b'\n', 0o600)
-
-    def end_attempt(self, uid):
         self.unlink(uid, 'attempt')
 
     def remove(self, uid):
@@ -757,9 +749,9 @@ class Store:
                       if (match := pattern.fullmatch(entry)))
 
     def recover(self):
-        """Any attempt marker left by a crash is an unknown delivery."""
+        """Remove markers from older builds that invalidated unknown delivery."""
         for uid in self.uids('attempt'):
-            self.invalidate(uid, 'locked_credential_delivery_unknown')
+            self.unlink(uid, 'attempt')
 
 
 # logind -----------------------------------------------------------------------
@@ -1278,9 +1270,8 @@ def spawn_worker(job, account):
 
 
 class Attempt:
-    """One exact credential use, held until positive native teardown and an
-    observed relock. Released secrets that are not positively verified
-    invalidate enrollment; nothing retries automatically."""
+    """One exact credential use with bounded native teardown and relock.
+    A confirmed rejection invalidates enrollment. Attempts never retry."""
 
     def __init__(self, service, lines, peer, alive, request):
         self.s = service
@@ -1397,7 +1388,7 @@ class Attempt:
                 self.send(event='submitted')
                 return None
             if kind == 'verified' and self.phase in ('released', 'dispatched'):
-                self.mark_verified()
+                self.verified = True
                 self.phase = 'verified'
                 self.phase_deadline = self.s.clock() + self.timing.unlock
                 return None
@@ -1415,11 +1406,6 @@ class Attempt:
         except Refused as error:
             return error.code
         return 'locked_worker_failed'
-
-    def mark_verified(self):
-        self.verified = True
-        with self.s.store.locked():
-            self.s.store.end_attempt(self.peer.uid)
 
     def release(self):
         """Final checks, then the only secret transfer: root to its worker."""
@@ -1449,7 +1435,6 @@ class Attempt:
             finally:
                 wipe(secret)
             try:
-                store.begin_attempt(uid, receipt['enrollment'])
                 self.released = True
                 self.worker.deliver(frame)
             finally:
@@ -1473,7 +1458,7 @@ class Attempt:
                                 for line in self.worker.lines.pump():
                                     message = parse_worker(line)
                                     if message['event'] == 'verified':
-                                        self.mark_verified()
+                                        self.verified = True
                                     elif message['event'] == 'failed':
                                         self.rejected |= message['code'] == 'gnome_authentication_failed'
                                         deadline = 0
@@ -1484,16 +1469,21 @@ class Attempt:
         finally:
             if self.worker is not None:
                 self.worker.stop()
+        relock = self.relock()
         credential, delivery = 'unused', 'none'
         if self.released:
             if self.verified:
                 credential, delivery = 'kept', 'verified'
+            elif self.rejected:
+                credential, delivery = 'kept', 'rejected'
+                store = self.s.store
+                with store.locked():
+                    current = store.receipt(self.peer.uid)
+                    if current and current['state'] == 'ready' and current['enrollment'] == self.receipt['enrollment']:
+                        store.invalidate(self.peer.uid, 'gnome_authentication_failed')
+                        credential = 'invalidated'
             else:
-                reason = 'gnome_authentication_failed' if self.rejected else 'locked_credential_delivery_unknown'
-                with self.s.store.locked():
-                    self.s.store.invalidate(self.peer.uid, reason)
-                credential, delivery = 'invalidated', ('rejected' if self.rejected else 'unknown')
-        relock = self.relock()
+                credential, delivery = 'kept', 'unknown'
         accepted = code == 'locked_owner_ended' and relock == 'verified' and self.phase == 'guarding'
         self.send(event='ended', accepted=accepted, errorCode=None if accepted else code,
                   relock=relock, credential=credential, delivery=delivery)
@@ -1788,7 +1778,7 @@ class Conversation:
         if self.done:
             return None
         if self.phase != 'opening':
-            self.native('gnome_authentication_failed')
+            self.verification_failed(service)
             return None
         try:
             self.question.accept(service, prompt)
@@ -1826,6 +1816,18 @@ class Conversation:
         # Completion is followed by ordinary teardown signals; ignore them.
         if not self.done and self.phase not in ('verified', 'guarding'):
             self.fail(code)
+
+    def stopped(self):
+        code = ('gnome_unlock_delivery_unknown' if self.phase in ('dispatched', 'teardown')
+                else 'gnome_authentication_unavailable')
+        self.native(code)
+
+    def verification_failed(self, service):
+        if (self.phase == 'dispatched' and service == self.gnome.GDM_PASSWORD_SERVICE
+                and not self.channel.poll()):
+            self.native('gnome_authentication_failed')
+        else:
+            self.stopped()
 
     def tick(self):
         if self.done:
@@ -1918,6 +1920,14 @@ def run_gdm(conversation, provider, username):
         conversation.complete(service)
         settle()
 
+    def verification_failed(_source, service):
+        conversation.verification_failed(service)
+        settle()
+
+    def stopped(*_):
+        conversation.stopped()
+        settle()
+
     def started(source, result):
         try:
             source.call_begin_verification_for_user_finish(result)
@@ -1940,10 +1950,10 @@ def run_gdm(conversation, provider, username):
         verifier.connect('secret-info-query', query)
         verifier.connect('verification-complete', complete)
         verifier.connect('info-query', native('gnome_password_prompt_unavailable'))
-        verifier.connect('verification-failed', native('gnome_authentication_failed'))
-        verifier.connect('conversation-stopped', native('gnome_authentication_failed'))
+        verifier.connect('verification-failed', verification_failed)
+        verifier.connect('conversation-stopped', stopped)
         verifier.connect('service-unavailable', native('gnome_authentication_unavailable'))
-        verifier.connect('reset', native('gnome_authentication_failed'))
+        verifier.connect('reset', stopped)
         verifier.call_begin_verification_for_user(gnome.GDM_PASSWORD_SERVICE, username, cancel, started)
 
     def tick(*_):
