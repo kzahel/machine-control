@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.5]
+
 - Add an opt-in setting on macOS, Windows, and Linux to restore **Until I turn
   it off** access when Machine Control starts. Stop clears saved access.
 
