@@ -85,6 +85,10 @@ final class ResidentRuntime {
         guard !running else { return }
         try server.start()
         server.restoreAccessPreferences()
+        if server.broker.policy.grantMode == .approval {
+            do { try server.broker.admission.initializeStartupAccess(path: server.socketPath + ".startup-access.json") }
+            catch { server.broker.journal?.diagnostic("access.startup", code:"initialization_failed") }
+        }
         server.broker.journal?.startRuntime(instance:server.socketPath)
         server.notice = AdmissionNotice(server:server)
         server.activity.enable()

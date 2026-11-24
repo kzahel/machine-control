@@ -195,12 +195,7 @@ fn stop_access_for_update(app: &tauri::AppHandle, target: &str) -> Result<Option
         update_resume::save(app, plan)?;
     }
     let stopped = (|| -> Result<(), String> {
-        #[cfg(target_os = "windows")]
-        windows::stop()?;
-        #[cfg(target_os = "linux")]
-        linux::stop_from_shortcut()?;
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-        native_blocking(app, json!({"method":"stop"}))?;
+        native_blocking(app, json!({"method":"stop_for_update"}))?;
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         loop {
             let reply = native_blocking(app, json!({"method":"state", "fresh":true}))?;
@@ -247,6 +242,12 @@ async fn operator_command(
     window: tauri::WebviewWindow,
     command: Value,
 ) -> Result<Value, String> {
+    if matches!(
+        command["method"].as_str(),
+        Some("access_startup_restore" | "stop_for_update")
+    ) {
+        return Err("Internal operator command".into());
+    }
     if window.label() != "main" {
         let method = command["method"].as_str().unwrap_or("");
         if window.label() != "control-notice"
@@ -346,7 +347,7 @@ async fn restart_application(
         };
         #[cfg(target_os = "linux")]
         let result = {
-            let _ = linux::stop_from_shortcut();
+            let _ = native_command(json!({"method":"prepare_exit"}));
             restart::request(&handle)
         };
         #[cfg(target_os = "macos")]
@@ -724,6 +725,21 @@ fn main() {
                         continue;
                     }
                     recovery::observe(&value["state"], ticket);
+                    if !updates::is_installing() && recovery::ticket() == ticket {
+                        if let Some(surfaces) =
+                            value["state"]["accessPolicy"]["startup"]["pending"].as_array()
+                        {
+                            for surface in surfaces {
+                                if recovery::ticket() != ticket {
+                                    break;
+                                }
+                                let _ = native_blocking(
+                                    &handle,
+                                    json!({"method":"access_startup_restore", "surface":surface}),
+                                );
+                            }
+                        }
+                    }
                     let pending = value["state"]["pending"]["id"]
                         .as_str()
                         .unwrap_or("")
@@ -855,7 +871,7 @@ fn main() {
                         {
                             let handle = app.clone();
                             tauri::async_runtime::spawn_blocking(move || {
-                                let _ = native_command(json!({"method":"stop"}));
+                                let _ = native_command(json!({"method":"prepare_exit"}));
                                 #[cfg(target_os = "linux")]
                                 linux::shutdown();
                                 #[cfg(target_os = "windows")]

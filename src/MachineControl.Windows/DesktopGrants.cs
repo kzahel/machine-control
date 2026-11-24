@@ -163,12 +163,33 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         lock (Gate) { Admission.Pause("desktop", reason); }
     }
-    internal void ConfigureSurface(string surface, string mode, int duration, string lifetime, string[]? browserProfileIds = null)
+    internal void ConfigureStartupAccess(bool enabled)
+    {
+        lock (Gate)
+        {
+            if (enabled && (!_ready || _updating || _consoleIdentity is null))
+                throw new InvalidOperationException("Use the unlocked console before enabling startup access");
+            Admission.SetStartupAccess(enabled);
+        }
+    }
+    internal void RestoreStartupAccess(string surface)
+    {
+        lock (Gate)
+        {
+            var choice = Admission.StartupAccessChoices().FirstOrDefault(entry => entry?["surface"]?.GetValue<string>() == surface);
+            if (choice is null) return;
+            ConfigureSurface(surface, choice["mode"]!.GetValue<string>(), 0, "until_stopped",
+                choice["profileIds"]!.Deserialize<string[]>(), restoring: true);
+        }
+    }
+    internal void ConfigureSurface(string surface, string mode, int duration, string lifetime,
+        string[]? browserProfileIds = null, bool restoring = false)
     {
         lock (Gate)
         {
             if (surface is not ("desktop" or "browser") || mode is not ("off" or "ask" or "automatic")) throw new ArgumentException("Choose a surface and access mode");
-            if (mode != "off" && (!_ready || _updating || !ApprovalPresentationAvailable)) throw new InvalidOperationException("Use an unlocked desktop with native notifications before enabling access");
+            var consoleReady = _ready || restoring && _lockedConsole && _consoleIdentity is not null && !_consoleElsewhere;
+            if (mode != "off" && (!consoleReady || _updating || !ApprovalPresentationAvailable)) throw new InvalidOperationException("Use an unlocked desktop with native notifications before enabling access");
             if (Journal?.Available == false && mode != "off") throw new InvalidOperationException("Audit storage unavailable");
             int? seconds = lifetime switch { "until_stopped" => null, "timed" => ValidateDuration(duration), _ => throw new ArgumentException("Choose an access lifetime") };
             if (surface == "browser")
@@ -181,7 +202,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 _browserGeneration = Guid.NewGuid().ToString("n");
             }
             else _generation = Guid.NewGuid().ToString("n");
-            Admission.Configure(surface, mode, seconds, surface == "browser" ? browserProfileIds ?? [] : []);
+            try { Admission.Configure(surface, mode, seconds, surface == "browser" ? browserProfileIds ?? [] : [], restoring); }
+            catch { if (surface == "browser") BrowserPolicy?.Stop(); throw; }
             if (surface == "desktop") ++_desktopConsentRevision;
             _lastEnded = null;
             Journal?.QueueEvent(mode == "off" ? "access.disabled" : "access.enabled");
@@ -268,7 +290,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         {
             _generation = Guid.NewGuid().ToString("n"); _browserGeneration = Guid.NewGuid().ToString("n");
             ++_desktopConsentRevision; _lastEnded = reason; _browserConsentConsole = null;
-            _admission?.Stop(reason); BrowserPolicy?.Stop(); Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
+            try { _admission?.Stop(reason); }
+            finally { BrowserPolicy?.Stop(); Journal?.QueueEvent("access." + DesktopJournal.Token(reason)); }
         }
     }
     /// Ends one owned task for a platform safety reason without touching

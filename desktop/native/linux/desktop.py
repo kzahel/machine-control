@@ -92,6 +92,8 @@ class Desktop:
         self.policy=Policy(self.scheduler.post,self.policy_event,self.policy_failed)
         self.grants=Access(self.policy,self.policy_changed)
         self.access_preferences=AccessPreferences(self.presentation.root,instance)
+        self.startup_access_path = self.presentation.root / f'{instance}-startup-access.json'
+        self.policy.call(dict(method='access.startup.initialize', path=str(self.startup_access_path)))
         saved_options=self.access_preferences.read()
         if saved_options is not None:
             try:self.policy.call(dict(method='access.preferences',preferences=saved_options))
@@ -400,8 +402,41 @@ class Desktop:
         self.locked_use.cancel_setup.set()
         for authority in list(self.browser.authorities.values()):authority['revoked'].set()
 
-    def stop_access(self,reason='stopped_by_person'):
-        self.emergency_fence();self.grants.stop(reason);self.browser.stop_access()
+    def stop_access(self,reason='stopped_by_person',*,preserve_startup=False):
+        self.emergency_fence()
+        try:
+            if not preserve_startup and not self.policy.alive:
+                self.startup_access_path.unlink(missing_ok=True)
+            self.grants.stop(reason,preserve_startup=preserve_startup)
+        except PolicyError:
+            if not preserve_startup:
+                self.startup_access_path.unlink(missing_ok=True)
+            raise
+        finally:
+            self.browser.stop_access()
+            self.changed()
+
+    def configure_surface(self, surface, mode, duration_ms, profiles, *, restoring=False):
+        if restoring and (self.inhibit.is_set() or not self.notice_capability()['available']):
+            raise ValueError('Native safety controls are unavailable')
+        known = self.session_identity is not None and time.monotonic() - self.session_observed <= 2
+        console_ready = self.unlocked or restoring and self.locked
+        if mode != 'off' and (not known or not console_ready or self.grants.updating
+                or self.locked_use.setup_process or self.covered is not None or not self.journal.health['available']):
+            raise ValueError('The local GNOME session is unavailable for enabling access')
+        if surface == 'browser':
+            self.browser.configure(profiles, duration_ms, mode != 'off')
+        try:
+            self.grants.configure(surface, mode, duration_ms, profiles, restoring=restoring)
+        except PolicyError:
+            if surface == 'browser':
+                self.browser.stop_access()
+            raise
+        if mode != 'off':
+            if not restoring:
+                self.inhibit.clear()
+            self.configuration_sessions[surface] = self.session_identity
+        self.refresh_availability()
         self.changed()
 
     def state(self,fresh=False):
@@ -459,21 +494,27 @@ class Desktop:
         if method in {'surface.configure','configure_surface'}:
             surface=command.get('surface');mode=command.get('mode')
             if surface not in ('desktop','browser') or mode not in ('off','ask','automatic'):raise ValueError('Choose a surface mode')
-            if mode!='off' and (not self.unlocked or self.session_identity is None or self.grants.updating
-                    or self.locked_use.setup_process or self.covered is not None or not self.journal.health['available']):
-                raise ValueError('Use the unlocked console before enabling access')
             duration=command.get('duration',900)
             if type(duration) is not int or duration<0 or duration>28800:raise ValueError('Invalid duration')
             duration_ms=None if command.get('lifetime')=='until_stopped' else max(60,duration)*1000
             profiles=command.get('browserProfileIds',[]) if surface=='browser' else []
             if not isinstance(profiles,list) or any(not isinstance(p,str) for p in profiles):raise ValueError('Choose exact profiles')
-            if surface=='browser':self.browser.configure(profiles,duration_ms,mode!='off')
-            self.grants.configure(surface,mode,duration_ms,profiles)
-            if mode!='off':
-                self.inhibit.clear();self.configuration_sessions[surface]=self.session_identity
-            self.refresh_availability();self.changed()
+            self.configure_surface(surface, mode, duration_ms, profiles)
+        elif method == 'access_startup':
+            enabled = command.get('enabled')
+            if type(enabled) is not bool or enabled and (not self.unlocked or self.grants.updating or self.covered is not None):
+                raise ValueError('Use the unlocked console before enabling startup access')
+            self.grants.send('startup.set', enabled=enabled)
+        elif method == 'access_startup_restore':
+            surface = command.get('surface')
+            choices = self.policy.call(dict(method='access.startup.pending'))['choices']
+            for choice in choices:
+                if choice['surface'] == surface:
+                    self.configure_surface(surface, choice['mode'], None, choice['profileIds'], restoring=True)
+                    break
         elif method in {'arm','decision'}:raise ValueError('Use surface modes and one live task')
         elif method=='stop':self.stop_access()
+        elif method=='stop_for_update':self.stop_access('update_in_progress',preserve_startup=True)
         elif method in {'surface.pause','pause_surface'}:
             duration=command.get('duration')
             if duration is not None and (type(duration) is not int or not 1<=duration<=28800):raise ValueError('Invalid pause')
@@ -542,10 +583,12 @@ class Desktop:
         elif method == "prepare_update":
             if any(row.get('mode','off')!='off' for row in self.grants.view.get('surfaces',{}).values()):
                 raise ValueError('Turn access Off before updating')
-            self.stop_access();self.grants.updating=True
+            self.stop_access('update_in_progress',preserve_startup=True);self.grants.updating=True
             self.portal.close()
         elif method == "cancel_update":
             self.grants.updating = False
+        elif method == "prepare_exit":
+            self.stop_access('operator_quit',preserve_startup=True)
         elif method == "quit":
             self.shutdown()
         else:
@@ -753,7 +796,7 @@ class Desktop:
                 self.safety.wait()
                 def lost():
                     self.safety_available = False
-                    self.stop_access("safety_unavailable")
+                    self.stop_access("safety_unavailable",preserve_startup=True)
                     self.refresh_availability()
                     return False
                 self.scheduler.post(lost)
@@ -993,7 +1036,7 @@ class Desktop:
         close('locked-use-setup',self.locked_use.cancel_setup.set)
         close('audit',lambda:self.journal.event('resident.stop'))
         close('work',self.work.cancel)
-        close('access',lambda:self.grants.stop('operator_disconnected'))
+        close('access',lambda:self.grants.stop('operator_disconnected',preserve_startup=True))
         close('policy',self.policy.stop)
         close('portal',self.portal.close)
         close('browser',self.browser.close)

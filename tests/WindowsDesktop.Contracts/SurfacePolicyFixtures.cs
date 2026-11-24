@@ -17,6 +17,32 @@ internal static class SurfacePolicyFixtures
             var loaded = new DesktopAccessPreferences(optionsPath).Read();
             Require(loaded?["yieldReapprove"]?.GetValue<bool>() == true && loaded["desktopNoticeSeconds"]?.GetValue<int>() == 0, "Restart retains operator return-approval and immediate-start choices");
             Require(!File.ReadAllText(optionsPath).Contains("grant"), "Preferences contain no grant");
+
+            var startupPath = Path.Combine(optionsRoot, "startup-access.json");
+            var first = TestBrowserProjection.Create();
+            first.Admission.InitializeStartupAccess(startupPath);
+            first.SetReady(true, consoleIdentity: "initial-logon");
+            first.ConfigureStartupAccess(true);
+            first.ConfigureSurface("desktop", "automatic", 0, "until_stopped");
+            first.Stop("operator_quit");
+
+            var restarted = TestBrowserProjection.Create();
+            restarted.Admission.InitializeStartupAccess(startupPath);
+            Require(!restarted.Admission.Enabled("desktop"), "Loading startup choices leaves Desktop Off until a native bind");
+            try
+            {
+                restarted.RestoreStartupAccess("desktop");
+                throw new Exception("Startup access was restored without a console identity");
+            }
+            catch (InvalidOperationException) { }
+            restarted.SetReady(false, lockedConsole: true, consoleIdentity: "new-logon");
+            restarted.RestoreStartupAccess("desktop");
+            Require(restarted.Admission.Enabled("desktop") && restarted.Authorize("type", controlled: true) == "desktop_unavailable",
+                "Restored consent on a verified locked console preserves the native readiness gate");
+            restarted.Stop("stopped_by_person");
+            var stopped = TestBrowserProjection.Create();
+            stopped.Admission.InitializeStartupAccess(startupPath);
+            Require(stopped.Admission.StartupAccessChoices().Count == 0, "Native Stop clears saved consent");
         }
         finally { Directory.Delete(optionsRoot, recursive: true); }
 

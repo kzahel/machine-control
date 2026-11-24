@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [168 — Restore indefinite access at startup](168-restore-access-at-startup.md)
+  records the opt-in, saved surface consent and native session rebinding.
+
 - [167 — GNOME compositor cover](167-gnome-compositor-cover.md) exercises
   GNOME Shell coverage, same-session unlock, and compositor-owned relock.
 

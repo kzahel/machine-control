@@ -87,9 +87,9 @@ class Access:
         if key=='input':self.send('input-ready',ready=value)
         else:self.send('ready',surface=key,ready=value[0],noticeVisible=value[1])
 
-    def configure(self,surface,mode,duration,profiles=()):
+    def configure(self,surface,mode,duration,profiles=(),*,restoring=False):
         self.send('configure',surface=surface,configuration=dict(mode=mode,durationMs=duration,
-            profileIds=list(profiles) if surface=='browser' else []))
+            profileIds=list(profiles) if surface=='browser' else []),restoring=restoring)
         if surface=='desktop':self.desktop_consent=uuid.uuid4().hex
 
     def submit(self,owner,request,authority):
@@ -127,8 +127,8 @@ class Access:
         # or already-closed channel has nothing to close there.
         if self.owners.pop(owner,None) is not None and self.host.alive:self.send('close',owner=owner)
 
-    def stop(self,_reason='stopped'):
-        if self.host.alive:self.send('stop')
+    def stop(self,_reason='stopped',*,preserve_startup=False):
+        if self.host.alive:self.send('stop',preserveStartup=preserve_startup)
         else:self.view=self.offline();self.generation=uuid.uuid4().hex;self.changed(True)
 
     def pause(self,surface='all',reason='manual',seconds=None):

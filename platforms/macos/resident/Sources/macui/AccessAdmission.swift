@@ -167,8 +167,8 @@ final class AccessAdmission {
         if invoke != nil { _ = try? send("input-ready", ["ready": ready]) }
     }
     func input(_ surface: String, kind: String) { _ = try? send("input", ["surface": surface, "kind": kind]) }
-    func configure(_ surface: String, mode: String, seconds: Int?, profiles: [String] = []) throws {
-        _ = try send("configure", ["surface": surface, "configuration": [
+    func configure(_ surface: String, mode: String, seconds: Int?, profiles: [String] = [], restoring: Bool = false) throws {
+        _ = try send("configure", ["surface": surface, "restoring": restoring, "configuration": [
             "mode": mode, "durationMs": seconds.map { Int($0 * 1000) } as Any? ?? NSNull(), "profileIds": profiles]])
         if surface == "desktop" { availabilityRevision += 1 }
         changed?()
@@ -280,7 +280,25 @@ final class AccessAdmission {
         }
         owners.remove(owner); changed?()
     }
-    func stop(_ reason: String) { _ = try? send("stop"); changed?() }
+    private var startupAccessPath: String?
+    func initializeStartupAccess(path: String) throws {
+        startupAccessPath = path
+        _ = try send("startup.initialize", ["path": path])
+    }
+    func setStartupAccess(_ enabled: Bool) throws {
+        _ = try send("startup.set", ["enabled": enabled])
+    }
+    func startupAccessChoices() throws -> [[String: Any]] {
+        try send("startup.pending")["choices"] as? [[String: Any]] ?? []
+    }
+    func stop(_ reason: String) {
+        let preserve = ["operator_quit", "resident_stopping", "update_in_progress"].contains(reason)
+        do { _ = try send("stop", ["preserveStartup": preserve]) }
+        catch {
+            if !preserve, let startupAccessPath { try? FileManager.default.removeItem(atPath: startupAccessPath) }
+        }
+        changed?()
+    }
     func reconfigureNotice(_ seconds: Double) {
         guard seconds.isFinite, (0...60).contains(seconds) else { return }
         _ = try? send("notice", ["milliseconds": Int(seconds * 1000)]); changed?()

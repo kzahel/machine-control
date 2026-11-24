@@ -160,6 +160,20 @@ approval again. [Access experience](../topics/desktop-access-experience.md) owns
 behavior and limits; [Tactical 157](../docs/tactical/157-desktop-access-experience.md)
 records focused checks and native/package qualification boundaries.
 
+### Restore access after login
+
+Enable **Restore access when Machine Control starts** in Settings. It restores
+the Desktop and Browser modes you enabled with **Until I turn it off**, using
+the same browser profile selection. Turn a surface Off to remove its saved
+access, or use **Stop access** to clear both. Timed access and individual tasks
+end with the previous runtime.
+
+To have this take effect after reboot, use **Start at login** on Windows or
+Linux, or add Machine Control to macOS Login Items. The app waits for its local
+desktop session and applies the existing locked-console requirements. On Ubuntu,
+see [covered desktop access](LINUX-LOCKED-USE.md) for work that starts on the
+lock screen. This feature is implemented in source and awaits release.
+
 ## Mac presentation and recovery
 
 The Mac candidate uses one resident and one package for three launch modes.

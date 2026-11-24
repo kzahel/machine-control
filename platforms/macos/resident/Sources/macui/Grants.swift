@@ -241,17 +241,17 @@ final class GrantBroker {
             approver: "surface_modes", origin: .person)
     }
     var grant: Grant? { activeGrant }
-    func validateSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String]) throws {
+    func validateSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String], restoring: Bool = false) throws {
         guard ["desktop", "browser"].contains(surface), ["off", "ask", "automatic"].contains(mode),
               seconds == nil || (60...28800).contains(seconds!) else {
             throw MacUIError.usage("invalid_surface_configuration")
         }
-        guard mode == "off" || operatorReady() else { throw MacUIError.permission("unlocked_operator_required") }
+        guard mode == "off" || restoring || operatorReady() else { throw MacUIError.permission("unlocked_operator_required") }
         guard journal?.errorCode == nil || mode == "off" else { throw MacUIError.action("audit_storage_unavailable") }
     }
-    func configureSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String] = []) throws {
-        try validateSurface(surface, mode:mode, seconds:seconds, profiles:profiles)
-        try admission.configure(surface, mode: mode, seconds: seconds, profiles: profiles)
+    func configureSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String] = [], restoring: Bool = false) throws {
+        try validateSurface(surface, mode:mode, seconds:seconds, profiles:profiles, restoring:restoring)
+        try admission.configure(surface, mode: mode, seconds: seconds, profiles: profiles, restoring:restoring)
         if surface == "desktop" { desktopConsentID = UUID().uuidString; authorityChanged?() }
         else { browserConsentID = UUID().uuidString }
         lastEnded = nil; journal?.event(mode == "off" ? "access.disabled" : "access.enabled")

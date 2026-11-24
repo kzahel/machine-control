@@ -15,14 +15,16 @@ internal static class DesktopHost
             throw new InvalidOperationException("The desktop resident requires its operator transport");
         using var stop = new CancellationTokenSource();
         RuntimeProfile.ConfigureUser(instance);
-        var presentation = new DesktopPresentation(DesktopPresentationIpc.PathFor(instance), temporaryPresentation);
+        var presentationPath = DesktopPresentationIpc.PathFor(instance);
+        var preferenceDirectory = Path.GetDirectoryName(presentationPath)!;
+        var presentation = new DesktopPresentation(presentationPath, temporaryPresentation);
         var journal = new DesktopJournal(instance == "desktop" ? null : Path.Combine(RuntimeProfile.StateRoot, "logs"));
         var broker = new DesktopGrants(journal: journal);
         var browserPreference = new DesktopBrowserPreference(Path.Combine(
-            Path.GetDirectoryName(DesktopPresentationIpc.PathFor(instance))!, instance + "-browser-while-locked.json"));
+            preferenceDirectory, instance + "-browser-while-locked.json"));
         broker.ConfigureBrowserWhileLocked(browserPreference.Enabled, loading: true);
         var lockedPreference = new DesktopBrowserPreference(Path.Combine(
-            Path.GetDirectoryName(DesktopPresentationIpc.PathFor(instance))!, instance + "-covered-desktop.json"),
+            preferenceDirectory, instance + "-covered-desktop.json"),
             "machine-control-covered-desktop/v1");
         var lockedUse = new DesktopLockedUse(broker, stop.Token);
         if (lockedPreference.Enabled && DesktopLockedUse.Prepared()) lockedUse.Enable(true);
@@ -42,7 +44,8 @@ internal static class DesktopHost
         using var shortcut = new DesktopStopShortcut(broker);
         using var nativePresentation = new DesktopNativePresentation(broker);
         using var browser = new BrowserRelay(broker);
-        var accessPreferences = new DesktopAccessPreferences(Path.Combine(Path.GetDirectoryName(DesktopPresentationIpc.PathFor(instance))!, instance + "-access-preferences.json"));
+        var accessPreferences = new DesktopAccessPreferences(Path.Combine(preferenceDirectory, instance + "-access-preferences.json"));
+        broker.Admission.InitializeStartupAccess(Path.Combine(preferenceDirectory, instance + "-startup-access.json"));
         if (accessPreferences.Read() is { } savedPreferences)
         {
             try { broker.Admission.Preferences(savedPreferences); }
@@ -207,6 +210,14 @@ internal static class DesktopHost
                                 command["duration"]?.GetValue<int>() ?? 900, command["lifetime"]?.GetValue<string>() ?? "timed",
                                 command["browserProfileIds"]?.Deserialize<string[]>());
                             reply = new { ok = true }; break;
+                        case "access_startup":
+                            DesktopSafety.RefreshAvailability(broker);
+                            broker.ConfigureStartupAccess(command["enabled"]!.GetValue<bool>());
+                            reply = new { ok = true }; break;
+                        case "access_startup_restore":
+                            DesktopSafety.RefreshAvailability(broker);
+                            broker.RestoreStartupAccess(command["surface"]!.GetValue<string>());
+                            reply = new { ok = true }; break;
                         case "control_notice":
                             var noticeSeconds = command["noticeSeconds"]!.GetValue<int>();
                             if (noticeSeconds is < 0 or > 60) throw new ArgumentException("Choose a notice countdown between 0 and 60 seconds");
@@ -228,6 +239,7 @@ internal static class DesktopHost
                             broker.Admission.Pause(surface, "manual", command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
                         case "resume_surface": broker.ResumeSurface(command["surface"]!.GetValue<string>()); reply = new { ok = true }; break;
                         case "stop": broker.Stop("stopped_by_person"); reply = new { ok = true }; break;
+                        case "stop_for_update": broker.Stop("update_in_progress"); reply = new { ok = true }; break;
                         case "pause": broker.Pause(command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
                         case "resume": broker.Resume(); reply = new { ok = true }; break;
                         case "start_control":

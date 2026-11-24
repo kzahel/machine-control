@@ -4,6 +4,7 @@ type Surface = "desktop" | "browser";
 type Mode = "off" | "ask" | "automatic";
 export type SurfacePolicy = {
   schema: string;
+  startup?: { enabled: boolean; pending: Surface[] };
   experienceVersion?: number;
   preferences?: AccessPreferences;
   available?: boolean;

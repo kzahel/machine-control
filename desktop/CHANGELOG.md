@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Add an opt-in setting on macOS, Windows, and Linux to restore **Until I turn
+  it off** access when Machine Control starts. Stop clears saved access.
+
 ## [0.7.4]
 
 - On Ubuntu with GNOME 50 Wayland, the Debian package can run a prepared

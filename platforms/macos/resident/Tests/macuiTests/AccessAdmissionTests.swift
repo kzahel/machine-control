@@ -16,6 +16,34 @@ final class AccessAdmissionTests: XCTestCase {
         XCTAssertEqual(normalized["yieldReapprove"] as? Bool, true)
     }
 
+    func testStartupAccessPersistsThroughQuitAndClearsOnHotkeyStop() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at:folder, withIntermediateDirectories:true)
+        defer { try? FileManager.default.removeItem(at:folder) }
+        let path = folder.appendingPathComponent("startup-access.json").path
+        do {
+            let fixture = try SharedPolicyFixture(), admission = fixture.admission
+            try admission.initializeStartupAccess(path:path)
+            try admission.setStartupAccess(true)
+            try admission.configure("desktop", mode:"ask", seconds:nil)
+            admission.stop("operator_quit")
+        }
+        do {
+            let fixture = try SharedPolicyFixture(), admission = fixture.admission
+            try admission.initializeStartupAccess(path:path)
+            XCTAssertFalse(admission.enabled("desktop"))
+            XCTAssertEqual(try admission.startupAccessChoices().first?["mode"] as? String, "ask")
+            XCTAssertThrowsError(try admission.configure("desktop", mode:"automatic", seconds:nil, restoring:true))
+            try admission.configure("desktop", mode:"ask", seconds:nil, restoring:true)
+            XCTAssertTrue(admission.enabled("desktop"))
+            admission.stop("stopped_by_hotkey")
+        }
+        let fixture = try SharedPolicyFixture()
+        try fixture.admission.initializeStartupAccess(path:path)
+        XCTAssertTrue(try fixture.admission.startupAccessChoices().isEmpty)
+        withExtendedLifetime(fixture) {}
+    }
+
     func testSharedOwnerCannotBorrowSessionAndPauseNeedsFreshOffer() throws {
         let fixture = try SharedPolicyFixture(), admission = fixture.admission
         try admission.configure("desktop",mode:"automatic",seconds:nil)

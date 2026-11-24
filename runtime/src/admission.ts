@@ -11,7 +11,7 @@ export function backgroundOperations(operations: readonly string[] | undefined):
 }
 export interface SurfaceConfiguration {
   readonly mode: AccessMode;
-  /** Null means until turned off. Restart never restores live authority. */
+  /** Null means until turned off. Live tasks always belong to this runtime. */
   readonly durationMs: number | null;
   readonly profileIds?: readonly string[];
 }
@@ -143,14 +143,19 @@ export class AccessAdmission {
     this.#owners.delete(owner);
     this.tick();
   }
-  configure(surface: Surface, configuration: SurfaceConfiguration): void {
-    const current = this.#config(surface);
+  validateConfiguration(surface: Surface, configuration: SurfaceConfiguration): readonly string[] {
+    this.#config(surface);
     if (!["off", "ask", "automatic"].includes(configuration.mode)) throw new Error("invalid_access_mode");
     if (configuration.durationMs !== null) duration(configuration.durationMs, 1000, 86_400_000);
     const profiles = configuration.profileIds ?? [];
     if (!Array.isArray(profiles) || profiles.length > 64 || new Set(profiles).size !== profiles.length ||
         (surface === "desktop" && profiles.length > 0)) throw new Error("invalid_profile_selection");
     for (const profile of profiles) identifier(profile);
+    return profiles;
+  }
+  configure(surface: Surface, configuration: SurfaceConfiguration): void {
+    const profiles = this.validateConfiguration(surface, configuration);
+    const current = this.#config(surface);
     // Configuration is a new consent ceiling, never an extension of an old task.
     for (const intent of this.#intents)
       if (!intent.terminal && intent.request.surfaces.includes(surface)) this.#finish(intent, "consent_replaced");

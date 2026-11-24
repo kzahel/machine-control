@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PolicyHost } from "../../runtime/node/policy-host.ts";
 import { FrameDecoder, encodeFrame } from "../../runtime/node/framing.ts";
@@ -116,6 +119,60 @@ function child() {
   }
   return { child, frames, call };
 }
+
+test("startup access carries only opted-in surface choices across process exits", { timeout: 45_000 }, async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "mc-startup-access-"));
+  const path = join(root, "state.json");
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const desktop = { mode: "ask", durationMs: null, profileIds: [] };
+  const browser = { mode: "automatic", durationMs: null, profileIds: ["work"] };
+  const off = { mode: "off", durationMs: null, profileIds: [] };
+  async function boot(run) {
+    const policy = child();
+    try {
+      await policy.call("hello", { protocolVersion: 2 });
+      const initial = await policy.call("access.startup.initialize", { path });
+      assert.equal(initial.surfaces.desktop.mode, "off");
+      assert.equal(initial.surfaces.browser.mode, "off");
+      assert.deepEqual(initial.requests, []);
+      await run(policy.call, initial.startup);
+    } finally {
+      policy.child.stdin.end();
+      assert.deepEqual(await once(policy.child, "exit"), [0, null]);
+    }
+  }
+  await boot(async (call, startup) => {
+    assert.deepEqual(startup, { enabled: false, pending: [] });
+    await call("access.configure", { surface: "desktop", configuration: desktop });
+  });
+  await boot(async (call, startup) => {
+    assert.deepEqual(startup, { enabled: false, pending: [] });
+    await call("access.configure", { surface: "desktop", configuration: desktop });
+    await call("access.configure", { surface: "browser", configuration: { ...browser, durationMs: 60_000 } });
+    await call("access.startup.set", { enabled: true });
+  });
+  await boot(async (call, startup) => {
+    assert.deepEqual(startup, { enabled: true, pending: ["desktop"] });
+    assert.deepEqual((await call("access.startup.pending")).choices, [{ surface: "desktop", mode: "ask", profileIds: [] }]);
+    const restored = await call("access.configure", { surface: "desktop", configuration: desktop, restoring: true });
+    assert.equal(restored.surfaces.desktop.mode, "ask");
+    assert.equal(restored.surfaces.desktop.ready, false, "restored consent alone cannot authorize effects");
+    assert.deepEqual(restored.startup.pending, []);
+    await call("access.configure", { surface: "browser", configuration: browser });
+    await call("access.stop", { preserveStartup: true });
+  });
+  await boot(async (call, startup) => {
+    assert.deepEqual(startup, { enabled: true, pending: ["desktop", "browser"] });
+    await call("access.configure", { surface: "desktop", configuration: off });
+    assert.deepEqual((await call("access.startup.pending")).choices, [{ surface: "browser", mode: "automatic", profileIds: ["work"] }]);
+    const restored = await call("access.configure", { surface: "browser", configuration: browser, restoring: true });
+    assert.deepEqual(restored.surfaces.browser.profileIds, ["work"]);
+    await call("access.stop");
+  });
+  await boot(async (_, startup) => assert.deepEqual(startup, { enabled: true, pending: [] }));
+  await writeFile(path, "{truncated");
+  await boot(async (_, startup) => assert.deepEqual(startup, { enabled: false, pending: [] }));
+});
 
 test("executable EOF revokes unsettled work and exits without live handles", { timeout: 45_000 }, async (t) => {
   const actor = child();

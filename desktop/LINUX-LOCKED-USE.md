@@ -48,3 +48,10 @@ and native unlock. Processes with a shell as the desktop user already have
 the permissions of that account.
 
 Browser-only access has its own setting and can leave the console locked.
+
+In the current source, **Start at login** and **Restore access when Machine
+Control starts** can bring back **Until I turn it off** access after GNOME
+sign-in, including when the session is already locked. To run covered tasks
+from that state, complete the covered setup above. GDM automatic login and
+any lock-on-login hook are GNOME configuration. A password-protected GNOME
+Login keyring may still need to be unlocked separately after automatic login.

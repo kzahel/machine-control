@@ -15,6 +15,7 @@ import type { NativeFrame } from "../src/extension-provider.ts";
 import { dispatchToProvider } from "../src/provider-dispatch.ts";
 import { AccessAdmission, backgroundOperations } from "../src/admission.ts";
 import type { AdmissionOwner, AdmissionRequest, Surface, SurfaceConfiguration, SessionFence, HumanInput, AccessPreferences } from "../src/admission.ts";
+import { StartupAccess } from "./startup-access.ts";
 
 function string(value: unknown): string {
   if (typeof value !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(value))
@@ -67,6 +68,7 @@ export class PolicyHost {
   #hello = false;
   #sequence = 0;
   #closed = false;
+  #startupAccess?: StartupAccess;
 
   constructor(send: (frame: NativeFrame) => void, admissionClock: Clock = { now: () => Math.floor(performance.now()) }) {
     this.#send = send;
@@ -481,10 +483,22 @@ export class PolicyHost {
   /** Only the authenticated native parent can reach this private inlet. */
   #access(frame: NativeFrame): unknown {
     const method = frame.method;
-    if (method === "access.state") return this.access.status();
+    if (method === "access.state") return this.#accessStatus();
     if (method === "access.query") return this.access.query();
-    if (method === "access.configure") {
-      this.access.configure(string(frame.surface) as Surface, object(frame.configuration) as unknown as SurfaceConfiguration);
+    if (method === "access.startup.pending") return { choices: this.#startupAccess?.pending() ?? [] };
+    if (method === "access.startup.initialize") {
+      if (this.#startupAccess || typeof frame.path !== "string") throw new Error("invalid_startup_access_path");
+      this.#startupAccess = new StartupAccess(frame.path, this.access);
+    } else if (method === "access.startup.set") {
+      if (!this.#startupAccess || typeof frame.enabled !== "boolean") throw new Error("invalid_startup_access_preference");
+      this.#startupAccess.optIn(frame.enabled, this.access);
+    } else if (method === "access.configure") {
+      const surface = string(frame.surface) as Surface;
+      const configuration = object(frame.configuration) as unknown as SurfaceConfiguration;
+      this.access.validateConfiguration(surface, configuration);
+      if (frame.restoring === true && !this.#startupAccess) throw new Error("startup_access_changed");
+      this.#startupAccess?.configure(surface, configuration, frame.restoring === true);
+      this.access.configure(surface, configuration);
     } else if (method === "access.notice") this.access.notice(integer(frame.milliseconds));
     else if (method === "access.ready") {
       if (typeof frame.ready !== "boolean") throw new Error("invalid_host_request");
@@ -493,8 +507,17 @@ export class PolicyHost {
     } else if (method === "access.input-ready") {
       if (typeof frame.ready !== "boolean") throw new Error("invalid_host_request");
       this.access.inputReady(frame.ready);
-    } else if (method === "access.pause") this.access.pause(string(frame.surface) as Surface | "all", string(frame.reason), frame.milliseconds === null ? null : integer(frame.milliseconds));
-    else if (method === "access.resume") this.access.resume(string(frame.surface) as Surface | "all", string(frame.reason));
+    } else if (method === "access.pause" || method === "access.resume") {
+      const surface = string(frame.surface) as Surface | "all";
+      const reason = string(frame.reason);
+      if (method === "access.pause") {
+        this.access.pause(surface, reason, frame.milliseconds === null ? null : integer(frame.milliseconds));
+        if (reason === "manual") this.#startupAccess?.forget(surface);
+      } else {
+        this.access.resume(surface, reason);
+        if (reason === "manual") this.#startupAccess?.resume(surface, this.access);
+      }
+    }
     else if (method === "access.input") this.access.input(string(frame.surface) as Surface, string(frame.kind) as HumanInput);
     else if (method === "access.preferences") this.access.preferences(object(frame.preferences) as unknown as AccessPreferences);
     else if (method === "access.hold") this.access.hold(string(frame.intentId));
@@ -503,7 +526,10 @@ export class PolicyHost {
     else if (method === "access.start") this.access.startNow(string(frame.intentId));
     else if (method === "access.deny") this.access.deny(string(frame.intentId));
     else if (method === "access.defer") this.access.defer(string(frame.intentId), frame.milliseconds === null ? null : integer(frame.milliseconds));
-    else if (method === "access.stop") this.access.stop();
+    else if (method === "access.stop") {
+      this.access.stop();
+      if (frame.preserveStartup !== true) this.#startupAccess?.forget("all");
+    }
     else {
       const label = string(frame.owner);
       if (method === "access.open") {
@@ -528,7 +554,11 @@ export class PolicyHost {
         else throw new Error("unknown_host_method");
       }
     }
-    return ["access.input", "access.input-ready", "access.ready"].includes(method as string) ? this.access.query() : this.access.status();
+    return ["access.input", "access.input-ready", "access.ready"].includes(method as string) ? this.access.query() : this.#accessStatus();
+  }
+
+  #accessStatus() {
+    return { ...this.access.status(), startup: this.#startupAccess?.status() };
   }
 
   #consume(effects: readonly Effect[]): void {

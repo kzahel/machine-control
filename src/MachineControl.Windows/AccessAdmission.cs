@@ -53,10 +53,11 @@ internal sealed class AccessAdmission(object? gate = null)
             if (_invoke is not null) Call("ready", new() { ["surface"] = surface, ["ready"] = ready, ["noticeVisible"] = value.Item2 });
         }
     }
-    internal JsonObject Configure(string surface, string mode, int? durationSeconds, string[] profiles) =>
+    internal JsonObject Configure(string surface, string mode, int? durationSeconds, string[] profiles, bool restoring = false) =>
         Call("configure", new()
         {
             ["surface"] = surface,
+            ["restoring"] = restoring,
             ["configuration"] = new JsonObject
             {
                 ["mode"] = mode,
@@ -221,7 +222,37 @@ internal sealed class AccessAdmission(object? gate = null)
             return ended;
         }
     }
-    internal void Stop(string reason) { lock (Gate) { if (_invoke is not null) Call("stop"); } }
+    private string? _startupAccessPath;
+    internal void InitializeStartupAccess(string path)
+    {
+        _startupAccessPath = path;
+        Call("startup.initialize", new() { ["path"] = path });
+    }
+    internal void SetStartupAccess(bool enabled) => Call("startup.set", new() { ["enabled"] = enabled });
+    internal JsonArray StartupAccessChoices() => Call("startup.pending")["choices"]!.AsArray();
+    internal void Stop(string reason)
+    {
+        lock (Gate)
+        {
+            var preserve = reason is "resident_policy_disconnected" or "operator_disconnected" or "operator_quit" or
+                "native_presentation_unavailable" or "update_in_progress";
+            try
+            {
+                if (_invoke is not null) { Call("stop", new() { ["preserveStartup"] = preserve }); return; }
+            }
+            catch (Exception) when (!preserve && _startupAccessPath is not null)
+            {
+                ForgetStartupAccess(_startupAccessPath);
+                throw;
+            }
+            if (!preserve && _startupAccessPath is not null) ForgetStartupAccess(_startupAccessPath);
+        }
+    }
+    private static void ForgetStartupAccess(string path)
+    {
+        try { File.Delete(path); }
+        catch (DirectoryNotFoundException) { }
+    }
     internal void CancelFromOperator(string id) => Call("deny", new() { ["intentId"] = id });
     internal void Approve(string id, int seconds = 0)
     {

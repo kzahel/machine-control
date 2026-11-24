@@ -4,6 +4,7 @@ import os
 import queue
 import socket
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,6 +54,26 @@ class AccessTests(unittest.TestCase):
         self.assertEqual(self.access.state()['surfaces']['desktop']['mode'],'automatic')
         self.active('two');self.access.stop()
         self.assertEqual(self.access.state()['surfaces']['desktop']['mode'],'off')
+
+    def test_startup_restores_only_through_an_explicit_native_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / 'startup-access.json')
+            self.access.send('startup.initialize', path=path)
+            self.access.send('startup.set', enabled=True)
+            self.access.stop('operator_disconnected', preserve_startup=True)
+            host = Policy(lambda *_: None, lambda _: None, lambda _: None, root=self.root)
+            try:
+                access = Access(host, lambda _: None)
+                access.send('startup.initialize', path=path)
+                self.assertIsNone(access.grant)
+                self.assertEqual(access.send('startup.pending')['choices'][0]['surface'], 'desktop')
+                access.configure('desktop', 'automatic', None, restoring=True)
+                self.assertEqual(access.state()['surfaces']['desktop']['mode'], 'automatic')
+                self.assertFalse(access.state()['surfaces']['desktop']['ready'])
+                access.stop()
+                self.assertEqual(access.send('startup.pending')['choices'], [])
+            finally:
+                host.stop()
 
     def test_browser_configuration_and_pause_do_not_cancel_desktop(self):
         active=self.active();generation=self.access.generation

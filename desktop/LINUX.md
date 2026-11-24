@@ -50,8 +50,10 @@ the native GTK/AT-SPI resident still uses the system dependencies above.
 
 ## Access and sharing
 
-Access starts Off. Enable selected scopes for a bounded duration, or approve a
-request in the native dialog. Stop ends access immediately. Restart starts Off.
+Access starts Off by default. Enable the surfaces you want, or approve a
+request in the native dialog. Stop ends access immediately. See [restoring
+access after login](README.md#restore-access-after-login) for the optional
+startup behavior in newer source builds.
 Screen capture and pointer/keyboard input require **Permissions → Share…** and
 visible GNOME portal consent. Sharing alone does not grant agent access. Closing
 sharing, leaving the unlocked session, or losing the operator ends access.

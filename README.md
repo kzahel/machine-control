@@ -62,7 +62,8 @@ CLI does not require a source checkout or a separate Python installation.
 3. Choose access scopes and duration, or approve an agent's request.
 
 The app runs in the menu bar or tray. Closing its settings window keeps it
-running; Quit ends it. Access starts off, and you can stop it from the app.
+running; Quit ends it. Access starts off by default, and you can stop it from
+the app.
 Grants normally apply to callers running as your user; an agent with an
 unrestricted shell under that same account is not contained by those grants.
 See [security and authorization](SECURITY.md) for the boundaries.

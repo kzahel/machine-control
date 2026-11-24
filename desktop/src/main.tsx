@@ -1854,6 +1854,24 @@ function App() {
               </section>
             )}
             <section className="group" aria-label="Application">
+              {state?.accessPolicy?.startup && (
+                <>
+                  <label className="setting-row">
+                    <span className="row-label">Restore access when Machine Control starts</span>
+                    <input
+                      type="checkbox"
+                      checked={state.accessPolicy.startup.enabled}
+                      disabled={busy}
+                      onChange={(e) => void act({ method: "access_startup", enabled: e.target.checked })}
+                      aria-describedby="startup-access-note"
+                    />
+                  </label>
+                  <p className="note" id="startup-access-note">
+                    Restores surfaces set to Until I turn it off. Stop access clears saved access.
+                    {state.accessPolicy.startup.pending.length > 0 && " Waiting to restore saved access."}
+                  </p>
+                </>
+              )}
               <div className="setting-row">
                 <span className="row-label">Restart</span>
                 <button

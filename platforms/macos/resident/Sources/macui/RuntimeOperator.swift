@@ -145,6 +145,9 @@ extension ResidentRuntime {
                     server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
                 case "stop":
                     stopAccess()
+                case "stop_for_update":
+                    operatorDependency.cancel("update_in_progress")
+                    server.revoke(reason:"update_in_progress")
                 case "finish_exit": server.broker.journal?.finishRuntime()
                 case "prepare_exit":
                     operatorDependency.cancel("operator_quit")
@@ -203,6 +206,16 @@ extension ResidentRuntime {
                     if lifetime == "timed" && seconds == nil { throw MacUIError.usage("Choose an access duration") }
                     try server.configureSurface(surface, mode:mode, seconds:seconds,
                         profiles:command["browserProfileIds"] as? [String] ?? [])
+                case "access_startup":
+                    guard !updating, let enabled = command["enabled"] as? Bool else {
+                        throw MacUIError.usage("Choose whether access is restored at startup")
+                    }
+                    try server.configureStartupAccess(enabled:enabled)
+                case "access_startup_restore":
+                    guard !updating, let surface = command["surface"] as? String else {
+                        throw MacUIError.usage("Choose a surface")
+                    }
+                    try server.restoreStartupAccess(surface:surface)
                 case "surface.pause", "pause_surface":
                     guard let surface = command["surface"] as? String, ["desktop", "browser"].contains(surface) else {
                         throw MacUIError.usage("Choose a surface")

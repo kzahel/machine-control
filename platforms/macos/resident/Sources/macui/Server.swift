@@ -383,6 +383,7 @@ final class ResidentServer {
     private var observedGrantID: String?
     private var browserConsoleBinding: GrantConsoleBinding?
     private var observedBrowserConsentID: String?
+    private var restoringStartupSurface: String?
 
     let browser: BrowserRelay
     lazy var lockedUse = MacLockedUse(broker: broker, service: service,
@@ -501,22 +502,42 @@ final class ResidentServer {
         if observedGrantID != broker.desktopConsentID {
             observedGrantID = broker.desktopConsentID
             grantConsoleBinding = broker.admission.enabled("desktop") ?
-                GrantConsoleBinding(grantID:broker.desktopConsentID, observation:observation) : nil
+                GrantConsoleBinding(grantID:broker.desktopConsentID, observation:observation, restoring:restoringStartupSurface == "desktop") : nil
         }
         if observedBrowserConsentID != broker.browserConsentID {
             observedBrowserConsentID = broker.browserConsentID
             browserConsoleBinding = broker.admission.enabled("browser") ?
-                GrantConsoleBinding(grantID:broker.browserConsentID, observation:observation) : nil
+                GrantConsoleBinding(grantID:broker.browserConsentID, observation:observation, restoring:restoringStartupSurface == "browser") : nil
         }
     }
 
-    func configureSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String] = []) throws {
+    func configureStartupAccess(enabled: Bool) throws {
         service.refreshSession()
-        try broker.validateSurface(surface, mode:mode, seconds:seconds, profiles:profiles)
+        guard broker.policy.grantMode == .approval, !enabled || broker.operatorReady() else {
+            throw MacUIError.permission("unlocked_operator_required")
+        }
+        try broker.admission.setStartupAccess(enabled)
+    }
+
+    func restoreStartupAccess(surface: String) throws {
+        guard broker.policy.grantMode == .approval,
+              let choice = try broker.admission.startupAccessChoices().first(where: { $0["surface"] as? String == surface }),
+              let mode = choice["mode"] as? String, let profiles = choice["profileIds"] as? [String] else { return }
+        try configureSurface(surface, mode:mode, seconds:nil, profiles:profiles, restoring:true)
+    }
+
+    func configureSurface(_ surface: String, mode: String, seconds: Int?, profiles: [String] = [], restoring: Bool = false) throws {
+        service.refreshSession()
+        if restoring && (lockedUse.isCovered || GrantConsoleBinding(grantID:"startup", observation:grantConsoleObservation(), restoring:true) == nil) {
+            throw MacUIError.permission("console_session_unavailable")
+        }
+        if restoring { restoringStartupSurface = surface }
+        defer { restoringStartupSurface = nil }
+        try broker.validateSurface(surface, mode:mode, seconds:seconds, profiles:profiles, restoring:restoring)
         if surface == "browser" {
             try browser.configure(profiles: profiles, seconds: seconds, enabled: mode != "off")
         }
-        do { try broker.configureSurface(surface, mode: mode, seconds: seconds, profiles: profiles) }
+        do { try broker.configureSurface(surface, mode: mode, seconds: seconds, profiles: profiles, restoring:restoring) }
         catch { if surface == "browser" { browser.stopAccess() }; throw error }
         bindApprovedConsole()
         reconcileObservedSession()

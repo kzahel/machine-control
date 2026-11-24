@@ -25,7 +25,7 @@ try {
   await context.addInitScript(() => {
     window.commands = [];
     const surface = () => ({ mode: "off", expired: false, consentRemainingSeconds: null, profileIds: [], ready: true, pauses: [] });
-    const policy = { schema: "machine-control-admission/v2", noticeSeconds: 10, globalPauses: [], surfaces: { desktop: surface(), browser: surface() } };
+    const policy = { schema: "machine-control-admission/v2", noticeSeconds: 10, startup: { enabled: false, pending: [] }, globalPauses: [], surfaces: { desktop: surface(), browser: surface() } };
     const state = { platform: "windows", deployment: { policy: { preset: "workstation", grantMode: "surface_modes" }, grant: null, pendingRequest: null },
       accessPolicy: policy, admission: { active: 0, waiting: 0, requests: [] }, permissions: { accessibility: true, screenRecording: true },
       presentation: { profile: "personal", setting: false, temporaryOverride: false, diagnostic: null }, browser: { connected: true, profiles: [{ profileId: "fixture:work", name: "Work", enabled: true, connected: true },
@@ -52,6 +52,7 @@ try {
         for (const surface of Object.values(policy.surfaces)) surface.pauses = surface.pauses.filter(pause => pause.scope !== "all");
       }
       if (request.method === "control_notice") policy.noticeSeconds = request.noticeSeconds;
+      if (request.method === "access_startup") policy.startup.enabled = request.enabled;
       if (request.method === "access_preferences") { policy.preferences = request.preferences; policy.noticeSeconds = request.preferences.desktopNoticeSeconds; }
       if (["hold_control", "continue_control", "approve_control", "postpone_control"].includes(request.method)) {
         const row = state.admission.requests.find(row => row.intentId === request.intentId);
@@ -148,6 +149,9 @@ try {
   const startup = page.getByRole("combobox", { name: "Startup behavior" });
   await startup.selectOption("minimal");
   assert.equal((await calls()).at(-1).method, "presentation");
+  const restore = page.getByRole("checkbox", { name: "Restore access when Machine Control starts" });
+  await restore.check();
+  assert.deepEqual((await calls()).at(-1), { method: "access_startup", enabled: true });
   await page.getByRole("button", { name: "Access", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: /Pause|Resume/ }).count(), 0);
   await page.setViewportSize({ width: 580, height: 650 });

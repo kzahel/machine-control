@@ -211,6 +211,14 @@ Allow/Continue input before activation. The operator inlet adds:
 
 - `access.preferences`: validated `preferences` containing per-surface warning
   seconds, Desktop yield wait and reapproval choice. No access is granted.
+- `access.startup.initialize`: load the per-instance consent file at the
+  absolute `path` chosen by the native parent. `access.startup.set` changes the
+  operator's `enabled` preference. `access.startup.pending` lists the exact
+  indefinite surface choices awaiting binding. The native parent calls
+  `access.configure` with `restoring: true` and a matching choice after checking
+  local session identity. Full status exposes the preference and pending
+  surface names. Normal Stop clears saved choices. Trusted shutdown and updater
+  calls use `access.stop` with `preserveStartup: true`.
 - `access.approve`: optional `milliseconds` explicitly approves this exact task
   for immediate or delayed eligibility under its original deadlines.
 - `access.postpone`: `intentId`/`milliseconds`, postpones without granting approval.

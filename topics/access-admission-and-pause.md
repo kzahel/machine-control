@@ -113,6 +113,14 @@ A still-authorized task can resume through a fresh handoff without another
 approval click; it receives a new active session under the original consent
 ceiling. A different task cannot inherit that approval.
 
+**Current source (Tactical 168)** — an unlocked operator can opt in to
+restoring indefinite Desktop and Browser consent on app startup. The resident
+loads the saved choices as pending and binds them to the newly observed local
+login session. The existing native routing, profile and readiness checks
+govern what work can start, including on a locked console. Stop and surface
+Off also revoke the saved choices. Implementation and verification details
+are in the [startup access record](../docs/tactical/168-restore-access-at-startup.md).
+
 **Decision:** a request can be submitted while its surface is temporarily busy
 or paused and remains connection-owned under bounded liveness/usefulness limits.
 The CLI/SDK maintains the wait; an LLM should not repeatedly submit actions or
