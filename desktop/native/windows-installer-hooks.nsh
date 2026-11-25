@@ -183,6 +183,14 @@
     Abort "Installed Python payload could not be protected."
   ${EndIf}
   Pop $R0
+  ; Normal signed updates also maintain the separately approved helper.
+  ; Ordinary installation remains available if a legacy helper needs its
+  ; one-time administrator migration or native maintenance needs repair.
+  Push $R0
+  nsExec::ExecToLog /TIMEOUT=260000 '"$INSTDIR\runtime\machine-control-windows.exe" uac-update'
+  Pop $R0
+  DetailPrint "Protected helper update result: $R0"
+  Pop $R0
 !macroend
 ; Use Python's Unicode registry API for PATH; NSIS strings can truncate a long
 ; existing value. This variable contains only the selected preference.

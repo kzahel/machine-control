@@ -67,6 +67,7 @@ Assert(JsonSerializer.SerializeToNode(Contract.ParseRequest("{\"operation\":\"br
     !unowned.ContainsKey("owner") && !unowned.ContainsKey("ownerClaimId"), "Unowned browser requests stay unowned");
 await RetainedPipeProxyFixtures.RunAsync();
 CompanionBinaryIdentityFixtures.Run();
+DesktopHelperSignatureFixtures.Run();
 ApplicationTargetFixtures.Run();
 KeyChordFixtures.Run();
 TextStrokeFixtures.Run();

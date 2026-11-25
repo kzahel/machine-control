@@ -24,6 +24,7 @@ internal static class DesktopUnlockEnrollment
     internal static async Task ServeAsync(NamedPipeServerStream pipe, bool remove, CancellationToken stop)
     {
         RequireSetupPeer(pipe);
+        using var activity = DesktopHelperUpdate.EnterProtectedOperation();
         var session = NativeMethods.WTSGetActiveConsoleSessionId();
         var sid = UnlockNative.ConsoleUserSid(session);
         var logon = UnlockNative.ConsoleLogonId(session);

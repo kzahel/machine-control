@@ -11,7 +11,7 @@ physical hardware, and localized prompt acceptance remain separate gates.
    apps**, then complete Windows administrator approval. Cancelling installs
    nothing and keeps access off.
 3. In **Settings**, select **Allow UAC and elevated app control**. This choice
-   starts off on each app run. Changing it stops access and requires fresh
+   starts off on an ordinary launch. Changing it stops access and requires fresh
    approval.
 4. Enable the needed observation/control scopes in **Access**. The agent must
    acquire and retain a live control session through the installed CLI/SDK.
@@ -65,10 +65,17 @@ to the ordinary profile afterward. Remove this separate helper before
 uninstalling the desktop app; ordinary per-user uninstall does not remove an
 administrator-installed service.
 
-An installed helper cannot silently override a newer bundled runtime. The app
-uses it only when executable hashes match. After a product update, remove the
-old helper and install the new one before enabling protected control again.
-Other desktop instances using that payload must be closed before removal.
+Machine Control uses the installed helper when it matches the bundled build.
+If Permissions shows **Update required** for a legacy helper, stop access and
+choose **Update helper…**. Windows requests administrator approval once.
+This updates the helper in place and keeps any saved Windows unlock setup.
+
+Later signed Windows updates maintain the approved helper automatically.
+**Install and restart** carries the UAC option through that update when the
+new helper is ready. Ordinary launches start with the option off. **Repair
+needed** means the helper could not start. Use **Repair helper…** in
+Permissions. Close other desktop instances using the helper before updating
+or removing it.
 
 See [Windows desktop](../topics/windows-desktop.md) for current acceptance and
 [Tactical 097](../docs/tactical/097-windows-desktop-uac.md) for the implementation

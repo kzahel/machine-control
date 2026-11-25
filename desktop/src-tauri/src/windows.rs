@@ -400,11 +400,15 @@ pub fn command(command: Value) -> Result<Value, String> {
         }
         let mut launch = Command::new(bundled_runtime(app)?);
         launch
-            .arg(if command["method"] == "permission.uac" {
-                "uac-setup"
-            } else {
-                "unlock-desktop-setup"
-            })
+            .arg(
+                if command["method"] == "permission.uac" && command["upgrade"] == true {
+                    "uac-update-setup"
+                } else if command["method"] == "permission.uac" {
+                    "uac-setup"
+                } else {
+                    "unlock-desktop-setup"
+                },
+            )
             .creation_flags(0x08000000);
         if command["remove"] == true {
             launch.arg("--remove");

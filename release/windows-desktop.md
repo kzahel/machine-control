@@ -21,8 +21,11 @@ updater signing uses the desktop product's existing key.
 The pipeline verifies the pinned provider, signs it, and compiles its final
 digest into the resident. Companion staging retains audited dependency notices
 and omits component/protected setup tools. A signed catalog covers every runtime
-resource. Tauri's custom signing command signs the app, generated uninstaller,
-and NSIS installer. The updater signature covers final bytes and version.
+resource. The product updater key also signs a release manifest of the exact
+runtime bytes for protected helper maintenance. The bundle preserves those
+bytes, and signed installer verification invokes the shipped helper verifier.
+Tauri's custom signing command signs the app, generated uninstaller, and NSIS
+installer. The updater signature covers final installer bytes and version.
 
 [Artifact Signing CLI](https://github.com/Levminer/artifact-signing-cli), MIT,
 is pinned to `0.11.0`; it succeeds the signing tool used by sibling desktop

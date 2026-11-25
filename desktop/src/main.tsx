@@ -140,6 +140,7 @@ type State = {
   };
   uac?: {
     installed: boolean;
+    helperStatus?: "ready" | "update_required" | "app_update_required" | "repair_needed" | "not_installed";
     enabled: boolean;
     setupState: string;
     setupError?: string | null;
@@ -439,6 +440,15 @@ function App() {
     (mac || windows || linux) && !standing && (unifiedPolicy || state?.deployment.policy.grantMode === "approval")
       ? state.lockedUse
       : undefined;
+  const uacStatus = state?.uac?.helperStatus ??
+    (state?.uac?.installed ? "ready" : "not_installed");
+  const uacStatusLabel = {
+    ready: "Ready",
+    update_required: "Update required",
+    app_update_required: "App update required",
+    repair_needed: "Repair needed",
+    not_installed: "Not installed",
+  }[uacStatus];
   const accessTitle = !state
     ? "Connecting…"
     : !on && !standing
@@ -1016,28 +1026,48 @@ function App() {
                   <div className="setting-row">
                     <span className="row-label">UAC and elevated apps</span>
                     <span className="row-status">
-                      {state?.uac?.installed ? "Installed" : "Not installed"}
+                      {state?.uac?.setupState === "pending" ? "Updating…" : uacStatusLabel}
                     </span>
                     <button
                       disabled={busy || !!grant || unifiedOn || !!state?.pending}
-                      onClick={() =>
+                      onClick={() => {
+                        if (uacStatus === "app_update_required") {
+                          navigate("settings");
+                          void checkUpdates();
+                          return;
+                        }
                         void act({
                           method: "permission.uac",
-                          remove: !!state?.uac?.installed,
-                        })
-                      }
+                          remove: uacStatus === "ready",
+                          upgrade: uacStatus === "update_required" || uacStatus === "repair_needed",
+                        });
+                      }}
                     >
-                      {state?.uac?.installed
-                        ? "Remove helper…"
-                        : "Install helper…"}
+                      {{
+                        ready: "Remove helper…",
+                        update_required: "Update helper…",
+                        app_update_required: "Check for app updates",
+                        repair_needed: "Repair helper…",
+                        not_installed: "Install helper…",
+                      }[uacStatus]}
                     </button>
                   </div>
                   <p className="note">
-                    Windows asks for administrator approval. Installation leaves
+                    Windows asks for administrator approval when you install
+                    the helper or update a legacy helper. Installing leaves
                     UAC control off.
                   </p>
                   {state?.uac?.setupError && (
                     <p className="note">{state.uac.setupError}</p>
+                  )}
+                  {state?.uac?.installed && uacStatus !== "ready" && (
+                    <button
+                      className="text-button"
+                      disabled={busy || !!grant || unifiedOn || !!state?.pending}
+                      onClick={() => void act({ method: "permission.uac", remove: true })}
+                    >
+                      Remove helper…
+                    </button>
                   )}
                   <div className="setting-row">
                     <span className="row-label">
@@ -1795,7 +1825,7 @@ function App() {
                   <input
                     type="checkbox"
                     checked={state.uac.enabled}
-                    disabled={busy || !state.uac.installed || !!state.pending}
+                    disabled={busy || uacStatus !== "ready" || !!state.pending}
                     onChange={(e) =>
                       void act({
                         method: "uac.enable",
@@ -1807,14 +1837,19 @@ function App() {
                 <p className="note">
                   Approved tasks can approve or cancel UAC consent prompts and
                   control elevated apps. Changing this setting stops access. It
-                  starts off each time Machine Control opens.
+                  starts off on an ordinary launch.
                 </p>
-                {!state.uac.installed && (
+                {uacStatus !== "ready" && (
                   <button
                     className="text-button"
                     onClick={() => navigate("setup")}
                   >
-                    Install the helper in Permissions <ArrowUpRight size={13} />
+                    {{
+                      update_required: "Update the helper in Permissions",
+                      app_update_required: "Check the installed helper in Permissions",
+                      repair_needed: "Repair the helper in Permissions",
+                      not_installed: "Install the helper in Permissions",
+                    }[uacStatus]} <ArrowUpRight size={13} />
                   </button>
                 )}
                 <p className="note">

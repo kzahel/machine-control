@@ -7,6 +7,7 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
+using Microsoft.Win32;
 
 namespace MachineControl.Windows;
 
@@ -15,7 +16,36 @@ internal static class DesktopUacNative
     internal const string Service = "MachineControlDesktopUac";
     internal const string Pipe = "machine-control-desktop-uac";
     internal static string Root => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Service);
-    internal static string Executable => Path.Combine(Root, "machine-control-windows.exe");
+    internal static string LegacyExecutable => Path.Combine(Root, DesktopHelperRelease.Image);
+    internal static string Versions => Path.Combine(Root, "versions");
+    internal static string Executable
+    {
+        get
+        {
+            using var key = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{Service}");
+            if (key is null) return LegacyExecutable;
+            const string suffix = "\" uac-service";
+            var config = key.GetValue("ImagePath", null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
+            if (config is null || config.Length <= suffix.Length + 1 || config[0] != '"' ||
+                !config.EndsWith(suffix, StringComparison.Ordinal))
+                throw new InvalidDataException("Unrecognized desktop helper service image");
+            var image = config[1..^suffix.Length];
+            if (string.Equals(image, LegacyExecutable, StringComparison.OrdinalIgnoreCase)) return LegacyExecutable;
+            var directory = Path.GetDirectoryName(image);
+            if (!string.Equals(Path.GetFileName(image), DesktopHelperRelease.Image, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(Path.GetDirectoryName(directory), Versions, StringComparison.OrdinalIgnoreCase) ||
+                !Guid.TryParseExact(Path.GetFileName(directory), "n", out var generation))
+                throw new InvalidDataException("Unrecognized desktop helper version directory");
+            return Path.Combine(Versions, generation.ToString("n"), DesktopHelperRelease.Image);
+        }
+    }
+
+    internal static bool IsActiveImage(string? image)
+    {
+        if (image?.StartsWith(@"\\?\", StringComparison.Ordinal) == true) image = image[4..];
+        try { return string.Equals(image, Executable, StringComparison.OrdinalIgnoreCase); }
+        catch (Exception error) when (error is InvalidDataException or UnauthorizedAccessException or IOException) { return false; }
+    }
 
     internal static NamedPipeServerStream Server(string name, bool systemOnly = false)
     {

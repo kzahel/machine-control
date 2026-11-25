@@ -53,6 +53,8 @@ internal static class DesktopHost
         }
         var browserTask = browser.RunAsync(stop.Token);
         var resident = new UserHost(instance, broker, browser, updates).RunAsync(stop.Token);
+        if (await DesktopHelperHandoff.RestoreAsync())
+            DesktopUacClient.RestoreAtStartup();
         var presentationServer = DesktopPresentationIpc.ServeAsync(instance, presentation, broker, stop.Token);
         JsonObject BuildState()
         {
@@ -248,8 +250,19 @@ internal static class DesktopHost
                         case "defer_control": broker.Admission.Pause("desktop", "operator_deferral", 60); reply = new { ok = true }; break;
                         case "cancel_control": broker.Admission.CancelFromOperator(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
                         case "prepare_exit": broker.Stop("operator_quit"); reply = new { ok = true }; break;
-                        case "prepare_update": broker.PrepareUpdate(); reply = new { ok = true }; break;
-                        case "cancel_update": broker.CancelUpdate(); reply = new { ok = true }; break;
+                        case "prepare_update":
+                            lockedUse.RequireUpdateIdle();
+                            broker.PrepareUpdate();
+                            if (DesktopUacClient.Enabled && command["targetVersion"]?.GetValue<string>() is { } updateVersion)
+                                _ = await DesktopHelperHandoff.SaveAsync(updateVersion);
+                            reply = new { ok = true };
+                            break;
+                        case "cancel_update":
+                            broker.CancelUpdate();
+                            if (DesktopUacClient.Enabled)
+                                _ = await DesktopHelperHandoff.CancelAsync();
+                            reply = new { ok = true };
+                            break;
                         case "quit": broker.Stop("operator_quit"); reply = new { ok = true }; stop.Cancel(); break;
                         default: throw new ArgumentException("Unknown operator command");
                     }

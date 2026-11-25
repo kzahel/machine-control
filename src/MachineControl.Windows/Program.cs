@@ -43,6 +43,20 @@ internal static class Program
                     return await DesktopUnlockEnrollment.RunSetupAsync(args.Contains("--remove"));
                 case "uac-setup":
                     return DesktopUacSetup.Request(args.Contains("--remove"));
+                case "uac-update":
+                    return await DesktopHelperUpdate.UpdateAsync();
+                case "uac-verify-release":
+                    if (!DesktopHelperSignature.Required) throw new InvalidOperationException("Signed helper build required");
+                    var release = DesktopHelperRelease.Verify(AppContext.BaseDirectory, protectedDirectory: false);
+                    Console.WriteLine(release.Version);
+                    return 0;
+                case "uac-update-setup":
+                    return await DesktopHelperUpdate.RequestMigrationAsync();
+                case "uac-update-migrate":
+                    return DesktopHelperUpdate.Migrate();
+                case "uac-update-activate":
+                    if (args.Length != 2) throw new ArgumentException("Helper transaction ID required");
+                    return DesktopHelperUpdate.ActivateFromService(args[1]);
                 case "uac-install":
                     return DesktopUacSetup.Install();
                 case "uac-remove":

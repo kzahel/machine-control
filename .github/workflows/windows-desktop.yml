@@ -166,13 +166,25 @@ jobs:
       - name: Build the companion bound to the signed provider
         run: |
           $digest = (Get-FileHash artifacts/provider/providers/cua/cua-driver.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          python release/windows-package.py build artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA --provider-digest $digest --desktop-companion
+          python release/windows-package.py build artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA --provider-digest $digest --desktop-companion --signed-desktop-helper
           if ($LASTEXITCODE -ne 0) { throw 'Companion build failed' }
           Copy-Item artifacts/provider/providers/cua/cua-driver.exe artifacts/component/providers/cua/cua-driver.exe -Force
           python desktop/scripts/prepare-windows.py artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw 'Companion staging failed' }
           ./desktop/scripts/sign-windows.ps1 desktop/src-tauri/native/runtime/machine-control-windows.exe
           ./release/verify-windows-signatures.ps1 -Directory desktop/src-tauri/native/runtime -ExpectedPublisher $env:WINDOWS_SIGNER_NAME
+      - name: Sign the protected helper release inventory
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { throw 'Product updater signing credentials missing' }
+          python desktop/scripts/prepare-windows.py artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA --helper-release-version $env:CANDIDATE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'Helper release manifest failed' }
+          pnpm --dir desktop tauri signer sign --app-version $env:CANDIDATE_VERSION src-tauri/native/runtime/helper-release.json
+          if ($LASTEXITCODE -ne 0) { throw 'Helper release signature failed' }
+      - name: Catalog the signed companion and its resources
+        run: |
           New-Item -ItemType Directory artifacts/catalog | Out-Null
           New-FileCatalog -Path desktop/src-tauri/native/runtime -CatalogFilePath artifacts/catalog/package.cat -CatalogVersion 2.0
           ./desktop/scripts/sign-windows.ps1 artifacts/catalog/package.cat

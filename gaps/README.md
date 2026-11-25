@@ -17,3 +17,4 @@ belongs to the owning topic.
 - [2026-11-06 — accidental platform divergences in the common agent surface](2026-11-06-accidental-platform-divergences.md)
 - [2026-11-21 — macOS policy reader retains decoded JSON between replies](2026-11-21-macos-policy-reader-heap-growth.md)
 - [2026-11-21 — browser relay memory and connection retention](2026-11-21-browser-relay-retention.md)
+- [2026-11-24 — Windows desktop updates strand the UAC helper](2026-11-24-windows-uac-helper-upgrades.md)

@@ -11,23 +11,36 @@ internal static class DesktopUacClient
 {
     private static volatile bool _enabled;
     internal static bool Enabled => _enabled;
-    internal static object State() => new
+    internal static void RestoreAtStartup() => _enabled = true;
+    internal static object State()
     {
-        installed = DesktopUacNative.Installed(),
-        enabled = Enabled,
-        available = Enabled && DesktopUacNative.Installed(),
-        privilege = "LocalSystem",
-        route = "windows.desktop_uac",
-        provider = "windows-native-protected",
-        setupState = "idle",
-        operations = DesktopUacPolicy.Operations,
-        sessionRequirement = "same active unlocked console; stock English UAC consent only",
-        hostInterference = "none",
-    };
+        var running = DesktopUacNative.Installed();
+        var ready = running && DesktopUacNative.IsActiveImage(Environment.ProcessPath);
+        var installed = running || Directory.Exists(DesktopUacNative.Root);
+        var appTooOld = !ready && running &&
+            DesktopHelperRelease.VersionOf(DesktopUacNative.Executable) is { } installedVersion &&
+            DesktopHelperRelease.VersionOf(Environment.ProcessPath!) is { } bundledVersion &&
+            installedVersion >= bundledVersion;
+        return new
+        {
+            installed,
+            helperStatus = ready ? "ready" : appTooOld ? "app_update_required" :
+                running ? "update_required" : installed ? "repair_needed" : "not_installed",
+            enabled = Enabled,
+            available = Enabled && ready,
+            privilege = "LocalSystem",
+            route = "windows.desktop_uac",
+            provider = "windows-native-protected",
+            setupState = "idle",
+            operations = DesktopUacPolicy.Operations,
+            sessionRequirement = "same active unlocked console; stock English UAC consent only",
+            hostInterference = "none",
+        };
+    }
     internal static void Enable(bool enabled, DesktopGrants grants)
     {
-        if (enabled && (!DesktopUacNative.Installed() || !string.Equals(Environment.ProcessPath, DesktopUacNative.Executable, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException("Install the UAC helper and restart Machine Control first");
+        if (enabled && (!DesktopUacNative.Installed() || !DesktopUacNative.IsActiveImage(Environment.ProcessPath)))
+            throw new InvalidOperationException("Set up or update the UAC helper in Permissions first");
         lock (grants.Gate)
         {
             if (_enabled == enabled) return;

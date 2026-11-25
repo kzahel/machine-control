@@ -34,6 +34,10 @@ try {
         Signature (Join-Path $installRoot $name)
     }
     $runtimeRoot=Join-Path $installRoot 'runtime'
+    $verifiedHelper = & (Join-Path $runtimeRoot 'machine-control-windows.exe') uac-verify-release
+    if ($LASTEXITCODE -ne 0 -or $verifiedHelper -ne $Version) {
+        throw 'Installed protected-helper release signature or flat byte inventory mismatch'
+    }
     Signature (Join-Path $runtimeRoot 'package.cat')
     if ((Test-FileCatalog -Path $runtimeRoot -CatalogFilePath (Join-Path $runtimeRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {
         throw 'Installed runtime catalog mismatch'

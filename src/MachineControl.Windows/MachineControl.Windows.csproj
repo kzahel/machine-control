@@ -18,6 +18,10 @@
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="CuaExecutableSha256" Value="$(CuaExecutableSha256)" Condition="'$(CuaExecutableSha256)' != ''" />
+    <AssemblyMetadata Include="SignedDesktopHelper" Value="true" Condition="'$(SignedDesktopHelper)' == 'true' Or '$(DesktopHelperFixturePublicKey)' != ''" />
+    <AssemblyMetadata Include="DesktopHelperFixturePublicKey" Value="$(DesktopHelperFixturePublicKey)" Condition="'$(DesktopHelperFixturePublicKey)' != '' And '$(SignedDesktopHelper)' != 'true'" />
+    <EmbeddedResource Include="../../desktop/src-tauri/tauri.conf.json" LogicalName="DesktopUpdaterConfiguration.json" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="System.IO.Pipes.AccessControl" Version="5.0.0" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />

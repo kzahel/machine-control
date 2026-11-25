@@ -22,6 +22,19 @@ try {
         Write-Output 'Preserved publisher-authenticated pinned Node resource'
         exit 0
     }
+    $runtimeRoot = NativePath (Join-Path $PSScriptRoot '../src-tauri/native/runtime')
+    if ($resolved.StartsWith($runtimeRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        $route = 'helper-release'
+        # The native companion and provider are already signed. Re-signing
+        # a resource changes its flat bytes even if the catalog still matches.
+        $inventory = Get-Content -LiteralPath (Join-Path $runtimeRoot 'helper-release.json') -Raw | ConvertFrom-Json -AsHashtable
+        $relative = [IO.Path]::GetRelativePath($runtimeRoot, $resolved).Replace('\','/')
+        if ((Get-FileHash -LiteralPath $resolved -Algorithm SHA256).Hash -ine $inventory.files[$relative]) {
+            throw 'Runtime resource changed after release inventory signing'
+        }
+        Write-Output 'Preserved signed helper runtime resource'
+        exit 0
+    }
     $cliRoot = NativePath (Join-Path $PSScriptRoot '../src-tauri/native/mc-cli')
     if ($resolved.StartsWith($cliRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
         $route = 'cli-catalog'

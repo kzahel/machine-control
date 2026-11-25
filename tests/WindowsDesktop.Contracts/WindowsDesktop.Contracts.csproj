@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <Compile Include="../../src/MachineControl.Windows/GuardianJson.cs" Link="GuardianJson.cs" />
     <Compile Include="../../src/MachineControl.Windows/RelockExit.cs" Link="RelockExit.cs" />
     <Compile Include="../../src/MachineControl.Windows/PreparedRenewal.cs" Link="PreparedRenewal.cs" />
@@ -18,6 +19,7 @@
     <Compile Include="../../src/MachineControl.Windows/DesktopActivityPolicy.cs" Link="DesktopActivityPolicy.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopJournal.cs" Link="DesktopJournal.cs" />
     <Compile Include="../../src/MachineControl.Windows/CompanionBinaryIdentity.cs" Link="CompanionBinaryIdentity.cs" />
+    <Compile Include="../../src/MachineControl.Windows/DesktopHelperSignature.cs" Link="DesktopHelperSignature.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopGrants.cs" Link="DesktopGrants.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopUacPolicy.cs" Link="DesktopUacPolicy.cs" />
     <Compile Include="../../src/MachineControl.Windows/AdmissionChannel.cs" Link="AdmissionChannel.cs" />

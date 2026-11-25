@@ -15,9 +15,17 @@ internal sealed class DesktopUacWindowsService : ServiceBase
     private readonly CancellationTokenSource _stop = new();
     private Task? _run;
     internal DesktopUacWindowsService() { ServiceName = DesktopUacNative.Service; CanStop = true; CanShutdown = true; }
-    protected override void OnStart(string[] args) => _run = Task.WhenAll(
-        new DesktopUacService().RunAsync(_stop.Token),
-        new UnlockService(DesktopLockedUse.Instance).RunAsync(_stop.Token));
+    protected override void OnStart(string[] args)
+    {
+        DesktopHelperUpdate.Initialize();
+        var uacReady = new TaskCompletionSource();
+        var unlockReady = new TaskCompletionSource();
+        var uac = new DesktopUacService().RunAsync(_stop.Token, () => uacReady.TrySetResult());
+        var unlock = new UnlockService(DesktopLockedUse.Instance).RunAsync(_stop.Token, () => unlockReady.TrySetResult());
+        _run = Task.WhenAll(uac, unlock, DesktopHelperUpdate.ServeAsync(_stop.Token,
+            () => uacReady.Task.IsCompletedSuccessfully && unlockReady.Task.IsCompletedSuccessfully &&
+                  !uac.IsCompleted && !unlock.IsCompleted));
+    }
     protected override void OnStop() { _stop.Cancel(); try { _run?.Wait(TimeSpan.FromSeconds(10)); } catch (AggregateException) { } }
     protected override void OnShutdown() => OnStop();
 }
@@ -28,7 +36,7 @@ internal sealed class DesktopUacService
     private Process? _workerProcess;
     private uint _residentPid;
 
-    internal async Task RunAsync(CancellationToken cancellation)
+    internal async Task RunAsync(CancellationToken cancellation, Action? listening = null)
     {
         UnlockAdmin.RequireProtectedPath(Environment.ProcessPath!, DesktopUacNative.Root);
         try
@@ -36,6 +44,7 @@ internal sealed class DesktopUacService
             while (!cancellation.IsCancellationRequested)
             {
                 using var pipe = DesktopUacNative.Server(DesktopUacNative.Pipe);
+                listening?.Invoke();
                 await pipe.WaitForConnectionAsync(cancellation);
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
                 deadline.CancelAfter(TimeSpan.FromSeconds(35));
@@ -46,6 +55,7 @@ internal sealed class DesktopUacService
                     var frame = JsonSerializer.Deserialize<DesktopUacFrame>(await DesktopUacNative.ReadAsync(reader, deadline.Token), Contract.Json)
                         ?? throw new InvalidDataException("UAC frame required");
                     var peer = await DesktopUacNative.RequireResidentAsync(pipe, deadline.Token);
+                    using var activity = DesktopHelperUpdate.EnterProtectedOperation();
                     if (frame.ResidentPid != peer.Pid || !System.Text.RegularExpressions.Regex.IsMatch(frame.GuardPipe, "\\Amachine-control-uac-guard-[a-f0-9]{32}\\z") ||
                         !DesktopUacPolicy.Operations.Contains(frame.Request.Operation, StringComparer.Ordinal))
                         throw new UnauthorizedAccessException("uac_frame_refused");

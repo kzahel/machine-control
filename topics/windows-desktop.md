@@ -147,6 +147,15 @@ with x64/ARM64 builds; signed installed feature, ARM64 live, physical and locali
 prompt acceptance remain open. Existing-session unlock has its separate
 qualification in Tactical 101; cold login is outside the desktop integration.
 
+**Current, unreleased source:** The Windows update maintains an existing UAC
+helper through the product-signed runtime inventory. A legacy helper needs
+one in-place administrator-approved migration. Permissions reports readiness
+or the action needed. The protected payload switch preserves covered unlock
+enrollment. [Tactical 169](../docs/tactical/169-windows-desktop-helper-upgrades.md)
+tracks VM evidence and the production-signed installer gates. The
+[helper upgrade gap](../gaps/2026-11-24-windows-uac-helper-upgrades.md) retains
+the 0.7.5 observation.
+
 **Current, shipped in 0.5.5 with candidate acceptance:** ordinary desktop-product native
 and browser dispatch requires a live owner session, even with an idle standing
 grant. The common CLI negotiates short ownership or retains it with

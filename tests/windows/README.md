@@ -312,6 +312,17 @@ replace signed installation, browser, YA model/media or update acceptance.
 
 ## Installed update and browser acceptance
 
+[`desktop-helper-update-live.ps1`](desktop-helper-update-live.ps1) exercises
+the helper separately from Tauri and NSIS. Use a claimed, unlocked Windows VM
+with the legacy desktop helper and one existing enrollment. Stage complete
+native ARM64 or x64 bundles with successively versioned manifests signed by
+a disposable fixture key embedded in the native builds. The script runs from
+the console account's elevated token and creates Limited interactive tasks
+for the prompt-free update and refusal cases. It restores the legacy service
+configuration and compares enrollment metadata without reading credentials.
+Production signing, installer, and protected task effects are separate cells
+in [Tactical 169](../../docs/tactical/169-windows-desktop-helper-upgrades.md).
+
 [`desktop-update.ps1`](desktop-update.ps1) and
 [`browser-installed.ps1`](browser-installed.ps1) are independent interactive
 actors for an exact signed per-user installation of the 0.7 surface model.

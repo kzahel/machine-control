@@ -12,7 +12,8 @@ internal static class DesktopUacSetup
         var bundled = Environment.ProcessPath!;
         if (!DesktopUacNative.Installed()) return bundled;
         // A product update must not run an old installed companion silently.
-        return CompanionBinaryIdentity.Matches(DesktopUacNative.Executable, bundled) ? DesktopUacNative.Executable : bundled;
+        var installed = DesktopUacNative.Executable;
+        return DesktopHelperRelease.MatchesInstalled(installed, bundled) ? installed : bundled;
     }
     internal static int Request(bool remove)
     {
@@ -21,12 +22,16 @@ internal static class DesktopUacSetup
         process.WaitForExit();
         return process.ExitCode;
     }
-    private static void RequireAdmin()
+    internal static void RequireAdmin(bool requiresInputDesktop = true)
     {
         using var identity = WindowsIdentity.GetCurrent();
         if (!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator) || identity.IsSystem ||
-            DesktopController.GetIntegrityRid() < 12288 || RuntimeProfile.SessionId == 0 || DesktopController.GetInputDesktopName() != "Default")
+            DesktopController.GetIntegrityRid() < 12288 || RuntimeProfile.SessionId == 0)
             throw new UnauthorizedAccessException("UAC helper setup requires an elevated interactive administrator");
+        if (requiresInputDesktop ? DesktopController.GetInputDesktopName() != "Default" :
+            (uint)RuntimeProfile.SessionId != NativeMethods.WTSGetActiveConsoleSessionId() ||
+            SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) != false)
+            throw new UnauthorizedAccessException("UAC helper setup requires the unlocked console");
     }
     internal static int RequestEnrollment(bool remove)
     {
@@ -44,7 +49,10 @@ internal static class DesktopUacSetup
         if (!remove)
         {
             if (Directory.Exists(DesktopUacNative.Root) && Resolve() != DesktopUacNative.Executable)
-                RemoveCore(preserveEnrollment: true);
+            {
+                if (DesktopHelperSignature.Required) DesktopHelperUpdate.Migrate();
+                else RemoveCore(preserveEnrollment: true);
+            }
             if (!DesktopUacNative.Installed()) InstallCore(preserveEnrollment: true);
         }
         var launch = new ProcessStartInfo(DesktopUacNative.Executable) { UseShellExecute = false };
@@ -81,7 +89,7 @@ internal static class DesktopUacSetup
         process.WaitForExit();
         return process.ExitCode;
     }
-    private static void ServiceCommand(params string[] args)
+    internal static void ServiceCommand(params string[] args)
     {
         var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "sc.exe")) { UseShellExecute = false, CreateNoWindow = true };
         foreach (var argument in args) start.ArgumentList.Add(argument);
@@ -89,7 +97,7 @@ internal static class DesktopUacSetup
         process.WaitForExit();
         if (process.ExitCode != 0) throw new IOException("UAC helper service setup failed: " + process.ExitCode);
     }
-    private static void ProtectDirectory(string path)
+    internal static void ProtectDirectory(string path, bool userReadable = true)
     {
         var admin = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
         var security = new DirectorySecurity();
@@ -97,8 +105,9 @@ internal static class DesktopUacSetup
         security.SetAccessRuleProtection(true, false);
         foreach (var sid in new[] { admin, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null) })
             security.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-        security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.ReadAndExecute,
-            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+        if (userReadable)
+            security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.ReadAndExecute,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
         new DirectoryInfo(path).SetAccessControl(security);
     }
     internal static int Install() => InstallCore(preserveEnrollment: false);
@@ -120,7 +129,7 @@ internal static class DesktopUacSetup
             if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) throw new IOException("UAC helper payload contains a link");
         if (files.Length > 1000 || files.Sum(file => new FileInfo(file).Length) > 512L * 1024 * 1024) throw new IOException("UAC helper payload exceeds bounds");
         Directory.CreateDirectory(DesktopUacNative.Root);
-        ProtectDirectory(DesktopUacNative.Root);
+        ProtectDirectory(DesktopUacNative.Root, userReadable: !DesktopHelperSignature.Required);
         UnlockAdmin.RequireProtectedPath(DesktopUacNative.Root, DesktopUacNative.Root);
         var registered = false;
         var grantsCreated = false;
@@ -134,6 +143,12 @@ internal static class DesktopUacSetup
             }
             foreach (var path in Directory.EnumerateFileSystemEntries(DesktopUacNative.Root, "*", SearchOption.AllDirectories))
                 UnlockAdmin.RequireProtectedPath(path, DesktopUacNative.Root);
+            if (DesktopHelperSignature.Required)
+            {
+                _ = DesktopHelperRelease.Verify(DesktopUacNative.Root);
+                File.Delete(Path.Combine(DesktopUacNative.Root, DesktopHelperRelease.Catalog));
+                ProtectDirectory(DesktopUacNative.Root);
+            }
             var parent = Path.GetDirectoryName(grants)!;
             if (!Directory.Exists(parent)) { Directory.CreateDirectory(parent); ProtectDirectory(parent); }
             UnlockAdmin.RequireProtectedPath(parent, parent);
@@ -187,10 +202,14 @@ internal static class DesktopUacSetup
             }
         using (var service = new System.ServiceProcess.ServiceController(DesktopUacNative.Service))
         {
-            if (service.Status != System.ServiceProcess.ServiceControllerStatus.Stopped)
-            { service.Stop(); service.WaitForStatus(System.ServiceProcess.ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(15)); }
+            try
+            {
+                if (service.Status != System.ServiceProcess.ServiceControllerStatus.Stopped)
+                { service.Stop(); service.WaitForStatus(System.ServiceProcess.ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(15)); }
+                ServiceCommand("delete", DesktopUacNative.Service);
+            }
+            catch (InvalidOperationException error) when (error.InnerException is System.ComponentModel.Win32Exception { NativeErrorCode: 1060 }) { }
         }
-        ServiceCommand("delete", DesktopUacNative.Service);
         var grants = UnlockPolicy.Root(DesktopLockedUse.Instance);
         if (Directory.Exists(grants))
         {

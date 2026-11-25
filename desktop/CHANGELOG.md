@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Windows desktop updates refresh an already approved UAC helper. Existing
+  legacy helpers need one administrator-approved update in Permissions.
+  Updating the helper keeps covered-desktop unlock enrollment.
+
 ## [0.7.5]
 
 - Add an opt-in setting on macOS, Windows, and Linux to restore **Until I turn

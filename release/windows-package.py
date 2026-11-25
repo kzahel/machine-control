@@ -79,7 +79,8 @@ def inventory(directory):
     return files
 
 
-def build(directory, rid, revision, provider_digest=None, desktop_companion=False, git_via_wsl=False):
+def build(directory, rid, revision, provider_digest=None, desktop_companion=False, git_via_wsl=False,
+          signed_desktop_helper=False):
     if directory.exists():
         raise ValueError('Build output must not already exist')
     if not re.fullmatch('[0-9a-f]{40}', revision):
@@ -91,6 +92,10 @@ def build(directory, rid, revision, provider_digest=None, desktop_companion=Fals
         if not re.fullmatch('[0-9a-f]{64}', provider_digest):
             raise ValueError('Invalid signed provider digest')
         command.append('-p:CuaExecutableSha256=' + provider_digest)
+    if signed_desktop_helper:
+        if not desktop_companion:
+            raise ValueError('Signed desktop helper maintenance requires a desktop companion')
+        command.append('-p:SignedDesktopHelper=true')
     subprocess.run(command, check=True)
     companions = {'PenImc_cor3.dll',
                   'PresentationNative_cor3.dll', 'vcruntime140_cor3.dll', 'wpfgfx_cor3.dll'}
@@ -197,6 +202,8 @@ if __name__ == '__main__':
     parser.add_argument('--provider-digest')
     parser.add_argument('--desktop-companion', action='store_true',
                         help='Build only the desktop companion, excluding component/setup tools')
+    parser.add_argument('--signed-desktop-helper', action='store_true',
+                        help='Require the product-signed helper release inventory')
     parser.add_argument('--git-via-wsl', action='store_true',
                         help='Inspect source state through WSL Git on a Windows development host')
     parser.add_argument('--output', type=Path)
@@ -205,7 +212,7 @@ if __name__ == '__main__':
         if not args.runtime or not args.revision:
             parser.error('build requires --runtime and --revision')
         build(args.directory.resolve(), args.runtime, args.revision, args.provider_digest,
-              args.desktop_companion, args.git_via_wsl)
+              args.desktop_companion, args.git_via_wsl, args.signed_desktop_helper)
     elif args.command == 'fetch-provider':
         if not args.runtime:
             parser.error('fetch-provider requires --runtime')

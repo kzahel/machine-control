@@ -432,6 +432,13 @@ existing-session lifecycle and actual Tauri UI have separate acceptance gates;
 [Tactical 134](../../docs/tactical/134-windows-native-unlock-enrollment.md) owns
 those results. This is distinct from the external controller protocol below.
 
+**Current — installed x64 observation and source review:** On desktop 0.7.5,
+the per-user app and the running UAC service had different executable builds.
+The app selected its bundled companion and the operator reported that enabling
+UAC control was refused. Source review identifies the same build dependency in
+covered-unlock readiness. No unlock action was attempted in that observation.
+See the [helper upgrade gap](../../gaps/2026-11-24-windows-uac-helper-upgrades.md).
+
 **Current — live-tested password unlock and authorization:** Tactical 037
 inspected the stock credential surface through the appliance's protected native
 UIA route in a disposable Windows x64 workspace. The field exposes password

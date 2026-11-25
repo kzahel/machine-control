@@ -423,7 +423,7 @@ async fn perform_install(app: tauri::AppHandle, version: String) -> Result<(), S
     schedule_native(&app, move || {
         // Check immediately before replacement on the resident's serial
         // main thread. No grant or approval can race bundle replacement.
-        let result = native_command(json!({"method":"prepare_update"}))
+        let result = native_command(json!({"method":"prepare_update", "targetVersion":version}))
             .and_then(|_| update.install(bytes).map_err(|e| e.to_string()))
             .and_then(|_| restart::request(&restart));
         if result.is_err() {

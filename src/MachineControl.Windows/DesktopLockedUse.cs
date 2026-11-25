@@ -29,6 +29,13 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
 
     internal static bool Prepared() => PreparationRefusal() is null;
 
+    internal void RequireUpdateIdle()
+    {
+        lock (grants.Gate)
+            if (_lease is not null || grants.Admission.Blocks("desktop").Contains("relock_pending"))
+                throw new InvalidOperationException("Wait for the covered desktop to relock before updating");
+    }
+
     /// Native one-time enrollment lets the resident unlock at control.accept.
     /// The advanced controller-key policy keeps its explicit preparation.
     internal bool LocallyEnrolled()

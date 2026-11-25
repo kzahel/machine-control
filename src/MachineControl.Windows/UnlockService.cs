@@ -66,7 +66,7 @@ internal sealed class UnlockService(string instance)
     private readonly SemaphoreSlim _attempt = new(1, 1);
     public void Invalidate() => Interlocked.Increment(ref _epoch);
 
-    public async Task RunAsync(CancellationToken stop)
+    public async Task RunAsync(CancellationToken stop, Action? listening = null)
     {
         if (!WindowsIdentity.GetCurrent().IsSystem) throw new UnauthorizedAccessException("LocalSystem required");
         var pending = new List<Task>();
@@ -81,6 +81,7 @@ internal sealed class UnlockService(string instance)
                 try
                 {
                     pipe = CreatePipe(UnlockPolicy.Pipe(instance), firstInstance);
+                    listening?.Invoke();
                     firstInstance = false;
                     await pipe.WaitForConnectionAsync(stop);
                     pending.RemoveAll(task => task.IsCompletedSuccessfully);

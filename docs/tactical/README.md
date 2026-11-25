@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [169 — Windows desktop helper upgrades](169-windows-desktop-helper-upgrades.md)
+  tracks signed maintenance, preserved enrollment, and upgrade acceptance.
+
 - [168 — Restore indefinite access at startup](168-restore-access-at-startup.md)
   records the opt-in, saved surface consent and native session rebinding.
 

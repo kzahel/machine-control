@@ -33,8 +33,10 @@ password/helper/cover, and leaves Windows locked.
 The resident remains Medium integrity. The administrator-owned
 `MachineControlDesktopUac` service hosts the protected `desktop` policy and
 credential store. It exposes no credential export or generic decryption API.
-Removing the helper erases enrollment. Updating the protected helper preserves
-existing enrollment if the new native prompt is cancelled. Cold login means
+Removing the helper erases enrollment. Signed app updates and the in-place
+legacy helper migration preserve enrollment without asking for your Windows
+password again. Cancelling the separate native enrollment prompt also
+preserves the existing enrollment. Cold login means
 a new sign-in after boot or sign-out; other users and cold login remain outside
 this desktop profile.
 
