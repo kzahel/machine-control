@@ -385,6 +385,15 @@ if env "${shutdown_environment[@]}" "$provider" shutdown \
 fi
 [[ "$(<"$temporary/shutdown-log")" == $'guest-shutdown\nprovider-request' ]]
 
+rm -f -- "$temporary/shutdown-log"
+if env "${shutdown_environment[@]}" WINVM_TEST_SHUTDOWN_STATUS_UNAVAILABLE=1 \
+        "$provider" shutdown >"$temporary/unknown-shutdown.out" 2>&1; then
+    printf 'Shutdown accepted unobserved power.\n' >&2
+    exit 1
+fi
+[[ "$(<"$temporary/unknown-shutdown.out")" == *'shutdown was not sent'* ]]
+[[ ! -e "$temporary/shutdown-log" ]]
+
 blocked_json="$(
     WINVM_UTMCTL=/usr/bin/true \
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-known-blockers" \

@@ -83,6 +83,11 @@ class UtmWorkspaceTests(unittest.TestCase):
                 return vm
         return None
 
+    def update_base(self, **fields):
+        value = json.loads(self.state.read_text(encoding="utf-8"))
+        next(vm for vm in value["vms"] if vm["id"] == "base-id").update(fields)
+        self.state.write_text(json.dumps(value), encoding="utf-8")
+
     def test_capabilities_disclose_mechanisms_not_private_targets(self):
         result, value = self.run_cli("workspace-capabilities", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -153,6 +158,46 @@ class UtmWorkspaceTests(unittest.TestCase):
         self.assertEqual(value["data"]["disposition"], "discarded")
         self.assertEqual(self.vm("base-id")["state"], "stopped")
         self.assertIsNotNone(self.vm("base-id"))
+
+    def test_unknown_power_preserves_receipt_and_sends_no_stop(self):
+        _, acquired = self.acquire("isolated")
+        handle = acquired["data"]["handle"]
+        claim = acquired["data"]["claim"]["claimId"]
+        self.update_base(statusError=True)
+        result, refused = self.run_cli("workspace-release", "--handle", handle, "--json", claim_id=claim)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(refused["errorCode"], "workspace_state_unknown")
+        self.assertNotIn("stopRequests", self.vm("base-id"))
+        _, inventory = self.run_cli("workspace-inventory", "--json")
+        receipt = next(item for item in inventory["data"]["workspaces"] if item["handle"] == handle)
+        self.assertEqual((receipt["cleanup"], receipt["state"]), ("pending", "unknown"))
+
+        self.update_base(statusError=False)
+        result, released = self.run_cli("workspace-release", "--handle", handle, "--json", claim_id=claim)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(released["data"]["disposition"], "discarded")
+
+    def test_release_records_request_outcome_and_independent_power(self):
+        for outcome in ("failed_off", "accepted_running"):
+            with self.subTest(outcome=outcome):
+                self.update_base(stopOutcome=outcome, stopRequests=[])
+                _, acquired = self.acquire("isolated")
+                handle = acquired["data"]["handle"]
+                claim = acquired["data"]["claim"]["claimId"]
+                result, released = self.run_cli("workspace-release", "--handle", handle, "--json", claim_id=claim)
+                self.assertEqual(self.vm("base-id")["stopRequests"], [["--hide", "base-id", "--request"]])
+                if outcome == "failed_off":
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(released["data"]["disposition"], "discarded")
+                else:
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(released["errorCode"], "workspace_stop_failed")
+                    self.assertEqual(released["uncertainty"], "unknown")
+                    self.assertIn("request: accepted", released["message"])
+                    self.assertIn("provider power: running", released["message"])
+                    _, inventory = self.run_cli("workspace-inventory", "--json")
+                    receipt = next(item for item in inventory["data"]["workspaces"] if item["handle"] == handle)
+                    self.assertEqual((receipt["cleanup"], receipt["state"]), ("pending", "running"))
 
     def test_full_copy_candidate_requires_policy_and_is_retained(self):
         result, value = self.acquire("candidate")

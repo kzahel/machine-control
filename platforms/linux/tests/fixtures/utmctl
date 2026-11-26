@@ -30,6 +30,7 @@ fi
 case "${1:-}" in
     status)
         printf '%s\n' stopped
+        if [[ "${MACHINE_CONTROL_UTM_STATUS_UNAVAILABLE:-false}" == true ]]; then exit 1; fi
         ;;
     list)
         printf '%s\n' 'UUID Status Name'

@@ -967,7 +967,7 @@ wait_for_vm_state() {
     local expected="$1" timeout="$2"
     local deadline=$((SECONDS + timeout)) status="unknown"
     while (( SECONDS < deadline )); do
-        status="$(vm_status || true)"
+        status="$(vm_status)" || status=unknown
         if [[ "$status" == "$expected" ]]; then
             return 0
         fi
@@ -979,13 +979,14 @@ wait_for_vm_state() {
 
 vm_shutdown() {
     local status ip=""
-    status="$(vm_status || true)"
+    status="$(vm_status)" || status=unknown
     if [[ "$status" == "stopped" ]]; then
         printf 'stopped\n'
         return
     fi
     if [[ "$status" != "started" ]]; then
-        ensure_running
+        printf 'UTM VM is not observably running or stopped; shutdown was not sent.\n' >&2
+        return 1
     fi
 
     # Prefer a shutdown initiated by Windows. An SSH disconnect is expected as
@@ -1012,7 +1013,15 @@ vm_shutdown() {
 
     # Requesting power-down is the non-destructive provider fallback. Never
     # promote a routine shutdown to force-stop.
-    utm_cli stop --request "$(utm_target_identifier)" >/dev/null
+    if ! utm_cli stop --request "$(utm_target_identifier)" >/dev/null; then
+        status="$(vm_status)" || status=unknown
+        if [[ "$status" == "stopped" ]]; then
+            printf 'stopped\n'
+            return
+        fi
+        printf 'UTM shutdown request failed; Off was not observed.\n' >&2
+        return 1
+    fi
     if wait_for_vm_state stopped "$WINVM_SHUTDOWN_TIMEOUT"; then
         printf 'stopped\n'
         return

@@ -6,11 +6,18 @@ command="${1:-}"
 shift || true
 case "$command" in
     status)
-        if [[ -f "$WINVM_TEST_SHUTDOWN_STATE" ]]; then
+        if [[ "${WINVM_TEST_SHUTDOWN_STATUS_UNAVAILABLE:-0}" == 1 ]]; then
+            printf 'stopped\n'
+            exit 1
+        elif [[ -f "$WINVM_TEST_SHUTDOWN_STATE" ]]; then
             printf 'stopped\n'
         else
             printf 'started\n'
         fi
+        ;;
+    start)
+        printf 'provider-start\n' >>"$WINVM_TEST_SHUTDOWN_LOG"
+        exit 1
         ;;
     ip-address)
         printf '192.0.2.10\n'

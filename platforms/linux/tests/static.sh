@@ -85,6 +85,21 @@ if [[ "$(uname -s)" == Darwin ]]; then
     fi
     test ! -e "$mutation_marker"
 
+    if env LINUXVM_CONFIG_FILE=/dev/null \
+            LINUXVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl" \
+            LINUXVM_UTM_NAME=fixture-default \
+            LINUXVM_EXPECTED_NAME=fixture-default \
+            LINUXVM_EXPECTED_UUID=fixture-id \
+            LINUXVM_TARGET_ROLE=candidate \
+            MACHINE_CONTROL_UTM_STATUS_UNAVAILABLE=true \
+            MACHINE_CONTROL_UTM_MUTATION_MARKER="$mutation_marker" \
+            "$REPO_DIR/bin/linuxvm" shutdown >"$temporary/linux-shutdown.out" 2>&1; then
+        printf 'Linux shutdown accepted unobserved power\n' >&2
+        exit 1
+    fi
+    [[ "$(<"$temporary/linux-shutdown.out")" == *'shutdown was not sent'* ]]
+    test ! -e "$mutation_marker"
+
     ip_race_counter="$temporary/ip-race-counter"
     ip_address="$(env \
         LINUXVM_CONFIG_FILE=/dev/null \

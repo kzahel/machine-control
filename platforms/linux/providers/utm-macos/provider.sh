@@ -81,7 +81,7 @@ wait_for_vm_state() {
     local expected="$1" timeout="$2"
     local deadline=$((SECONDS + timeout)) status="unknown"
     while (( SECONDS < deadline )); do
-        status="$(vm_status || true)"
+        status="$(vm_status)" || status=unknown
         if [[ "$status" == "$expected" ]]; then
             return 0
         fi
@@ -94,17 +94,25 @@ wait_for_vm_state() {
 guest_shutdown() {
     linuxvm_assert_mutation_target
     local status
-    status="$(vm_status || true)"
+    status="$(vm_status)" || status=unknown
     if [[ "$status" == "stopped" ]]; then
         printf 'stopped\n'
         return
     fi
-    if [[ "$status" == "unknown" || -z "$status" ]]; then
-        printf 'UTM VM not found: %s\n' "$LINUXVM_UTM_NAME" >&2
+    if [[ "$status" != "started" ]]; then
+        printf 'UTM VM is not observably running or stopped; shutdown was not sent.\n' >&2
         return 1
     fi
 
-    utm_cli stop --request "$LINUXVM_UTM_NAME" >/dev/null
+    if ! utm_cli stop --request "$LINUXVM_UTM_NAME" >/dev/null; then
+        status="$(vm_status)" || status=unknown
+        if [[ "$status" == "stopped" ]]; then
+            printf 'stopped\n'
+            return
+        fi
+        printf 'UTM shutdown request failed; Off was not observed.\n' >&2
+        return 1
+    fi
     if wait_for_vm_state stopped "$LINUXVM_SHUTDOWN_TIMEOUT"; then
         printf 'stopped\n'
         return

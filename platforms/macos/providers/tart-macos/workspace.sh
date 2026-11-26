@@ -21,6 +21,22 @@ tart_state() {
     "$MACVM_TART" get "$1" --format json 2>/dev/null | jq -r '.State // "unknown"'
 }
 
+tart_cleanup_state() {
+    "$MACVM_TART" list --source local --format json 2>/dev/null |
+        jq -er --arg name "$1" '
+            if type != "array" or any(.[]; (.Name | type) != "string") then
+                error("invalid Tart inventory")
+            else
+                map(select(.Name == $name)) |
+                if length == 0 then "absent"
+                elif length == 1 then
+                    .[0].State | if . == "running" or . == "stopped" or . == "suspended"
+                    then . else "unknown" end
+                else error("ambiguous Tart inventory")
+                end
+            end'
+}
+
 development_available() {
     [[ "$MACVM_WORKSPACE_DEVELOPMENT_PROVEN" == "true" &&
        -n "$MACVM_WORKSPACE_DEVELOPMENT_NAME" &&
@@ -350,38 +366,44 @@ release_inner() {
             'The workspace receipt does not authorize derived-target cleanup'
         return $?
     fi
-    if ! state="$(tart_state "$target" 2>/dev/null)"; then
-        workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" forget --handle "$handle"
+    workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" update \
+        --handle "$handle" --cleanup pending || return
+    state="$(tart_cleanup_state "$target")" || state=unknown
+    if [[ "$state" == absent ]]; then
         disposition=alreadyAbsent
     else
-        workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" update \
-            --handle "$handle" --cleanup pending
         if [[ "$state" == "running" ]]; then
             MACHINE_CONTROL_WORKSPACE_HANDLE="$handle" \
                 "$MACVM_REPO_DIR/bin/macvm" stop >/dev/null || {
                     workspace_refusal release workspace_stop_failed \
-                        'The temporary workspace did not stop'
+                        'The temporary workspace did not stop' '{}' unknown
                     return $?
                 }
+            state="$(tart_cleanup_state "$target")" || state=unknown
+            if [[ "$state" != stopped && "$state" != suspended ]]; then
+                workspace_refusal release workspace_stop_failed \
+                    'Tart did not confirm the temporary workspace stopped' '{}' unknown
+                return $?
+            fi
         fi
-        if [[ "$(tart_state "$target" 2>/dev/null || printf unknown)" == "running" ]]; then
-            workspace_refusal release workspace_stop_failed \
-                'The temporary workspace is still running'
+        if [[ "$state" != stopped && "$state" != suspended ]]; then
+            workspace_refusal release workspace_state_unknown \
+                'The temporary workspace was not positively observed stopped or suspended'
             return $?
         fi
         "$MACVM_TART" delete "$target" >/dev/null || {
             workspace_refusal release workspace_delete_failed \
-                'The temporary workspace could not be deleted'
+                'The temporary workspace could not be deleted' '{}' unknown
             return $?
         }
-        if tart_state "$target" >/dev/null 2>&1; then
+        if ! state="$(tart_cleanup_state "$target")" || [[ "$state" != absent ]]; then
             workspace_refusal release workspace_delete_failed \
-                'The temporary workspace still exists after deletion'
+                'Tart inventory did not confirm the temporary workspace was removed' '{}' unknown
             return $?
         fi
-        workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" forget --handle "$handle"
         disposition=discarded
     fi
+    workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" forget --handle "$handle" || return
     data="$(jq -n --arg handle "$handle" --arg disposition "$disposition" \
         '{handle:$handle, disposition:$disposition}')"
     workspace_claim_release_selected "$MACVM_CLAIM_STATE_DIR" tart-macos \

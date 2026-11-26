@@ -4,6 +4,30 @@ This is a living record of concrete gaps encountered while using WinVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Investigated 2026-11-26 after a disposable shutdown stalled
+
+The original overlay lost SSH and resident access, and graceful shutdown
+and release left its receipt pending. A later exact workspace doctor and
+provider status both observed Off while the receipt still listed running.
+A fresh exact claim reconciled the stopped overlay and released its receipt.
+The evidence did not establish when the guest stopped or why it became
+unreachable.
+
+A new overlay had working guest administration. With only the shutdown
+command's controller-side SSH carrier made unavailable, UTM's ordinary
+graceful fallback reached Off. Independent status, scope release and an
+empty pending inventory verified cleanup. This exercise used a responsive
+Windows guest.
+
+During a later recheck, controller UTM automation probes intermittently
+refused status while other samples succeeded. Doctor reported unknown
+power on those samples while exact target identity still passed.
+
+Windows UTM shutdown now requires a positive initial running or stopped
+observation. Shared Windows and Linux UTM release retains the receipt when
+power cannot be observed and reports the request outcome separately from
+the last provider power state. [Workspace policy](../../../topics/vm-workspaces-and-storage-policy.md)
+
 ## Observed 2026-11-06 during targeted-typing verification
 
 ### Notepad with spell check corrupted typed text

@@ -11,6 +11,15 @@ case "${1:-}" in
         printf '{"State":"%s","Display":"1280x800"}\n' \
             "${MACHINE_CONTROL_TART_STATE:-stopped}"
         ;;
+    list)
+        if [[ "${MACHINE_CONTROL_TART_INVENTORY_UNAVAILABLE:-false}" == true ||
+              ( "${MACHINE_CONTROL_TART_INVENTORY_FAIL_AFTER_MUTATION:-false}" == true &&
+                -e "${MACHINE_CONTROL_TART_MUTATION_MARKER:?}" ) ]]; then
+            printf '[]\n'
+            exit 1
+        fi
+        printf '%s\n' "${MACHINE_CONTROL_TART_INVENTORY:-[]}"
+        ;;
     run|stop|suspend|delete|clone)
         : >"${MACHINE_CONTROL_TART_MUTATION_MARKER:?}"
         ;;

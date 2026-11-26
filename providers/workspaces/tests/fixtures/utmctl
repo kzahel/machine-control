@@ -42,6 +42,9 @@ elif command == "status":
     vm = find(value, selected_identifier(rest))
     if vm is None:
         raise SystemExit(1)
+    if vm.get("statusError"):
+        print("stopped")
+        raise SystemExit(1)
     print(vm["state"])
 elif command == "start":
     vm = find(value, selected_identifier(rest))
@@ -54,9 +57,13 @@ elif command == "stop":
     vm = find(value, selected_identifier(rest))
     if vm is None:
         raise SystemExit(1)
-    vm["state"] = "stopped"
-    vm["disposable"] = False
+    vm.setdefault("stopRequests", []).append(rest)
+    if vm.get("stopOutcome") != "accepted_running":
+        vm["state"] = "stopped"
+        vm["disposable"] = False
     save(value)
+    if vm.get("stopOutcome") == "failed_off":
+        raise SystemExit(1)
 elif command == "clone":
     source = find(value, selected_identifier(rest))
     if source is None or "--name" not in rest:

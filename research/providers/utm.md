@@ -46,6 +46,15 @@ completed without new CLI crash reports. Library recovery no longer equates
 every failed status query with an unloaded library or repeats a crashing CLI.
 Python factory-stage probes share the health guard.
 
+**Current — live-tested, Windows and Linux isolated workspaces:** a
+responsive Windows guest reached confirmed Off through UTM graceful
+shutdown when the controller's SSH carrier was deliberately unavailable.
+Linux reached Off through receipt-bound release. Both scopes released
+their claims and left an empty pending inventory. A previously stranded
+Windows receipt was reconciled after exact-target status observed Off.
+The original guest stall remains unexplained.
+[Windows incident record](../../platforms/windows/docs/problems.md#investigated-2026-11-26-after-a-disposable-shutdown-stalled)
+
 **Current — retained-appliance control:** A fresh ARM64 Linux deployment
 observed an operation-unavailable execution error followed by an absent
 completion record even though pinned SSH remained usable. This does not

@@ -197,6 +197,31 @@ selection="$({ env \
         _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
 [[ "$selection" == \
     'fixture-workspace|fixture-workspace|disposable|ssh|' ]]
+workspace_release_environment=(
+    MACVM_CONFIG_FILE=/dev/null
+    MACVM_TART="$REPO_DIR/tests/fixtures/tart"
+    MACVM_WORKSPACE_STATE_DIR="$temporary/selection"
+    MACVM_WORKSPACE_READY_BASE_NAME=fixture-base
+    MACHINE_CONTROL_TART_MUTATION_MARKER="$mutation_marker"
+)
+if env "${workspace_release_environment[@]}" MACHINE_CONTROL_TART_INVENTORY_UNAVAILABLE=true \
+        bin/macvm workspace-release --handle "$workspace_handle" --json >"$temporary/tart-release.json"; then
+    printf 'Failed Tart inventory was treated as confirmed absence\n' >&2
+    exit 1
+fi
+jq -e '.errorCode == "workspace_state_unknown"' "$temporary/tart-release.json" >/dev/null
+test ! -e "$mutation_marker"
+if env "${workspace_release_environment[@]}" MACHINE_CONTROL_TART_INVENTORY_FAIL_AFTER_MUTATION=true \
+        MACHINE_CONTROL_TART_INVENTORY='[{"Name":"fixture-workspace","State":"stopped"}]' \
+        bin/macvm workspace-release --handle "$workspace_handle" --json >"$temporary/tart-release.json"; then
+    printf 'Failed Tart inventory was treated as confirmed deletion\n' >&2
+    exit 1
+fi
+jq -e '.errorCode == "workspace_delete_failed" and .uncertainty == "unknown"' "$temporary/tart-release.json" >/dev/null
+test -e "$mutation_marker"
+rm -- "$mutation_marker"
+env "${workspace_release_environment[@]}" bin/macvm workspace-release --handle "$workspace_handle" --json \
+    | jq -e '.data.disposition == "alreadyAbsent"' >/dev/null
 tart_ip="$(env \
     MACVM_CONFIG_FILE=/dev/null \
     MACVM_TART="$REPO_DIR/tests/fixtures/tart" \

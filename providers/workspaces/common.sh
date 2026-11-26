@@ -105,12 +105,12 @@ workspace_capacity_preflight() {
 }
 
 workspace_refusal() {
-    local operation="$1" code="$2" message="$3" data="${4:-}"
+    local operation="$1" code="$2" message="$3" data="${4:-}" uncertainty="${5:-none}"
     if [[ -z "$data" ]]; then data='{}'; fi
     jq -n --arg operation "$operation" --arg code "$code" \
-        --arg message "$message" --argjson data "$data" \
+        --arg message "$message" --argjson data "$data" --arg uncertainty "$uncertainty" \
         '{schema:"machine-control-workspace/v0", operation:$operation,
-          accepted:false, uncertainty:"none", errorCode:$code,
+          accepted:false, uncertainty:$uncertainty, errorCode:$code,
           message:$message, data:$data}'
     return 1
 }

@@ -221,6 +221,15 @@ not evidence of a local Linux or Windows macOS hypervisor.
 
 ## Current implementation and validation
 
+**Current:** UTM isolated overlays retain their pending receipt when
+provider power is unknown. Graceful shutdown delivery and confirmed Off are
+separate observations. A failed command can still be followed by an
+independently confirmed Off state. The inventory shows the receipt's last
+recorded power. Use exact-workspace status for a fresh observation. Tart
+requires successful exact-name inventory to confirm absence, including
+after a delete. Libvirt already retains pending derived cleanup when state
+cannot be established.
+
 Dependency-free fake-provider tests run on macOS, Linux, and Windows and cover
 capability validation, intent forwarding, redaction, unsupported intent,
 receipt-bound release, capacity refusal, last-ready-base protection, and

@@ -34,8 +34,9 @@ utm_workspace_wait_state() {
     local identifier="$1" expected="$2" timeout="$3"
     local deadline=$((SECONDS + timeout)) state="unknown"
     while (( SECONDS < deadline )); do
-        state="$(utm_workspace_status "$identifier" || true)"
-        if [[ "$state" == "$expected" ]]; then return 0; fi
+        if state="$(utm_workspace_status "$identifier")" && [[ "$state" == "$expected" ]]; then
+            return 0
+        fi
         sleep 1
     done
     return 1
@@ -415,7 +416,9 @@ utm_workspace_acquire() {
 }
 
 utm_workspace_public_state() {
-    case "$(utm_workspace_status "$1" 2>/dev/null || true)" in
+    local state
+    state="$(utm_workspace_status "$1")" || state=unknown
+    case "$state" in
         started) printf 'running\n' ;;
         stopped) printf 'off\n' ;;
         *) printf 'unknown\n' ;;
@@ -423,8 +426,7 @@ utm_workspace_public_state() {
 }
 
 utm_workspace_release_inner() {
-    local handle="$1" provider intent mechanism target_id source_id state data
-    local disposition
+    local handle="$1" provider intent mechanism target_id source_id state data request
     provider="$(workspace_receipt_field \
         "$UTM_WORKSPACE_STATE_DIR" "$handle" provider)" || {
             workspace_refusal release workspace_receipt_invalid \
@@ -466,35 +468,42 @@ utm_workspace_release_inner() {
             'The receipt does not authorize disposable-base release'
         return $?
     fi
-    state="$(utm_workspace_status "$target_id" 2>/dev/null || true)"
-    if [[ -z "$state" ]]; then
-        workspace_receipts "$UTM_WORKSPACE_STATE_DIR" forget --handle "$handle"
-        disposition=alreadyAbsent
-    else
-        workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
-            --handle "$handle" --cleanup pending
-        if [[ "$state" == "started" ]]; then
-            utm_workspace_cli stop --hide "$target_id" --request >/dev/null || {
-                workspace_refusal release workspace_stop_failed \
-                    'The disposable workspace did not accept a shutdown request'
-                return $?
-            }
-            if ! utm_workspace_wait_state "$target_id" stopped \
-                "$UTM_WORKSPACE_SHUTDOWN_TIMEOUT"; then
-                workspace_refusal release workspace_stop_failed \
-                    'The disposable workspace did not stop; force was not used'
-                return $?
+    # A disposable overlay shares the ready base's provider identity. An
+    # unavailable status cannot establish that the overlay was discarded.
+    workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
+        --handle "$handle" --cleanup pending || return
+    state="$(utm_workspace_public_state "$target_id")"
+    case "$state" in
+        running)
+            request=accepted
+            if ! utm_workspace_cli stop --hide "$target_id" --request >/dev/null; then
+                request=failed
+            elif utm_workspace_wait_state "$target_id" stopped "$UTM_WORKSPACE_SHUTDOWN_TIMEOUT"; then
+                state=off
             fi
-        elif [[ "$state" != "stopped" ]]; then
+            if [[ "$state" != off ]]; then
+                state="$(utm_workspace_public_state "$target_id")"
+                if [[ "$state" != off ]]; then
+                    workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
+                        --handle "$handle" --state "$state" || return
+                    workspace_refusal release workspace_stop_failed \
+                        "UTM shutdown request: $request. Off was not observed (final provider power: $state)" \
+                        '{}' unknown
+                    return $?
+                fi
+            fi
+            ;;
+        off) ;;
+        *)
+            workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
+                --handle "$handle" --state unknown || return
             workspace_refusal release workspace_state_unknown \
-                'The disposable workspace state is unknown'
+                'UTM power observation unavailable; disposable cleanup remains pending'
             return $?
-        fi
-        workspace_receipts "$UTM_WORKSPACE_STATE_DIR" forget --handle "$handle"
-        disposition=discarded
-    fi
-    data="$(jq -n --arg handle "$handle" --arg disposition "$disposition" \
-        '{handle:$handle, disposition:$disposition}')"
+            ;;
+    esac
+    workspace_receipts "$UTM_WORKSPACE_STATE_DIR" forget --handle "$handle" || return
+    data="$(jq -n --arg handle "$handle" '{handle:$handle, disposition:"discarded"}')"
     workspace_claim_release_selected "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
         "$UTM_WORKSPACE_PROVIDER" "$target_id" || return
     workspace_result release none "$data"
