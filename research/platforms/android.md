@@ -166,12 +166,13 @@ not inferred from local external-storage testing.
 
 ### Existing ADB implementation
 
-**Current (2026-11-01), owned adapter `source-reviewed`, offline reproduced:**
-the unavailable-device doctor formatter references an undefined `status` while
-projecting boot generation and raises `NameError` instead of returning an
-unavailable document. No physical operation was needed to reproduce it. The
+**Current, fixture-tested:** The Android handheld CLI returns a minimized
+unavailable doctor document when its selected ADB device is disconnected or
+unauthorized. Both cases exit with status 1 and omit unobserved boot
+generation. Controlled ADB enumeration covers both cases without a physical
+device. The
 [journal review](../../gaps/2026-11-01-usage-journal-review.md#android-unavailable-state-doctor)
-owns the finding; healthy-device acceptance below does not cover this error path.
+records the original formatter crash.
 
 **Decision:** Do not reimplement ADB. Add consistent target selection,
 capability/result vocabulary, semantic adapters, leases, and evidence around

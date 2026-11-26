@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import redirect_stdout
 from dataclasses import replace
+from io import StringIO
 from pathlib import Path
 import subprocess
 import tempfile
@@ -77,6 +79,30 @@ def unlocked_status() -> dict:
         "credentialKind": "pin",
     }
     return value
+
+
+class DoctorTests(unittest.TestCase):
+    def test_unavailable_device_returns_common_doctor_json(self) -> None:
+        for devices in ([], [android_device.AdbDevice("PRIVATE-SERIAL", "unauthorized", {})]):
+            with self.subTest(devices=devices):
+                client = SelectionClient(devices, "PRIVATE-SERIAL")
+                output = StringIO()
+                with (
+                    mock.patch.object(android_device, "load_config", return_value=config(Path("."))),
+                    mock.patch.object(android_device, "AndroidClient", return_value=client),
+                    mock.patch.object(android_device, "device_status") as status,
+                    redirect_stdout(output),
+                ):
+                    self.assertEqual(android_device.main(["doctor", "--json"]), 1)
+                status.assert_not_called()
+                document = json.loads(output.getvalue())
+                self.assertEqual(document["schema"], "machine-control-doctor/v0")
+                self.assertFalse(document["ready"])
+                self.assertEqual(document["states"]["connection"], "unavailable")
+                self.assertEqual(document["checks"][0]["id"], "adb_target")
+                self.assertEqual(document["checks"][0]["status"], "fail")
+                self.assertNotIn("generation", document["extensions"])
+                self.assertNotIn("PRIVATE-SERIAL", output.getvalue())
 
 
 class SelectionTests(unittest.TestCase):

@@ -38,25 +38,24 @@ not raw note count. These rows do not establish a shared root cause.
 | High | Covered editing and guardian reliability remain costly on physical Macs | One task needed 125 clean owner sessions to complete and verify nineteen descriptions; uncertain edits could become duplicate text after replay. VM repairs and short physical passes do not close the original intermittent failures. The [covered-control gap](2026-10-29-covered-observations-and-duration.md) owns these distinct symptoms and qualification limits. |
 | High | Android UI work lacks common exclusive ownership | Interactive checks observed unrelated foreground changes, suspected another session, and stopped because target claims were unsupported. Current source confirms that limitation; it does not prove who caused the changes. Extend authoritative device ownership before relying on concurrent agents. |
 | Medium | VM lifecycle/readiness repeatedly blocks ordinary testing | UTM automation/identity failures, accepted starts with no running guest, delayed boot readiness, long diagnostics, failed saved-state resume and opaque shutdown failures recur. Separate provider, guest and wrapper causes; independently verify effects and bound each phase. The [UTM dossier](../research/providers/utm.md) records mitigation and the unresolved endpoint cause. |
-| Medium, confirmed defect | Android doctor crashes when the device is unavailable | The current unavailable-state formatter raises `NameError` offline. Repair and test disconnected/unauthorized/error paths without inventing a boot generation. See the source finding below. |
+| Medium, fixed | Android doctor crashed when the device was unavailable | The unavailable-state formatter raised `NameError` offline. The CLI regression covers disconnected and unauthorized transports. See the finding below. |
 | Medium | Terminal/frame text delivery is incomplete | Repeated terminal reports show `browser type`/`Input.insertText` acknowledged with no text, while Enter or explicit key events worked. Qualify frame-aware text/key delivery and independent terminal effects; do not infer that ordinary HTML typing fails generally. |
 | Medium | Installed capability and guide skew wastes recovery work | Current-source help advertises dialog handling absent from one installed resident; a legacy Windows health route failed while the common resident worked. Discover actual deployed support and give actionable version/route diagnostics rather than assuming source availability equals deployment. |
 | Medium | Automated failure notes omit actionable diagnostics | 56 notes contain the identical generic packaged-acceptance failure sentence. Preserve a private run reference, failed phase/check and cleanup outcome so review can separate causes. See the logging finding below. |
 
 ### Android unavailable-state doctor
 
-**Current, source-reviewed and reproduced offline:**
-[`unavailable_doctor`](../platforms/android/android_device.py) constructs
-`extensions.generation` from `status["bootGeneration"]`, but `status` is not
-defined in that function or available as a module global. Calling that
-formatter directly raises `NameError: name 'status' is not defined` without
+**Observed, source-reviewed and reproduced offline:**
+[`unavailable_doctor`](../platforms/android/android_device.py) read
+`status["bootGeneration"]` for `extensions.generation` before any status was
+available. Calling that formatter directly raised `NameError` without
 contacting any device. The same failure was reported during separate transport
 outages more than two weeks apart.
 
-**Proposal:** return a valid minimized unavailable doctor document and represent
-unobserved generation explicitly according to the contract. Add direct formatter
-coverage plus error-path coverage through doctor dispatch. Do not replace an
-unavailable device observation with another selected device or a guessed state.
+**Current, fixed and fixture-tested:** The CLI returns a minimized unavailable
+doctor document and omits generation, matching the Quest unavailable projection.
+The regression drives doctor dispatch with disconnected and unauthorized ADB
+enumeration and verifies that device status is never queried.
 
 ### Automated failure-note quality
 
@@ -99,10 +98,9 @@ secrets, personal page contents or deployment identities.
 
 ## Recommended execution order
 
-**Proposal:** fix the deterministic Android doctor defect first as a bounded
-repair. In parallel workstreams if later authorized, isolate background
-browser effects and qualify the repaired covered-control package on the
-intended physical configuration. Device UI ownership is the next substantial
-contract gap. Improve failure-note diagnostics before using journal counts to
+**Proposal:** isolate background browser effects and qualify the repaired
+covered-control package on the intended physical configuration. Device UI
+ownership is the next substantial contract gap. Improve failure-note
+diagnostics before using journal counts to
 prioritize another broad acceptance campaign. Keep lifecycle recovery and
 capability negotiation as separate implementation slices.

@@ -16,11 +16,11 @@ ChromeOS ARCVM, emulators, TVs, watches, or automotive systems.
 
 ## Current implementation
 
-**Current (2026-11-01), confirmed defect:** unavailable-device doctor
-formatting references an undefined `status` and raises `NameError`, reproduced
-offline without device operations. The
-[journal review](../gaps/2026-11-01-usage-journal-review.md#android-unavailable-state-doctor)
-owns the source finding and proposed regression coverage; this remains unfixed.
+**Current, fixture-tested:** Android handheld doctor reports unavailable
+with a failed ADB target check when the configured device is absent or
+unauthorized. It omits the unobserved boot generation, consistent with
+Quest's unavailable-device result.
+[Journal finding](../gaps/2026-11-01-usage-journal-review.md#android-unavailable-state-doctor)
 
 **Current:** [`providers/adb`](../providers/adb) owns dependency-free ADB
 executable discovery, device enumeration, exact transport, shell execution,

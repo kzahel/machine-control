@@ -386,7 +386,6 @@ def unavailable_doctor(_message: str) -> dict[str, Any]:
         "extensions": {
             "routeClass": "host.device",
             "provider": "android.adb",
-            "generation": status["bootGeneration"],
         },
     }
 
