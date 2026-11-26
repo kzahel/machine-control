@@ -25,7 +25,13 @@ Windows guest.
 
 During a later recheck, controller UTM automation probes intermittently
 refused status while other samples succeeded. Doctor reported unknown
-power on those samples while exact target identity still passed.
+power on those samples while exact target identity still passed. The
+guest recovered administration before the shutdown probe. With the
+controller-side SSH refusal injected again, UTM accepted graceful
+shutdown and the standalone shutdown wait expired. Enclosing workspace
+release later observed Off and released the workspace and claim. This
+reproduced the delayed power confirmation with a responsive Windows
+guest before shutdown.
 
 Windows UTM shutdown now requires a positive initial running or stopped
 observation. Shared Windows and Linux UTM release retains the receipt when
