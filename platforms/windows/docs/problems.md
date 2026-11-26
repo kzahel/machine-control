@@ -6,9 +6,13 @@ direction together so later work can reproduce the problem.
 
 ## Investigated 2026-11-26 after a disposable shutdown stalled
 
-The original overlay lost SSH and resident access, and graceful shutdown
-and release left its receipt pending. A later exact workspace doctor and
-provider status both observed Off while the receipt still listed running.
+The original overlay lost SSH and resident access. The retained controller
+audit shows ordinary shutdown ended after 171 seconds and workspace release
+after 123 seconds. In each command window, the UTM diagnostic log recorded
+a successful graceful stop request and successful status queries. Neither
+operation observed Off before its deadline. The private provider log omits
+the raw status strings. A later exact workspace doctor and provider status
+both observed Off while the receipt still listed running.
 A fresh exact claim reconciled the stopped overlay and released its receipt.
 The evidence did not establish when the guest stopped or why it became
 unreachable.
