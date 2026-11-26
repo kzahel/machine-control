@@ -263,21 +263,27 @@ class Browser:
                 value['revoked'].set();self.authorities.pop(identifier,None)
 
     def check(self,frame):
-        authority=self.authorities.get(frame.get('authorityId'));allowed=self.valid(authority)
+        authority_id=frame.get('authorityId')
+        authority=self.authorities.get(authority_id)
         phase=frame.get('phase');identifier=frame.get('auditId')
+        if phase=='result':
+            audit=self.audits.get(identifier)
+            if audit is None or audit['authorityId']!=authority_id:return False
+            wants_confirmation=frame.get('delivery')=='confirmed'
+            confirmed=wants_confirmation and self.valid(authority)
+            return self.end_audit(identifier,confirmed) and (not wants_confirmation or confirmed)
+        allowed=self.valid(authority)
         if phase=='check':return allowed
         if phase=='begin':
             if not allowed or not isinstance(identifier,str) or len(self.audits)>=256 or identifier in self.audits:return False
             if not self.owner.journal.begin('browser.cdp',identifier,self.generation,authority['pid']):return False
-            self.audits[identifier]=authority;return True
-        if phase=='result' and identifier in self.audits:
-            return self.end_audit(identifier,allowed and frame.get('delivery')=='confirmed') and allowed
+            self.audits[identifier]=dict(authorityId=authority_id,generation=self.generation);return True
         return False
 
     def end_audit(self,identifier,confirmed):
-        self.audits.pop(identifier,None)
+        audit=self.audits.pop(identifier)
         return self.owner.journal.record(dict(operation='browser.cdp',requestId=identifier,
-            generation=self.generation,actualRoute='chrome.extension/cdp',accepted=confirmed,
+            generation=audit['generation'],actualRoute='chrome.extension/cdp',accepted=confirmed,
             delivery='confirmed' if confirmed else 'unknown',effect='unverifiable',
             uncertainty='application_effect_not_independently_observed' if confirmed else 'browser_completion_not_observed'))
 

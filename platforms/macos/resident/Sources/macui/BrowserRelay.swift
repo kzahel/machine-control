@@ -102,7 +102,7 @@ final class BrowserRelay {
     private var host: SharedResidentHost?
     private var peers: [String: Peer] = [:]
     private var authorities: [String: Authorized] = [:]
-    private var audits: [String: Authorized] = [:]
+    private var audits: [String: (authorityID: String, generation: String)] = [:]
     private var stopped = true
     private var generation = UUID().uuidString
     private var nativeState: String?
@@ -438,18 +438,26 @@ final class BrowserRelay {
     }
 
     private func check(_ frame: [String: Any]) -> Bool {
-        guard let id = frame["authorityId"] as? String, let authority = authorities[id] else { return false }
-        let allowed = !stopped && authority.generation == generation && authority.owner.validate() == nil
+        guard let id = frame["authorityId"] as? String else { return false }
         let phase = frame["phase"] as? String, auditID = frame["auditId"] as? String ?? ""
-        if phase == "check" { return allowed }
-        if phase == "begin" {
-            guard allowed, audits.count < 256, audits[auditID] == nil,
-                  broker.journal?.begin(["operation": "browser.cdp", "requestId": auditID], caller: authority.caller) != false else { return false }
-            audits[auditID] = authority; return true
+        func authorized(_ authority: Authorized) -> Bool {
+            !stopped && authority.generation == generation && authority.owner.validate() == nil
         }
-        guard phase == "result", audits.removeValue(forKey: auditID) != nil else { return false }
-        let confirmed = allowed && frame["delivery"] as? String == "confirmed"
-        return broker.journal?.record(cdpResult(auditID, generation: authority.generation, confirmed: confirmed)) != false && allowed
+        if phase == "result" {
+            guard let audit = audits[auditID], audit.authorityID == id else { return false }
+            audits.removeValue(forKey: auditID)
+            let wantsConfirmation = frame["delivery"] as? String == "confirmed"
+            let confirmed = wantsConfirmation && authorities[id].map(authorized) == true
+            return broker.journal?.record(cdpResult(auditID, generation: audit.generation, confirmed: confirmed)) != false
+                && (!wantsConfirmation || confirmed)
+        }
+        guard let authority = authorities[id] else { return false }
+        let allowed = authorized(authority)
+        if phase == "check" { return allowed }
+        guard phase == "begin", allowed, audits.count < 256, audits[auditID] == nil,
+              broker.journal?.begin(["operation": "browser.cdp", "requestId": auditID], caller: authority.caller) != false else { return false }
+        audits[auditID] = (id, authority.generation)
+        return true
     }
     private func cdpResult(_ id: String, generation: String, confirmed: Bool) -> [String: Any] {
         ["operation": "browser.cdp", "requestId": id, "generation": generation,

@@ -132,3 +132,21 @@ class BrowserBoundaryTests(unittest.TestCase):
         self.assertFalse(self.browser.valid(authority))
         replies=[];self.browser.execute(dict(operation='browser.tabs'),replies.append,authority)
         self.assertEqual(replies[0]['errorCode'],'control_policy_unavailable')
+
+    def test_audit_result_closes_exact_authority_after_owner_retirement(self):
+        self.browser.stopped=False
+        self.owner.journal=mock.Mock()
+        generation=self.browser.generation
+        self.browser.authorities['native-owner']=dict(
+            generation=generation,revoked=threading.Event(),validate=lambda:None,pid=1)
+        self.assertTrue(self.browser.check(dict(phase='begin',authorityId='native-owner',auditId='audit')))
+        self.browser.authorities.clear()
+        self.assertFalse(self.browser.check(dict(
+            phase='result',authorityId='other-owner',auditId='audit',delivery='unknown')))
+        self.assertIn('audit',self.browser.audits)
+        result=dict(phase='result',authorityId='native-owner',auditId='audit',delivery='unknown')
+        self.assertTrue(self.browser.check(result))
+        self.assertFalse(self.browser.check(result))
+        self.owner.journal.record.assert_called_once()
+        record=self.owner.journal.record.call_args.args[0]
+        self.assertEqual((record['generation'],record['delivery']),(generation,'unknown'))

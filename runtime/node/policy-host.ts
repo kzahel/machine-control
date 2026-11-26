@@ -667,7 +667,15 @@ export class PolicyHost {
     const nativeId = `native:${++this.#sequence}`;
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        this.#nativeWaiters.delete(nativeId);
+        if (phase === "begin") {
+          // Keep the bounded slot until the native side acknowledges begin.
+          // A result sent earlier could overtake the native journal write.
+          this.#nativeWaiters.set(nativeId, accepted => {
+            if (accepted) void this.#native("result", authorityId, auditId, "unknown");
+          });
+        } else {
+          this.#nativeWaiters.delete(nativeId);
+        }
         resolve(false);
       }, 3000);
       this.#nativeWaiters.set(nativeId, (accepted) => {

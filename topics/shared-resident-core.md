@@ -24,6 +24,11 @@ yield. The shared fixture verifies both cases and keeps a second profile
 active throughout sequential owner cleanup.
 [Endpoint lifetime evidence](../gaps/2026-11-21-browser-relay-retention.md#shared-endpoints-remain-allocated-after-owner-release)
 
+**Current (CDP audit timeout):** a late positive native authorization
+reply closes its audit as unknown after the bridge refuses the connection.
+The native relays match the exact audit and authority even after owner
+release. [Audit timeout evidence](../gaps/2026-11-21-browser-relay-retention.md#a-late-cdp-authorization-can-strand-a-native-audit)
+
 ## Motivation
 
 **Current:** this workstream began with reported contention between two

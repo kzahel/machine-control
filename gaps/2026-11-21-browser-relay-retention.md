@@ -121,17 +121,17 @@ These are shared policy and loopback tests on a local host.
 
 ## A late CDP authorization can strand a native audit
 
-**Open, fixture-tested in the shared bridge.** The policy resolves an
-unanswered native CDP `begin` after three seconds. The WebSocket upgrade
-refuses the connection and sends no `result` if that response is false.
-A delayed native side can already have created the audit entry when the
-policy times out.
+**Fixed in source, fixture-tested.** The three-second deadline still
+refuses the WebSocket upgrade. The policy retains bounded correlation for
+a timed-out native `begin` and sends an unknown audit result if native
+later acknowledges it. Waiting for that acknowledgement orders the result
+after the native journal write.
 
-A probe used the production policy, a loopback WebSocket client, and a
-native fixture that recorded the audit but delayed its positive reply
-past the deadline. The socket closed, the late reply arrived, and the
-fixture still held one audit without a result. The desktop adapters limit
-their live audit tables to 256 entries. Exhaustion of a live native
-adapter's table remains source-reviewed.
+The regression delays a native reply beyond the real deadline, observes
+socket refusal and owner release, and checks that acknowledgement retires
+the exact audit and a subsequent owner connects. The three desktop relays
+can close the exact audit after its authority retires. The Linux adapter
+fixture also checks that a different authority cannot consume the audit
+and that a duplicate result leaves the recorded outcome intact.
 [Shared bridge](../runtime/node/cdp.ts),
 [native check deadline](../runtime/node/policy-host.ts)

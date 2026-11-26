@@ -7,7 +7,7 @@ import { ReferenceBrowser } from "../../runtime/testing/reference-browser.ts";
 
 const WebSocket = createRequire(new URL("../../runtime/package.json", import.meta.url))("ws");
 
-async function endpointFixture(t) {
+async function endpointFixture(t, nativeCheck = () => true) {
   const replies = new Map();
   const beginnings = [];
   let sequence = 0;
@@ -19,7 +19,8 @@ async function endpointFixture(t) {
       else reject(new Error(message.errorCode));
     } else if (message.type === "native.check") {
       if (message.phase === "begin") beginnings.push(message.authorityId);
-      queueMicrotask(() => void call("native.reply", { nativeId: message.nativeId, accepted: true }));
+      void Promise.resolve(nativeCheck(message)).then(accepted =>
+        call("native.reply", { nativeId: message.nativeId, accepted }));
     } else if (message.type === "provider.send" && message.frame.type === "session.open") {
       queueMicrotask(() => void call("provider.frame", {
         connectionId: message.connectionId,
@@ -118,6 +119,39 @@ test("an owner yielding during initial listener startup never receives an endpoi
   assert.equal(refused.errorCode, "stale_control_session");
   assert.equal(refused.retrySafety, "safe_not_dispatched");
   assert.equal(refused.data, undefined);
+});
+
+test("a native begin accepted after the upgrade deadline gets an unknown audit result", { timeout: 8_000 }, async t => {
+  const audits = new Map();
+  let replyLate;
+  let closedAudit;
+  const lateResult = new Promise(resolve => { closedAudit = resolve; });
+  const { openOwner } = await endpointFixture(t, frame => {
+    if (frame.phase === "begin") {
+      audits.set(frame.auditId, frame.authorityId);
+      if (!replyLate) return new Promise(resolve => { replyLate = resolve; });
+    }
+    if (frame.phase === "result") {
+      assert.equal(audits.get(frame.auditId), frame.authorityId);
+      audits.delete(frame.auditId);
+      if (frame.delivery === "unknown") closedAudit(frame);
+    }
+    return true;
+  });
+  const owner = await openOwner("late");
+  const endpoint = await owner.endpoint();
+  await once(new WebSocket(endpoint.data.browserEndpoint), "error");
+  assert.equal(audits.size, 1, "the delayed native reply still owns its audit");
+  await owner.close();
+  replyLate(true);
+  assert.equal((await lateResult).authorityId, "native-late");
+  assert.equal(audits.size, 0);
+
+  const next = await openOwner("next");
+  const nextEndpoint = await next.endpoint();
+  const socket = new WebSocket(nextEndpoint.data.browserEndpoint);
+  t.after(() => socket.terminate());
+  await once(socket, "open");
 });
 
 test("a lost attach reply can retire only its native transport", () => {

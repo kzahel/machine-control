@@ -18,7 +18,7 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     private readonly SharedBrowserHost _host;
     private readonly ConcurrentDictionary<string, Peer> _peers = new();
     private readonly ConcurrentDictionary<string, Authority> _authorities = new();
-    private readonly ConcurrentDictionary<string, Authority> _audits = new();
+    private readonly ConcurrentDictionary<string, (string AuthorityId, string Generation)> _audits = new();
     private readonly SemaphoreSlim _slots = new(16, 16);
     private readonly ConcurrentDictionary<long, Task> _connections = new();
     private long _nextConnection;
@@ -258,23 +258,30 @@ internal sealed class BrowserRelay : IBrowserPolicy, IDisposable
     private bool NativeCheckCore(JsonObject frame)
     {
         var authorityId = frame["authorityId"]?.GetValue<string>() ?? "";
-        if (!_authorities.TryGetValue(authorityId, out var authority)) return false;
         lock (_grants.Gate)
         {
-            var allowed = _stopped == 0 && _grants.AuthorizeNative(authority.Request, authority.Generation) is null &&
+            bool Authorized(Authority authority) =>
+                _stopped == 0 && _grants.AuthorizeNative(authority.Request, authority.Generation) is null &&
                 _grants.AuthorizeNative("browser.cdp", authority.Generation, controlled: true) is null;
             var phase = frame["phase"]?.GetValue<string>();
             var auditId = frame["auditId"]?.GetValue<string>() ?? "";
-            if (phase == "check") return allowed;
-            if (phase == "begin")
+            if (phase == "result")
             {
-                if (!allowed || _audits.Count >= 256 || !_audits.TryAdd(auditId, authority)) return false;
-                if (_grants.Journal?.Begin("browser.cdp", auditId, authority.Generation) != false) return true;
-                _audits.TryRemove(auditId, out _); return false;
+                if (!_audits.TryGetValue(auditId, out var audit) || audit.AuthorityId != authorityId ||
+                    !_audits.TryRemove(new KeyValuePair<string, (string, string)>(auditId, audit))) return false;
+                var wantsConfirmation = frame["delivery"]?.GetValue<string>() == "confirmed";
+                var confirmed = wantsConfirmation && _authorities.TryGetValue(authorityId, out var live) && Authorized(live);
+                return _grants.Journal?.Record(CdpResult(auditId, audit.Generation, confirmed)) != false &&
+                    (!wantsConfirmation || confirmed);
             }
-            if (phase != "result" || !_audits.TryRemove(auditId, out var intent) || intent != authority) return false;
-            var confirmed = allowed && frame["delivery"]?.GetValue<string>() == "confirmed";
-            return _grants.Journal?.Record(CdpResult(auditId, authority.Generation, confirmed)) != false && allowed;
+            if (!_authorities.TryGetValue(authorityId, out var authority)) return false;
+            var allowed = Authorized(authority);
+            if (phase == "check") return allowed;
+            if (phase != "begin" || !allowed || _audits.Count >= 256 ||
+                !_audits.TryAdd(auditId, (authorityId, authority.Generation))) return false;
+            if (_grants.Journal?.Begin("browser.cdp", auditId, authority.Generation) != false) return true;
+            _audits.TryRemove(auditId, out _);
+            return false;
         }
     }
     private static Result CdpResult(string id, string generation, bool confirmed) => new()
