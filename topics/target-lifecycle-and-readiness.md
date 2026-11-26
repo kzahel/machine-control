@@ -364,6 +364,11 @@ probes. Doctor reports unavailable automation with unknown guest state.
 Library recovery distinguishes an empty/unready library from unavailable
 automation and no longer retries arbitrary status failures.
 
+**Current:** UTM shutdown and disposable workspace release attempt console
+closure after exact-target Off. A console cleanup failure is separate from
+the observed guest power and workspace disposition. See
+[UTM console cleanup](../providers/utm/README.md#console-cleanup-after-shutdown).
+
 **Open:** This mitigates the observed crash loop without repairing the UTM
 endpoint. A failure between preflight and dispatch can still crash upstream.
 No operation is replayed and no guest effect is inferred. Diagnostic logging

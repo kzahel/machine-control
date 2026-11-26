@@ -502,6 +502,10 @@ utm_workspace_release_inner() {
             return $?
             ;;
     esac
+    "${MACHINE_CONTROL_WORKSPACE_PYTHON:-python3}" \
+        "${UTM_WORKSPACE_DIAGNOSTIC_RUNNER%/*}/automation.py" \
+        close-console "$UTM_WORKSPACE_CLI" "$target_id" || \
+        printf 'machine-control: UTM console closure unavailable\n' >&2
     workspace_receipts "$UTM_WORKSPACE_STATE_DIR" forget --handle "$handle" || return
     data="$(jq -n --arg handle "$handle" '{handle:$handle, disposition:"discarded"}')"
     workspace_claim_release_selected "$UTM_WORKSPACE_CLAIM_STATE_DIR" \

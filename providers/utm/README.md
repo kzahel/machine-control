@@ -43,6 +43,19 @@ SIGKILL cannot be handled by the wrapper. Logging failure warns on stderr and
 allows the original operation to proceed, without retrying it. This is
 best-effort diagnostics, not a security audit or a same-user trust boundary.
 
+## Console cleanup after shutdown
+
+UTM puts a stopped VM's console back at its Start screen. After a normal
+Windows or Linux shutdown or disposable workspace release confirms Off,
+Machine Control asks UTM to close that VM's console. It resolves the VM by its
+configured UUID, requires a unique matching console title, and rechecks power
+before sending a close to the window ID. It verifies closure through the
+window's disappearance or loss of visibility, since UTM can retain the window
+object. The request uses the running UTM application's Apple Events endpoint
+and preserves UTM's auto-terminate preference. Ambiguous windows and
+unavailable automation leave console cleanup unconfirmed. Guest power and
+disposable-workspace cleanup retain their independently observed results.
+
 ## ScriptingBridge failure
 
 **Current — live-tested failure:** UTM 4.7.5's bundled `utmctl` on macOS 26.6.2

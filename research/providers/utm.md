@@ -24,6 +24,12 @@ ScriptingBridge to access UTM. Per-VM commands first request the application's
 `virtualMachines` collection. Failure here precedes guest dispatch and can
 therefore affect unrelated commands and guests through the same host bridge.
 
+**Current — source-reviewed and live-tested on a Linux disposable workspace:**
+UTM moves a stopped guest's [display to its Start state](https://github.com/utmapp/UTM/blob/v4.7.5/Platform/macOS/Display/VMDisplayWindowController.swift#L340-L365).
+The console remained visible after Off and disappeared after a targeted Cocoa
+close. UTM can retain the closed [window object](https://github.com/utmapp/UTM/blob/v4.7.5/Platform/macOS/Display/Base.lproj/VMDisplayWindow.xib#L36).
+See [console cleanup](../../providers/utm/README.md#console-cleanup-after-shutdown).
+
 **Current — live-tested failure:** The installed 4.7.5 CLI on macOS 26.6.2
 aborted during read-only inventory after failing to load the scripting
 definition. The installed dictionary remained readable using Apple's `sdef`.

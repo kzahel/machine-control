@@ -40,7 +40,28 @@ class AutomationTests(unittest.TestCase):
     def test_custom_executable_never_probes_real_app(self):
         with patch.object(automation.subprocess, "run") as run:
             self.assertEqual(automation.probe("/fixture/utmctl"), "not_applicable")
+            self.assertEqual(automation.close_console("/fixture/utmctl", "fixture-id"), "not_applicable")
             run.assert_not_called()
+
+    def test_console_closure_is_bounded_and_returns_only_known_outcomes(self):
+        bundle = Path("/fixture/UTM.app")
+        for code, stdout, outcome in [
+            (0, "closed\n", "closed"),
+            (0, "not_visible\n", "not_visible"),
+            (0, "not_stopped\n", "not_stopped"),
+            (0, "ambiguous\n", "ambiguous"),
+            (0, "private window title\n", "unavailable"),
+            (1, "closed\n", "unavailable"),
+        ]:
+            with self.subTest(code=code, outcome=outcome), \
+                 patch.object(automation, "application_bundle", return_value=bundle), \
+                 patch.object(automation.subprocess, "run", return_value=subprocess.CompletedProcess(
+                     [], code, stdout, "private diagnostics")) as run:
+                self.assertEqual(automation.close_console("fixture", "fixture-id"), outcome)
+                run.assert_called_once_with(
+                    ["/usr/bin/osascript", "-e", automation.CLOSE_CONSOLE_SCRIPT, str(bundle), "fixture-id"],
+                    capture_output=True, text=True, timeout=7, check=False,
+                )
 
     @unittest.skipIf(os.name == "nt", "POSIX UTM wrapper")
     def test_unavailable_bridge_never_launches_cli(self):

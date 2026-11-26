@@ -91,12 +91,19 @@ wait_for_vm_state() {
     return 1
 }
 
+report_stopped() {
+    "${PYTHON:-python3}" "$LINUXVM_REPO_DIR/../../providers/utm/automation.py" \
+        close-console "$LINUXVM_UTMCTL" "$LINUXVM_EXPECTED_UUID" || \
+        printf 'machine-control: UTM console closure unavailable\n' >&2
+    printf 'stopped\n'
+}
+
 guest_shutdown() {
     linuxvm_assert_mutation_target
     local status
     status="$(vm_status)" || status=unknown
     if [[ "$status" == "stopped" ]]; then
-        printf 'stopped\n'
+        report_stopped
         return
     fi
     if [[ "$status" != "started" ]]; then
@@ -107,14 +114,14 @@ guest_shutdown() {
     if ! utm_cli stop --request "$LINUXVM_UTM_NAME" >/dev/null; then
         status="$(vm_status)" || status=unknown
         if [[ "$status" == "stopped" ]]; then
-            printf 'stopped\n'
+            report_stopped
             return
         fi
         printf 'UTM shutdown request failed; Off was not observed.\n' >&2
         return 1
     fi
     if wait_for_vm_state stopped "$LINUXVM_SHUTDOWN_TIMEOUT"; then
-        printf 'stopped\n'
+        report_stopped
         return
     fi
 

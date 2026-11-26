@@ -977,11 +977,18 @@ wait_for_vm_state() {
     return 1
 }
 
+report_stopped() {
+    "${PYTHON:-python3}" "$WINVM_REPO_DIR/../../providers/utm/automation.py" \
+        close-console "$WINVM_UTMCTL" "$WINVM_EXPECTED_UTM_ID" || \
+        printf 'machine-control: UTM console closure unavailable\n' >&2
+    printf 'stopped\n'
+}
+
 vm_shutdown() {
     local status ip=""
     status="$(vm_status)" || status=unknown
     if [[ "$status" == "stopped" ]]; then
-        printf 'stopped\n'
+        report_stopped
         return
     fi
     if [[ "$status" != "started" ]]; then
@@ -1007,7 +1014,7 @@ vm_shutdown() {
     fi
 
     if wait_for_vm_state stopped "$WINVM_GUEST_SHUTDOWN_GRACE"; then
-        printf 'stopped\n'
+        report_stopped
         return
     fi
 
@@ -1016,14 +1023,14 @@ vm_shutdown() {
     if ! utm_cli stop --request "$(utm_target_identifier)" >/dev/null; then
         status="$(vm_status)" || status=unknown
         if [[ "$status" == "stopped" ]]; then
-            printf 'stopped\n'
+            report_stopped
             return
         fi
         printf 'UTM shutdown request failed; Off was not observed.\n' >&2
         return 1
     fi
     if wait_for_vm_state stopped "$WINVM_SHUTDOWN_TIMEOUT"; then
-        printf 'stopped\n'
+        report_stopped
         return
     fi
 
@@ -1034,7 +1041,7 @@ vm_shutdown() {
 
 vm_down() {
     if [[ "$(vm_status || true)" == "stopped" ]]; then
-        printf 'stopped\n'
+        report_stopped
         return
     fi
     detect_suspend_capability || return
