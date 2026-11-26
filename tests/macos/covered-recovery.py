@@ -293,6 +293,7 @@ def _lease(c):
 
 
 def run(c):
+    progress = c.get('acceptance_check', lambda *_: None)
     call, raw, poll, check = (c[k] for k in ['call', 'raw', 'poll', 'check'])
     owner = None
     suspended = None
@@ -476,6 +477,7 @@ def run(c):
     c['diagnose_browser_ending'] = diagnose_browser_ending
 
     def visible_cover():
+        progress('covered_control', 'capture_display')
         tool = c['root'] / 'cover-observation'
         if not tool.exists():
             subprocess.run(['xcrun', 'swiftc', str(c['source_root'] / 'tests/macos/cover-observation.swift'),
@@ -496,6 +498,7 @@ def run(c):
         report = json.loads(observed.stdout)
         with os.fdopen(os.open(c['evidence'] / (prefix + '.json'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
             json.dump(report, stream)
+        progress('covered_control', 'verify_concealment')
         assert observed.returncode == 0 and report['sampledConcealment'], report
         check('independent unfiltered display samples and rendered cover title conceal the fixture')
 
@@ -503,9 +506,11 @@ def run(c):
         duration = c.get('covered_duration', 0)
         if not duration:
             return
+        progress('covered_control', 'finite_owner_expiry')
         started = time.monotonic()
         active = start(duration=duration)
         effect(); text_and_hover(); visible_cover()
+        progress('covered_control', 'finite_owner_expiry')
         next_effect = time.monotonic() + 60
         while owner.poll() is None:
             assert time.monotonic() - started < duration + 60, 'Control owner missed its hard deadline'
@@ -530,6 +535,7 @@ def run(c):
         duration = c.get('covered_renewal_seconds', 0)
         if not duration:
             return
+        progress('covered_control', 'renew_owner')
         ControlSession, command = installed_sdk(c['resident'])
         # Direct guest SDK adapter under the controller's already-held exact
         # workspace claim. Each open carries that claim for attribution; this
@@ -551,14 +557,22 @@ def run(c):
             started = time.monotonic()
             next_effect = 0
             while time.monotonic() - started < duration:
-                view = session.status()
-                assert view['state'] == 'active' and view['sessionId'] == initial['sessionId'], view.get('terminalReason')
-                assert view['resourceGenerations'] == initial['resourceGenerations']
-                observed = fresh_status()
-                root = observed['unlock']
-                assert observed['lockedUse']['controlSessionId'] == control_id
-                assert observed['lockedUse']['phase'] == 'active' and root['coveredSession']
-                assert 0 < root['coveredRemainingSeconds'] <= 900
+                try:
+                    view = session.status()
+                    assert view['state'] == 'active' and view['sessionId'] == initial['sessionId'], view.get('terminalReason')
+                    assert view['resourceGenerations'] == initial['resourceGenerations']
+                except Exception:
+                    progress('covered_control', 'observe_same_owner')
+                    raise
+                try:
+                    observed = fresh_status()
+                    root = observed['unlock']
+                    assert observed['lockedUse']['controlSessionId'] == control_id
+                    assert observed['lockedUse']['phase'] == 'active' and root['coveredSession']
+                    assert 0 < root['coveredRemainingSeconds'] <= 900
+                except Exception:
+                    progress('covered_control', 'observe_guardian')
+                    raise
                 if time.monotonic() >= next_effect:
                     before = json.loads(c['fixture_state'].read_text())
                     result = session.call(dict(operation='snapshot', claimId=c['claim'], target=str(c['fixture'].pid), provider='macos-native'))
@@ -573,7 +587,9 @@ def run(c):
                     # oracle as finite owners, without cycling this owner or
                     # replaying an uncertain write.
                     if 'browser_pid' in c:
+                        progress('covered_control', 'verify_browser_effects')
                         native_browser(c, 'covered')
+                        progress('covered_control', 'renew_owner')
                     view = session.status()
                     observed = fresh_status()
                     root = observed['unlock']
@@ -614,6 +630,7 @@ def run(c):
     def renewable_disconnect():
         if not c.get('covered_renewal_seconds'):
             return
+        progress('covered_control', 'owner_disconnect')
         sdk_ready()
         surface_options=dict(surfaces=['desktop','browser'],profile_ids=c['rig'].profiles) if c.get('rig') is not None else {}
         with c['sdk_class'](c['sdk_target'],reason='Qualify renewable owner transport loss',

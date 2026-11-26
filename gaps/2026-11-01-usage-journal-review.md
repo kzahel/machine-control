@@ -41,7 +41,7 @@ not raw note count. These rows do not establish a shared root cause.
 | Medium, fixed | Android doctor crashed when the device was unavailable | The unavailable-state formatter raised `NameError` offline. The CLI regression covers disconnected and unauthorized transports. See the finding below. |
 | Medium | Terminal/frame text delivery is incomplete | Repeated terminal reports show `browser type`/`Input.insertText` acknowledged with no text, while Enter or explicit key events worked. Qualify frame-aware text/key delivery and independent terminal effects; do not infer that ordinary HTML typing fails generally. |
 | Medium | Installed capability and guide skew wastes recovery work | Current-source help advertises dialog handling absent from one installed resident; a legacy Windows health route failed while the common resident worked. Discover actual deployed support and give actionable version/route diagnostics rather than assuming source availability equals deployment. |
-| Medium | Automated failure notes omit actionable diagnostics | 56 notes contain the identical generic packaged-acceptance failure sentence. Preserve a private run reference, failed phase/check and cleanup outcome so review can separate causes. See the logging finding below. |
+| Medium, fixed | Automated failure notes omitted actionable diagnostics | 56 notes used the identical packaged-acceptance failure sentence. The Mac harness now records a private evidence locator, failed phase and check, and observed cleanup. |
 
 ### Android unavailable-state doctor
 
@@ -59,18 +59,19 @@ enumeration and verifies that device status is never queried.
 
 ### Automated failure-note quality
 
-**Current, source-reviewed:**
+**Observed, source-reviewed:**
 [`tests/macos/packaged-acceptance.py`](../tests/macos/packaged-acceptance.py)
-writes a fixed sentence from its broad exception handler. All 56 matching notes
+wrote a fixed sentence from its broad exception handler. All 56 matching notes
 say to inspect private evidence but name no failed check, phase or evidence
 locator. Claim/session audit can help recover context, but omits payloads and
 has independent retention/coverage limits. Identical text does not establish
 identical causes or duplicated execution.
 
-**Proposal:** keep every failed attempt while attaching a bounded private run
-reference, closed failure code/check, phase and cleanup status. Group repeated
-observations for review without deleting attempts or exposing raw stderr,
-secrets, personal page contents or deployment identities.
+**Current, fixture-tested:** The controller writes a private failure report
+with the last named phase and check, a bounded error category, and observed
+guest cleanup. The reliability runner adds exact-scope claim and workspace
+cleanup before journaling the failure. Guest markers use a closed vocabulary
+and the note contains no assertion text, command output, or credentials.
 
 ## Other findings and exclusions
 
@@ -100,7 +101,6 @@ secrets, personal page contents or deployment identities.
 
 **Proposal:** isolate background browser effects and qualify the repaired
 covered-control package on the intended physical configuration. Device UI
-ownership is the next substantial contract gap. Improve failure-note
-diagnostics before using journal counts to
-prioritize another broad acceptance campaign. Keep lifecycle recovery and
+ownership is the next substantial contract gap. Use the failure stage and
+cleanup evidence when prioritizing another acceptance campaign. Keep lifecycle recovery and
 capability negotiation as separate implementation slices.

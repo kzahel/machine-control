@@ -26,6 +26,7 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.request import urlopen
+from acceptance_diagnostics import announce
 from surface_fixture import generation_bound_status
 
 
@@ -721,6 +722,7 @@ def main():
 
         reliability = None
         if args.remote_arming:
+            announce('guest_campaign', 'remote_arming')
             spec = importlib.util.spec_from_file_location('remote_arming', args.source_root / 'tests/macos/remote-arming.py')
             remote_arming = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(remote_arming)
@@ -730,7 +732,7 @@ def main():
                 root=root, source_root=args.source_root, claim=args.claim,
                 disposable=args.disposable_workspace, covered_recovery=args.covered_recovery, covered_probe=args.covered_probe,
                 rig=rig, covered_duration=args.covered_duration, covered_renewal_seconds=args.covered_renewal_seconds, restart=restart_armed,
-                evidence=args.report.parent if args.report else root))
+                evidence=args.report.parent if args.report else root, acceptance_check=announce))
         final = call('status')
         check('resident PID/generation stable outside planned restart', final['processId'] == pid)
         after_reports = report_names()

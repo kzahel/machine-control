@@ -20,6 +20,7 @@ import sys
 import tarfile
 import tempfile
 import uuid
+from acceptance_diagnostics import FailureReport
 
 
 def main():
@@ -42,6 +43,7 @@ def main():
     p.add_argument('--dialog-probe', action='store_true')
     p.add_argument('--source-sdk', action='store_true')
     p.add_argument('--covered-probe', action='store_true')
+    p.add_argument('--defer-failure-note', action='store_true', help=argparse.SUPPRESS)
     p.add_argument('--admin-secret-file', type=Path, help='Owner-only canonical VM credential; one-shot native sheet transport only')
     a = p.parse_args()
     if a.source_sdk and not a.development:
@@ -73,6 +75,16 @@ def main():
         p.error('Invalid bounded repeat/soak settings')
     a.output.mkdir(mode=0o700, parents=True, exist_ok=False)
     mc = [str(repo / 'bin/machine-control')]
+    report = FailureReport(a.output, bool(os.environ.get('MACHINE_CONTROL_WORKSPACE_HANDLE')))
+    try:
+        run_controller(a, repo, mc, report)
+    except BaseException as error:
+        report.failed(error)
+        report.publish(None if a.defer_failure_note else mc)
+        raise
+
+
+def run_controller(a, repo, mc, report):
     if a.remote_arming:
         scope = json.loads(Path(os.environ['MACHINE_CONTROL_SCOPE_FILE']).read_text())
         # Read-only inventory proves the parent's exact receipt is disposable;
@@ -91,12 +103,14 @@ def main():
 
     signal.signal(signal.SIGTERM, interrupted)
     remote = '/tmp/mc-packaged-' + uuid.uuid4().hex
+    report.step('controller_preflight', 'observe_initial_power')
     # Doctor returns nonzero for a parked guest while still returning its
     # read-only power/identity report. Claim resolution has already succeeded.
     doctor = subprocess.run(mc + ['target', 'doctor'], capture_output=True, timeout=90)
     initial = json.loads(doctor.stdout)['states']['power']
     staged = False
     with tempfile.TemporaryDirectory(prefix='mc-acceptance-extract-') as temporary:
+        report.step('controller_preflight', 'verify_candidate')
         app = a.app
         manifest = None
         summary = None
@@ -117,10 +131,11 @@ def main():
             app = Path(temporary) / 'Machine Control.app'
         assert app and plistlib.loads((app / 'Contents/Info.plist').read_bytes())['CFBundleIdentifier'] == 'org.machine-control.app'
         subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
+        report.step('controller_preflight', 'archive_candidate')
         archive_path = a.output / 'staged-inputs.tar'
         with tarfile.open(archive_path, 'w') as archive:
             archive.add(app, arcname='candidate/Machine Control.app')
-            for name in ['tests/macos/packaged-acceptance-guest.py',
+            for name in ['tests/macos/packaged-acceptance-guest.py', 'tests/macos/acceptance_diagnostics.py',
                          'tests/macos/browser-file-dialogs.py', 'tests/macos/remote-arming.py',
                          'tests/macos/browser_dialog_probe.py',
                          'tests/macos/surface_fixture.py', 'tests/macos/surface-policy-live.py', 'tests/macos/surface-covered-live.py',
@@ -134,10 +149,14 @@ def main():
                 for file in sorted((repo/'client').glob('*.py')):
                     archive.add(file,arcname='source/client/'+file.name)
         try:
+            report.step('controller_setup', 'start_guest')
             call('target', 'up')
+            report.step('controller_setup', 'verify_guest_readiness')
             assert json.loads(call('target', 'doctor'))['ready'], 'Guest doctor is not ready'
+            report.step('controller_setup', 'stage_candidate')
             call('testbed', '--', 'exec', '/bin/mkdir', '-m', '700', remote)
             staged = True
+            report.cleanup['stage'] = 'retained'
             with archive_path.open('rb') as stream:
                 call('testbed', '--', 'exec', '-i', '/usr/bin/tar', '-xf', '-', '-C', remote, stdin=stream)
             argv = ['os', '--', '/usr/bin/python3', remote + '/source/tests/macos/packaged-acceptance-guest.py',
@@ -161,10 +180,13 @@ def main():
             # The guest exposes only a validated one-shot lease. No password
             # enters request JSON, argv, environment, evidence or ordinary logs.
             attempted = False
+            report.step('guest_setup', 'verify_observer')
             proc = subprocess.Popen(mc + argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             try:
                 for line in proc.stdout:
+                    report.observe(line)
                     if line.startswith(b'MC_CREDENTIAL_LEASE '):
+                        report.step('guest_campaign', 'authorize_native_sheet')
                         assert a.covered_recovery and not attempted, 'Unexpected or repeated credential request'
                         lease = json.loads(line[len(b'MC_CREDENTIAL_LEASE '):])
                         assert set(lease) == {'leaseId'} and isinstance(lease['leaseId'], str)
@@ -189,40 +211,50 @@ def main():
             finally:
                 if proc.poll() is None:
                     proc.send_signal(signal.SIGINT); proc.wait(timeout=45)
+            report.step('controller_postflight', 'read_guest_summary')
             summary = json.loads(call('os', '--', '/bin/cat', remote + '/results/summary.json'))
-        except BaseException:
-            subprocess.run(mc + ['usage', 'note', '--kind', 'friction', '--goal', 'Packaged desktop acceptance'],
-                input=b'Packaged acceptance failed; inspect controller-private evidence and cleanup status before retrying.\n',
-                stdout=subprocess.DEVNULL, timeout=30, check=False)
+        except BaseException as error:
+            report.failed(error)
             raise
         finally:
             try:
                 if staged:
+                    report.step('controller_cleanup', 'collect_guest_evidence')
+                    report.cleanup.update(guestEvidence='failed', appState='unknown')
                     with (a.output / 'guest-evidence.tar').open('wb') as stream:
-                        subprocess.run(mc + ['os', '--', '/usr/bin/tar', '-cf', '-', '-C', remote, 'results'],
-                                       stdout=stream, check=False, timeout=90)
+                        archive_result = subprocess.run(mc + ['os', '--', '/usr/bin/tar', '-cf', '-', '-C', remote, 'results'],
+                                                        stdout=stream, check=False, timeout=90)
+                    if archive_result.returncode == 0:
+                        report.cleanup['guestEvidence'] = 'collected'
+                    report.step('controller_cleanup', 'read_app_restoration')
                     cleanup = json.loads(call('os', '--', '/bin/cat', remote + '/results/cleanup.json'))
                     (a.output / 'cleanup.json').write_text(json.dumps(cleanup) + '\n')
+                    report.cleanup['appState'] = 'restored' if cleanup.get('appStateRestored') is True else 'failed'
                     if cleanup['restored'] or (a.remote_arming and cleanup.get('appStateRestored')
                             and cleanup.get('workspaceDiscardRequired') and os.environ.get('MACHINE_CONTROL_WORKSPACE_HANDLE')):
+                        report.step('controller_cleanup', 'remove_guest_stage')
                         call('os', '--', '/bin/rm', '-rf', remote)
+                        report.cleanup['stage'] = 'removed'
                     else:
                         raise RuntimeError('Guest restoration incomplete; private backups retained at ' + remote)
+            except BaseException as error:
+                report.failed(error)
+                raise
             finally:
-                if initial == 'suspended':
-                    call('target', 'suspend')
-                elif initial == 'off':
-                    call('target', 'shutdown')
+                if initial in {'suspended', 'off'}:
+                    report.step('controller_cleanup', 'restore_power')
+                    report.cleanup['power'] = 'failed'
+                    call('target', 'suspend' if initial == 'suspended' else 'shutdown')
+                    observed_power = json.loads(call('target', 'status'))['data']['powerState']
+                    assert observed_power == initial, 'Initial guest power was not observed after cleanup'
+                    report.cleanup['power'] = 'restored'
+        report.step('controller_postflight', 'write_identity')
         # Development output is deliberately ineligible as release evidence.
         (a.output / 'identity.json').write_text(json.dumps({'development': a.development,
             'build': manifest, 'seed': a.seed, 'sdkOrigin':'source' if a.source_sdk else 'packaged'}) + '\n')
-        subprocess.run(mc + ['usage', 'note', '--kind', 'summary', '--goal', 'Packaged desktop acceptance'],
-            input=('Packaged suite passed ' + str(summary['checks']) + ' checks with seed ' + str(a.seed) +
-                   '; app, policy and operator files restored; ' +
-                   ('helper registration requires disposal by the enclosing workspace scope; ' if a.remote_arming else 'power restored; ') +
-                   'raw evidence remains controller-private.\n').encode(),
-            stdout=subprocess.DEVNULL, check=True, timeout=30)
+        receipt_path = None
         if not a.development and manifest and a.faults and a.repeat >= 3 and a.soak_seconds >= 120:
+            report.step('controller_postflight', 'verify_acceptance_receipt')
             assert summary['faults']
             assert summary['plannedRestarts'] == (5 if a.covered_recovery else 1)
             spec = importlib.util.spec_from_file_location('acceptance', repo / 'desktop/scripts/packaged-acceptance.py')
@@ -246,10 +278,20 @@ def main():
                 # outer reliability runner can attest its completed disposal.
                 # This object also lacks the independent visible-controls and
                 # cold-boot evidence. It is deliberately not a release receipt.
-                (a.output / 'acceptance-pending-cleanup.json').write_text(json.dumps(receipt, indent=2) + '\n')
+                receipt_path = a.output / 'acceptance-pending-cleanup.json'
             elif not a.remote_arming:
                 acceptance.validate(receipt, manifest, revision=revision, version=manifest['version'], run=run)
-                (a.output / 'acceptance.json').write_text(json.dumps(receipt, indent=2) + '\n')
+                receipt_path = a.output / 'acceptance.json'
+        report.step('controller_postflight', 'write_usage_summary')
+        subprocess.run(mc + ['usage', 'note', '--kind', 'summary', '--goal', 'Packaged desktop acceptance'],
+            input=('Packaged suite passed ' + str(summary['checks']) + ' checks with seed ' + str(a.seed) +
+                   '. App, policy and operator files restored. ' +
+                   ('Helper registration awaits enclosing workspace disposal. ' if a.remote_arming else '') +
+                   'Raw evidence remains controller-private.\n').encode(),
+            stdout=subprocess.DEVNULL, check=True, timeout=30)
+        if receipt_path is not None:
+            report.step('controller_postflight', 'write_acceptance_receipt')
+            receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
         print('Packaged acceptance passed; ' + ('helper registration confined to disposable workspace' if a.remote_arming
             else 'original guest state and power restored'), flush=True)
 

@@ -15,45 +15,88 @@ import tarfile
 import tempfile
 
 
-def finished_scope(events):
+def scope_completion(events):
     acquired = [e for e in events if e.get('schema') == 'machine-control-run/v0' and e.get('event') == 'acquired']
     finished = [e for e in events if e.get('schema') == 'machine-control-run/v0' and e.get('event') == 'finished']
     if len(acquired) != 1 or len(finished) != 1:
         raise ValueError('One exact acquired and completed isolated scope is required')
     start, end = acquired[0], finished[0]
     if (not start.get('claimId') or not start.get('workspaceHandle')
-            or any(start.get(k) != end.get(k) for k in ['claimId', 'workspaceHandle', 'logicalTarget'])
-            or end.get('exitCode') != 0 or end.get('childExitCode') != 0
+            or any(start.get(k) != end.get(k) for k in ['claimId', 'workspaceHandle', 'logicalTarget'])):
+        raise ValueError('Scope completion does not match acquisition')
+    return end
+
+
+def finished_scope(events):
+    end = scope_completion(events)
+    if (end.get('exitCode') != 0 or end.get('childExitCode') != 0
             or end.get('outcome') != 'completed'
             or end.get('cleanup') != {'claim': 'released', 'workspace': 'released'}):
         raise ValueError('Isolated acceptance scope or disposal did not complete successfully')
 
 
-def run_claimed(args, path):
+def run_claimed(args, path, diagnose_failure=None):
     events = []
-    with path.open('wb') as log:
+
+    def retain_event(line):
+        try:
+            value = json.loads(line)
+            if isinstance(value, dict) and value.get('schema') == 'machine-control-run/v0':
+                events.append(value)
+        except (UnicodeError, ValueError):
+            pass
+
+    def run(log):
         proc = subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         try:
             for line in proc.stdout:
                 log.write(line); log.flush()
                 sys.stdout.buffer.write(line); sys.stdout.flush()
-                try:
-                    value = json.loads(line)
-                    if isinstance(value,dict) and value.get('schema') == 'machine-control-run/v0':
-                        events.append(value)
-                except (UnicodeError,ValueError):
-                    pass
+                retain_event(line)
             if proc.wait() != 0:
                 raise RuntimeError('Reliability campaign failed; inspect private evidence')
         except KeyboardInterrupt:
             proc.terminate()
             rest,_ = proc.communicate(timeout=90)
             log.write(rest or b''); log.flush()
+            for line in (rest or b'').splitlines():
+                retain_event(line)
             raise
         finally:
             if proc.poll() is None:
                 proc.terminate(); proc.wait(timeout=90)
-    finished_scope(events)
+    try:
+        with path.open('wb') as log:
+            run(log)
+        finished_scope(events)
+    except BaseException as error:
+        if diagnose_failure is not None:
+            diagnose_failure(events, error)
+        raise
+
+
+def report_campaign_failure(output, events, error, mc):
+    from acceptance_diagnostics import FailureReport
+
+    report = FailureReport(output, workspace_owned=True)
+    report.step('workspace_scope', 'acquire_or_release')
+    previous = output / 'failure.json'
+    if previous.is_file():
+        document = json.loads(previous.read_text())
+        report.failure = {key: document[key] for key in ('phase', 'check', 'kind')}
+        report.cleanup.update(document['cleanup'])
+    report.failed(error)
+    cleanup = {}
+    try:
+        observation = scope_completion(events).get('cleanup')
+        if isinstance(observation, dict):
+            cleanup = observation
+    except ValueError:
+        pass
+    for key in ('claim', 'workspace'):
+        outcome = cleanup.get(key)
+        report.cleanup[key] = outcome if outcome in ('released', 'unresolved', 'not_acquired') else 'unknown'
+    report.publish(mc)
 
 
 def completed_development_campaign(root):
@@ -117,7 +160,7 @@ def main():
         '--claimant-authority', a.claimant_authority, '--claimant-id', a.claimant_id, '--',
         sys.executable, str(repo / 'tests/macos/packaged-acceptance.py'),
         '--output', str(a.output / 'campaign'), '--repeat', '3', '--soak-seconds', '120',
-        '--seed', str(a.seed), '--faults', '--remote-arming', '--covered-recovery',
+        '--seed', str(a.seed), '--faults', '--remote-arming', '--covered-recovery', '--defer-failure-note',
         '--covered-duration', '900', '--covered-renewal-seconds', '960',
         '--admin-secret-file', str(a.admin_secret_file)]
     if a.resume_campaign:
@@ -132,7 +175,14 @@ def main():
             args += ['--development']
         if a.team_id:
             args += ['--team-id', a.team_id]
-        run_claimed(args,a.output/'campaign.log')
+        def diagnose(events, error):
+            try:
+                output = campaign if campaign.is_dir() else a.output
+                report_campaign_failure(output, events, error,
+                                        [str(repo/'bin/machine-control'), '--target', a.target])
+            except (OSError, ValueError, KeyError):
+                print('Could not add verified scope cleanup to the private acceptance report', file=sys.stderr)
+        run_claimed(args,a.output/'campaign.log',diagnose)
     # A fresh, sequential workspace keeps visible Stop/relaunch and boot checks
     # separate from the protected campaign's intentionally locked final state.
     mc = [str(repo/'bin/machine-control')]

@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import time
+from acceptance_diagnostics import announce
 from surface_fixture import aqua_observer, require_managed_observer
 
 
@@ -110,7 +111,9 @@ def main():
 
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
+    announce('guest_setup', 'verify_observer')
     require_managed_observer(status())
+    announce('guest_setup', 'backup_original')
     original_manifest = manifest(installed)
     command('/usr/bin/ditto', installed, backup / 'Original.app')
     assert manifest(backup / 'Original.app') == original_manifest
@@ -129,12 +132,14 @@ def main():
     observer_started = False
     mutated = False
     try:
+        announce('guest_setup', 'start_observer')
         observer_socket.parent.mkdir(mode=0o700)
         observer.enter_context(aqua_observer(backup / 'Original.app/Contents/MacOS/macui',
                                               observer_socket, output / 'observer.log'))
         observer_started = True
         observed = wait(lambda: status(observer_socket), 'Observer unavailable')
         require_managed_observer(observed)
+        announce('guest_setup', 'install_candidate')
         mutated = True
         stop()
         work = root / 'workstation.json'
@@ -147,6 +152,7 @@ def main():
         presentation.write_text(json.dumps({'schema': 'machine-control-presentation/v1', 'profile': 'minimal'}))
         presentation.chmod(0o600)
         command('/bin/bash', root / 'install-user.sh', '--app', root / 'candidate/Machine Control.app')
+        announce('guest_setup', 'verify_candidate')
         current = wait(status, 'Installed candidate unavailable')
         assert current['deployment']['policy']['grantMode'] == ('surface_modes' if current.get('admission',{}).get('schema')=='machine-control-admission/v2' else 'approval')
         assert current['nativeSemanticState'] == 'ready', 'Signed candidate needs normal Accessibility consent'
@@ -178,6 +184,7 @@ def main():
             argv += ['--covered-recovery', '--covered-duration', str(a.covered_duration),
                      '--covered-renewal-seconds', str(a.covered_renewal_seconds)]
         with (output / 'suite.log').open('wb') as log:
+            announce('guest_campaign', 'browser_file_dialogs')
             proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             try:
                 for line in proc.stdout:
@@ -186,6 +193,7 @@ def main():
                     sys.stdout.buffer.write(line)
                     sys.stdout.flush()
                 assert proc.wait(timeout=10) == 0, 'Packaged acceptance failed; inspect private suite.log'
+                announce('guest_campaign', 'crash_postflight')
                 # OS reports arrive asynchronously. Sample before restoration
                 # replaces app bytes, and include the separate root processes.
                 time.sleep(8)
@@ -195,6 +203,7 @@ def main():
                     'removed': sorted(crash_before[key] - crash_after[key])} for key in crash_before}
                 (output / 'crash-postflight.json').write_text(json.dumps(crash_result) + '\n')
                 assert not any(value['new'] for value in crash_result.values()), 'New OS crash report; inspect private crash-postflight.json'
+                announce('guest_campaign', 'candidate_integrity')
                 command('/usr/bin/codesign', '--verify', '--deep', '--strict', installed)
                 assert manifest(installed) == candidate_manifest, 'Acceptance mutated the signed candidate'
                 (output / 'candidate-integrity.json').write_text(json.dumps({'signatureValid':True, 'manifestUnchanged':True}) + '\n')

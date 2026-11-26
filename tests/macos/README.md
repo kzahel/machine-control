@@ -2,8 +2,8 @@
 
 `browser-file-dialogs.py --source-root STAGED_SOURCE --claim CLAIM --repeat 5`
 runs inside an already claimed, unlocked VirtualMac with standing appliance
-authority. Stage this runner, `providers/chrome-extension` and
-`platforms/chromeos/cdp.py`; it uses the existing Chrome for Testing fixture
+authority. Stage this runner, `acceptance_diagnostics.py`,
+`providers/chrome-extension`, and `platforms/chromeos/cdp.py`. It uses the existing Chrome for Testing fixture
 under `~/mc-cft/chrome-mac-arm64`. It refuses a different browser identity and
 uses an isolated disposable profile. Extension clicks/Unicode text/capture,
 real HTTP downloads, native Save and upload Open panels, cancellation,
@@ -423,3 +423,10 @@ Raw process samples/logs remain private. This is neither a strict memory bound
 nor native-effect/protected-session acceptance. Deterministic Swift fixtures
 separately inject blocked helper/session/provider/Resume dependencies and
 slow-reader reply floods without changing the real helper or session.
+
+Packaged acceptance failures write a controller-private `failure.json` with
+the failed phase and check, an error category, and observed cleanup. The
+usage note points to this file. For the covered reliability runner, the
+note is written after the enclosing scope observes claim and workspace
+cleanup. Guest assertions, logs, and screenshots remain in the private
+evidence archive.
