@@ -94,6 +94,15 @@ payloads and secret transport are omitted from this operational journal.
 Alternatively `machine-control --target host run --help` describes a scoped
 runner that owns doctor, claim renewal and release for a local task program.
 
+For a configured desktop VM, run guest administration through `os --`.
+Use `testbed --` for platform-specific operations. Both keep the common
+client's exact target selection, private inventory bindings and claim:
+  machine-control --target linux --claim CLAIM_ID os -- /usr/bin/uname -s
+  machine-control --target linux --claim CLAIM_ID testbed -- user-exec -- /usr/bin/id
+The second command runs as the logged-in Linux user. Windows `os --` runs
+PowerShell; macOS and Linux `os --` dispatch the named guest program.
+An enclosing `run` scope supplies target, workspace and claim to both routes.
+
 For a fresh Windows/Linux/macOS appliance bring-up, begin a private dated
 journal before preflight: `machine-control provision begin --platform PLATFORM`.
 Carry its runId with global --provision-run on common CLI calls through cleanup;

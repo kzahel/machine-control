@@ -201,6 +201,8 @@ performs receipt-bound retain/discard cleanup, and then relinquishes it.
 
 ```bash
 $mc --target windows testbed -- help
+$mc --target linux --claim "$claim_id" os -- /usr/bin/uname -s
+$mc --target linux --claim "$claim_id" testbed -- user-exec -- /usr/bin/id
 $mc --target chromeos maintenance capabilities
 $mc --target chromeos maintenance audit --profile runtime
 ```
@@ -209,6 +211,8 @@ $mc --target chromeos maintenance audit --profile runtime
 operations available without flattening them into a misleading universal
 interface. `os --` provides an explicit guest-administration escape on
 supported desktops.
+Both pass the selected target, private inventory bindings, and live claim to
+the adapter. The Linux `user-exec` example runs as the logged-in guest user.
 
 Read [SECURITY.md](../SECURITY.md) before arming protected operations.
 Platform guides own setup and operating policy; claims coordinate VM use,
