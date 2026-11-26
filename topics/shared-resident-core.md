@@ -17,9 +17,11 @@ native transport tag. The
 [gap record](../gaps/2026-11-21-browser-relay-retention.md) owns the
 measurements and remaining qualification.
 
-**Open (endpoint capacity):** a shared-policy fixture exhausted the
-endpoint table after 16 sequential owners under one browser approval.
-An ended owner can also leave a slot when issuance completes after yield.
+**Current (endpoint lifetime):** the shared policy binds CDP endpoints to
+the admitted Browser session. Yield closes that session's streams and
+reclaims its slots, and listener startup cannot issue an endpoint after
+yield. The shared fixture verifies both cases and keeps a second profile
+active throughout sequential owner cleanup.
 [Endpoint lifetime evidence](../gaps/2026-11-21-browser-relay-retention.md#shared-endpoints-remain-allocated-after-owner-release)
 
 ## Motivation

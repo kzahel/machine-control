@@ -6,7 +6,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { RawData } from "ws";
 import type { AuthorityFence, ProviderConnection } from "../src/core.ts";
 import { Streams } from "../src/streams.ts";
-import type { Stream } from "../src/streams.ts";
+import type { EndpointOwner, Stream } from "../src/streams.ts";
 import type { NativeFrame } from "../src/extension-provider.ts";
 import { strictObject } from "./strict-json.ts";
 import { parameters } from "../src/browser-contract.ts";
@@ -211,12 +211,18 @@ export class CdpBridge {
     });
   }
 
-  async endpoint(fence: AuthorityFence, authorityId: string): Promise<object> {
+  async endpoint(
+    fence: AuthorityFence,
+    authorityId: string,
+    owner: EndpointOwner,
+  ): Promise<object | null> {
     await this.#start;
     if (this.#closed) throw new Error("browser_stream_unavailable");
+    if (!owner.active) return null;
     const endpoint = this.#streams.endpoint(
       fence,
       authorityId,
+      owner,
       randomBytes(32).toString("hex"),
     );
     return {

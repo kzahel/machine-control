@@ -255,6 +255,11 @@ though upload errors directed users to the switch. Chrome documents the
 [manual file-access grant](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns#special-cases);
 installed store-copy upload qualification remains separate.
 
+**Current, fixture-tested:** the shared resident closes loopback CDP streams
+and retires their endpoint slots when an admitted browser session yields.
+Fixtures cover repeated owners, a parallel profile, and a yield while the
+listener starts. [Endpoint lifetime evidence](../../gaps/2026-11-21-browser-relay-retention.md#shared-endpoints-remain-allocated-after-owner-release)
+
 **Current (2026-10-26), extension 0.8.2, source-reviewed and contract-tested:**
 browser-root management has five-second deadlines, 64 retained requests,
 eight unsettled mutation dispatches and eight independent discovery dispatches.

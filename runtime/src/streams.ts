@@ -1,9 +1,13 @@
 import type { AuthorityFence, Clock } from "./core.ts";
 import { ResidentCore } from "./core.ts";
 
+export interface EndpointOwner {
+  readonly active: boolean;
+}
 export interface Endpoint {
   readonly fence: AuthorityFence;
   readonly authorityId: string;
+  readonly owner: EndpointOwner;
   readonly token: string;
 }
 export interface Stream {
@@ -36,6 +40,7 @@ export class Streams {
   }
   valid(endpoint: Endpoint): boolean {
     return (
+      endpoint.owner.active &&
       this.#endpoints.get(endpoint.token) === endpoint &&
       this.#core.validFence(endpoint.fence, "browser.cdp")
     );
@@ -43,8 +48,10 @@ export class Streams {
   endpoint(
     fence: AuthorityFence,
     authorityId: string,
+    owner: EndpointOwner,
     token: string,
   ): Endpoint {
+    if (!owner.active) throw new Error("stale_control_session");
     if (
       !this.#core.validFence(fence, "browser.cdp") ||
       !authorityId ||
@@ -55,6 +62,7 @@ export class Streams {
       if (!this.valid(endpoint)) this.#endpoints.delete(key);
       else if (
         endpoint.authorityId === authorityId &&
+        endpoint.owner === owner &&
         endpoint.fence.connection === fence.connection &&
         endpoint.fence.authorizationGeneration === fence.authorizationGeneration
       )
@@ -62,7 +70,7 @@ export class Streams {
     }
     if (this.#endpoints.size >= 16 || this.#endpoints.has(token))
       throw new Error("browser_stream_capacity");
-    const endpoint = Object.freeze({ fence, authorityId, token });
+    const endpoint = Object.freeze({ fence, authorityId, owner, token });
     this.#endpoints.set(token, endpoint);
     return endpoint;
   }
@@ -142,6 +150,8 @@ export class Streams {
     return true;
   }
   sweep(): readonly Stream[] {
+    for (const [token, endpoint] of this.#endpoints)
+      if (!this.valid(endpoint)) this.#endpoints.delete(token);
     const expired: Stream[] = [];
     for (const state of this.#streams.values()) {
       const now = this.#clock.now();
@@ -157,10 +167,5 @@ export class Streams {
       }
     }
     return expired;
-  }
-  ownerEnded(authorityId: string): readonly Stream[] {
-    for (const [token, endpoint] of this.#endpoints)
-      if (endpoint.authorityId === authorityId) this.#endpoints.delete(token);
-    return this.sweep();
   }
 }

@@ -47,7 +47,20 @@ class BrowserBoundaryTests(unittest.TestCase):
         profile=self.host.call(dict(method='browser.attach',extensionId='a'*32,hello=self.hello()))['profileId']
         self.owner.grants.view={'surfaces':{'browser':{'mode':'automatic','ready':True}}}
         self.browser.configure([profile],None,True)
-        authority=dict(owner='fixture-owner',session='fixture-session',profiles=[profile],validate=lambda:None)
+        owner='fixture-owner'
+        self.host.call(dict(method='access.configure',surface='browser',
+                            configuration=dict(mode='automatic',durationMs=None,profileIds=[profile])))
+        self.host.call(dict(method='access.ready',surface='browser',ready=True))
+        self.host.call(dict(method='access.open',owner=owner))
+        intent=self.host.call(dict(method='access.submit',owner=owner,request=dict(
+            requestId='endpoint',surfaces=['browser'],profileIds=[profile],operations=['browser.endpoint'],
+            reason='Endpoint fixture',waitMs=30000,durationMs=30000)))
+        intent_id=intent['intentId']
+        if intent['state']=='announcing':self.host.call(dict(method='access.start',intentId=intent_id))
+        offer=self.host.call(dict(method='access.inspect',owner=owner,intentId=intent_id))
+        active=self.host.call(dict(method='access.accept',owner=owner,intentId=intent_id,
+                                   offerGeneration=offer['offerGeneration']))
+        authority=dict(owner=owner,session=active['sessionId'],profiles=[profile],validate=lambda:None)
 
         def endpoint(selector):
             replies=[]
@@ -70,8 +83,10 @@ class BrowserBoundaryTests(unittest.TestCase):
         for _ in range(20):
             self.assertEqual(endpoint(profile)['data']['browserEndpoint'],first['data']['browserEndpoint'])
         self.assertEqual(len(self.browser.authorities),1)
-        self.browser.event(dict(type='access.event',event='ended',sessionId=authority['session']))
+        self.host.call(dict(method='access.close',owner=owner))
+        self.browser.event(dict(type='access.event',event='yielded',sessionId=authority['session']))
         self.assertEqual(self.browser.authorities,{})
+        self.assertEqual(endpoint(profile)['errorCode'],'stale_control_session')
 
     @staticmethod
     def hello():

@@ -1,7 +1,124 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { once } from "node:events";
+import { createRequire } from "node:module";
 import { PolicyHost } from "../../runtime/node/policy-host.ts";
 import { ReferenceBrowser } from "../../runtime/testing/reference-browser.ts";
+
+const WebSocket = createRequire(new URL("../../runtime/package.json", import.meta.url))("ws");
+
+async function endpointFixture(t) {
+  const replies = new Map();
+  const beginnings = [];
+  let sequence = 0;
+  const host = new PolicyHost(message => {
+    if (message.type === "reply") {
+      const { resolve, reject } = replies.get(message.id);
+      replies.delete(message.id);
+      if (message.ok) resolve(message.data);
+      else reject(new Error(message.errorCode));
+    } else if (message.type === "native.check") {
+      if (message.phase === "begin") beginnings.push(message.authorityId);
+      queueMicrotask(() => void call("native.reply", { nativeId: message.nativeId, accepted: true }));
+    } else if (message.type === "provider.send" && message.frame.type === "session.open") {
+      queueMicrotask(() => void call("provider.frame", {
+        connectionId: message.connectionId,
+        frame: { type: "session.opened", id: message.frame.id },
+      }));
+    }
+  });
+  t.after(() => host.close());
+  function call(method, fields = {}) {
+    const id = `rpc-${++sequence}`;
+    return new Promise((resolve, reject) => {
+      replies.set(id, { resolve, reject });
+      host.receive({ id, method, ...fields });
+    });
+  }
+  await call("hello", { protocolVersion: 2 });
+  const profiles = [];
+  for (const index of [1, 2]) {
+    const { profileId } = await call("browser.attach", {
+      extensionId: "a".repeat(32),
+      hello: { protocolVersion: 1, extensionVersion: "fixture", profile: {
+        protocolVersion: 1, installationId: `00000000-0000-4000-8000-00000000000${index}`,
+        name: `Fixture ${index}`, enabled: true,
+      } },
+    });
+    profiles.push(profileId);
+  }
+  await call("access.configure", {
+    surface: "browser", configuration: { mode: "automatic", durationMs: null, profileIds: profiles },
+  });
+  await call("access.ready", { surface: "browser", ready: true });
+  await call("operator.configure", { scopes: ["browser", "devtools"], profileIds: profiles, durationMs: null });
+
+  async function openOwner(owner, profileId = profiles[0]) {
+    await call("access.open", { owner });
+    const profileIds = [profileId];
+    const intent = await call("access.submit", { owner, request: {
+      requestId: owner, surfaces: ["browser"], profileIds, reason: "Endpoint lifetime fixture",
+      waitMs: 30_000, durationMs: 30_000,
+    } });
+    await call("access.start", { intentId: intent.intentId });
+    const offer = await call("access.inspect", { owner, intentId: intent.intentId });
+    assert.equal(offer.state, "offered");
+    const fence = await call("access.accept", { owner, intentId: offer.intentId, offerGeneration: offer.offerGeneration });
+    assert.equal((await call("access.authorize", { owner, fence, operation: "browser.endpoint" })).refusal, null);
+    return {
+      endpoint: () => call("browser.call", {
+        requestId: `endpoint-${sequence}`, authorityId: `native-${owner}`,
+        ownerSession: `${owner}:${fence.sessionId}`, ownerProfileIds: profileIds, request: { operation: "browser.endpoint" },
+      }),
+      close: () => call("access.close", { owner }),
+    };
+  }
+  return { openOwner, otherProfile: profiles[1], beginnings };
+}
+
+test("released owners free endpoint capacity while another profile keeps its stream", { timeout: 5_000 }, async t => {
+  const { openOwner, otherProfile, beginnings } = await endpointFixture(t);
+  const other = await openOwner("other", otherProfile);
+  const otherEndpoint = await other.endpoint();
+  const otherSocket = new WebSocket(otherEndpoint.data.browserEndpoint);
+  t.after(() => otherSocket.terminate());
+  await once(otherSocket, "open");
+
+  for (let index = 0; index < 18; index++) {
+    const owner = await openOwner(`owner-${index}`);
+    const endpoint = await owner.endpoint();
+    assert.equal(endpoint.accepted, true);
+    if (index === 0) {
+      const socket = new WebSocket(endpoint.data.browserEndpoint);
+      t.after(() => socket.terminate());
+      await once(socket, "open");
+      const closed = once(socket, "close");
+      await owner.close();
+      await closed;
+      assert.equal((await owner.endpoint()).errorCode, "stale_control_session");
+      const before = beginnings.length;
+      await once(new WebSocket(endpoint.data.browserEndpoint), "error");
+      assert.equal(beginnings.length, before, "a retired token cannot enter native admission");
+    } else {
+      await owner.close();
+    }
+  }
+  assert.equal(otherSocket.readyState, WebSocket.OPEN);
+  assert.deepEqual((await other.endpoint()).data, otherEndpoint.data);
+  await other.close();
+});
+
+test("an owner yielding during initial listener startup never receives an endpoint", { timeout: 5_000 }, async t => {
+  const { openOwner } = await endpointFixture(t);
+  const owner = await openOwner("yielding");
+  const pending = owner.endpoint();
+  await owner.close();
+  const refused = await pending;
+  assert.equal(refused.accepted, false);
+  assert.equal(refused.errorCode, "stale_control_session");
+  assert.equal(refused.retrySafety, "safe_not_dispatched");
+  assert.equal(refused.data, undefined);
+});
 
 test("a lost attach reply can retire only its native transport", () => {
   const replies = new Map();

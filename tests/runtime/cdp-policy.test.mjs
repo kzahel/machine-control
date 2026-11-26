@@ -55,10 +55,12 @@ test(
     const workEndpoint = await bridge.endpoint(
       core.fence(approval, work, "browser.cdp"),
       "work-native-owner",
+      { active: true },
     );
     const personalEndpoint = await bridge.endpoint(
       core.fence(approval, personal, "browser.cdp"),
       "personal-native-owner",
+      { active: true },
     );
     const ws = new WebSocket(workEndpoint.browserEndpoint),
       ps = new WebSocket(personalEndpoint.browserEndpoint);
@@ -111,6 +113,7 @@ test(
     const freshEndpoint = await bridge.endpoint(
       core.fence(fresh, work, "browser.cdp"),
       "new-native-owner",
+      { active: true },
     );
     nativeAllowed = false;
     const denied = new WebSocket(freshEndpoint.browserEndpoint);
@@ -128,7 +131,7 @@ async function fixture(t, native = async () => true) {
     if (frame.type === "session.open") queueMicrotask(() => bridge.receive(peer, { type: "session.opened", id: frame.id }));
   });
   t.after(() => bridge.close());
-  const endpoint = await bridge.endpoint(core.fence(approval, connection, "browser.cdp"), "fixture-owner");
+  const endpoint = await bridge.endpoint(core.fence(approval, connection, "browser.cdp"), "fixture-owner", { active: true });
   async function open() {
     const socket = new WebSocket(endpoint.browserEndpoint);
     t.after(() => socket.terminate());

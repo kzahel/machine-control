@@ -121,6 +121,7 @@ test("endpoint and stream policy scopes numeric tab collisions and late results"
     streams.endpoint(
       f.core.fence(f.approval, provider.connection, "browser.cdp"),
       "native-owner",
+      { active: true },
       token.repeat(64),
     );
   const work = endpoint(f.work, "a"),

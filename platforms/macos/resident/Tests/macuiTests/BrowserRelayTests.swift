@@ -165,7 +165,19 @@ final class BrowserRelayTests: XCTestCase {
         settle { self.server.browser.profiles.first?["connected"] as? Bool == true }
         let profile = try XCTUnwrap(server.browser.profiles.first?["profileId"] as? String)
         try server.configureSurface("browser",mode:"automatic",seconds:nil,profiles:[profile])
-        let authority = BrowserRelay.Authority(ownerSession:"fixture-owner:fixture-session",profileIDs:[profile],validate:{ nil })
+        let admission = broker.admission
+        let owner = "fixture-owner"
+        let intent = try admission.submit(owner:owner,requestID:"endpoint",resources:["browser"],wait:120,duration:60,
+            reason:"Endpoint fixture",authority:{ nil },profileIDs:[profile],operations:["browser.endpoint"])
+        let id = try XCTUnwrap(intent["intentId"] as? String)
+        if intent["state"] as? String == "announcing" { try admission.startNow(id) }
+        let offer = try admission.inspect(owner:owner,id:id)
+        let active = try admission.accept(owner:owner,id:id,generation:try XCTUnwrap(offer["offerGeneration"] as? Int))
+        let session = try XCTUnwrap(active["sessionId"] as? String)
+        let generations = try XCTUnwrap(active["resourceGenerations"] as? [String:Int])
+        let authority = BrowserRelay.Authority(ownerSession:owner + ":" + session,profileIDs:[profile],validate:{
+            admission.authorize(owner:owner,id:id,session:session,generations:generations,operation:"browser.endpoint")
+        })
         let caller = CallerIdentity(uid:getuid(),chain:[])
         func lookup(_ selector: String, completion: @escaping ([String: Any]) -> Void) {
             XCTAssertNil(server.browser.forward(-1,["operation":"browser.endpoint","browserProfileId":selector],
@@ -191,6 +203,7 @@ final class BrowserRelayTests: XCTestCase {
             repeated.fulfill()
         }
         wait(for:[repeated],timeout:5)
+        try admission.cancel(owner:owner,id:id)
         withExtendedLifetime(provider) {}
     }
     func testRealSharedBrowserCallRequiresExactLiveOwnerAndProfile() throws {

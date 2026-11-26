@@ -14,7 +14,7 @@ import { ExtensionProvider } from "../src/extension-provider.ts";
 import type { NativeFrame } from "../src/extension-provider.ts";
 import { dispatchToProvider } from "../src/provider-dispatch.ts";
 import { AccessAdmission, backgroundOperations } from "../src/admission.ts";
-import type { AdmissionOwner, AdmissionRequest, Surface, SurfaceConfiguration, SessionFence, HumanInput, AccessPreferences } from "../src/admission.ts";
+import type { AdmissionEvent, AdmissionOwner, AdmissionRequest, Surface, SurfaceConfiguration, SessionFence, HumanInput, AccessPreferences } from "../src/admission.ts";
 import { StartupAccess } from "./startup-access.ts";
 
 function string(value: unknown): string {
@@ -48,6 +48,7 @@ export class PolicyHost {
   });
   readonly access: AccessAdmission;
   readonly #accessOwners = new Map<string, AdmissionOwner>();
+  readonly #browserSessions = new Map<string, { label: string; active: boolean }>();
   readonly #send: (frame: NativeFrame) => void;
   readonly #providers = new Map<string, ExtensionProvider>();
   readonly #retired = new Set<string>();
@@ -72,7 +73,7 @@ export class PolicyHost {
 
   constructor(send: (frame: NativeFrame) => void, admissionClock: Clock = { now: () => Math.floor(performance.now()) }) {
     this.#send = send;
-    this.access = new AccessAdmission(admissionClock, event => this.#send({ type: "access.event", ...event }));
+    this.access = new AccessAdmission(admissionClock, event => this.#accessEvent(event));
   }
 
   receive(frame: NativeFrame): void {
@@ -547,7 +548,12 @@ export class PolicyHost {
           return this.access.submit(owner, { ...request, operations, disruptive: !backgroundOperations(operations) } as unknown as AdmissionRequest);
         }
         else if (method === "access.inspect") return this.access.inspect(owner, string(frame.intentId), frame.heartbeat === true);
-        else if (method === "access.accept") return this.access.accept(owner, string(frame.intentId), integer(frame.offerGeneration));
+        else if (method === "access.accept") {
+          const view = this.access.accept(owner, string(frame.intentId), integer(frame.offerGeneration));
+          if (view.sessionId && view.surfaces.includes("browser"))
+            this.#browserSessions.set(view.sessionId, { label: `${label}:${view.sessionId}`, active: true });
+          return view;
+        }
         else if (method === "access.renew") return this.access.renew(owner, object(frame.fence) as unknown as SessionFence, integer(frame.durationMs));
         else if (method === "access.authorize") return { refusal: this.access.authorize(owner, object(frame.fence) as unknown as SessionFence, frame.operation == null ? undefined : string(frame.operation)) };
         else if (method === "access.cancel") this.access.cancel(owner, string(frame.intentId), frame.reason === undefined ? undefined : string(frame.reason));
@@ -559,6 +565,19 @@ export class PolicyHost {
 
   #accessStatus() {
     return { ...this.access.status(), startup: this.#startupAccess?.status() };
+  }
+
+  #accessEvent(event: AdmissionEvent): void {
+    if (event.event === "yielded" && event.sessionId) {
+      const owner = this.#browserSessions.get(event.sessionId);
+      if (owner) {
+        owner.active = false;
+        this.#browserSessions.delete(event.sessionId);
+        // Queue CDP audit cleanup before the native relay retires the owner.
+        this.#cdp?.sweep();
+      }
+    }
+    this.#send({ type: "access.event", ...event });
   }
 
   #consume(effects: readonly Effect[]): void {
@@ -719,6 +738,8 @@ export class PolicyHost {
     });
     if (!validOwnership(operation, request)) return refuse("invalid_request");
     if (operation === "browser.endpoint") {
+      const owner = [...this.#browserSessions.values()].find(session => session.label === ownerSession);
+      if (!owner) return refuse("stale_control_session");
       const fence =
         this.#approval &&
         this.core.fence(this.#approval, connection, "browser.cdp");
@@ -742,8 +763,8 @@ export class PolicyHost {
         },
       );
       return this.#cdp
-        .endpoint(fence, authorityId)
-        .then((data) => ({
+        .endpoint(fence, authorityId, owner)
+        .then((data) => !data || !owner.active ? refuse("stale_control_session") : ({
           ...common,
           accepted: true,
           delivery: "confirmed",

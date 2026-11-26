@@ -36,6 +36,7 @@ internal static class BrowserDevToolsFixtures
         Environment.SetEnvironmentVariable("NODE_OPTIONS", "--invalid-inherited-option");
         using var process = new SharedBrowserHost(start, message =>
         {
+            if (message["type"]?.GetValue<string>() != "provider.send") return;
             var frame = message["frame"]!.AsObject();
             var id = frame["id"]?.DeepClone();
             if (frame["type"]?.GetValue<string>() == "session.open") Post(new JsonObject { ["type"] = "session.opened", ["id"] = id });
@@ -82,6 +83,46 @@ internal static class BrowserDevToolsFixtures
         });
         connectionId = attachment["connectionId"]!.GetValue<string>();
         var profileId = attachment["profileId"]!.GetValue<string>();
+        const string owner = "fixture-owner";
+        host.Call(new JsonObject
+        {
+            ["method"] = "access.configure",
+            ["surface"] = "browser",
+            ["configuration"] = new JsonObject
+            {
+                ["mode"] = "automatic",
+                ["durationMs"] = null,
+                ["profileIds"] = new JsonArray(profileId)
+            }
+        });
+        host.Call(new JsonObject { ["method"] = "access.ready", ["surface"] = "browser", ["ready"] = true });
+        host.Call(new JsonObject { ["method"] = "access.open", ["owner"] = owner });
+        var intent = host.Call(new JsonObject
+        {
+            ["method"] = "access.submit",
+            ["owner"] = owner,
+            ["request"] = new JsonObject
+            {
+                ["requestId"] = "endpoint-task",
+                ["reason"] = "Endpoint fixture",
+                ["surfaces"] = new JsonArray("browser"),
+                ["profileIds"] = new JsonArray(profileId),
+                ["waitMs"] = 60_000,
+                ["durationMs"] = 60_000
+            }
+        });
+        var intentId = intent["intentId"]!.GetValue<string>();
+        if (intent["state"]!.GetValue<string>() == "announcing")
+            host.Call(new JsonObject { ["method"] = "access.start", ["intentId"] = intentId });
+        var offer = host.Call(new JsonObject { ["method"] = "access.inspect", ["owner"] = owner, ["intentId"] = intentId });
+        var active = host.Call(new JsonObject
+        {
+            ["method"] = "access.accept",
+            ["owner"] = owner,
+            ["intentId"] = intentId,
+            ["offerGeneration"] = offer["offerGeneration"]!.GetValue<int>()
+        });
+        var ownerSession = owner + ":" + active["sessionId"]!.GetValue<string>();
         host.Call(new JsonObject
         {
             ["method"] = "operator.configure",
@@ -92,7 +133,7 @@ internal static class BrowserDevToolsFixtures
         JsonObject Endpoint() => host.Call(new JsonObject
         {
             ["method"] = "browser.call",
-            ["ownerSession"] = "fixture-owner",
+            ["ownerSession"] = ownerSession,
             ["ownerProfileIds"] = new JsonArray(profileId),
             ["requestId"] = Guid.NewGuid().ToString("n"),
             ["authorityId"] = "fixture-native-owner",
@@ -106,6 +147,13 @@ internal static class BrowserDevToolsFixtures
         Require(endpoint["accepted"]!.GetValue<bool>(), "shared endpoint accepted");
         var uri = new Uri(endpoint["data"]!["browserEndpoint"]!.GetValue<string>());
         Require(Endpoint()["data"]!["browserEndpoint"]!.GetValue<string>() == uri.ToString(), "same owner endpoint reused");
+        host.Call(new JsonObject
+        {
+            ["method"] = "access.inspect",
+            ["owner"] = owner,
+            ["intentId"] = intentId,
+            ["heartbeat"] = true
+        });
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         using (var socket = new ClientWebSocket())
         {
@@ -129,6 +177,8 @@ internal static class BrowserDevToolsFixtures
             catch (WebSocketException) { }
             while (unknown == 0) await Task.Delay(10, timeout.Token);
         }
+        host.Call(new JsonObject { ["method"] = "access.close", ["owner"] = owner });
+        Require(Endpoint()["errorCode"]!.GetValue<string>() == "stale_control_session", "released owner cannot mint an endpoint");
         host.Call(new JsonObject { ["method"] = "operator.stop" });
         using (var stale = new ClientWebSocket())
         {

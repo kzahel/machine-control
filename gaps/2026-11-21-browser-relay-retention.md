@@ -96,21 +96,28 @@ second profile connected.
 
 ## Shared endpoints remain allocated after owner release
 
-**Open, fixture-tested.** The shared endpoint table has no production call
-to `Streams.ownerEnded`. A native owner ending fences its token at the
-native boundary, but an endpoint with a still-current browser approval can
-continue occupying a shared slot. [Shared endpoint table](../runtime/src/streams.ts)
+**Fixed in source, fixture-tested.** The shared policy used to retain
+endpoint slots for a still-current Browser approval even after the native
+owner ended. [Shared endpoint table](../runtime/src/streams.ts)
 
 A bounded probe against the production policy granted 16 sequential owners
 one endpoint each under the same browser approval. The probe closed each
 owner through the production admission path, observed its yield, and
 checked that active owner count returned to zero. Owner 17 received
 `browser_stream_capacity`. Stopping Browser and reapproving it let the next
-owner obtain an endpoint. This exhausts a fixed table shared by the three
+owner obtain an endpoint. This exhausted a fixed table shared by the three
 desktop adapters. A second probe closed an owner while the first endpoint
 was waiting for the loopback listener to start. The policy still published
 an accepted endpoint reply after the owner yielded. The native boundary
-continues to reject use by that ended owner. [Loopback bridge](../runtime/node/cdp.ts)
+rejected use by that ended owner.
+
+The repair follows the admitted session through yield. A production policy
+fixture now cycles 18 owners under one approval, closes the released
+owner's live WebSocket, refuses its old endpoint before native admission,
+and keeps an unrelated profile and stream live. A separate fixture closes
+the first owner during listener startup and receives a typed refusal.
+These are shared policy and loopback tests on a local host.
+[Loopback bridge](../runtime/node/cdp.ts)
 
 ## A late CDP authorization can strand a native audit
 
