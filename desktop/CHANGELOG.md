@@ -2,9 +2,20 @@
 
 ## [Unreleased]
 
+## [0.7.6]
+
 - Windows desktop updates refresh an already approved UAC helper. Existing
   legacy helpers need one administrator-approved update in Permissions.
   Updating the helper keeps covered-desktop unlock enrollment.
+- On Ubuntu GNOME, reduce idle CPU use and status traffic when the physical
+  activity observer is missing. The resident recognizes a newly installed
+  observer without restarting.
+- On Ubuntu GNOME, Permissions opens the covered-access settings directly.
+  Setup explains when Desktop and Browser access must be turned off and
+  shows any setup refusal next to the control.
+- On macOS, Windows, and Linux, release Chrome DevTools Protocol endpoints
+  when their Browser control session ends and close audit entries when an
+  authorization reply arrives after the request timed out.
 
 ## [0.7.5]
 
