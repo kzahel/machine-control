@@ -18,3 +18,4 @@ belongs to the owning topic.
 - [2026-11-21 — macOS policy reader retains decoded JSON between replies](2026-11-21-macos-policy-reader-heap-growth.md)
 - [2026-11-21 — browser relay memory and connection retention](2026-11-21-browser-relay-retention.md)
 - [2026-11-24 — Windows desktop updates strand the UAC helper](2026-11-24-windows-uac-helper-upgrades.md)
+- [2026-11-27 — Linux covered-access setup hides the section and the reason setup is blocked](2026-11-27-linux-covered-access-setup-feedback.md)
