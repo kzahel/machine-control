@@ -38,6 +38,7 @@ try {
       if (request.method === "state" && window.failedStatePoll) throw "Resident unavailable";
       if (request.method !== "state" && request.method !== "update_sync") window.commands.push(request);
       if (request.method === "surface.configure" && window.failSurface === request.surface) throw "Fixture configuration refused";
+      if (request.method === "permission" && request.permission === "lockedUse" && window.failCoveredSetup) throw "Fixture covered setup refused";
       if (request.method === "surface.configure") Object.assign(policy.surfaces[request.surface], { mode: request.mode,
         expired: false, profileIds: request.browserProfileIds, consentRemainingSeconds: request.lifetime === "timed" ? request.duration : null });
       if (request.method === "stop") for (const surface of Object.values(policy.surfaces)) surface.mode = "off";
@@ -235,6 +236,42 @@ try {
   await page.evaluate(() => { window.failedStatePoll = true; });
   await page.getByText("Resident unavailable", { exact: true }).waitFor();
   assert.equal(await desktop.count(), 0, "transport failure removes authority controls");
+
+  await page.setViewportSize({ width: 640, height: 440 });
+  await page.evaluate(() => {
+    window.failedStatePoll = false;
+    const state = window.fixtureState;
+    state.platform = "linux";
+    state.lockedUse = { supported: true, enabled: false, permissionReady: false, setupState: "idle", setupError: null, controlSessionId: null };
+    state.accessPolicy.surfaces.desktop.mode = "automatic";
+    state.accessPolicy.surfaces.browser.mode = "off";
+  });
+  await page.getByRole("button", { name: "Permissions", exact: true }).click();
+  await page.getByRole("button", { name: "Open access settings", exact: true }).click();
+  const covered = page.getByRole("region", { name: "Covered desktop access" });
+  const coveredHeading = covered.getByRole("heading", { name: "Covered desktop while locked" });
+  const setup = covered.getByRole("button", { name: "Set up covered desktop access" });
+  const blocker = covered.getByText("Turn off Agent access before changing covered desktop setup.");
+  await coveredHeading.waitFor();
+  assert.equal(await coveredHeading.evaluate(heading => {
+    const { top, bottom } = heading.getBoundingClientRect();
+    return document.activeElement === heading && top >= 0 && bottom <= innerHeight;
+  }), true, "the shortcut opens More options and reveals the focused heading at the default window size");
+  await blocker.waitFor();
+  assert.equal(await setup.isDisabled(), true);
+  await page.evaluate(() => {
+    window.fixtureState.accessPolicy.surfaces.desktop.mode = "off";
+    window.fixtureState.accessPolicy.surfaces.browser.mode = "ask";
+  });
+  await page.waitForFunction(() => document.querySelector('[role="switch"][aria-label="Browser access"]')?.getAttribute("aria-checked") === "true");
+  assert.equal(await setup.isDisabled(), true, "browser-only consent also blocks setup");
+  await master.click();
+  await blocker.waitFor({ state: "hidden" });
+  assert.equal(await setup.isEnabled(), true);
+  await page.evaluate(() => { window.failCoveredSetup = true; });
+  await setup.click();
+  await covered.getByRole("alert").filter({ hasText: "Fixture covered setup refused" }).waitFor();
+  assert.equal(await page.locator("main > .message.error").count(), 0, "setup refusals stay beside the action");
   assert.deepEqual(errors, []);
-  console.log("Access switches, dirty settings, partial failure, Activity, startup and minimum layout passed");
+  console.log("Access switches, dirty settings, partial failure, Activity, startup, minimum layout and Linux covered setup passed");
 } finally { await browser.close(); await new Promise(done => server.close(done)); }

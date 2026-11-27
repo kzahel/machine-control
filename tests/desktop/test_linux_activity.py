@@ -1,10 +1,15 @@
 """Independent raw event sequences prove movement/overflow/loss behavior."""
 import asyncio
+import ast
 import os
 from pathlib import Path
+import queue
 import sys
+import tempfile
+import time
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'desktop/native/linux'))
 from activity_events import EVENT,bitmap,deliberate,movement
@@ -73,6 +78,63 @@ class ActivityTests(unittest.TestCase):
 
 
 class ActivityLivenessTests(unittest.TestCase):
+    def test_missing_observer_only_retries_on_scheduled_poll_and_recovers(self):
+        source = Path(__file__).resolve().parents[2] / 'desktop/native/linux/desktop.py'
+        desktop = next(node for node in ast.parse(source.read_text()).body
+                       if isinstance(node, ast.ClassDef) and node.name == 'Desktop')
+        names = {'poll_activity', 'activity_changed', 'refresh_availability'}
+        methods = [node for node in desktop.body
+                   if isinstance(node, ast.FunctionDef) and node.name in names]
+        namespace = {'time': time, 'desktop_session': SimpleNamespace(same_logon=lambda left, right: left == right)}
+        exec(compile(ast.Module(body=methods, type_ignores=[]), str(source), 'exec'), namespace)
+        identity = ('fixture-session', 123, ':fixture')
+        callbacks = queue.Queue()
+        owner = SimpleNamespace(stopped=False, policy=SimpleNamespace(alive=True),
+                                grants=SimpleNamespace(view={'surfaces': {'desktop': {'mode': 'automatic'}}},
+                                                       fact=Mock(), input=Mock(), updating=False),
+                                session_identity=identity, activity_status=None,
+                                session_observed=time.monotonic(), unlocked=True, locked=False,
+                                configuration_sessions={'desktop': identity, 'browser': None},
+                                browser_preference=SimpleNamespace(enabled=False),
+                                safety_available=False, safety_observed=0.0, notice_visible=False,
+                                journal=SimpleNamespace(health={'available': True}), covered=None,
+                                portal=SimpleNamespace(state='off'), browser=SimpleNamespace(sync=Mock()),
+                                changed=Mock())
+        owner.refresh_availability = Mock(side_effect=lambda: namespace['refresh_availability'](owner))
+        with tempfile.TemporaryDirectory() as tmp:
+            sensor = Activity(lambda callback, *args: callbacks.put((callback, args)),
+                              lambda *args: namespace['activity_changed'](owner, *args),
+                              endpoint=Path(tmp) / 'absent.sock')
+            owner.activity = sensor
+
+            def poll():
+                self.assertTrue(namespace['poll_activity'](owner))
+                callback, args = callbacks.get(timeout=1)
+                callback(*args)
+                self.assertFalse(sensor.pending, 'completion must not queue another probe')
+                self.assertTrue(callbacks.empty())
+
+            try:
+                poll()
+                poll()
+                owner.changed.assert_called_once()
+                owner.refresh_availability.assert_called_once()
+                self.assertFalse(sensor.healthy(identity))
+                sample = dict(generation='1'*32, activityToken='2'*32, healthy=True,
+                              consoleBinding=console_binding(identity), problem=None,
+                              observedThroughUptime=time.monotonic())
+                with patch('activity.read_sample', return_value=sample):
+                    poll()
+                    self.assertTrue(sensor.healthy(identity))
+                    poll()
+                    self.assertEqual(owner.changed.call_count, 2)
+                with patch('activity.read_sample', return_value={**sample, 'activityToken':'3'*32}):
+                    poll()
+                    owner.grants.input.assert_called_once()
+            finally:
+                sensor.close()
+                sensor.thread.join(timeout=1)
+
     def test_silence_expires_but_current_negative_fences_immediately(self):
         identity=('fixture-session',123,':fixture')
         sensor=Activity(lambda callback,*args:callback(*args),lambda *_:None)
@@ -105,7 +167,7 @@ class ActivityLivenessTests(unittest.TestCase):
         # Retain the normal sample slot so no OS probe is scheduled by this
         # deterministic native observation-boundary test.
         sensor.pending=True
-        sensor.refresh=lambda *_:None
+        sensor.refresh=Mock()
         sample=dict(generation='1'*32,activityToken='2'*32,healthy=True,
                     consoleBinding=console_binding(identity),problem=None,observedThroughUptime=99)
         accepted=[]
@@ -114,9 +176,11 @@ class ActivityLivenessTests(unittest.TestCase):
             sensor.pending=True
             sensor.barrier(identity,accepted.append)
             self.assertEqual(accepted,[])
+            sensor.refresh.reset_mock()
             sensor.pending=True
             sensor.completed({**sample,'observedThroughUptime':99.9},None)
             self.assertEqual(accepted,[],'An in-flight pre-offer sample is insufficient')
+            sensor.refresh.assert_not_called()
             sensor.pending=True
             sensor.completed({**sample,'observedThroughUptime':100.1},None)
             self.assertEqual(accepted,[True])

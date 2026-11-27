@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [170 — Linux observer polling and covered-access setup](170-linux-observer-and-covered-setup.md)
+  covers idle resident CPU, observer recovery, and the Permissions shortcut.
+
 - [169 — Windows desktop helper upgrades](169-windows-desktop-helper-upgrades.md)
   tracks signed maintenance, preserved enrollment, and upgrade acceptance.
 

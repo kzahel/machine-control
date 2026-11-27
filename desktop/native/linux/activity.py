@@ -113,11 +113,12 @@ class Activity:
     def finish_barrier(self):
         if self.barrier_request is None:return
         identity,after,completed=self.barrier_request
-        if self.healthy(identity) and self.through>=after:
-            self.barrier_request=None;completed(True)
-        elif time.monotonic()-after>=2.5 or not self.installed:
+        if time.monotonic()-after>=2.5 or not self.installed:
             self.barrier_request=None;completed(False)
-        else:self.refresh(True,identity)
+        elif self.healthy(identity) and self.through>=after:
+            self.barrier_request=None;completed(True)
+        # The next scheduled sample can satisfy the barrier. A stale or
+        # unhealthy reply must not start an immediate retry loop.
 
     def state(self,identity):
         return dict(supported=True,installed=self.installed,healthy=self.healthy(identity),

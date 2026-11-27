@@ -55,7 +55,7 @@ export type ControlRequest = {
   held?: boolean;
   caller?: string;
 };
-type Act = (command: Record<string, unknown>) => Promise<boolean>;
+type Act = (command: Record<string, unknown>, reportError?: (message: string) => void) => Promise<boolean>;
 type AccessPreferences = {
   desktopNoticeSeconds: number;
   browserNoticeSeconds: number;
@@ -297,6 +297,7 @@ export function SurfaceAccess({
   busy,
   act,
   protectedAccess,
+  revealCoveredAccess = false,
   lockedBrowser,
   platform,
   browser,
@@ -308,6 +309,7 @@ export function SurfaceAccess({
   platform?: string;
   busy: boolean;
   act: Act;
+  revealCoveredAccess?: boolean;
   lockedBrowser?: { supported: boolean; enabled: boolean };
   protectedAccess?: {
     supported: boolean;
@@ -325,7 +327,23 @@ export function SurfaceAccess({
   const [baseline, setBaseline] = useState(draft);
   const [conflict, setConflict] = useState(false);
   const [message, setMessage] = useState("");
+  const [coveredError, setCoveredError] = useState("");
   const [working, setWorking] = useState(false);
+  const accessOptions = useRef<HTMLDetailsElement>(null);
+  const coveredHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (!visible || !revealCoveredAccess || !accessOptions.current || !coveredHeading.current) return;
+    accessOptions.current.open = true;
+    coveredHeading.current.focus({ preventScroll: true });
+    coveredHeading.current.scrollIntoView({ block: "start" });
+  }, [visible, revealCoveredAccess]);
+  const agentAccessOn = surfaces.some((surface) => enabled(policy, surface));
+  const coveredSetupBlocked = platform === "linux" && agentAccessOn;
+  const coveredSetupError = coveredError || protectedAccess?.setupError;
+  function changeCoveredAccess(command: Record<string, unknown>) {
+    setCoveredError("");
+    void act(command, setCoveredError);
+  }
   const observed = useRef(signature(policy));
   const policyRef = useRef(policy);
   policyRef.current = policy;
@@ -544,11 +562,10 @@ export function SurfaceAccess({
         <h1>Agent access</h1>
         <Switch
           label="Agent access"
-          checked={surfaces.some((s) => enabled(policy, s))}
+          checked={agentAccessOn}
           disabled={
             working ||
-            (!surfaces.some((s) => enabled(policy, s)) &&
-              (busy || policy.available === false))
+            (!agentAccessOn && (busy || policy.available === false))
           }
           onChange={() => void toggle()}
         />
@@ -794,7 +811,7 @@ export function SurfaceAccess({
           </section>
         );
       })}
-      <details className="group access-options">
+      <details className="group access-options" ref={accessOptions}>
         <summary>More options</summary>
         {!modern && (
           <>
@@ -838,7 +855,7 @@ export function SurfaceAccess({
             className="group surface-access"
             aria-label="Covered desktop access"
           >
-            <h2 className="group-title">Covered desktop while locked</h2>
+            <h2 className="group-title" ref={coveredHeading} tabIndex={-1}>Covered desktop while locked</h2>
             <label className="scope">
               <input
                 type="checkbox"
@@ -847,10 +864,11 @@ export function SurfaceAccess({
                   busy ||
                   !protectedAccess.supported ||
                   !protectedAccess.permissionReady ||
-                  !!protectedAccess.controlSessionId
+                  !!protectedAccess.controlSessionId ||
+                  (coveredSetupBlocked && !protectedAccess.enabled)
                 }
                 onChange={(event) =>
-                  void act({
+                  changeCoveredAccess({
                     method: "locked_use",
                     enabled: event.target.checked,
                   })
@@ -870,9 +888,12 @@ export function SurfaceAccess({
                   : !protectedAccess.supported
                     ? "Requires the Debian package on Ubuntu with GNOME 50 Wayland."
                     : !protectedAccess.permissionReady
-                      ? "Set up your Ubuntu account password and the physical activity observer. Keep access off during setup."
+                      ? "Set up your Ubuntu account password and the physical activity observer."
                       : "Local keyboard or mouse activity relocks the console and pauses covered tasks until you unlock it yourself."}
               </p>
+            )}
+            {coveredSetupBlocked && protectedAccess.supported && (
+              <p className="note">Turn off Agent access before changing covered desktop setup.</p>
             )}
             {(platform !== "linux" || protectedAccess.supported) && (!protectedAccess.permissionReady ||
               (protectedAccess.credentialSource !== undefined &&
@@ -881,11 +902,12 @@ export function SurfaceAccess({
               <button
                 disabled={
                   busy ||
+                  coveredSetupBlocked ||
                   !!protectedAccess.controlSessionId ||
                   !["idle", "approval"].includes(protectedAccess.setupState)
                 }
                 onClick={() =>
-                  void act({ method: "permission", permission: "lockedUse" })
+                  changeCoveredAccess({ method: "permission", permission: "lockedUse" })
                 }
               >
                 Set up covered desktop access
@@ -894,22 +916,22 @@ export function SurfaceAccess({
             {platform === "linux" && protectedAccess.credentialSource === "service_enrolled_password" && (
               <div className="lock-row">
                 <button
-                  disabled={busy || protectedAccess.setupState !== "idle" || !!protectedAccess.controlSessionId}
-                  onClick={() => void act({ method: "permission", permission: "lockedUse" })}
+                  disabled={busy || coveredSetupBlocked || protectedAccess.setupState !== "idle" || !!protectedAccess.controlSessionId}
+                  onClick={() => changeCoveredAccess({ method: "permission", permission: "lockedUse" })}
                 >
                   Update saved password…
                 </button>
                 <button
-                  disabled={busy || protectedAccess.setupState !== "idle" || !!protectedAccess.controlSessionId}
-                  onClick={() => void act({ method: "permission", permission: "lockedUse", remove: true })}
+                  disabled={busy || coveredSetupBlocked || protectedAccess.setupState !== "idle" || !!protectedAccess.controlSessionId}
+                  onClick={() => changeCoveredAccess({ method: "permission", permission: "lockedUse", remove: true })}
                 >
                   Remove unlock setup…
                 </button>
               </div>
             )}
-            {protectedAccess.setupError && (
+            {coveredSetupError && (
               <p role="alert" className="note">
-                {protectedAccess.setupError}
+                {coveredSetupError}
               </p>
             )}
           </section>

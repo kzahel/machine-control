@@ -207,6 +207,7 @@ function App() {
   const [page, setPage] = useState(
     new URLSearchParams(window.location.search).get("page") ?? "access",
   );
+  const [revealCoveredAccess, setRevealCoveredAccess] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [actionBusy, setBusy] = useState(false);
@@ -286,6 +287,7 @@ function App() {
   useEffect(() => {
     const listener = listen<string>("tray-command", ({ payload }) => {
       setPage(payload === "open" ? "access" : "settings");
+      setRevealCoveredAccess(false);
       setNotice("");
     });
     return () => {
@@ -298,8 +300,9 @@ function App() {
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, [pauseMenu]);
-  const navigate = (next: string) => {
+  const navigate = (next: string, showCoveredAccess = false) => {
     setPage(next);
+    setRevealCoveredAccess(showCoveredAccess);
     setNotice("");
   };
   const refreshInFlight = useRef(false);
@@ -368,7 +371,10 @@ function App() {
   }, [state?.pending?.id]);
   const actionCount = useRef(0);
   const actionGeneration = useRef(0);
-  const act = async (command: Record<string, unknown>) => {
+  const act = async (
+    command: Record<string, unknown>,
+    reportError: (message: string) => void = setError,
+  ) => {
     const generation = ++actionGeneration.current;
     actionCount.current += 1;
     setBusy(true);
@@ -378,7 +384,7 @@ function App() {
       await refresh();
       return true;
     } catch (e) {
-      if (generation === actionGeneration.current) setError(String(e));
+      if (generation === actionGeneration.current) reportError(String(e));
       return false;
     } finally {
       actionCount.current -= 1;
@@ -609,7 +615,8 @@ function App() {
         )}
         {state?.accessPolicy?.schema === "machine-control-admission/v2" &&
           <SurfaceAccess visible={page === "access"} policy={state.accessPolicy} profiles={state.browser.profiles ?? []} browser={state.browser}
-            busy={!!busy} act={act} protectedAccess={lockedUse} lockedBrowser={state.browserWhileLocked} platform={platform} />}
+            busy={!!busy} act={act} protectedAccess={lockedUse} revealCoveredAccess={revealCoveredAccess}
+            lockedBrowser={state.browserWhileLocked} platform={platform} />}
         {page === "access" && !unifiedPolicy && (
           <>
             {state && <p role="status" className="note">This platform uses the legacy control model while unified surface permissions are being migrated.</p>}
@@ -1144,7 +1151,7 @@ function App() {
                       Covered desktop while locked
                     </span>
                     <span className="row-status">{state?.lockedUse?.enabled ? "Enabled" : "Off"}</span>
-                    {state?.lockedUse?.supported && <button onClick={() => navigate("access")}>Open access settings</button>}
+                    {state?.lockedUse?.supported && <button onClick={() => navigate("access", true)}>Open access settings</button>}
                   </div>
                 </>
               )}

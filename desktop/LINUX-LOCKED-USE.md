@@ -7,8 +7,9 @@ tracked in the [Linux locked-use topic](../topics/linux-locked-use.md).
 
 ## Set up from the unlocked desktop
 
-1. Open **Access → More options → Set up covered desktop access** with access
-   off. Enter the Ubuntu account password in the native dialog and approve
+1. Turn **Agent access** off. In **Permissions → Covered desktop while
+   locked**, choose **Open access settings**, then **Set up covered desktop
+   access**. Enter the Ubuntu account password in the native dialog and approve
    the system prompt. The helper verifies and stores an encrypted copy.
    Approve the read-only physical activity observer if requested.
 2. Sign out and back in if the app says GNOME needs to load the extension.

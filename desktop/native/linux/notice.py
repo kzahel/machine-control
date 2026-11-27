@@ -40,6 +40,7 @@ caller=Gtk.Label(xalign=0);caller.set_line_wrap(True);box.pack_start(caller,Fals
 countdown=Gtk.Label(xalign=0);countdown.set_line_wrap(True);box.pack_start(countdown,False,False,0)
 buttons=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=5);box.pack_start(buttons,False,False,0)
 binding=None;current=None;current_view=None;panel_requested=False;choices=[];caption_binding=None;caption_body='';activation=None
+last_availability = None
 
 
 def intent(method,**fields):print(json.dumps(dict(method=method,**fields)),flush=True)
@@ -54,7 +55,7 @@ def hide_controls():
     window.hide();Gdk.Display.get_default().sync()
     notification.return_to_banner()
     if current_view is not None:update(current_view)
-    alive()
+    report_availability()
 
 def button(label,method,**fields):
     value=Gtk.Button(label=label)
@@ -91,7 +92,7 @@ def show():
     if activation and activation[0]==notification.identifier:
         gdk.gdk_wayland_display_set_startup_notification_id(gdk.gdk_display_get_default(),activation[1].encode('utf-8'))
     activation=None
-    panel_requested=True;window.show_all();window.present();alive()
+    panel_requested=True;window.show_all();window.present();report_availability()
 notification=Notification(owner,notify,close,intent,show)
 def signal_received(_bus,sender,_path,_interface,signal,parameters,*_data):
     global activation
@@ -110,8 +111,17 @@ bus.signal_subscribe('org.freedesktop.DBus','org.freedesktop.DBus','NameOwnerCha
     '/org/freedesktop/DBus',service,Gio.DBusSignalFlags.NONE,owner_changed)
 bus.connect('closed',lambda *_:Gtk.main_quit())
 
+def report_availability(*, heartbeat=False):
+    global last_availability
+    available = permitted()
+    visible = notification.acknowledged() or window.get_mapped()
+    if heartbeat or (available, visible) != last_availability:
+        last_availability = (available, visible)
+        intent('alive', available=available, visible=visible)
+
+
 def alive():
-    intent('alive',available=permitted(),visible=notification.acknowledged() or window.get_mapped())
+    report_availability(heartbeat=True)
     return True
 
 
@@ -122,7 +132,7 @@ def update(value):
     row=primary_request(requests)
     current=row
     if row is None:
-        window.hide();panel_requested=False;binding=None;caption_binding=None;notification.withdraw();alive();return False
+        window.hide();panel_requested=False;binding=None;caption_binding=None;notification.withdraw();report_availability();return False
     state=row.get('state');identifier=row.get('intentId');surfaces=row.get('surfaces',[])
     title={'waiting_for_approval':'An agent wants to use this computer',
            'announcing':'An agent will start using this computer',
@@ -211,7 +221,7 @@ def update(value):
     try:notification.update(context,'Machine Control — '+heading.get_text(),caption_body,primary,identifier,state)
     except (GLib.Error,ValueError):Gtk.main_quit();return False
     if panel_requested:window.show_all()
-    alive();return False
+    report_availability();return False
 
 
 window.connect('delete-event',lambda *_:(intent('stop'),True)[1])

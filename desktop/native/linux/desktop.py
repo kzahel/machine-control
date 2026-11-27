@@ -114,6 +114,7 @@ class Desktop:
         try:self.browser.refresh_owned_installation()
         except (OSError,ValueError):self.journal.diagnostic('browser.setup','browser_registration_invalid')
         self.activity=Activity(self.scheduler.post,self.activity_changed)
+        self.activity_status = None
         self.activity_setup=None;self.activity_setup_error=None
         self.locked_use = LockedUse(self)
         self.dialog = None
@@ -148,6 +149,8 @@ class Desktop:
         threading.Thread(target=self.accept_recovery, daemon=True).start()
         self.start_safety()
         self.monitor()
+        self.poll_activity()
+        self.scheduler.timer(250, self.poll_activity)
         self.scheduler.timer(1000, self.monitor)
 
     def policy_changed(self,desktop_changed):
@@ -231,17 +234,30 @@ class Desktop:
         except Exception:
             pass
 
-    def activity_changed(self,generation,deliberate):
-        if not self.policy.alive:return
-        if generation:self.grants.fact('input',False)
-        if deliberate:self.grants.input()
-        self.refresh_availability();self.changed()
+    def poll_activity(self):
+        if self.stopped or not self.policy.alive:
+            return False
+        watch = any(row.get('mode', 'off') != 'off' and not row.get('expired')
+                    for row in self.grants.view.get('surfaces', {}).values())
+        self.activity.refresh(watch, self.session_identity)
+        return True
+
+    def activity_changed(self, generation, deliberate):
+        if not self.policy.alive:
+            return
+        if generation:
+            self.grants.fact('input', False)
+        if deliberate:
+            self.grants.input()
+        status = self.activity.state(self.session_identity)
+        if generation or deliberate or status != self.activity_status:
+            self.activity_status = status
+            self.refresh_availability()
+            self.changed()
 
     def refresh_availability(self):
         if not self.policy.alive:return
         state=self.grants.view
-        watch=any(row.get('mode','off')!='off' and not row.get('expired') for row in state.get('surfaces',{}).values())
-        self.activity.refresh(watch,self.session_identity)
         self.grants.locked=self.locked;self.grants.session=self.session_identity
         self.grants.browser_while_locked=self.browser_preference.enabled
         known=self.session_identity is not None and time.monotonic()-self.session_observed<=2
@@ -779,9 +795,8 @@ class Desktop:
                         if method == "ready":
                             self.safety_available = True;self.safety_observed=time.monotonic()
                             self.monitor()
-                        elif method=="alive":
-                            self.safety_observed=time.monotonic();self.safety_available=value.get("available") is True;self.notice_visible=value.get("visible") is True
-                            self.refresh_availability()
+                        elif method == "alive":
+                            self.notice_alive(value)
                         elif method in {"stop", "pause", "resume", "surface.pause", "surface.resume", "intent.approve", "intent.start", "intent.deny", "intent.defer", "intent.hold", "intent.postpone"}:
                             try:
                                 self.operator(value)
@@ -802,6 +817,17 @@ class Desktop:
                 self.scheduler.post(lost)
         threading.Thread(target=write, daemon=True).start()
         threading.Thread(target=read, daemon=True).start()
+
+    def notice_alive(self, value):
+        now = time.monotonic()
+        previous = (self.safety_available and now - self.safety_observed <= 2,
+                    self.notice_visible)
+        self.safety_observed = now
+        self.safety_available = value.get('available') is True
+        self.notice_visible = value.get('visible') is True
+        if (self.safety_available, self.notice_visible) != previous:
+            self.refresh_availability()
+            self.changed()
 
     def accept_recovery(self):
         while not self.stopped:

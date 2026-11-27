@@ -1,7 +1,9 @@
 # Linux covered-access setup hides the section and the reason setup is blocked
 
-Status: **Open.** Observed on 2026-11-27 with Machine Control desktop 0.7.5
-on Ubuntu 26.04.1, GNOME 50 Wayland, using the physical desktop over VNC.
+**Fixed in source.** Observed on 2026-11-27 with Machine Control desktop
+0.7.5 on Ubuntu 26.04.1, GNOME 50 Wayland, using the physical desktop over
+VNC. [Tactical 170](../docs/tactical/170-linux-observer-and-covered-setup.md)
+records the fix and verification.
 
 Owning topics: [Linux locked use](../topics/linux-locked-use.md) and
 [Desktop access experience](../topics/desktop-access-experience.md).

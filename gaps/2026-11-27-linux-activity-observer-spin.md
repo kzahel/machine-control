@@ -1,7 +1,9 @@
 # Linux resident spins when the activity observer is unavailable
 
-**Open.** Observed on 2026-11-27 with Machine Control 0.7.5 installed from
-the amd64 `.deb` on Ubuntu 26.04.1 with GNOME Wayland.
+**Fixed in source.** Observed on 2026-11-27 with Machine Control 0.7.5
+installed from the amd64 `.deb` on Ubuntu 26.04.1 with GNOME Wayland.
+[Tactical 170](../docs/tactical/170-linux-observer-and-covered-setup.md)
+records the fix and verification.
 
 Owning topics are [Linux desktop](../topics/linux-desktop.md) and
 [Linux locked use](../topics/linux-locked-use.md).
