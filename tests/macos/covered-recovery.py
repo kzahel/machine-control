@@ -157,7 +157,22 @@ def verify_saved_model(c, phase):
         return
     if c.get('rig') is not None and not c['rig'].owners:
         c['rig'].owner('browser')
-    c['poll'](lambda:c['raw']('browser.tabs').get('accepted'),'browser reconnect for passive model check',timeout=30)
+
+    def browser_ready():
+        try:
+            return c['raw']('browser.tabs').get('accepted')
+        except Exception as error:
+            # The installed SDK can refuse its profile capability read before
+            # sending browser.tabs when helper recovery changes the generation.
+            reply = getattr(error, 'data', None)
+            if (getattr(error, 'code', None) == 'control_generation_changed'
+                    and isinstance(reply, dict) and reply.get('accepted') is False
+                    and reply.get('delivery') in ('not_applicable', 'refused')
+                    and reply.get('uncertainty') == 'none'):
+                return False
+            raise
+
+    c['poll'](browser_ready, 'browser reconnect for passive model check', timeout=30)
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         result = c['call']('browser.eval',tabId=saved['tab'],expression="({value:document.getElementById('model').value,model:modelValue})")['value']
