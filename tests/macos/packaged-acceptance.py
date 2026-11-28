@@ -21,7 +21,7 @@ import sys
 import tarfile
 import tempfile
 import uuid
-from acceptance_diagnostics import FailureReport
+from acceptance_diagnostics import FailureReport, announce
 from acceptance_display import MARKER, deliver_frame, stage_frame
 
 
@@ -113,6 +113,7 @@ def run_controller(a, repo, mc, report):
     staged = False
     with tempfile.TemporaryDirectory(prefix='mc-acceptance-extract-') as temporary:
         report.step('controller_preflight', 'verify_candidate')
+        announce('controller_package', 'verify_candidate')
         app = a.app
         manifest = None
         summary = None
@@ -134,6 +135,7 @@ def run_controller(a, repo, mc, report):
         assert app and plistlib.loads((app / 'Contents/Info.plist').read_bytes())['CFBundleIdentifier'] == 'org.machine-control.app'
         subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
         report.step('controller_preflight', 'archive_candidate')
+        announce('controller_package', 'stage_payload')
         archive_path = a.output / 'staged-inputs.tar'
         with tarfile.open(archive_path, 'w') as archive:
             archive.add(app, arcname='candidate/Machine Control.app')
@@ -226,6 +228,7 @@ def run_controller(a, repo, mc, report):
             report.failed(error)
             raise
         finally:
+            announce('controller_package', 'restore_guest')
             try:
                 if staged:
                     report.step('controller_cleanup', 'collect_guest_evidence')

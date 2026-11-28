@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from threading import Event, Timer
 
 
 def scope_completion(events):
@@ -36,26 +37,48 @@ def finished_scope(events):
         raise ValueError('Isolated acceptance scope or disposal did not complete successfully')
 
 
-def run_claimed(args, path, diagnose_failure=None):
+def run_claimed(args, path, diagnose_failure=None, observe=None, timeout=None):
+    from acceptance_diagnostics import Timings
+
     events = []
+    timings = Timings()
+    passed = False
 
     def retain_event(line):
+        timings.observe(line)
+        if observe is not None:
+            observe(line)
         try:
             value = json.loads(line)
             if isinstance(value, dict) and value.get('schema') == 'machine-control-run/v0':
                 events.append(value)
+                if value.get('event') == 'acquired':
+                    timings.step('workspace/run')
         except (UnicodeError, ValueError):
             pass
 
     def run(log):
         proc = subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                                 env={**os.environ, 'MACHINE_CONTROL_TART_ACCEPTANCE_DISPLAY':'1'})
+        expired = Event()
+
+        def interrupt():
+            if proc.poll() is None:
+                expired.set()
+                proc.terminate()
+
+        timer = Timer(timeout, interrupt) if timeout is not None else None
+        if timer is not None:
+            timer.start()
         try:
             for line in proc.stdout:
                 log.write(line); log.flush()
                 sys.stdout.buffer.write(line); sys.stdout.flush()
                 retain_event(line)
-            if proc.wait() != 0:
+            result = proc.wait()
+            if expired.is_set():
+                raise subprocess.TimeoutExpired(args[:1], timeout)
+            if result != 0:
                 raise RuntimeError('Reliability campaign failed; inspect private evidence')
         except KeyboardInterrupt:
             proc.terminate()
@@ -65,16 +88,22 @@ def run_claimed(args, path, diagnose_failure=None):
                 retain_event(line)
             raise
         finally:
+            if timer is not None:
+                timer.cancel()
+                timer.join()
             if proc.poll() is None:
                 proc.terminate(); proc.wait(timeout=90)
     try:
         with path.open('wb') as log:
             run(log)
         finished_scope(events)
+        passed = True
     except BaseException as error:
         if diagnose_failure is not None:
             diagnose_failure(events, error)
         raise
+    finally:
+        timings.finish(path.with_suffix('.timings.json'), passed)
 
 
 def report_campaign_failure(output, events, error, mc):
@@ -130,6 +159,10 @@ def completed_development_campaign(root):
 
 
 def main():
+    repo = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location('acceptance', repo / 'desktop/scripts/packaged-acceptance.py')
+    acceptance = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(acceptance)
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--target', required=True)
     p.add_argument('--claimant-authority', required=True)
@@ -145,14 +178,29 @@ def main():
     p.add_argument('--admin-secret-file', required=True, type=Path)
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--seed', type=int, default=141)
+    p.add_argument('--timing-profile', choices=acceptance.TIMING_PROFILES,
+        help='Use 60s expiry and 120s renewal (standard from 0.7.7), or 900s and 960s (extended)')
     a = p.parse_args()
     if (a.app or a.resume_campaign) and not a.development:
         p.error('Local app bundles and campaign recovery require --development')
     if a.package_directory and not a.team_id:
         p.error('Authenticated candidate packages require --team-id')
+    timing_profile = a.timing_profile or 'extended'
+    if not a.development:
+        try:
+            build = json.loads((a.package_directory / 'build.json').read_text())
+            standard_supported = acceptance.supports_standard_timing(build['version'])
+        except (OSError, KeyError, TypeError, ValueError):
+            p.error('Expected a versioned build.json in the candidate package directory')
+        if a.timing_profile == 'standard' and not standard_supported:
+            p.error('Standard timing for release acceptance starts at 0.7.7')
+        if a.timing_profile is None and standard_supported:
+            timing_profile = 'standard'
+    if a.resume_campaign and timing_profile != 'extended':
+        p.error('Campaign recovery requires an extended development campaign')
+    expiry, renewal = acceptance.TIMING_PROFILES[timing_profile]
     if os.environ.get('MACHINE_CONTROL_SCOPE_FILE'):
         p.error('Run this controller wrapper outside an existing claim scope')
-    repo = Path(__file__).resolve().parents[2]
     if a.output.resolve().is_relative_to(repo):
         p.error('Evidence must be outside the public checkout')
     a.output.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -163,7 +211,7 @@ def main():
         sys.executable, str(repo / 'tests/macos/packaged-acceptance.py'),
         '--output', str(a.output / 'campaign'), '--repeat', '3', '--soak-seconds', '120',
         '--seed', str(a.seed), '--faults', '--remote-arming', '--covered-recovery', '--defer-failure-note',
-        '--covered-duration', '900', '--covered-renewal-seconds', '960',
+        '--covered-duration', str(expiry), '--covered-renewal-seconds', str(renewal),
         '--admin-secret-file', str(a.admin_secret_file)]
     if a.resume_campaign:
         if a.resume_campaign.resolve().is_relative_to(repo):
@@ -226,15 +274,11 @@ def main():
         receipt = json.loads((campaign / 'acceptance-pending-cleanup.json').read_text())
         assert receipt['cleanupVerified'] is False
         receipt['cleanupVerified'] = True
-        spec = importlib.util.spec_from_file_location('acceptance', repo / 'desktop/scripts/packaged-acceptance.py')
-        acceptance = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(acceptance)
         receipt['reliability'].update(stopRelaunchUI=True,coldBootChoices=True)
         receipt['coverage'] = sorted(acceptance.COVERAGE | acceptance.RELIABILITY_COVERAGE)
         revision = subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip()
         assert not subprocess.check_output(['git','status','--porcelain'],cwd=repo),'Acceptance source changed during execution'
-        acceptance.validate(receipt, json.loads((a.package_directory / 'build.json').read_text()),
-            revision=revision, version=receipt['version'], run=receipt['candidateRun'])
+        acceptance.validate(receipt, build, revision=revision, version=receipt['version'], run=receipt['candidateRun'])
         (a.output / 'acceptance.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print('Reliability campaign and exclusive workspace disposal verified', flush=True)
 

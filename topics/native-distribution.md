@@ -15,6 +15,14 @@ owns the workflow; [Tactical 136](../docs/tactical/136-desktop-crash-hardening.m
 owns the implementation record. Mac signed builds also retain matching,
 nonempty executable/framework symbols separately from product artifacts.
 
+**Decision:** Starting with desktop 0.7.7, the standard release receipt
+can come from a one-VM packaged smoke with a real browser effect, boot-bound
+consent, independently observed cover, one native effect and native Stop.
+The broader reliability campaign remains available with standard and extended
+lease timings. Private per-stage wall time distinguishes package preparation,
+the VM checks and cleanup. [Release guidance](../release/desktop.md) owns the
+smoke and reliability contracts.
+
 Status: signed Windows headless workstation preview remains available; YA now
 consumes the installed desktop CLI and has retired its component lifecycle.
 Unified Mac/Windows/Linux desktop `0.6.9` is published; package

@@ -30,8 +30,9 @@ def wait(fn, label, seconds=60):
     raise AssertionError(label)
 
 
-def guest(stage, claim, verify, protected_stop=False):
+def guest(stage, claim, verify, protected_stop=False, smoke=False):
     sys.path.insert(0,str(stage/'source/tests/macos'))
+    from acceptance_diagnostics import announce
     from surface_fixture import aqua_observer, require_managed_observer
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).startswith(b'VirtualMac')
     home = Path.home()
@@ -74,6 +75,7 @@ def guest(stage, claim, verify, protected_stop=False):
         require_managed_observer(wait(status, 'Original resident unavailable'))
         command('/usr/bin/ditto', installed, stage / 'Original.app')
     elif verify:
+        if smoke: announce('smoke_boot', 'access_off')
         saved = json.loads((stage / 'preboot.json').read_text())
         assert boot != saved['boot'], 'No actual guest reboot observed'
         current = wait(status, 'Candidate did not return after reboot')
@@ -87,6 +89,7 @@ def guest(stage, claim, verify, protected_stop=False):
     observer = ExitStack()
     observer_started = False
     try:
+        if smoke and not verify: announce('smoke_install', 'initialize_observer')
         try:
             select_policy('appliance')
             observer_socket.unlink(missing_ok=True)
@@ -97,6 +100,7 @@ def guest(stage, claim, verify, protected_stop=False):
         finally:
             select_policy('workstation')
         if not verify:
+            if smoke: announce('smoke_install', 'install_candidate')
             exchange(endpoint, 'server.stop')
             command('/bin/launchctl','bootout',service_label,check=False)
             wait(lambda:status() is None, 'Original endpoint still running')
@@ -110,9 +114,9 @@ def guest(stage, claim, verify, protected_stop=False):
         if surface_model:
             sys.path.insert(0,str(stage/'source/tests/macos'))
             import surface_reboot
-            surface_reboot.run(stage,claim,observer_socket,verify,boot,saved,protected_stop)
+            surface_reboot.run(stage,claim,observer_socket,verify,boot,saved,protected_stop,smoke)
             return
-        assert not protected_stop,'Protected Stop fixture requires the v2 model'
+        assert not (protected_stop or smoke),'Protected Stop fixture requires the v2 model'
         pid = current['processId']
         command(installed / 'Contents/MacOS/macui', 'serve', endpoint, '--settings')
 
@@ -206,15 +210,17 @@ def main():
     p.add_argument('--guest-stage', type=Path)
     p.add_argument('--verify', action='store_true')
     p.add_argument('--protected-stop', action='store_true')
+    p.add_argument('--smoke', action='store_true', help='One signed-candidate browser, reboot and protected Stop scenario')
     p.add_argument('--claim')
     p.add_argument('--app', type=Path)
     p.add_argument('--output', type=Path)
     p.add_argument('--admin-secret-file', type=Path)
     a = p.parse_args()
     if a.guest_stage:
-        guest(a.guest_stage, a.claim, a.verify, a.protected_stop)
+        guest(a.guest_stage, a.claim, a.verify, a.protected_stop, a.smoke)
         return
-    from acceptance_display import MARKER, deliver_frame, stage_frame
+    from acceptance_diagnostics import announce
+    from acceptance_display import MARKER, PNG, deliver_frame, stage_frame
     if not a.app or not a.output or not a.admin_secret_file or not os.environ.get('MACHINE_CONTROL_WORKSPACE_HANDLE'):
         p.error('--app/--output/--admin-secret-file and an isolated common claim scope are required')
     repo = Path(__file__).resolve().parents[2]
@@ -227,10 +233,19 @@ def main():
     assert row['intent'] == 'isolated' and row['retention'] == 'discardOnRelease'
     a.output.mkdir(mode=0o700,parents=True,exist_ok=False)
     remote = None
+    succeeded = False
     def call(*args, check=True, **kwargs):
         return subprocess.run(mc+list(args),check=check,timeout=120,**kwargs)
     try:
+        if a.smoke: announce('smoke_preflight', 'boot_guest')
         call('target','up')
+        if a.smoke:
+            announce('smoke_preflight', 'capture_display')
+            frame = call('testbed','--','acceptance-display-ready',stdout=subprocess.PIPE).stdout
+            assert frame.startswith(PNG), 'Expected a passive Tart display frame'
+            announce('smoke_install', 'stage_candidate')
+        else:
+            announce('reliability_reboot', 'stage_candidate')
         guest_home = call('testbed','--','exec','/usr/bin/printenv','HOME',capture_output=True).stdout.decode().strip()
         assert guest_home.startswith('/') and '\n' not in guest_home and guest_home != '/'
         remote = guest_home+'/Library/Application Support/MachineControl/reboot-acceptance-'+uuid.uuid4().hex
@@ -241,11 +256,12 @@ def main():
             tar.add(__file__,arcname='reboot-choices.py')
             tar.add(repo/'tests/macos/verify-appliance-credential.swift',arcname='verify-credential.swift')
             tar.add(repo/'platforms/macos/resident/scripts/install-user.sh',arcname='install-user.sh')
-            for name in ['tests/macos/acceptance_display.py','tests/macos/surface_fixture.py','tests/macos/surface_reboot.py','tests/macos/surface-policy-live.py','tests/macos/surface-covered-live.py','tests/macos/session-lock.m','tests/macos/cover-observation.swift','platforms/macos/guests/macos/fixture/MachineControlFixture.swift','platforms/macos/guests/macos/unlock/Session.h','platforms/macos/guests/macos/unlock/Relock.h','platforms/chromeos/cdp.py']:
+            for name in ['tests/macos/acceptance_diagnostics.py','tests/macos/acceptance_display.py','tests/macos/surface_fixture.py','tests/macos/surface_reboot.py','tests/macos/surface-policy-live.py','tests/macos/surface-covered-live.py','tests/macos/session-lock.m','tests/macos/cover-observation.swift','platforms/macos/guests/macos/fixture/MachineControlFixture.swift','platforms/macos/guests/macos/unlock/Session.h','platforms/macos/guests/macos/unlock/Relock.h','platforms/chromeos/cdp.py']:
                 tar.add(repo/name,arcname='source/'+name)
         with archive.open('rb') as stream:
             call('testbed','--','exec','-i','tar','-xf','-','-C',remote,stdin=stream)
         tool = remote+'/verify-credential'
+        announce('smoke_install' if a.smoke else 'reliability_reboot', 'verify_credential')
         call('testbed','--','exec','xcrun','swiftc',remote+'/verify-credential.swift','-o',tool)
         probe = json.loads(call('testbed','--','exec',tool,'--preflight',capture_output=True).stdout)
         assert probe == {'schema':'machine-control-appliance-credential-check/v0','code':'ready','verified':False}
@@ -258,6 +274,7 @@ def main():
         assert verified.get('verified') is True, 'Canonical appliance credential verification failed; no retry'
         (a.output/'credential-check.json').write_text(json.dumps(verified))
         args = ['testbed','--','exec','/usr/bin/python3',remote+'/reboot-choices.py','--guest-stage',remote,'--claim',scope['claim']]
+        if a.smoke: args.append('--smoke')
         def reboot_once():
             before=call('testbed','--','exec','/usr/sbin/sysctl','-n','kern.boottime',capture_output=True).stdout.decode().strip()
             job='org.machine-control.acceptance-reboot.'+uuid.uuid4().hex
@@ -271,17 +288,21 @@ def main():
                     check=False,capture_output=True)
                 return result.returncode==0 and result.stdout.decode().strip()!=before
             wait(returned,'Guest did not return after reboot',seconds=180)
-        surface_model=(a.app/'Contents/Resources/shared-policy/payload.json').is_file()
-        if surface_model:
+        def protected_stop(*extra):
             attempted=False
             frames=set()
-            process=subprocess.Popen(mc+args+['--protected-stop'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            def send(frame, contents):
+                if a.smoke:
+                    (a.output / f'display-frame-{len(frames)}.png').write_bytes(contents)
+                stage_frame(call, frame, contents)
+
+            process=subprocess.Popen(mc+args+['--protected-stop',*extra],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
             try:
                 for line in process.stdout:
                     if line.startswith(MARKER):
                         deliver_frame(line, Path(remote),
-                                      lambda: call('testbed','--','acceptance-display-frame',capture_output=True).stdout,
-                                      lambda frame, contents: stage_frame(call, frame, contents), frames)
+                                      lambda: call('testbed','--','acceptance-display-frame',stdout=subprocess.PIPE).stdout,
+                                      send, frames)
                     elif line.startswith(b'MC_CREDENTIAL_LEASE '):
                         import re
                         lease=json.loads(line[len(b'MC_CREDENTIAL_LEASE '):])
@@ -301,12 +322,30 @@ def main():
                 assert process.wait()==0,'Protected native Stop fixture failed'
             finally:
                 if process.poll() is None:process.terminate();process.wait(timeout=30)
+        surface_model=(a.app/'Contents/Resources/shared-policy/payload.json').is_file()
+        if a.smoke:
+            assert surface_model, 'Smoke requires the packaged v2 surface model'
+            call(*args)
+            announce('smoke_boot', 'reboot')
+            reboot_once()
+            protected_stop('--verify')
+            with (a.output/'protected-stop.json').open('wb') as stream:
+                call('testbed','--','exec','cat',remote+'/protected-stop.json',stdout=stream)
+            succeeded = True
+            return
+        if surface_model:
+            announce('reliability_reboot', 'protected_stop')
+            protected_stop()
             # Native Stop leaves the actual console locked. A separately
             # observed normal boot restores the prepared auto-login session;
             # no ordinary owner is silently rearmed to enable further UI work.
+            announce('reliability_reboot', 'reboot_after_stop')
             reboot_once()
+        announce('reliability_reboot', 'save_choices')
         call(*args)
+        announce('reliability_reboot', 'reboot_with_consent')
         reboot_once()
+        announce('reliability_reboot', 'verify_choices')
         call(*args,'--verify')
         with (a.output/'reboot-choices.json').open('wb') as stream:
             call('testbed','--','exec','cat',remote+'/reboot-choices.json',stdout=stream)
@@ -314,6 +353,7 @@ def main():
         # This verified discard-on-release workspace is controller-owned.
         # Bound its lifecycle explicitly; guest sudo timestamp availability is
         # not the credential handoff or the workspace-disposal authority.
+        if succeeded: announce('smoke_cleanup', 'stop_guest')
         call('testbed','--','stop',check=False)
 
 

@@ -18,6 +18,7 @@ import subprocess
 import time
 import uuid
 from acceptance_display import observe_cover
+from acceptance_diagnostics import announce
 
 
 def main():
@@ -26,6 +27,7 @@ def main():
     parser.add_argument('--source-root',required=True,type=Path)
     parser.add_argument('--report',required=True,type=Path)
     parser.add_argument('--claim',required=True)
+    parser.add_argument('--smoke', action='store_true')
     args=parser.parse_args()
     assert subprocess.check_output(['sysctl','-n','hw.model']).decode().startswith('VirtualMac')
     spec=importlib.util.spec_from_file_location('surface_actor',args.source_root/'tests/macos/surface-policy-live.py')
@@ -121,6 +123,7 @@ def main():
         assert value.get('accepted'),value.get('errorCode');return value.get('data',{})
 
     try:
+        if args.smoke: announce('smoke_protected', 'helper_setup')
         initial=status()
         assert initial['desktopState']=='unlocked' and initial['unlock']['installation']=='missing'
         assert all(value['mode']=='off' for value in initial['admission']['surfaces'].values())
@@ -162,6 +165,7 @@ def main():
         poll(lambda:status()['admission']['surfaces']['desktop']['mode']=='automatic','Desktop Automatic consent')
         check('protected preference and ordinary Desktop consent are separate',status()['admission']['surfaces']['browser']['mode']=='off')
 
+        if args.smoke: announce('smoke_protected', 'compile_fixture')
         binary=root/'native-fixture'
         subprocess.run(['xcrun','swiftc',str(args.source_root/'platforms/macos/guests/macos/fixture/MachineControlFixture.swift'),'-o',str(binary)],check=True,capture_output=True,timeout=100)
         state=root/'fixture-state/state.json'
@@ -175,9 +179,10 @@ def main():
         subprocess.run([str(lock_binary),'--lock'],check=True,capture_output=True,timeout=15)
         poll(locked,'independent initial native lock')
         sessions=[]
-        for number in [1,2]:
+        for number in ([2] if args.smoke else [1,2]):
             before=oracle()['count']
             assert locked()
+            if args.smoke: announce('smoke_protected', 'cover')
             observe_cover(args.source_root, root, f'cover-baseline-{number}', covered=False)
             # Task 1 keeps the flagless compatibility owner; task 2 uses the
             # common --prepared-console request (Tactical 159 decision 1).
@@ -192,6 +197,7 @@ def main():
                 check('covered task '+str(number)+' unlocks the same console behind a guard',not locked() and status()['lockedUse']['coveredDisplays']>0)
                 observe_cover(args.source_root, root, f'unfiltered-cover-{number}', covered=True)
                 check('covered task '+str(number)+' independently conceals the real display')
+                if args.smoke: announce('smoke_protected', 'native_effect')
                 button=next(row for row in snapshot['elements'] if row.get('identifier')=='fixture.increment' or row.get('label')=='Increment')
                 accepted(owner.call('action',provider='macos-native',reference=button['reference'],action='press'))
                 poll(lambda:oracle()['count']==before+1,'independent protected fixture effect',5)
@@ -202,6 +208,7 @@ def main():
                 saved.write_bytes(artifact.read_bytes());saved.chmod(0o600);artifact.unlink()
                 check('covered task '+str(number)+' captures its owned underlying fixture')
                 if number==2:
+                    if args.smoke: announce('smoke_protected', 'stop_and_relock')
                     # The actual registered native Stop shortcut, delivered by
                     # the independent operator observer, remains usable covered.
                     observe('input.key',key='ctrl-alt-cmd-.',expect_stop=True)
@@ -211,7 +218,8 @@ def main():
             check('covered task '+str(number)+' independently relocks and releases its guard',status()['lockedUse']['coveredDisplays']==0)
             if number==1:
                 check('ordinary consent survives normal protected completion',status()['admission']['surfaces']['desktop']['mode']=='automatic')
-        check('successive protected tasks have distinct shared owner sessions',len(set(sessions))==2)
+        if not args.smoke:
+            check('successive protected tasks have distinct shared owner sessions',len(set(sessions))==2)
         check('native Stop turns both surfaces Off',all(value['mode']=='off' for value in status()['admission']['surfaces'].values()))
         args.report.write_text(json.dumps({'passed':True,'checks':checks,'checkCount':len(checks),
             'protectedFixtureEffects':oracle()['count'],'physicalHidQualification':False,'onlineDisplays':status()['lockedUse']['onlineDisplays']})+'\n')

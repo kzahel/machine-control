@@ -1,26 +1,53 @@
 """Actual Settings, protected Stop and cold boot for the v2 release contract."""
 import contextlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import signal
 import subprocess
+import threading
+from acceptance_diagnostics import announce
 from surface_fixture import SurfaceFixture,launch_profile,poll
 
 
-def run(stage,claim,observer_socket,verify,boot,saved,protected_stop=False):
+def run(stage, claim, observer_socket, verify, boot, saved, protected_stop=False, smoke=False):
     resident=Path.home()/'Applications/Machine Control.app/Contents/MacOS/macui'
     endpoint=Path.home()/'Library/Application Support/MachineControl/control.sock'
     rig=SurfaceFixture(stage/'source',resident,endpoint,observer_socket,claim)
     browser=None
     try:
         if protected_stop:
-            assert not verify
-            report=stage/'protected-stop.json'
-            subprocess.run(['/usr/bin/python3',str(stage/'source/tests/macos/surface-covered-live.py'),'--source-root',str(stage/'source'),'--observer-socket',str(observer_socket),'--claim',claim,'--report',str(report)],check=True)
-            value=json.loads(report.read_text());assert value['passed'] and value['checkCount']>=18
+            assert not verify or smoke
+            report = stage / 'protected-stop.json'
+            args = ['/usr/bin/python3', str(stage / 'source/tests/macos/surface-covered-live.py'),
+                    '--source-root', str(stage / 'source'), '--observer-socket', str(observer_socket),
+                    '--claim', claim, '--report', str(report)]
+            subprocess.run(args + (['--smoke'] if smoke else []), check=True)
+            value = json.loads(report.read_text())
+            assert value['passed'] and value['checkCount'] >= (10 if smoke else 18)
             assert all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values())
             print('Actual native Stop ended an active protected owner and independently relocked',flush=True)
+            return
+        if smoke:
+            announce('smoke_browser', 'access_off')
+            assert all(v['mode']=='off' for v in rig.status()['admission']['surfaces'].values())
+            request = json.dumps({'operation': 'status', 'claimId': claim})
+            cli = json.loads(subprocess.check_output(rig.target['command'] + ['control', request], timeout=20))
+            assert cli['accepted'] and cli['data']['processId'] == rig.status()['processId']
+            announce('smoke_browser', 'start_browser')
+            browser = launch_profile(rig, stage, 'Release smoke')
+            announce('smoke_browser', 'access_off')
+            refusal = rig.exchange(endpoint, 'browser.tabs', browserProfileId=rig.profiles[0])
+            assert (refusal['accepted'] is False and refusal['errorCode'] == 'surface_disabled'
+                    and refusal['delivery'] == 'refused' and refusal['uncertainty'] == 'none'), {
+                        key: refusal.get(key) for key in ('errorCode', 'delivery', 'uncertainty')}
+            announce('smoke_browser', 'browser_round_trip')
+            smoke_browser(rig)
+            assert rig.status()['admission']['surfaces']['browser']['mode'] == 'automatic'
+            startup = Path(str(endpoint) + '.startup-access.json')
+            assert not startup.exists() or json.loads(startup.read_text()).get('enabled') is not True
+            (stage/'preboot.json').write_text(json.dumps({'boot': boot}))
             return
         rig.settings()
         if not verify:
@@ -71,6 +98,55 @@ def run(stage,claim,observer_socket,verify,boot,saved,protected_stop=False):
             except subprocess.TimeoutExpired:
                 with contextlib.suppress(ProcessLookupError):os.killpg(browser.pid,signal.SIGKILL)
                 browser.wait(5)
+
+
+def smoke_browser(rig):
+    saved = []
+    expected = b'Machine Control release smoke'
+    page = (b'<button onclick="fetch(\'/save\',{method:\'POST\',body:this.dataset.value})" '
+            b'data-value="Machine Control release smoke">Save fixture</button>')
+
+    class Fixture(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Content-Length', str(len(page)))
+            self.end_headers()
+            self.wfile.write(page)
+
+        def do_POST(self):
+            assert self.path == '/save'
+            saved.append(self.rfile.read(int(self.headers['Content-Length'])))
+            self.send_response(204)
+            self.end_headers()
+
+    with ThreadingHTTPServer(('127.0.0.1', 0), Fixture) as server, contextlib.ExitStack() as stack:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        stack.callback(thread.join)
+        stack.callback(server.shutdown)
+        rig.arm('automatic', ('browser',))
+        rig.owner('browser')
+
+        def call(operation, **fields):
+            result = rig.dispatch(operation, **fields)
+            assert result['accepted'], result.get('errorCode')
+            return result['data']
+
+        url = f'http://127.0.0.1:{server.server_port}/'
+        tab = call('browser.navigate', newTab=True, active=True, url=url)['tab']['tabId']
+
+        def save_control():
+            elements = call('browser.snapshot', tabId=tab)['elements']
+            return next((row['reference'] for row in elements if row.get('name') == 'Save fixture'), None)
+
+        call('browser.click', reference=poll(save_control, 'Save fixture browser control'))
+        poll(lambda: bool(saved), 'independent browser save')
+        assert saved == [expected], 'Browser save bytes or count differ'
+        rig.close_owners()
 
 
 def visible_choices(rig):

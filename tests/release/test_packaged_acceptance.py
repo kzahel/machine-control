@@ -90,6 +90,47 @@ class Acceptance(unittest.TestCase):
         with self.assertRaises(ValueError):
             runner.finished_scope([start, end, end])
 
+    def test_standard_timing_requires_a_new_release_and_the_complete_pair(self):
+        for version, expiry, renewal, accepted in [
+            ('0.7.6', 60, 120, False),
+            ('0.7.7', 60, 120, True),
+            ('0.7.7', 900, 960, True),
+            ('0.7.7', 60, 119, False),
+            ('0.7.7', 60, 960, False),
+            ('0.7.7', 900, 120, False),
+        ]:
+            with self.subTest(version=version, expiry=expiry, renewal=renewal):
+                scope = dict(self.scope, version=version)
+                receipt = dict(self.receipt, version=version,
+                    schema='machine-control-packaged-acceptance/v1',
+                    coverage=sorted(acceptance.COVERAGE | acceptance.RELIABILITY_COVERAGE),
+                    reliability={'coveredDurationSeconds': expiry, 'renewableOwnerSeconds': renewal,
+                                 'sipEnabled': False, 'onlineDisplays': 1,
+                                 'stopRelaunchUI': True, 'coldBootChoices': True})
+                if accepted:
+                    acceptance.validate_envelope(receipt, **scope)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'reliability timing'):
+                        acceptance.validate_envelope(receipt, **scope)
+
+    def test_smoke_receipt_binds_the_exact_package_and_closed_coverage(self):
+        scope = dict(self.scope, version='0.7.7')
+        build = dict(self.build, version='0.7.7',
+                     artifacts=[{'name': 'MachineControl_0.7.7_arm64.app.tar.gz', 'sha256': 'b' * 64}])
+        receipt = {key: self.receipt[key] for key in acceptance.SMOKE_FIELDS}
+        receipt.update(schema=acceptance.SMOKE_SCHEMA, version='0.7.7',
+                       coverage=sorted(acceptance.SMOKE_COVERAGE))
+        acceptance.validate(receipt, build, **scope)
+        for changes in [
+            {'archiveSHA256': 'c' * 64}, {'candidateRun': '123.1'}, {'cleanupVerified': False},
+            {'coverage': receipt['coverage'][1:]}, {'coverage': sorted(acceptance.RELIABILITY_COVERAGE)},
+            {'target': 'private'}, {'passed': False},
+        ]:
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                acceptance.validate(dict(receipt, **changes), build, **scope)
+        with self.assertRaisesRegex(ValueError, 'starts with desktop 0.7.7'):
+            acceptance.validate_envelope(dict(receipt, version='0.7.6'), **dict(scope, version='0.7.6'))
+
 
 if __name__ == '__main__':
     unittest.main()

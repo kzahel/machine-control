@@ -172,6 +172,7 @@ ensure_running() {
 }
 
 acceptance_display_frame() {
+    local mode="$1"
     if [[ "${MACHINE_CONTROL_TART_ACCEPTANCE_DISPLAY:-}" != "1" ||
           -z "${MACHINE_CONTROL_WORKSPACE_HANDLE:-}" || "$MACVM_TARGET_ROLE" != disposable ]]; then
         printf 'Passive acceptance display requires an opted-in disposable Tart workspace\n' >&2
@@ -183,7 +184,7 @@ acceptance_display_frame() {
     claim_require_tools
     MACHINE_CONTROL_CLAIM_POLICY=required claim_require_exact \
         "$MACVM_CLAIM_STATE_DIR" tart-macos "$MACVM_EXPECTED_NAME"
-    [[ $# == 0 && "$(macvm_state)" == running ]]
+    [[ "$(macvm_state)" == running ]]
     if [[ "$(macvm_host_session_state)" != unlocked ]]; then
         printf 'Passive Tart window observation requires an unlocked controller session\n' >&2
         return 1
@@ -196,7 +197,7 @@ acceptance_display_frame() {
     [[ "$display" =~ ^([0-9]+)x([0-9]+)$ ]]
     "$MACVM_REPO_DIR/scripts/bounded-command.py" --seconds 25 --show-errors -- \
         /usr/bin/swift "$PROVIDER_DIR/acceptance-display.swift" "$MACVM_NAME" "$pid" \
-        "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+        "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$mode"
 }
 
 suspend_vm() {
@@ -340,7 +341,8 @@ case "$command" in
     up) ensure_running; macvm_state ;;
     ip) guest_ip ;;
     screenshot) exec "$PROVIDER_DIR/screenshot" "$@" ;;
-    acceptance-display-frame) acceptance_display_frame "$@" ;;
+    acceptance-display-frame) [[ $# -eq 0 ]] && acceptance_display_frame capture ;;
+    acceptance-display-ready) [[ $# -eq 0 ]] && acceptance_display_frame prepare ;;
     click) input_click "$@" ;;
     drag) input_drag "$@" ;;
     type) input_type "$@" ;;

@@ -217,7 +217,7 @@ case "$command" in
         fi
         ;;
     shell) macvm_shell ;;
-    status|get|host-state|up|ip|screenshot|acceptance-display-frame|click|drag|type|type-secret|key|suspend|discard-suspended-state|shutdown|stop|force-stop)
+    status|get|host-state|up|ip|screenshot|acceptance-display-frame|acceptance-display-ready|click|drag|type|type-secret|key|suspend|discard-suspended-state|shutdown|stop|force-stop)
         provider "$command" "$@"
         ;;
     *)

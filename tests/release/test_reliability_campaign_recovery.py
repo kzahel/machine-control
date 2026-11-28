@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -75,4 +76,43 @@ class DevelopmentRecoveryTests(unittest.TestCase):
             '--admin-secret-file',str(self.root/'unread-secret'),'--output',str(output)],capture_output=True,text=True)
         self.assertEqual(result.returncode,2)
         self.assertIn('require --development',result.stderr)
+        self.assertFalse(output.exists())
+
+    def timing_arguments(self, version, output, *options):
+        package = self.root / version
+        package.mkdir(exist_ok=True)
+        (package / 'build.json').write_text(json.dumps({'version': version}))
+        return [str(SCRIPT), '--target', 'fixture', '--claimant-authority', 'test',
+            '--claimant-id', 'test', '--provision-run', 'unused',
+            '--admin-secret-file', str(self.root / 'unread-secret'),
+            '--output', str(output), '--package-directory', str(package),
+            '--team-id', 'UNUSED', *options]
+
+    def test_timing_profile_configures_the_complete_campaign(self):
+        for index, (version, options, expected) in enumerate([
+            ('0.7.6', [], ('900', '960')),
+            ('0.7.7', [], ('60', '120')),
+            ('0.7.7', ['--timing-profile', 'extended'], ('900', '960')),
+            ('0.7.6', ['--development', '--timing-profile', 'standard'], ('60', '120')),
+        ]):
+            with self.subTest(version=version, options=options):
+                args = self.timing_arguments(version, self.root / f'output-{index}', *options)
+                with patch.object(sys, 'argv', args), \
+                        patch.object(RELIABILITY, 'run_claimed', side_effect=SystemExit(17)) as run:
+                    with self.assertRaises(SystemExit) as stopped:
+                        RELIABILITY.main()
+                self.assertEqual(stopped.exception.code, 17)
+                campaign = run.call_args.args[0]
+                actual = tuple(campaign[campaign.index(flag) + 1] for flag in
+                               ('--covered-duration', '--covered-renewal-seconds'))
+                self.assertEqual(actual, expected)
+                self.assertNotIn('--covered-probe', campaign)
+                self.assertIn('--faults', campaign)
+
+    def test_historical_release_refuses_standard_timing_before_claiming(self):
+        output = self.root / 'historical-output'
+        args = self.timing_arguments('0.7.6', output, '--timing-profile', 'standard')
+        result = subprocess.run([sys.executable, *args], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('starts at 0.7.7', result.stderr)
         self.assertFalse(output.exists())

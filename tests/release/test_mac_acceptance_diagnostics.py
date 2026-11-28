@@ -25,9 +25,55 @@ def load(script):
 controller = load('packaged-acceptance')
 reliability = load('reliability-acceptance')
 display = load('acceptance_display')
+diagnostics = load('acceptance_diagnostics')
 
 
 class AcceptanceDiagnosticsTests(unittest.TestCase):
+    def test_wall_timings_record_closed_steps_and_partial_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'timings.json'
+            clock = mock.Mock(side_effect=[100, 102.5, 107.5, 108])
+            timing = diagnostics.Timings(clock=clock)
+            timing.observe(b'MC_ACCEPTANCE_CHECK smoke_preflight capture_display\n')
+            timing.observe(b'MC_ACCEPTANCE_CHECK smoke_preflight unknown-private-marker\n')
+            timing.observe(b'MC_ACCEPTANCE_CHECK smoke_preflight capture_display\n')
+            timing.observe(b'MC_ACCEPTANCE_CHECK smoke_install stage_candidate\n')
+            timing.finish(path, passed=False)
+            self.assertEqual(json.loads(path.read_text()), {
+                'passed': False, 'elapsedSeconds': 8,
+                'steps': [
+                    {'step': 'workspace/acquire', 'seconds': 2.5},
+                    {'step': 'smoke_preflight/capture_display', 'seconds': 5},
+                    {'step': 'smoke_install/stage_candidate', 'seconds': 0.5},
+                ],
+            })
+
+    def test_deadline_requests_scope_cleanup_and_never_passes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / 'workspace.log'
+            receipt = {'schema': 'machine-control-run/v0', 'claimId': 'claim',
+                       'workspaceHandle': 'workspace', 'logicalTarget': 'fixture'}
+            acquired = dict(receipt, event='acquired')
+            finished = dict(receipt, event='finished', cleanup={'claim': 'released', 'workspace': 'released'})
+            process = mock.Mock()
+            process.stdout = [(json.dumps(event) + '\n').encode() for event in (acquired, finished)]
+            process.poll.side_effect = [None, 130]
+            process.wait.return_value = 130
+            diagnose = mock.Mock()
+
+            def timer(_seconds, interrupt):
+                return mock.Mock(start=interrupt)
+
+            with (mock.patch.object(sys, 'path', [str(MACOS), *sys.path]),
+                  mock.patch.object(reliability, 'Timer', side_effect=timer),
+                  mock.patch.object(subprocess, 'Popen', return_value=process),
+                  mock.patch.object(sys, 'stdout', SimpleNamespace(buffer=mock.Mock(), flush=mock.Mock()))):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    reliability.run_claimed(['fixture'], log, diagnose_failure=diagnose, timeout=720)
+            process.terminate.assert_called_once()
+            self.assertEqual(diagnose.call_args.args[0], [acquired, finished])
+            self.assertFalse(json.loads(log.with_suffix('.timings.json').read_text())['passed'])
+
     def test_display_requests_deliver_one_fresh_frame_to_the_owned_stage(self):
         stage = Path('/fixture/owned-stage')
         token = b'9' * 32
@@ -108,7 +154,8 @@ class AcceptanceDiagnosticsTests(unittest.TestCase):
                 mock.patch.object(subprocess, 'Popen', return_value=process),
                 mock.patch.object(controller.signal, 'signal'),
                 mock.patch.dict(controller.os.environ, {'MACHINE_CONTROL_CLAIM_ID': 'fixture'}),
-                mock.patch.object(controller.sys, 'stdout', SimpleNamespace(buffer=mock.Mock(), flush=mock.Mock())),
+                mock.patch.object(controller.sys, 'stdout', SimpleNamespace(
+                    buffer=mock.Mock(), flush=mock.Mock(), write=mock.Mock())),
             ):
                 with self.assertRaises(AssertionError):
                     controller.run_controller(args, ROOT, ['fixture-mc'], report)

@@ -11,12 +11,15 @@ owns exact source, workflow identities, public authentication and delivery.
 ## Release
 
 1. Add meaningful versioned notes to [the changelog](../desktop/CHANGELOG.md).
-2. Commit and push main. Run source checks and native acceptance appropriate to
-   the change; keep architecture and physical-hardware execution gaps explicit.
-   Every `desktop-release.yml` run first requires the push-triggered
-   cross-platform checks (`check.yml`) to pass at that exact source, waiting up
-   to 20 minutes while they run, so a red source never costs a signed build.
-3. From a clean main checkout matching origin, run:
+2. Commit and push main, then dispatch a candidate build. GitHub Actions
+   requires the push-triggered cross-platform checks (`check.yml`) to pass at
+   the exact candidate commit before it builds and verifies the signed packages.
+   The candidate workflow waits up to 20 minutes for those checks.
+3. Start the packaged smoke on a prepared Mac controller. The
+   harness drives the guest, verifies the effects, and writes the receipt.
+   Hosted GitHub runners handle the source and package checks. The controller
+   owns the disposable VM, its credentials, and the private evidence.
+4. From a clean main checkout matching origin, run:
 
    ```bash
    desktop/scripts/release.sh VERSION CANDIDATE_RUN_ID /private/path/acceptance.json
@@ -25,8 +28,9 @@ owns exact source, workflow identities, public authentication and delivery.
 From 0.6.9, first complete the packaged candidate acceptance below. Earlier
 versions retain the historical one-argument flow. The script validates
 increasing versions, required notes and the acceptance envelope, pushes an immutable
-annotated tag, and dispatches `desktop-release.yml`. Its reusable Mac, Windows and Linux
-jobs build all six targets at the same source, version, and workflow attempt.
+annotated tag, and dispatches `desktop-release.yml` to promote the candidate.
+The candidate's reusable Mac, Windows and Linux jobs build all six targets
+at the same source, version, and workflow attempt.
 Protected signing runs only on main. Mac packages are signed, notarized, and
 stapled; Windows app, uninstaller, installer, provider, and runtime catalog are
 signed. All families authenticate updater signatures and signed versions.
@@ -48,11 +52,62 @@ SHA-256 digests match. Missing targets fail publication; tags, drafts and
 published assets are never overwritten. It preserves the repository-wide latest
 pointer and the existing product update endpoint.
 
-## Accept a candidate before publication
+## Smoke a signed candidate
+
+From 0.7.7, one disposable Apple silicon VM can qualify the exact signed
+candidate for release. The smoke checks that the installed CLI reaches the
+resident, Browser access starts Off, an authorized browser save reaches an
+independent server with the expected bytes, and an actual reboot clears the
+armed consent. It then observes the opaque cover, applies one native action,
+and confirms that the native Stop shortcut ends the owner, relocks the guest,
+and clears both surfaces. Hosted CI still verifies packages for all six
+architectures.
+
+After resolving the private credential locator and beginning a provisioning
+journal, run:
+
+```bash
+python3 tests/macos/release-smoke.py \
+  --candidate-run CANDIDATE_RUN_ID --team-id EXPECTED_TEAM \
+  --target macos --claimant-authority release-maintainer \
+  --claimant-id release-smoke --provision-run PROVISION_RUN \
+  --admin-secret-file /private/path/canonical-login.secret \
+  --output /private/path/new-smoke
+```
+
+The command requires the exact clean candidate checkout. Use
+`--package-directory` in place of `--candidate-run` to reuse a downloaded
+candidate. The same signed package verification runs either way.
+`--development` allows rehearsal with an earlier signed candidate.
+
+Use a prepared base with Chrome for Testing and the approved appliance
+observer. Keep the Tart window open on an awake, unlocked controller. The
+first workspace check captures a frame from that exact window before
+installing the app. If the window is missing and the claimed runner is the
+only Tart application, preflight requests one background reopen. The later
+cover samples only observe the window.
+The smoke targets 5–10 minutes on a ready controller.
+The workspace run requests cleanup at a 12-minute deadline.
+
+**GO** means `acceptance.json` passed validation and the VM and claim
+were both released. **STOP** identifies the last stage and points to
+`failure.json` and `workspace.log`. `controller.timings.json` measures total
+elapsed time including package download and verification.
+`workspace.timings.json` breaks down acquisition, install, browser, reboot,
+cover, native action, Stop and cleanup. Both timing files are controller
+wall time. Development runs produce the private reports and timings.
+
+A rehearsal with the signed 0.7.6 candidate took 4m 58s including download
+and verification. The workspace took 4m 21s. The browser round trip took
+38s, reboot took 52s, protected activation and cover observation took 35s,
+and Stop and disposal took 26s. Use the timing files to compare later runs.
+
+## Run packaged reliability or focused scenarios
 
 This is required from 0.6.9 for the Mac ARM64 packaged browser/crash slice.
 From 0.6.11 the release receipt also requires the covered reliability campaign
-below. Historical 0.6.9–0.6.10 receipts retain their earlier contract.
+below through 0.7.6. From 0.7.7 a completed reliability receipt can also
+qualify a release. Historical 0.6.9–0.6.10 receipts retain their earlier contract.
 Other platform GUI acceptance remains distinct from package verification.
 
 Build the entire release matrix without creating a tag or public release:
@@ -71,8 +126,9 @@ the original app/policy/LaunchAgent/operator state and original power state.
 The guest's independent Aqua LaunchAgent still operates Settings. The cover
 checks take a passive frame of the exact claimed Tart window using existing
 controller Screen Recording consent. The unlocked controller needs an awake
-display and an on-screen Tart window. Its attendance cannot be set to
-`attended`, and the target must allow outer observation. The observer does
+display and an on-screen Tart window. Keep the window open through both
+phases. The controller's attendance cannot be set to `attended`, and the
+target must allow outer observation. The observer does
 not focus the window, post input, or invoke the guest's screen-capture APIs.
 A native permission prompt over the cover still fails the display check. Each covered frame must
 follow an independently observed frame without the cover in the same window.
@@ -119,16 +175,27 @@ python3 tests/macos/reliability-acceptance.py \
   --output /private/path/new-reliability-evidence --seed 141
 ```
 
-The complete campaign includes the browser/crash slice, clean/crash consent,
-saved choices after Stop/relaunch, independent native/browser model/save/reload
-and hover effects, unfiltered cover presentation, protected fault recovery,
-actual 900-second expiry, and at least 960 seconds under one renewed owner.
-It also verifies relay loss after acknowledged renewals. A second sequential
-workspace checks visible Stop/relaunch choices and actual cold boot: choices
-remain, and pre-boot authorization does not. The wrapper creates and closes
-that workspace's own private provisioning journal.
-Allow roughly an hour. It uses target-native control and passive window
-observation without a focused VM window or controller input. A closed
+The complete campaign includes the browser/crash slice, consent after clean
+quit and crash, independent native/browser model, save, reload and hover
+effects, unfiltered cover presentation, protected fault recovery, real lease
+expiry, and multiple acknowledged renewals under the same owner. It also
+verifies relay loss after renewal. A second workspace checks native Stop,
+saved choices after relaunch and cold boot with access Off. The wrapper
+creates and closes that workspace's own private provisioning journal.
+`campaign.timings.json` and `reboot.timings.json` split the private wall-time
+measurements across the two scopes, including partial runs.
+
+Starting with 0.7.7, the standard release profile requests a real 60-second
+expiry and holds one renewed owner for 120 seconds. These are ordinary lease
+requests to the signed app. Use `--timing-profile extended` to run a real
+900-second expiry and maintain the same renewed owner for at least 960 seconds.
+The extended profile proves that the same owner can cross the 15-minute
+boundary, and remains the required profile through 0.7.6. Use
+`--development --timing-profile standard` to rehearse the shorter checks
+with a local app or an earlier signed candidate.
+
+The harness uses target-native control and passive window observation
+without a focused VM window or controller input. A closed
 security/display profile is retained in
 the receipt: SIP-disabled results do not establish SIP-enabled behavior.
 Kernel-posted pointer diagnostics are reported separately; neither they nor
@@ -142,9 +209,9 @@ apps remain ineligible. A failure, timeout, interrupted run or uncertain disposa
 cannot produce the final receipt. Finish the private journal with that outcome.
 
 For development only, `--resume-campaign /private/path/completed-campaign
---development` may repeat the cold-boot phase using the previous controller
-output's archived app. It first verifies the completed/disposed scope and full
-sustained results. This supports repair of a later fixture/recording failure;
+--development` may repeat the cold-boot phase using a completed extended
+campaign's archived app. It first verifies the completed/disposed scope and
+full sustained results. This supports repair of a later fixture/recording failure;
 it cannot enter release mode or emit a release receipt. The reboot itself is
 submitted once through guest launchd, with changed kernel boot time as the
 independent effect proof, so losing the guest does not require killing an
@@ -165,8 +232,9 @@ qualification; final acceptance always imports the exact bundled SDK.
 
 No CI runner currently reaches the prepared VM. This is maintainer/controller
 attestation of execution, not a claim that hosted CI ran the GUI or independently
-attested the machine. The receipt contains only closed coverage, source/version,
-workflow attempt, archive hash, seed/counts and cleanup status. No target names,
+attested the machine. The receipt contains closed coverage, source/version,
+workflow attempt, archive hash and cleanup status. Reliability receipts also
+contain the seed, check counts and timing configuration. No target names,
 endpoints, raw logs, screenshots or crash reports are accepted. Hosted CI verifies
 that receipt against the exact authenticated Mac archive before publication.
 

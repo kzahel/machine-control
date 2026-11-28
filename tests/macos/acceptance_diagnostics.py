@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 
 
 MARKER = b'MC_ACCEPTANCE_CHECK '
@@ -12,12 +13,56 @@ GUEST_CHECKS = {
     'guest_campaign': {'browser_file_dialogs', 'remote_arming', 'crash_postflight', 'candidate_integrity'},
     'covered_control': {'capture_display', 'verify_cover_baseline', 'verify_concealment', 'finite_owner_expiry', 'renew_owner',
                         'observe_same_owner', 'observe_guardian', 'verify_browser_effects', 'owner_disconnect'},
+    'controller_package': {'verify_candidate', 'stage_payload', 'restore_guest'},
+    'reliability_reboot': {'stage_candidate', 'verify_credential', 'protected_stop', 'reboot_after_stop',
+                           'save_choices', 'reboot_with_consent', 'verify_choices'},
+    'smoke_preflight': {'boot_guest', 'capture_display'},
+    'smoke_install': {'stage_candidate', 'verify_credential', 'initialize_observer', 'install_candidate'},
+    'smoke_browser': {'access_off', 'start_browser', 'browser_round_trip'},
+    'smoke_boot': {'reboot', 'access_off'},
+    'smoke_protected': {'helper_setup', 'compile_fixture', 'cover', 'native_effect', 'stop_and_relock'},
+    'smoke_cleanup': {'stop_guest'},
 }
 
 
 def announce(phase, check):
     assert check in GUEST_CHECKS[phase]
     print(f'{MARKER.decode("ascii")}{phase} {check}', flush=True)
+
+
+def parse_step(line):
+    if not line.startswith(MARKER) or len(line) > 128:
+        return None
+    try:
+        phase, check = line[len(MARKER):].decode('ascii').split()
+    except (UnicodeError, ValueError):
+        return None
+    return (phase, check) if check in GUEST_CHECKS.get(phase, ()) else None
+
+
+class Timings:
+    """Controller wall time, including transport and workspace lifecycle."""
+    def __init__(self, clock=time.monotonic, initial_step='workspace/acquire'):
+        self.clock = clock
+        self.started = self.changed = clock()
+        self.current = initial_step
+        self.steps = []
+
+    def observe(self, line):
+        step = parse_step(line)
+        if step:
+            self.step('/'.join(step))
+
+    def step(self, name):
+        if self.current != name:
+            now = self.clock()
+            self.steps.append({'step': self.current, 'seconds': round(now - self.changed, 3)})
+            self.current, self.changed = name, now
+
+    def finish(self, path, passed):
+        self.step('complete')
+        path.write_text(json.dumps({'passed': passed, 'elapsedSeconds': round(self.changed - self.started, 3),
+                                    'steps': self.steps}, indent=2) + '\n')
 
 
 class FailureReport:
@@ -34,15 +79,10 @@ class FailureReport:
         self.check = check
 
     def observe(self, line):
-        if not line.startswith(MARKER) or len(line) > 128:
+        step = parse_step(line)
+        if not step:
             return False
-        try:
-            phase, check = line[len(MARKER):].decode('ascii').split()
-        except (UnicodeError, ValueError):
-            return False
-        if check not in GUEST_CHECKS.get(phase, ()):
-            return False
-        self.step(phase, check)
+        self.step(*step)
         return True
 
     def failed(self, error):
