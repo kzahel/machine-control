@@ -24,9 +24,44 @@ def load(script):
 
 controller = load('packaged-acceptance')
 reliability = load('reliability-acceptance')
+display = load('acceptance_display')
 
 
 class AcceptanceDiagnosticsTests(unittest.TestCase):
+    def test_display_requests_deliver_one_fresh_frame_to_the_owned_stage(self):
+        stage = Path('/fixture/owned-stage')
+        token = b'9' * 32
+        line = display.MARKER + token + b'\n'
+        capture = mock.Mock(return_value=display.PNG + b'fixture')
+        send = mock.Mock()
+        seen = set()
+        self.assertFalse(display.deliver_frame(b'ordinary guest output\n', stage, capture, send, seen))
+        self.assertTrue(display.deliver_frame(line, stage, capture, send, seen))
+        send.assert_called_once_with(stage / f'display-frame-{token.decode()}.png', capture.return_value)
+        for invalid in (line, display.MARKER + b'../../../outside.png\n'):
+            with self.assertRaises(ValueError):
+                display.deliver_frame(invalid, stage, capture, send, seen)
+        capture.assert_called_once_with()
+
+    def test_display_refusal_cannot_deliver_a_frame(self):
+        capture = mock.Mock(return_value=b'unavailable')
+        send = mock.Mock()
+        with self.assertRaises(ValueError):
+            display.deliver_frame(display.MARKER + b'8' * 32 + b'\n', Path('/fixture/stage'),
+                                  capture, send, set())
+        send.assert_not_called()
+
+    def test_a_stale_cover_cannot_pass_the_pre_unlock_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'observe-acceptance-cover').touch()
+            frame = display.PNG + b'stale covered display'
+            result = SimpleNamespace(returncode=0, stdout=b'{"sampledConcealment":true,"coverTextObserved":true}')
+            with (mock.patch.object(display, 'request_frame', return_value=frame),
+                  mock.patch.object(display.subprocess, 'run', return_value=result)):
+                with self.assertRaises(AssertionError):
+                    display.observe_cover(root / 'source', root, 'baseline', covered=False)
+
     def test_failed_guest_check_is_journaled_after_observed_cleanup(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

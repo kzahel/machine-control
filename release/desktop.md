@@ -68,10 +68,14 @@ session, an existing healthy managed appliance resident, and normal Developer ID
 consent. It verifies updater signatures, notarization and bundle identity before
 installation, temporarily selects the stricter workstation policy, and restores
 the original app/policy/LaunchAgent/operator state and original power state.
-The independent display observer runs as a temporary Aqua LaunchAgent. This
-keeps capture attributed to the managed observer's existing macOS permission
-when the controller reaches the guest through Tart. A native permission prompt
-over the cover still fails the independent display check.
+The guest's independent Aqua LaunchAgent still operates Settings. The cover
+checks take a passive frame of the exact claimed Tart window using existing
+controller Screen Recording consent. The unlocked controller needs an awake
+display and an on-screen Tart window. Its attendance cannot be set to
+`attended`, and the target must allow outer observation. The observer does
+not focus the window, post input, or invoke the guest's screen-capture APIs.
+A native permission prompt over the cover still fails the display check. Each covered frame must
+follow an independently observed frame without the cover in the same window.
 
 ```bash
 bin/machine-control --target macos run \
@@ -123,8 +127,9 @@ It also verifies relay loss after acknowledged renewals. A second sequential
 workspace checks visible Stop/relaunch choices and actual cold boot: choices
 remain, and pre-boot authorization does not. The wrapper creates and closes
 that workspace's own private provisioning journal.
-Allow roughly an hour. It uses target-native control without a focused VM
-window or controller input. A closed security/display profile is retained in
+Allow roughly an hour. It uses target-native control and passive window
+observation without a focused VM window or controller input. A closed
+security/display profile is retained in
 the receipt: SIP-disabled results do not establish SIP-enabled behavior.
 Kernel-posted pointer diagnostics are reported separately; neither they nor
 this receipt certify physical mouse/keyboard, lid/wake or multiple displays.

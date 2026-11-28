@@ -3,7 +3,8 @@
 
 Run under the common CLI's isolated, discard-on-release workspace. The guest
 deliberately leaves the candidate installed for disposal: this is not an
-in-place appliance upgrade or a release receipt. No outer UI is used.
+in-place appliance upgrade or a release receipt. The covered check observes
+the exact Tart window without focusing it or sending controller input.
 """
 import argparse
 from contextlib import ExitStack
@@ -213,6 +214,7 @@ def main():
     if a.guest_stage:
         guest(a.guest_stage, a.claim, a.verify, a.protected_stop)
         return
+    from acceptance_display import MARKER, deliver_frame, stage_frame
     if not a.app or not a.output or not a.admin_secret_file or not os.environ.get('MACHINE_CONTROL_WORKSPACE_HANDLE'):
         p.error('--app/--output/--admin-secret-file and an isolated common claim scope are required')
     repo = Path(__file__).resolve().parents[2]
@@ -239,7 +241,7 @@ def main():
             tar.add(__file__,arcname='reboot-choices.py')
             tar.add(repo/'tests/macos/verify-appliance-credential.swift',arcname='verify-credential.swift')
             tar.add(repo/'platforms/macos/resident/scripts/install-user.sh',arcname='install-user.sh')
-            for name in ['tests/macos/surface_fixture.py','tests/macos/surface_reboot.py','tests/macos/surface-policy-live.py','tests/macos/surface-covered-live.py','tests/macos/session-lock.m','tests/macos/cover-observation.swift','platforms/macos/guests/macos/fixture/MachineControlFixture.swift','platforms/macos/guests/macos/unlock/Session.h','platforms/macos/guests/macos/unlock/Relock.h','platforms/chromeos/cdp.py']:
+            for name in ['tests/macos/acceptance_display.py','tests/macos/surface_fixture.py','tests/macos/surface_reboot.py','tests/macos/surface-policy-live.py','tests/macos/surface-covered-live.py','tests/macos/session-lock.m','tests/macos/cover-observation.swift','platforms/macos/guests/macos/fixture/MachineControlFixture.swift','platforms/macos/guests/macos/unlock/Session.h','platforms/macos/guests/macos/unlock/Relock.h','platforms/chromeos/cdp.py']:
                 tar.add(repo/name,arcname='source/'+name)
         with archive.open('rb') as stream:
             call('testbed','--','exec','-i','tar','-xf','-','-C',remote,stdin=stream)
@@ -272,10 +274,15 @@ def main():
         surface_model=(a.app/'Contents/Resources/shared-policy/payload.json').is_file()
         if surface_model:
             attempted=False
+            frames=set()
             process=subprocess.Popen(mc+args+['--protected-stop'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
             try:
                 for line in process.stdout:
-                    if line.startswith(b'MC_CREDENTIAL_LEASE '):
+                    if line.startswith(MARKER):
+                        deliver_frame(line, Path(remote),
+                                      lambda: call('testbed','--','acceptance-display-frame',capture_output=True).stdout,
+                                      lambda frame, contents: stage_frame(call, frame, contents), frames)
+                    elif line.startswith(b'MC_CREDENTIAL_LEASE '):
                         import re
                         lease=json.loads(line[len(b'MC_CREDENTIAL_LEASE '):])
                         assert not attempted and set(lease)=={'leaseId'} and re.fullmatch(r'[0-9a-fA-F-]{36}:auth:[0-9a-fA-F-]{36}',lease['leaseId'])

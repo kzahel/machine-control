@@ -120,6 +120,8 @@ For a bounded signed-package investigation, the controller's
 --covered-probe --covered-duration 600 --covered-renewal-seconds 120` adds actual
 ten-minute expiry to the existing short probe. Supply its required signed app,
 private output and canonical credential locator inside a common isolated scope.
+Set `MACHINE_CONTROL_TART_ACCEPTANCE_DISPLAY=1` for that scope to enable the
+passive exact-window cover observer used by the release controller.
 Finite and renewed owners exercise native browser model/Save/reload; HTTP save
 counts detect same-value duplicate saves. The diagnostic suppresses Python
 bytecode in both the importing process and bundled adapter, and verifies the

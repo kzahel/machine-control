@@ -476,40 +476,32 @@ def run(c):
                 'nativeFixture':json.loads(c['fixture_state'].read_text()),'writeReplayed':False}
     c['diagnose_browser_ending'] = diagnose_browser_ending
 
-    def visible_cover():
+    def visible_cover(*, covered):
+        from acceptance_display import observe_cover
         progress('covered_control', 'capture_display')
-        tool = c['root'] / 'cover-observation'
-        if not tool.exists():
-            subprocess.run(['xcrun', 'swiftc', str(c['source_root'] / 'tests/macos/cover-observation.swift'),
-                            '-o', str(tool)], capture_output=True, check=True, timeout=90)
-        # The independent appliance has no covered owner/capture exclusion.
-        # Lock legitimately retired its prior Desktop fence. Begin this
-        # explicit independent read phase under the now-covered console;
-        # never reuse a pre-lock reference or cycle the SUT's live owner.
-        if c.get('rig') is not None:c['rig'].close_observer()
-        result = c['exchange'](c['observer'], 'capture', scope='display', provider='macos-native')
-        assert result.get('accepted') and result.get('fidelity') == 'full_display'
-        image = Path(result['data']['artifactPath'])
-        c['cover_observation_trial'] = c.get('cover_observation_trial', 0) + 1
-        prefix = 'cover-observation-' + str(c['cover_observation_trial'])
-        with os.fdopen(os.open(c['evidence'] / (prefix + '.png'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as stream:
-            stream.write(image.read_bytes())
-        observed = subprocess.run([str(tool), str(image)], capture_output=True, text=True, timeout=30)
-        report = json.loads(observed.stdout)
-        with os.fdopen(os.open(c['evidence'] / (prefix + '.json'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
-            json.dump(report, stream)
-        progress('covered_control', 'verify_concealment')
-        assert observed.returncode == 0 and report['sampledConcealment'], report
-        check('independent unfiltered display samples and rendered cover title conceal the fixture')
+        if covered:
+            if c.get('rig') is not None:
+                c['rig'].close_observer()
+            prefix = 'cover-observation-'
+            progress('covered_control', 'verify_concealment')
+        else:
+            assert c['locked'](), 'The baseline must precede protected unlock'
+            c['cover_observation_trial'] = c.get('cover_observation_trial', 0) + 1
+            prefix = 'cover-baseline-'
+            progress('covered_control', 'verify_cover_baseline')
+        observe_cover(c['source_root'], c['evidence'], prefix + str(c['cover_observation_trial']), covered=covered)
+        if covered:
+            check('independent unfiltered display samples and rendered cover title conceal the fixture')
 
     def full_duration():
         duration = c.get('covered_duration', 0)
         if not duration:
             return
+        visible_cover(covered=False)
         progress('covered_control', 'finite_owner_expiry')
         started = time.monotonic()
         active = start(duration=duration)
-        effect(); text_and_hover(); visible_cover()
+        effect(); text_and_hover(); visible_cover(covered=True)
         progress('covered_control', 'finite_owner_expiry')
         next_effect = time.monotonic() + 60
         while owner.poll() is None:
@@ -935,8 +927,9 @@ def run(c):
 
     try:
         startup_timeout()
+        visible_cover(covered=False)
         active = start(); effect()
-        text_and_hover(); visible_cover()
+        text_and_hover(); visible_cover(covered=True)
         call('session.control.end', controlSessionId=active['controlSessionId']); ended()
         if c.get('covered_probe'):
             for _ in range(12):

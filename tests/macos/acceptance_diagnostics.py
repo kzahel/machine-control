@@ -10,7 +10,7 @@ MARKER = b'MC_ACCEPTANCE_CHECK '
 GUEST_CHECKS = {
     'guest_setup': {'verify_observer', 'backup_original', 'start_observer', 'install_candidate', 'verify_candidate'},
     'guest_campaign': {'browser_file_dialogs', 'remote_arming', 'crash_postflight', 'candidate_integrity'},
-    'covered_control': {'capture_display', 'verify_concealment', 'finite_owner_expiry', 'renew_owner',
+    'covered_control': {'capture_display', 'verify_cover_baseline', 'verify_concealment', 'finite_owner_expiry', 'renew_owner',
                         'observe_same_owner', 'observe_guardian', 'verify_browser_effects', 'owner_disconnect'},
 }
 

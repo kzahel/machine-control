@@ -17,6 +17,7 @@ import socket
 import subprocess
 import time
 import uuid
+from acceptance_display import observe_cover
 
 
 def main():
@@ -60,13 +61,19 @@ def main():
 
     def observe(operation,*,expect_stop=False,**fields):
         nonlocal observer_owner
+        if observer_owner is not None and observer_owner.status()['state'] != 'active':
+            # A lock transition can fence the prior observer without leaving
+            # a new activation offer. Replace the read-only selection before
+            # making the next independent request, especially native Stop.
+            observer_owner.close()
+            observer_owner=None
         if observer_owner is None:
             result=exchange(args.observer_socket,operation,provider='macos-native',**fields)
             if result.get('errorCode')!='control_session_required':
                 assert result.get('accepted'),result.get('errorCode');return result.get('data',{})
             assert result.get('delivery')=='refused' and result.get('uncertainty')=='none'
             observer_owner=actor.Owner(args.observer_socket,args.claim,['desktop'],duration=900)
-        if observer_owner.status()['state']!='active':observer_owner.wait()
+            observer_owner.wait()
         result=observer_owner.call(operation,provider='macos-native',**fields)
         if expect_stop:
             # Stop/relock can fence this independent observer after delivery.
@@ -170,6 +177,8 @@ def main():
         sessions=[]
         for number in [1,2]:
             before=oracle()['count']
+            assert locked()
+            observe_cover(args.source_root, root, f'cover-baseline-{number}', covered=False)
             # Task 1 keeps the flagless compatibility owner; task 2 uses the
             # common --prepared-console request (Tactical 159 decision 1).
             with actor.Owner(endpoint,args.claim,['desktop'],prepared_console=number==2) as owner:
@@ -181,16 +190,8 @@ def main():
                 check('covered task '+str(number)+' holds its first observation until native readiness')
                 poll(lambda:status()['lockedUse']['phase']=='active','covered activation',60)
                 check('covered task '+str(number)+' unlocks the same console behind a guard',not locked() and status()['lockedUse']['coveredDisplays']>0)
-                cover_tool=root/'cover-observation'
-                if not cover_tool.exists():
-                    subprocess.run(['xcrun','swiftc',str(args.source_root/'tests/macos/cover-observation.swift'),'-o',str(cover_tool)],check=True,capture_output=True,timeout=90)
-                actual_display=observe('capture',scope='display')
-                image=Path(actual_display['artifactPath'])
-                private_image=root/('unfiltered-cover-'+str(number)+'.png')
-                private_image.write_bytes(image.read_bytes());private_image.chmod(0o600);image.unlink()
-                inspected=subprocess.run([str(cover_tool),str(private_image)],capture_output=True,text=True,timeout=30)
-                visual=json.loads(inspected.stdout)
-                check('covered task '+str(number)+' independently conceals the real display',inspected.returncode==0 and visual['sampledConcealment'])
+                observe_cover(args.source_root, root, f'unfiltered-cover-{number}', covered=True)
+                check('covered task '+str(number)+' independently conceals the real display')
                 button=next(row for row in snapshot['elements'] if row.get('identifier')=='fixture.increment' or row.get('label')=='Increment')
                 accepted(owner.call('action',provider='macos-native',reference=button['reference'],action='press'))
                 poll(lambda:oracle()['count']==before+1,'independent protected fixture effect',5)

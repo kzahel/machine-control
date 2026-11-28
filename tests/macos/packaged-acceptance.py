@@ -3,7 +3,8 @@
 
 Run on the controller under `machine-control --target macos run`. All evidence
 stays in a new private directory outside the checkout. The guest restores its
-app/policy/operator state; this runner restores power. No outer UI is used.
+app/policy/operator state; this runner restores power. Covered checks observe
+the exact Tart window without focusing it or sending input.
 Local builds require --development and cannot qualify release acceptance.
 """
 import argparse
@@ -21,6 +22,7 @@ import tarfile
 import tempfile
 import uuid
 from acceptance_diagnostics import FailureReport
+from acceptance_display import MARKER, deliver_frame, stage_frame
 
 
 def main():
@@ -136,6 +138,7 @@ def run_controller(a, repo, mc, report):
         with tarfile.open(archive_path, 'w') as archive:
             archive.add(app, arcname='candidate/Machine Control.app')
             for name in ['tests/macos/packaged-acceptance-guest.py', 'tests/macos/acceptance_diagnostics.py',
+                         'tests/macos/acceptance_display.py',
                          'tests/macos/browser-file-dialogs.py', 'tests/macos/remote-arming.py',
                          'tests/macos/browser_dialog_probe.py',
                          'tests/macos/surface_fixture.py', 'tests/macos/surface-policy-live.py', 'tests/macos/surface-covered-live.py',
@@ -180,12 +183,18 @@ def run_controller(a, repo, mc, report):
             # The guest exposes only a validated one-shot lease. No password
             # enters request JSON, argv, environment, evidence or ordinary logs.
             attempted = False
+            frames = set()
             report.step('guest_setup', 'verify_observer')
             proc = subprocess.Popen(mc + argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             try:
                 for line in proc.stdout:
                     report.observe(line)
-                    if line.startswith(b'MC_CREDENTIAL_LEASE '):
+                    if line.startswith(MARKER):
+                        if not a.covered_recovery:
+                            raise ValueError('Unexpected acceptance frame request')
+                        deliver_frame(line, Path(remote), lambda: call('testbed', '--', 'acceptance-display-frame'),
+                                      lambda frame, contents: stage_frame(call, frame, contents), frames)
+                    elif line.startswith(b'MC_CREDENTIAL_LEASE '):
                         report.step('guest_campaign', 'authorize_native_sheet')
                         assert a.covered_recovery and not attempted, 'Unexpected or repeated credential request'
                         lease = json.loads(line[len(b'MC_CREDENTIAL_LEASE '):])

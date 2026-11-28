@@ -11,6 +11,7 @@ import sys
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=int, required=True)
+    parser.add_argument("--show-errors", action="store_true")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -18,7 +19,7 @@ def main() -> int:
         parser.error("a positive deadline and command are required")
     try:
         child = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                 stderr=subprocess.DEVNULL,
+                                 stderr=None if args.show_errors else subprocess.DEVNULL,
                                  start_new_session=True)
     except OSError:
         return 127

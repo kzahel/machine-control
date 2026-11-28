@@ -79,6 +79,7 @@ done
     >/dev/null
 
 /usr/bin/swiftc -typecheck providers/tart-macos/host-control.swift
+/usr/bin/swiftc -typecheck providers/tart-macos/acceptance-display.swift
 /usr/bin/swiftc -typecheck tests/fixtures/outer-keyboard.swift
 /usr/bin/swiftc -typecheck providers/tart-macos/normalize-screenshot.swift
 /usr/bin/swiftc -typecheck -framework SystemConfiguration \

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Claim, run packaged reliability acceptance, and verify disposable cleanup.
 
-This is a controller entry point, outside an existing claim scope. It never
-uses the controller's desktop. Raw evidence and run receipts stay private.
+This is a controller entry point, outside an existing claim scope. It observes
+the exact Tart window without focusing it or sending controller input.
+Raw evidence and run receipts stay private.
 """
 import argparse
 import importlib.util
@@ -47,7 +48,8 @@ def run_claimed(args, path, diagnose_failure=None):
             pass
 
     def run(log):
-        proc = subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                                env={**os.environ, 'MACHINE_CONTROL_TART_ACCEPTANCE_DISPLAY':'1'})
         try:
             for line in proc.stdout:
                 log.write(line); log.flush()
